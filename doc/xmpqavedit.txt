@@ -1,0 +1,153 @@
+ /////////////////////////////////
+ // XMAPEDIT QAV ANIMATION EDITOR [APR 17 2022]
+ /////////////////////////////////////////////////////////////////////////////
+
+ XMP QAVEDIT is the tool for editing QAV files which contains the 2D world (screen)
+ animation such as weapon or interface. This version can handle up to 4096 frames and'
+ each of it may contain up to 8 layers that have it's own properties (tile number,
+ zoom, palette and so on).
+ 
+ Loading any map and then starting qavedit allows to edit animation directly
+ in 3D Mode. It gives additional advantages such as reflecting shade or
+ palookup that affects the whole animation appearance.
+ 
+ Also note that ARTEDIT tool is fully available in QAVEDIT directly, so
+ you can add new or remove images that is required for your
+ animation.
+
+ HOW TO USE:
+ ==================================================================
+ The following ways available to start:
+ 1. Select QAV in the "Tools" section of the main menu.
+ 2. Xmapedit is smart enough, so you can open QAV files directly from Windows explorer.
+ 3. Launch xmapedit using command prompt. Example: "xmapedit bunfuse" opens
+    bunfuse.qav for editing. You may also type qav file rffID, for
+    example "xmapedit 21" will open bunfuse.qav for editing too.
+    
+
+ BRIEF INTERFACE DESCRIPTION:
+ ==================================================================
+
+ The first line in the status bar on the top related to
+ current frame and it has the following properties:
+ ------------------------------------------------------------------
+ FRAME           - Shows the current and total number of frames.
+ TRIGGER         - Callback function ID that will be called once this frame reached.
+ SOUND           - Sound ID that will be played once this frame reached.
+ PRIORITY        - Sound priority. It must be unique for each different SOUND ID.
+ TICKS PER FRAME - Each ticks is 1/120th of a second, and lower numbers mean faster playback.
+                   You can calculate frame rate by dividing TPF into 120. For example 12 TPF
+                   would result in 10 frames per second, and 5 TPF would result in 24 frames
+                   per second.
+
+ The second line shows properties of the current layer:
+ ------------------------------------------------------------------
+ LAYER            - Shows the current and total number of layer (max. 8).
+ TILE             - A tile number.
+ SHADE            - Shade of the tile.
+ PALETTE          - Palette of the tile.
+ ZOOM             - Scale of the tile.
+ ANGLE            - Angle in Build Engine units (2048 = 360deg).
+ X                - X-coordinate on the screen relative to origin.
+ Y                - Y-coordinate on the screen relative to origin.
+
+ The last line shows additional information:
+ ------------------------------------------------------------------
+ If you switched in 3D Mode and start playing the animation a view
+ section may appear in the left side of the hud. It contains the value of
+ global shade and/or palette that currently affects the animation. These view
+ effects depends on the sector you are in. If you don't see any - it simply
+ means that there is no side effects and you see animation as intended.
+
+ In the middle part of the screen is the filename you currently
+ editing. If file loaded from inside RFF, it shows file ID in addition to
+ name.
+
+ The right part contains timer (see ticks per frame) and global
+ animation origin type.
+ 
+
+ GLOBAL ORIGIN NOTES:
+ ==================================================================
+ Be sure to select "Player origin" if you plan animation as weapon or
+ something else that supposed to be in player hands. Select "Screen
+ origin" if it must be played in the middle of the screen.
+ 
+ It's important to use correct origin. Selecting wrong type
+ may make animation invisible.
+
+
+ KEYBOARD FUNCTIONS:
+ ==================================================================
+
+    GENERAL:
+    ---------------------------------------------------
+    [ESC] .................................. Quit editor / Stop playback.
+    [F1] ................................... Start new animation.
+    [F2] ................................... Save the animation.
+    [CTRL] + [F2] .......................... Save the animation As.
+    [F3] ................................... Load the animation from disk or RFF.
+    [F4] ................................... Import animation from disk or RFF.
+    [F11] .................................. Load previous existing qavID from the RFF.
+    [F12] .................................. Load next existing qavID from the RFF.
+    [F8] ................................... Change global origin type.
+    [F10] .................................. Play the sound assigned to frame.
+    [SPACE] ................................ Play the animation continuously.
+    [SHIFT] + [SPACE] ...................... Play the animation once.
+                                             - Hold [CTRL] and/or [ALT] to slowdown the speed.
+                                             - Press [SPACE] again to pause playback.
+    [1] or [2] ............................. Go backward / forward one frame.
+    [HOME] ................................. Go to first frame.
+    [END] .................................. Go to last frame.
+    [G] .................................... Go to frame N.
+    [TAB] .................................. Copy entire frame in clipboard.
+    [PAD ENTER] ............................ Switch between edit modes (2D/3D).
+                                             - Note that 3D mode available only
+                                               if you load the map.
+
+    FRAME EDITING:
+    ---------------------------------------------------
+    [-] or [+] ............................. Change ticks per frame by +1 / -1.
+    [F9] ................................... Reverse frames order.
+    [F] .................................... Set trigger ID for current frame.
+    [R] .................................... Set sound priority.
+    [S] .................................... Set sound ID for current frame.
+    [CTRL] + [S] ........................... Set random sound range relatively.
+                                             - This feature allows to play sounds in
+                                               specified range. Example: Sound ID = 300, Range = 4
+                                               will select randomly 300,301,302 or 304 and play it.
+                                               NBlood/Raze compatible.
+    [ALT] + [INSERT] ....................... Insert new frame after current.
+    [ALT] + [DELETE] ....................... Delete current frame.
+    [ALT] + [ENTER] ........................ Paste entire frame from clipboard.
+
+
+    TILE EDITING:
+    ---------------------------------------------------
+    [INSERT] ................................ Copy current tile to next frame.
+    [DELETE] ................................ Delete current tile.
+    [ENTER] ................................. Paste tile from the clipboard.
+    [ALT] + [P] ............................. Select Palette via dialog.
+    [LSHIFT] + [P] .......................... Change Palette by +1.
+    [RSHIFT] + [P] .......................... Change Palette by -1.
+    [V] ..................................... Select tile picture.
+    [T] ..................................... Change translucency level.
+    [X] ..................................... Toggle flip-X flag.
+    [Y] ..................................... Toggle flip-Y flag.
+    [SHIFT] + [PAGE DN] or [PAGE UP] ........ Draw tile up or down a layer.
+    <ARROWS> (2D), <PAD ARROWS> or  [MOUSE1]. Change the tile position.
+                                              - Hold [ALT] to call dialog.
+    [<] or [>] .............................. Change tile angle.
+                                              - Hold [CTRL] and/or [SHIFT] for finer steps.
+    [PAD *] or [PAD /] ...................... Zoom In / Out tile.
+                                              - Hold [CTRL] and/or [SHIFT] for finer steps.
+    [PAD +] or [PAD -] ...................... Change tile shade by 1.
+                                              - Hold [ALT] to call dialog.
+    [PAD 0] ................................. Reset tile shade to 0.
+
+
+    LAYER EDITING:
+    ---------------------------------------------------
+    [PAGE DN] or [PAGE UP] ................. Move up or down a layer.
+    [CTRL] + [ENTER] ....................... Paste entire layer from clipboard.
+    [CTRL] + [DEL] ......................... Delete layer.

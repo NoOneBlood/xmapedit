@@ -1,0 +1,82 @@
+///////////////////////////////
+resource "INI\DEFAULTS.INI" as 0;	// default xmapedit settings
+resource "INI\HINTS.INI" as 1;		// hints for HUD edit dialogs
+resource "INI\STDCLR.INI" as 2;		// standard color palette
+///////////////////////////////
+
+
+// MONOCHROME QFONTS
+///////////////////////////////
+resource "QFN\MONO\FONT1.QFN" as 0;
+resource "QFN\MONO\FONT2.QFN" as 1;
+resource "QFN\MONO\FONT3.QFN" as 2;
+resource "QFN\MONO\SMALL1.QFN" as 3;
+resource "QFN\MONO\DESDEMON.QFN" as 4;
+resource "QFN\MONO\ARIAL12.QFN" as 5;
+resource "QFN\MONO\CALIB16.QFN" as 8;
+////////////////////////////////
+
+
+//VCOLOR QFONT TYPES
+///////////////////////////////
+resource "QFN\VCOLOR\FONTBLOD.QFN" as 6;
+resource "QFN\VCOLOR\FONTSMAL.QFN" as 7;
+//resource "QFN\VCOLOR\KFONT6.QFN" as 8;
+resource "QFN\VCOLOR\KFONT7.QFN" as 9;
+resource "QFN\VCOLOR\PFONT2O.QFN" as 10;
+resource "QFN\VCOLOR\TFONT1.QFN" as 11;
+resource "QFN\VCOLOR\TFONT3.QFN" as 12;
+///////////////////////////////
+
+// MONOCHROME VGA ROM FONTS
+///////////////////////////////
+resource "RFN\08X08DFL.RFN" as 0;
+resource "RFN\08X08DFS.RFN" as 1;
+//-------------------------------
+resource "RFN\08X08PH2.RFN" as 2;
+//resource "RFN\08X14PH2.RFN" as 3;
+//resource "RFN\08X16PH2.RFN" as 4;
+//-------------------------------
+//resource "RFN\08X08HYL.RFN" as 5;
+//resource "RFN\08X14HYL.RFN" as 6;
+resource "RFN\08X16HYL.RFN" as 7;
+//-------------------------------
+//resource "RFN\08X08LCD.RFN" as 8;
+//resource "RFN\08X14LCD.RFN" as 9;
+resource "RFN\08X16LCD.RFN" as 10;
+//-------------------------------
+resource "RFN\08X08TSB.RFN" as 11;
+//resource "RFN\08X14TSB.RFN" as 12;
+//resource "RFN\08X16TSB.RFN" as 13;
+//-------------------------------
+resource "RFN\08X08VTL.RFN" as 14;
+//resource "RFN\08X14TSB.RFN" as 15;
+//resource "RFN\08X16TSB.RFN" as 16;
+//-------------------------------
+///////////////////////////////
+
+// GUI IMAGES
+///////////////////////////////
+resource "QBM\ARROWUP2.QBM" as 0;
+resource "QBM\ARROWDN2.QBM" as 1;
+resource "QBM\ARROWLT2.QBM" as 2;
+resource "QBM\ARROWRT2.QBM" as 3;
+resource "QBM\DISK1.QBM" as 4;
+resource "QBM\MOUSE1.QBM" as 5;
+resource "QBM\UPARROW.QBM" as 6;
+resource "QBM\DNARROW.QBM" as 7;
+resource "QBM\ARROWDN.QBM" as 10;
+resource "QBM\ARROWRT.QBM" as 11;
+resource "QBM\ARROWLT.QBM" as 12;
+resource "QBM\ARROWUP.QBM" as 13;
+////////////////////////////////
+
+// variuous images
+///////////////////////////////
+resource "TGA\XMPICO.TGA" as 0;
+resource "TGA\NOTILE.TGA" as 1;
+
+// inverse table for creating PLUs
+///////////////////////////////////
+resource "DAT\INVERSE1.DAT" as 0;
+;

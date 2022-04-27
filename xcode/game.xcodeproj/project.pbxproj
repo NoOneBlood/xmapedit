@@ -1,0 +1,766 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 45;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AB053FAF0A33136D00FA2918 /* startwin.game.nib in Resources */ = {isa = PBXBuildFile; fileRef = AB053FAE0A33136D00FA2918 /* startwin.game.nib */; };
+		AB3DEDA21BD23DAB0009D070 /* Game Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB3DEDA11BD23DAB0009D070 /* Game Images.xcassets */; };
+		AB3DEDA41BD23EE70009D070 /* Editor Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB3DEDA31BD23EE70009D070 /* Editor Images.xcassets */; };
+		AB3E07660A33068500FF2442 /* startwin.editor.nib in Resources */ = {isa = PBXBuildFile; fileRef = AB3E07650A33068500FF2442 /* startwin.editor.nib */; };
+		AB3FE4680C0433D000D5DBDC /* libeditorsupp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AB3FE4580C04338D00D5DBDC /* libeditorsupp.a */; };
+		AB43D734219DAA2200718BCE /* SDL2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB7361220A29B9D4003261DC /* SDL2.framework */; };
+		AB43D735219DAA2200718BCE /* SDL2.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AB7361220A29B9D4003261DC /* SDL2.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AB43D737219DAA3300718BCE /* SDL2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB7361220A29B9D4003261DC /* SDL2.framework */; };
+		AB43D738219DAA3300718BCE /* SDL2.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AB7361220A29B9D4003261DC /* SDL2.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AB63425724305DAA002CDE1A /* names.h in Copy KenBuild game data */ = {isa = PBXBuildFile; fileRef = AB726D650F046E6E00730EAA /* names.h */; };
+		AB63425824305DB9002CDE1A /* ascboard.map in Copy KenBuild game data */ = {isa = PBXBuildFile; fileRef = AB726D610F046E6E00730EAA /* ascboard.map */; };
+		AB63425924305DBA002CDE1A /* boards.map in Copy KenBuild game data */ = {isa = PBXBuildFile; fileRef = AB726D620F046E6E00730EAA /* boards.map */; };
+		AB63425A24305DBC002CDE1A /* evilal.map in Copy KenBuild game data */ = {isa = PBXBuildFile; fileRef = AB726D630F046E6E00730EAA /* evilal.map */; };
+		AB63425B24305DC0002CDE1A /* kensig.map in Copy KenBuild game data */ = {isa = PBXBuildFile; fileRef = AB726D640F046E6E00730EAA /* kensig.map */; };
+		AB63425C24305DC3002CDE1A /* nsnoal.map in Copy KenBuild game data */ = {isa = PBXBuildFile; fileRef = AB726D660F046E6E00730EAA /* nsnoal.map */; };
+		AB63425D24305DC5002CDE1A /* nukeland.map in Copy KenBuild game data */ = {isa = PBXBuildFile; fileRef = AB726D670F046E6E00730EAA /* nukeland.map */; };
+		AB63425E24305DC8002CDE1A /* names.h in Copy KenBuild game data */ = {isa = PBXBuildFile; fileRef = AB726D650F046E6E00730EAA /* names.h */; };
+		AB63425F24305DCD002CDE1A /* stuff.dat in Copy KenBuild game data */ = {isa = PBXBuildFile; fileRef = AB726D680F046E6E00730EAA /* stuff.dat */; };
+		AB63426924305F35002CDE1A /* arttool in Copy additional editor tools */ = {isa = PBXBuildFile; fileRef = ABAE9AD60F0B308900A528DC /* arttool */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		AB63426A24305F35002CDE1A /* kextract in Copy additional editor tools */ = {isa = PBXBuildFile; fileRef = ABAE9C3E0F0CC83700A528DC /* kextract */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		AB63426B24305F35002CDE1A /* kgroup in Copy additional editor tools */ = {isa = PBXBuildFile; fileRef = ABAE9C400F0CC83700A528DC /* kgroup */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		AB63426C24305F35002CDE1A /* transpal in Copy additional editor tools */ = {isa = PBXBuildFile; fileRef = ABF1DD221BB82822007DE427 /* transpal */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		AB726D410F046BDE00730EAA /* kdmsound_sdl2.c in Sources */ = {isa = PBXBuildFile; fileRef = AB726D400F046BDE00730EAA /* kdmsound_sdl2.c */; };
+		AB73604B0A29AD5F003261DC /* libengine.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AB73601B0A29AA70003261DC /* libengine.a */; };
+		AB73605A0A29ADB5003261DC /* libengine.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AB73601B0A29AA70003261DC /* libengine.a */; };
+		AB73605B0A29ADB7003261DC /* libeditor.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AB73601D0A29AA70003261DC /* libeditor.a */; };
+		AB7361230A29B9D4003261DC /* SDL2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB7361220A29B9D4003261DC /* SDL2.framework */; settings = {ATTRIBUTES = (Required, ); }; };
+		AB7361240A29B9D4003261DC /* SDL2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB7361220A29B9D4003261DC /* SDL2.framework */; };
+		AB7361290A29BA60003261DC /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB7361280A29BA60003261DC /* CoreFoundation.framework */; };
+		AB73612A0A29BA60003261DC /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB7361280A29BA60003261DC /* CoreFoundation.framework */; };
+		AB73612D0A29BA7A003261DC /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB73612C0A29BA7A003261DC /* AppKit.framework */; };
+		AB73612E0A29BA7A003261DC /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB73612C0A29BA7A003261DC /* AppKit.framework */; };
+		AB829496231A5CAB0031B08F /* kdmsound.c in Sources */ = {isa = PBXBuildFile; fileRef = AB829494231A5CAB0031B08F /* kdmsound.c */; };
+		ABA9E32B0FEF9DD00024231F /* bstub.c in Sources */ = {isa = PBXBuildFile; fileRef = ABA9E3290FEF9DD00024231F /* bstub.c */; };
+		ABA9E3310FEF9E060024231F /* config.c in Sources */ = {isa = PBXBuildFile; fileRef = ABA9E32A0FEF9DD00024231F /* config.c */; };
+		ABA9E3350FEF9E470024231F /* game.c in Sources */ = {isa = PBXBuildFile; fileRef = ABA9E3320FEF9E470024231F /* game.c */; };
+		ABA9E3360FEF9E470024231F /* StartupWinController.m in Sources */ = {isa = PBXBuildFile; fileRef = ABA9E3340FEF9E470024231F /* StartupWinController.m */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AB3FE4570C04338D00D5DBDC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = AB3FE4550C04336F00D5DBDC;
+			remoteInfo = editorsupp;
+		};
+		AB63426024305EE4002CDE1A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = ABAE9AD10F0B307500A528DC;
+			remoteInfo = arttool;
+		};
+		AB63426224305EE4002CDE1A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = ABAE9C270F0CC80200A528DC;
+			remoteInfo = kextract;
+		};
+		AB63426424305EE4002CDE1A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = ABAE9C320F0CC81900A528DC;
+			remoteInfo = kgroup;
+		};
+		AB63426624305EE4002CDE1A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = ABD03E201A5189E00012B9D1;
+			remoteInfo = transpal;
+		};
+		AB73601A0A29AA70003261DC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = AB735F490A29A2DC003261DC;
+			remoteInfo = engine;
+		};
+		AB73601C0A29AA70003261DC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = AB735FCC0A29A916003261DC;
+			remoteInfo = editor;
+		};
+		AB7360490A29AD51003261DC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = AB735F480A29A2DC003261DC;
+			remoteInfo = engine;
+		};
+		AB7360560A29AD99003261DC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = AB735F480A29A2DC003261DC;
+			remoteInfo = engine;
+		};
+		AB7360580A29AD99003261DC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = AB735FCB0A29A916003261DC;
+			remoteInfo = editor;
+		};
+		ABAE9AD50F0B308900A528DC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = ABAE9AD20F0B307500A528DC;
+			remoteInfo = arttool;
+		};
+		ABAE9C3D0F0CC83700A528DC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = ABAE9C2E0F0CC80200A528DC;
+			remoteInfo = kextract;
+		};
+		ABAE9C3F0F0CC83700A528DC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = ABAE9C390F0CC81900A528DC;
+			remoteInfo = kgroup;
+		};
+		ABD2DF9321AC1C3D00BDB555 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = ABE362492144CA6500BA44B3;
+			remoteInfo = bin2c;
+		};
+		ABF1DD211BB82822007DE427 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = ABD03E211A5189E00012B9D1;
+			remoteInfo = transpal;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		AB43D736219DAA2200718BCE /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				AB43D735219DAA2200718BCE /* SDL2.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB43D739219DAA3300718BCE /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				AB43D738219DAA3300718BCE /* SDL2.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB63424A24305C88002CDE1A /* Copy KenBuild game data */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+				AB63425F24305DCD002CDE1A /* stuff.dat in Copy KenBuild game data */,
+				AB63425824305DB9002CDE1A /* ascboard.map in Copy KenBuild game data */,
+				AB63425924305DBA002CDE1A /* boards.map in Copy KenBuild game data */,
+				AB63425A24305DBC002CDE1A /* evilal.map in Copy KenBuild game data */,
+				AB63425B24305DC0002CDE1A /* kensig.map in Copy KenBuild game data */,
+				AB63425C24305DC3002CDE1A /* nsnoal.map in Copy KenBuild game data */,
+				AB63425D24305DC5002CDE1A /* nukeland.map in Copy KenBuild game data */,
+				AB63425E24305DC8002CDE1A /* names.h in Copy KenBuild game data */,
+			);
+			name = "Copy KenBuild game data";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB63425624305D9E002CDE1A /* Copy KenBuild game data */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+				AB63425724305DAA002CDE1A /* names.h in Copy KenBuild game data */,
+			);
+			name = "Copy KenBuild game data";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB63426824305EF0002CDE1A /* Copy additional editor tools */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 12;
+			files = (
+				AB63426924305F35002CDE1A /* arttool in Copy additional editor tools */,
+				AB63426A24305F35002CDE1A /* kextract in Copy additional editor tools */,
+				AB63426B24305F35002CDE1A /* kgroup in Copy additional editor tools */,
+				AB63426C24305F35002CDE1A /* transpal in Copy additional editor tools */,
+			);
+			name = "Copy additional editor tools";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		AB053FAE0A33136D00FA2918 /* startwin.game.nib */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; path = startwin.game.nib; sourceTree = SOURCE_ROOT; };
+		AB3DEDA11BD23DAB0009D070 /* Game Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Game Images.xcassets"; sourceTree = "<group>"; };
+		AB3DEDA31BD23EE70009D070 /* Editor Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Editor Images.xcassets"; sourceTree = "<group>"; };
+		AB3E07650A33068500FF2442 /* startwin.editor.nib */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; path = startwin.editor.nib; sourceTree = SOURCE_ROOT; };
+		AB726D400F046BDE00730EAA /* kdmsound_sdl2.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = kdmsound_sdl2.c; path = ../kenbuild/kdmsound_sdl2.c; sourceTree = SOURCE_ROOT; };
+		AB726D610F046E6E00730EAA /* ascboard.map */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = ascboard.map; sourceTree = "<group>"; };
+		AB726D620F046E6E00730EAA /* boards.map */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = boards.map; sourceTree = "<group>"; };
+		AB726D630F046E6E00730EAA /* evilal.map */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = evilal.map; sourceTree = "<group>"; };
+		AB726D640F046E6E00730EAA /* kensig.map */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = kensig.map; sourceTree = "<group>"; };
+		AB726D650F046E6E00730EAA /* names.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = names.h; sourceTree = "<group>"; };
+		AB726D660F046E6E00730EAA /* nsnoal.map */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = nsnoal.map; sourceTree = "<group>"; };
+		AB726D670F046E6E00730EAA /* nukeland.map */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = nukeland.map; sourceTree = "<group>"; };
+		AB726D680F046E6E00730EAA /* stuff.dat */ = {isa = PBXFileReference; lastKnownFileType = file; path = stuff.dat; sourceTree = "<group>"; };
+		AB7360140A29AA70003261DC /* engine.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = engine.xcodeproj; sourceTree = "<group>"; };
+		AB73602A0A29AB08003261DC /* KenBuild.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KenBuild.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB73602D0A29AB08003261DC /* game-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "game-Info.plist"; sourceTree = "<group>"; };
+		AB7360500A29AD92003261DC /* Build Editor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Build Editor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB7360520A29AD92003261DC /* build-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "build-Info.plist"; sourceTree = "<group>"; };
+		AB7361220A29B9D4003261DC /* SDL2.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SDL2.framework; path = /Users/jonof/Library/Frameworks/SDL2.framework; sourceTree = "<absolute>"; };
+		AB7361280A29BA60003261DC /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = /System/Library/Frameworks/CoreFoundation.framework; sourceTree = "<absolute>"; };
+		AB73612C0A29BA7A003261DC /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
+		AB81F9562590BB8500306B8E /* Common.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Common.xcconfig; sourceTree = "<group>"; };
+		AB81F95A2590BBDA00306B8E /* KenBuild.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KenBuild.entitlements; sourceTree = "<group>"; };
+		AB81F95B2590BBDC00306B8E /* Build Editor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Build Editor.entitlements"; sourceTree = "<group>"; };
+		AB829494231A5CAB0031B08F /* kdmsound.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = kdmsound.c; path = ../kenbuild/kdmsound.c; sourceTree = "<group>"; };
+		AB829495231A5CAB0031B08F /* kdmsound.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = kdmsound.h; path = ../kenbuild/kdmsound.h; sourceTree = "<group>"; };
+		ABA9E3290FEF9DD00024231F /* bstub.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = bstub.c; path = ../kenbuild/bstub.c; sourceTree = SOURCE_ROOT; };
+		ABA9E32A0FEF9DD00024231F /* config.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = config.c; path = ../kenbuild/config.c; sourceTree = SOURCE_ROOT; };
+		ABA9E3320FEF9E470024231F /* game.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = game.c; path = ../kenbuild/game.c; sourceTree = SOURCE_ROOT; };
+		ABA9E3330FEF9E470024231F /* game.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = game.h; path = ../kenbuild/game.h; sourceTree = SOURCE_ROOT; };
+		ABA9E3340FEF9E470024231F /* StartupWinController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = StartupWinController.m; path = ../kenbuild/StartupWinController.m; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AB7360280A29AB08003261DC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB43D737219DAA3300718BCE /* SDL2.framework in Frameworks */,
+				AB73604B0A29AD5F003261DC /* libengine.a in Frameworks */,
+				AB7361230A29B9D4003261DC /* SDL2.framework in Frameworks */,
+				AB7361290A29BA60003261DC /* CoreFoundation.framework in Frameworks */,
+				AB73612D0A29BA7A003261DC /* AppKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB73604E0A29AD92003261DC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB73605B0A29ADB7003261DC /* libeditor.a in Frameworks */,
+				AB73605A0A29ADB5003261DC /* libengine.a in Frameworks */,
+				AB3FE4680C0433D000D5DBDC /* libeditorsupp.a in Frameworks */,
+				AB7361240A29B9D4003261DC /* SDL2.framework in Frameworks */,
+				AB73612A0A29BA60003261DC /* CoreFoundation.framework in Frameworks */,
+				AB73612E0A29BA7A003261DC /* AppKit.framework in Frameworks */,
+				AB43D734219DAA2200718BCE /* SDL2.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AB726D600F046E4200730EAA /* KenBuild data */ = {
+			isa = PBXGroup;
+			children = (
+				AB726D610F046E6E00730EAA /* ascboard.map */,
+				AB726D620F046E6E00730EAA /* boards.map */,
+				AB726D630F046E6E00730EAA /* evilal.map */,
+				AB726D640F046E6E00730EAA /* kensig.map */,
+				AB726D650F046E6E00730EAA /* names.h */,
+				AB726D660F046E6E00730EAA /* nsnoal.map */,
+				AB726D670F046E6E00730EAA /* nukeland.map */,
+				AB726D680F046E6E00730EAA /* stuff.dat */,
+			);
+			name = "KenBuild data";
+			path = "../kenbuild-data";
+			sourceTree = "<group>";
+		};
+		AB7360090A29AA64003261DC = {
+			isa = PBXGroup;
+			children = (
+				AB7360210A29AA91003261DC /* Editor */,
+				AB7360200A29AA88003261DC /* Game */,
+				AB81F9562590BB8500306B8E /* Common.xcconfig */,
+				AB726D600F046E4200730EAA /* KenBuild data */,
+				AB7361210A29B9B1003261DC /* Frameworks */,
+				AB73602B0A29AB08003261DC /* Products */,
+				AB7360140A29AA70003261DC /* engine.xcodeproj */,
+			);
+			sourceTree = "<group>";
+		};
+		AB7360150A29AA70003261DC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AB73601B0A29AA70003261DC /* libengine.a */,
+				AB73601D0A29AA70003261DC /* libeditor.a */,
+				AB3FE4580C04338D00D5DBDC /* libeditorsupp.a */,
+				ABAE9AD60F0B308900A528DC /* arttool */,
+				ABD2DF9421AC1C3D00BDB555 /* bin2c */,
+				ABAE9C3E0F0CC83700A528DC /* kextract */,
+				ABAE9C400F0CC83700A528DC /* kgroup */,
+				ABF1DD221BB82822007DE427 /* transpal */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AB7360200A29AA88003261DC /* Game */ = {
+			isa = PBXGroup;
+			children = (
+				AB3DEDA11BD23DAB0009D070 /* Game Images.xcassets */,
+				ABA9E3320FEF9E470024231F /* game.c */,
+				ABA9E3330FEF9E470024231F /* game.h */,
+				ABA9E3340FEF9E470024231F /* StartupWinController.m */,
+				AB829494231A5CAB0031B08F /* kdmsound.c */,
+				AB829495231A5CAB0031B08F /* kdmsound.h */,
+				AB726D400F046BDE00730EAA /* kdmsound_sdl2.c */,
+				ABA9E32A0FEF9DD00024231F /* config.c */,
+				AB053FAE0A33136D00FA2918 /* startwin.game.nib */,
+				AB73602D0A29AB08003261DC /* game-Info.plist */,
+				AB81F95A2590BBDA00306B8E /* KenBuild.entitlements */,
+			);
+			name = Game;
+			sourceTree = "<group>";
+		};
+		AB7360210A29AA91003261DC /* Editor */ = {
+			isa = PBXGroup;
+			children = (
+				AB3DEDA31BD23EE70009D070 /* Editor Images.xcassets */,
+				ABA9E3290FEF9DD00024231F /* bstub.c */,
+				AB3E07650A33068500FF2442 /* startwin.editor.nib */,
+				AB7360520A29AD92003261DC /* build-Info.plist */,
+				AB81F95B2590BBDC00306B8E /* Build Editor.entitlements */,
+			);
+			name = Editor;
+			sourceTree = "<group>";
+		};
+		AB73602B0A29AB08003261DC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AB73602A0A29AB08003261DC /* KenBuild.app */,
+				AB7360500A29AD92003261DC /* Build Editor.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AB7361210A29B9B1003261DC /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				AB73612C0A29BA7A003261DC /* AppKit.framework */,
+				AB7361280A29BA60003261DC /* CoreFoundation.framework */,
+				AB7361220A29B9D4003261DC /* SDL2.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AB7360290A29AB08003261DC /* game */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB73602E0A29AB09003261DC /* Build configuration list for PBXNativeTarget "game" */;
+			buildPhases = (
+				AB7360260A29AB08003261DC /* Resources */,
+				AB7360270A29AB08003261DC /* Sources */,
+				AB7360280A29AB08003261DC /* Frameworks */,
+				AB43D739219DAA3300718BCE /* Embed Frameworks */,
+				AB63424A24305C88002CDE1A /* Copy KenBuild game data */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AB73604A0A29AD51003261DC /* PBXTargetDependency */,
+			);
+			name = game;
+			productName = game;
+			productReference = AB73602A0A29AB08003261DC /* KenBuild.app */;
+			productType = "com.apple.product-type.application";
+		};
+		AB73604F0A29AD92003261DC /* build */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB7360530A29AD92003261DC /* Build configuration list for PBXNativeTarget "build" */;
+			buildPhases = (
+				AB73604C0A29AD92003261DC /* Resources */,
+				AB73604D0A29AD92003261DC /* Sources */,
+				AB73604E0A29AD92003261DC /* Frameworks */,
+				AB43D736219DAA2200718BCE /* Embed Frameworks */,
+				AB63425624305D9E002CDE1A /* Copy KenBuild game data */,
+				AB63426824305EF0002CDE1A /* Copy additional editor tools */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AB7360570A29AD99003261DC /* PBXTargetDependency */,
+				AB7360590A29AD99003261DC /* PBXTargetDependency */,
+				AB63426124305EE4002CDE1A /* PBXTargetDependency */,
+				AB63426324305EE4002CDE1A /* PBXTargetDependency */,
+				AB63426524305EE4002CDE1A /* PBXTargetDependency */,
+				AB63426724305EE4002CDE1A /* PBXTargetDependency */,
+			);
+			name = build;
+			productName = build;
+			productReference = AB7360500A29AD92003261DC /* Build Editor.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AB73600B0A29AA64003261DC /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+			};
+			buildConfigurationList = AB73600C0A29AA64003261DC /* Build configuration list for PBXProject "game" */;
+			compatibilityVersion = "Xcode 3.0";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				English,
+			);
+			mainGroup = AB7360090A29AA64003261DC;
+			productRefGroup = AB73602B0A29AB08003261DC /* Products */;
+			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = AB7360150A29AA70003261DC /* Products */;
+					ProjectRef = AB7360140A29AA70003261DC /* engine.xcodeproj */;
+				},
+			);
+			projectRoot = ..;
+			targets = (
+				AB7360290A29AB08003261DC /* game */,
+				AB73604F0A29AD92003261DC /* build */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		AB3FE4580C04338D00D5DBDC /* libeditorsupp.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = libeditorsupp.a;
+			remoteRef = AB3FE4570C04338D00D5DBDC /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		AB73601B0A29AA70003261DC /* libengine.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = libengine.a;
+			remoteRef = AB73601A0A29AA70003261DC /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		AB73601D0A29AA70003261DC /* libeditor.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = libeditor.a;
+			remoteRef = AB73601C0A29AA70003261DC /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		ABAE9AD60F0B308900A528DC /* arttool */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = arttool;
+			remoteRef = ABAE9AD50F0B308900A528DC /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		ABAE9C3E0F0CC83700A528DC /* kextract */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = kextract;
+			remoteRef = ABAE9C3D0F0CC83700A528DC /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		ABAE9C400F0CC83700A528DC /* kgroup */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = kgroup;
+			remoteRef = ABAE9C3F0F0CC83700A528DC /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		ABD2DF9421AC1C3D00BDB555 /* bin2c */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = bin2c;
+			remoteRef = ABD2DF9321AC1C3D00BDB555 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		ABF1DD221BB82822007DE427 /* transpal */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = transpal;
+			remoteRef = ABF1DD211BB82822007DE427 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AB7360260A29AB08003261DC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB3DEDA21BD23DAB0009D070 /* Game Images.xcassets in Resources */,
+				AB053FAF0A33136D00FA2918 /* startwin.game.nib in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB73604C0A29AD92003261DC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB3E07660A33068500FF2442 /* startwin.editor.nib in Resources */,
+				AB3DEDA41BD23EE70009D070 /* Editor Images.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AB7360270A29AB08003261DC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB726D410F046BDE00730EAA /* kdmsound_sdl2.c in Sources */,
+				ABA9E3310FEF9E060024231F /* config.c in Sources */,
+				AB829496231A5CAB0031B08F /* kdmsound.c in Sources */,
+				ABA9E3350FEF9E470024231F /* game.c in Sources */,
+				ABA9E3360FEF9E470024231F /* StartupWinController.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB73604D0A29AD92003261DC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABA9E32B0FEF9DD00024231F /* bstub.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AB63426124305EE4002CDE1A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = arttool;
+			targetProxy = AB63426024305EE4002CDE1A /* PBXContainerItemProxy */;
+		};
+		AB63426324305EE4002CDE1A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = kextract;
+			targetProxy = AB63426224305EE4002CDE1A /* PBXContainerItemProxy */;
+		};
+		AB63426524305EE4002CDE1A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = kgroup;
+			targetProxy = AB63426424305EE4002CDE1A /* PBXContainerItemProxy */;
+		};
+		AB63426724305EE4002CDE1A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = transpal;
+			targetProxy = AB63426624305EE4002CDE1A /* PBXContainerItemProxy */;
+		};
+		AB73604A0A29AD51003261DC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = engine;
+			targetProxy = AB7360490A29AD51003261DC /* PBXContainerItemProxy */;
+		};
+		AB7360570A29AD99003261DC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = engine;
+			targetProxy = AB7360560A29AD99003261DC /* PBXContainerItemProxy */;
+		};
+		AB7360590A29AD99003261DC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = editor;
+			targetProxy = AB7360580A29AD99003261DC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AB73600D0A29AA64003261DC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = AB81F9562590BB8500306B8E /* Common.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = "$(HOME)/Library/Frameworks";
+				GCC_CHAR_IS_UNSIGNED_CHAR = NO;
+				GCC_ENABLE_CPP_EXCEPTIONS = NO;
+				GCC_ENABLE_CPP_RTTI = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"USE_POLYMOST=1",
+					"USE_OPENGL=3",
+					RENDERTYPESDL,
+				);
+				HEADER_SEARCH_PATHS = ../include;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				ONLY_ACTIVE_ARCH = YES;
+				PREBINDING = NO;
+			};
+			name = Debug;
+		};
+		AB73600E0A29AA64003261DC /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = AB81F9562590BB8500306B8E /* Common.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				COPY_PHASE_STRIP = YES;
+				FRAMEWORK_SEARCH_PATHS = "$(HOME)/Library/Frameworks";
+				GCC_CHAR_IS_UNSIGNED_CHAR = NO;
+				GCC_ENABLE_CPP_EXCEPTIONS = NO;
+				GCC_ENABLE_CPP_RTTI = NO;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"USE_POLYMOST=1",
+					"USE_OPENGL=3",
+					RENDERTYPESDL,
+				);
+				HEADER_SEARCH_PATHS = ../include;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				PREBINDING = NO;
+			};
+			name = Release;
+		};
+		AB73602F0A29AB09003261DC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = KenBuild.entitlements;
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(USER_LIBRARY_DIR)/Frameworks",
+				);
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				INFOPLIST_FILE = "game-Info.plist";
+				INSTALL_PATH = "$(HOME)/Applications";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @rpath/../Frameworks";
+				OTHER_LDFLAGS = "-lc++";
+				PRODUCT_BUNDLE_IDENTIFIER = au.id.jonof.kenbuild;
+				PRODUCT_NAME = KenBuild;
+				WRAPPER_EXTENSION = app;
+			};
+			name = Debug;
+		};
+		AB7360300A29AB09003261DC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = KenBuild.entitlements;
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(USER_LIBRARY_DIR)/Frameworks",
+				);
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				INFOPLIST_FILE = "game-Info.plist";
+				INSTALL_PATH = "$(HOME)/Applications";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @rpath/../Frameworks";
+				OTHER_LDFLAGS = "-lc++";
+				PRODUCT_BUNDLE_IDENTIFIER = au.id.jonof.kenbuild;
+				PRODUCT_NAME = KenBuild;
+				WRAPPER_EXTENSION = app;
+			};
+			name = Release;
+		};
+		AB7360540A29AD92003261DC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Build Editor.entitlements";
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(USER_LIBRARY_DIR)/Frameworks",
+				);
+				INFOPLIST_FILE = "build-Info.plist";
+				INSTALL_PATH = "$(HOME)/Applications";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @rpath/../Frameworks";
+				OTHER_LDFLAGS = "-lc++";
+				PRODUCT_BUNDLE_IDENTIFIER = au.id.jonof.kenbuild.build;
+				PRODUCT_NAME = "Build Editor";
+				WRAPPER_EXTENSION = app;
+			};
+			name = Debug;
+		};
+		AB7360550A29AD92003261DC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Build Editor.entitlements";
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(USER_LIBRARY_DIR)/Frameworks",
+				);
+				INFOPLIST_FILE = "build-Info.plist";
+				INSTALL_PATH = "$(HOME)/Applications";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @rpath/../Frameworks";
+				OTHER_LDFLAGS = "-lc++";
+				PRODUCT_BUNDLE_IDENTIFIER = au.id.jonof.kenbuild.build;
+				PRODUCT_NAME = "Build Editor";
+				WRAPPER_EXTENSION = app;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AB73600C0A29AA64003261DC /* Build configuration list for PBXProject "game" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB73600D0A29AA64003261DC /* Debug */,
+				AB73600E0A29AA64003261DC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AB73602E0A29AB09003261DC /* Build configuration list for PBXNativeTarget "game" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB73602F0A29AB09003261DC /* Debug */,
+				AB7360300A29AB09003261DC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AB7360530A29AD92003261DC /* Build configuration list for PBXNativeTarget "build" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB7360540A29AD92003261DC /* Debug */,
+				AB7360550A29AD92003261DC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AB73600B0A29AA64003261DC /* Project object */;
+}

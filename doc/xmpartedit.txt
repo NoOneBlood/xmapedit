@@ -1,0 +1,228 @@
+ /////////////////////////////////
+ // XMAPEDIT ART FILES EDITOR [OCT 22 2021]
+ /////////////////////////////////////////////////////////////////////////////
+ 
+ XMP ARTEDIT is a tool for editing ART files which contains game graphics. The main
+ advantage of this art editor against all other programs is that this tool is native
+ and makes real-time tile editing possible. In simple terms: you can edit ART files
+ when you in process of creating maps or even SEQ animations (see SEQEDIT tool).
+
+ XMP ARTEDIT KEY FEATURES:
+ ==================================================================
+ - Two modes are included: batch and single tile editing.
+ - Importing new images (PCX and TGA formats support included). The colors of the images
+   will be automatically converted to the closest game colors, include alpha channel of
+   32bit TGA image that will automatically converted in transparent color.
+   See more info below.
+ - Importing ART files from another games with automatic color conversion as well.
+ - Export tiles in another single ART file or 32bit TGA images with transparency.
+ - Paint tiles with palookups and palettes or using GUI based color editor
+   which allows to export tile colors as palookup file and use it lately in
+   the game.
+ - Tile four-side rotating and flipping.
+ - Change tile animation type, frames and speed.
+ - Change tile view type and define RFF voxel id.
+ - Change tile surface type, shade and offsets.
+ - Erase or copy tiles.
+
+ HOW TO USE:
+ ==================================================================
+ Easy. The following ways enables art editing:
+ 1. Press [SPACE] while in tile viewer selecting picnum for an object (wall, sprite etc..).
+ 2. Press [ESC] to open main menu, then select ART from the tools tab.
+ 3. Launch art editor from command prompt. Example: "xmapedit tiles001" opens
+    tiles001.art for editing.
+ 
+ STANDALONE IMAGES & ART IMPORTING DETAILS
+ ==================================================================
+ 1. IMAGES:
+ ----------
+   The image resolution can be up to 640x640px. It does NOT have to be converted
+   in to Blood palette before importing since XMP ARTEDIT is smart enough to convert it
+   to the closest game colors for you.
+		
+   At the moment, there is two image formats are supported:
+   1. Z-Soft Paintbrush PCX 8bit(256 colors) or 24bit (raw or RLE encoded).
+   2. TrueVision Targa  TGA 8bit(256 colors), 24bit or 32bit (raw or RLE encoded).
+		
+   I do recommend to use 32bit TGA format with alpha channel if your image intended to
+   contain transparency since all opaque pixels will be treated as transparent color
+   automatically. This is the fastest way to import such image correctly.
+
+ 2. ART FILES:
+ -------------
+   Before importing any ART files, you must load palette which contains proper RGB
+   indexes for selected file. This is especially true if you want to import graphics
+   from another BUILD game. XMP ARTEDIT already contains a nice palette database that
+   usually can be found in the XMAPEDIT\PALETTES\IMPORT directory.
+  
+ PALETTES & TILE PAINTING DETAILS:
+ ==================================================================
+ To paint tiles, you must load the palette as well.
+ Be sure to select palettes which is based on Blood palette (basically, palookup)
+ as it produces best results. XMP ARTEDIT alredy comes with some of such palettes
+ which usually can be found in XMAPEDIT\PALETTES\PAINT directory.
+ 
+ At the moment, the following palette formats are supported:
+ 1. (DAT) Standard BUILD palette file (usually called PALETTE.DAT).
+ 2. (PAL) Microsoft palette.
+ 3. (PAL) Paint Shop palette.
+ 4. (PAL) File with raw RGB info (must be 768 bytes length).
+ 5. (PLU) Blood's palookup format.
+  
+ When editing tile colors in the built-in palette editor, you will
+ able to export result as palookup (PLU) file or modify image colors
+ directly in the ART file.
+ 
+ I2TPALDB.INI file used to store all palettes to compare it against current game palette.
+ This allows to fix transparent color RGB when importing ART files from another
+ games or images. You may type custom RGB value that must be treated as
+ transparent.
+ 
+ LOCKED TILES:
+ ==================================================================
+ While in editing process, you may notice that some (very little amount) of tiles
+ cannot be changed. This is due that they are reserved by the game which uses it
+ in it's own way. Replacing or editing it won't give anything to you as the game
+ will just erase changes.
+  
+ KEYBOARD FUNCTIONS:
+ ==================================================================
+		
+	GENERAL EDITING (works in batch / single modes):
+	---------------------------------------------------
+	[SPACE] ........................... Cycle through edit modes (None, Batch, Single).
+	[F1] .............................. Show tile info window.
+	[F2] .............................. Save / revert changes menu.
+	[F3] .............................. Export selected tiles in a single ART file or TGA images.
+	[F4] .............................. Import images or ART files.
+	[F7] .............................. Change tile animation type.
+	[F8] .............................. Open tile color editor or select palette to paint highlighted tiles.
+	[R] ............................... Rotate highlighted tiles.
+	[X] ............................... X-Flip highlighted tiles.
+	[Y] ............................... Y-Flip highlighted tiles.
+	
+	[CTRL] + [V] ...................... Copy highlighted tiles.
+	[BACKSPACE] ....................... Revert highlighted tiles changes menu.
+	[DELETE] .......................... Erase highlighted tiles (image only).
+	[SHIFT] + [DELETE] ................ Erase highlighted tiles (properties only).
+	[CTRL]  + [DELETE] ................ Erase highlighted tiles fully.
+	
+	[CTRL]  + [PAD +] ................. Cycle tile animation type forward.
+	[CTRL]  + [PAD -] ................. Cycle tile animation type backward.
+	[SHIFT] + [PAD +] ................. More tile animation frames.
+	[SHIFT] + [PAD -] ................. Less tile animation frames.
+	[PAD +] ........................... Faster tile animation speed.
+	[PAD -] ........................... Slower tile animation speed.
+	[PAD 0] ........................... Reset tile animation type, frames and speed.
+		
+	///////////////////
+	// this changes SHADE.DAT! Affects sprites!
+	// [+] ............................ More tile shade.
+	// [-] ............................ Less tile shade.
+	// [0] ............................ Reset tile shade.
+	////////
+	
+	///////////////////
+	// this changes SURFACE.DAT!
+	// [F6] ........................... Change tile surface type.
+	////////
+
+	///////////////////
+	// voxel ID changes VOXEL.DAT! Affects sprites!
+	// [F5] ........................... Change tile view type / set voxel ID. If it
+	//                                  has any of voxel view types, you may press F5 again to
+	//                                  set RFF voxel ID.
+	////////
+	
+	BATCH TILE EDIT MODE:
+	---------------------------------------------------
+	[MOUSE3] .......................... Toggle current tile select.
+	[SHIFT] + [~] or [MOUSE3].......... Select many tiles.
+	
+	SINGLE TILE EDIT MODE:
+	---------------------------------------------------
+	[ESC] ............................. Return back to the Batch edit mode.
+	<ARROWS> .......................... Nudge tile origin.
+	[SHIFT] + <ARROWS> ................ Set tile origin to respective edge.
+	[PAD5] ............................ Set tile origin to center.
+	[PAD /] ........................... Zoom out.
+	[PAD *] ........................... Zoom in.
+	[PAGE UP / DN] .................... Cycle through tiles by 1.
+	[<] or [>] ........................ Change view angle by 45 degrees.
+	[/] ............................... Set view angle to 0.
+	
+	NAVIGATING:
+	---------------------------------------------------
+	[ESC]	.......................... Quit.
+	<ARROWS> ......................... Scroll tiles by 1.
+	[PAGE UP / DN] ................... Scroll tiles by pages.
+	[PAD /] .......................... Show less tiles per row (None / Both modes).
+	[PAD *] .......................... Show more tiles per row (None / Both modes).
+	[HOME] ........................... Go to first tile.
+	[END] ............................ Go to last tile.
+	[G] .............................. Go to tile #.
+	
+	MISCELLANEOUS:
+	---------------------------------------------------
+	[F12] ............................ Tile screen options (None / Both modes).
+ 
+ FOR PROGRAMMERS:
+ ==================================================================
+ XMP ARTEDIT provides compatible extension to the ART files which allows to keep
+ various data such as file palette or additional tile information. Below is the sample
+ code and definitions if you want your software read and write such data.
+
+ The extension area typically appends to the end which makes it at least read compatible
+ with tool such as EDITART or Build Art Files Editor. The data split up by blocks and
+ comes immediately after header that looks like this:
+ 
+ struct XRTBLK_HEAD {
+	 unsigned char	  blktype;   // type of data that contains in this block
+	 unsigned char    headsiz;   // size of this block header
+	 unsigned short   datasiz;   // size of data that contains in this block
+ };
+ 
+ For now there is just 2 block types is defined:
+ 
+  enum {
+    kArtXBlockA = 64,
+    kArtXBlockB	= 128,
+  };
+
+ 1. kArtXBlockA contains additional information for each tile
+ in the art file. This allows to not use external DAT files.
+ struct XRTBLKa_DATA {
+   unsigned short number;  // tile number
+   signed char shade;      // shade of the tile (for SHADE.DAT)
+   unsigned char  surface; // surface of the tile (for SURFACE.DAT)
+   signed short voxelID;   // internal voxel id (for VOXEL.DAT)
+ };
+
+ 2. kArtXBlockB contains 256 color palette of current art file.
+ All tiles in this art file can be remapped to use it, so PALETTE.DAT
+ or stuff like this is not required.
+ struct XRTBLKb_DATA {
+	 unsigned char artPal[768];
+ };
+
+ To determine the each block area, you must attach the block map
+ to the end of the ART file:
+  
+ First, write all offsets of blocks you plan to put:
+ // lseek(hFil, -((blockCount * sizeof(int)) + strlen(mapSignature)), SEEK_END);
+ // write(hFil, &block1ofs, sizeof(int));
+ // write(hFil, &block2ofs, sizeof(int));
+ // .....
+ // .....
+
+ Then, write how many blocks it contains (max 255):
+ // write(hFil, &blockCount, sizeof(char));
+  
+ Finally, write an signature, so readers can be sure that they deal with an
+ extended ART file:
+ // write(hFil, tmp, sprintf(tmp, "<-XrT\x1A"));
+ 
+
+/////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,305 @@
+# Build Makefile for Microsoft NMake
+
+# Engine options - these may be overridden by game makefiles
+#  USE_POLYMOST   - enables Polymost renderer
+#  USE_OPENGL     - enables OpenGL support in Polymost
+#     Define as 0 to disable OpenGL
+#     Define as 1 (or 2) for GL 2.0/2.1 profile
+#     Define as 3 for GL 3.2 Core profile
+#  USE_ASM        - enables the use of assembly code
+USE_POLYMOST=0
+USE_OPENGL=0
+USE_ASM=0
+
+RELEASE=1
+
+# Create Makefile.msvcuser yourself to provide your own overrides
+# for configurable values
+!if EXIST(Makefile.msvcuser)
+!include Makefile.msvcuser
+!endif
+
+SRC=src
+GAME=src_blood
+GAMEDATA=mapedit-data
+TOOLS=tools
+INC=include
+AUDIOLIBROOT=jfaudiolib
+
+o=obj
+res=res
+asm=masm
+
+ENGINELIB=engine.lib
+EDITORLIB=build.lib
+
+LIBSQUISH=libsquish
+
+flags_cl=
+flags_rc=
+!if "$(PLATFORM)" == "X64" || "$(PLATFORM)" == "x64"
+flags_rc=/d_M_AMD64
+USE_ASM=0
+!elseif "$(PLATFORM)" == "ARM"
+# Some day, perhaps.
+USE_ASM=0
+!else
+flags_cl=/arch:IA32
+!endif
+
+!if $(RELEASE)
+# release options
+flags_cl=$(flags_cl) /O2
+flags_link=/RELEASE
+!else
+# debugging options
+flags_cl=$(flags_cl) /Ot /Z7 /DDEBUGGINGAIDS
+flags_link=/DEBUG
+!endif
+
+!include $(AUDIOLIBROOT)/Makefile.msvcshared
+
+CC=cl
+AS=ml
+RC=rc
+LINK=link
+OURCFLAGS=/nologo /MD $(flags_cl) /DKSFORBUILD /I$(INC) /I$(LIBSQUISH) /I$(SRC) /I$(AUDIOLIBROOT)\include /I$(AUDIOLIBROOT)\src
+GAMECFLAGS=/I$(GAME)
+ASFLAGS=/nologo /coff
+LINKFLAGS=/opt:ref /nologo $(flags_link) /LIBPATH:$(AUDIOLIBROOT)\third-party\msvc\lib$(PLATFORM)
+RFLAGS=/nologo /i$(INC) /i$(GAME) $(flags_rc)
+EXESUFFIX=.exe
+
+ENGINEOBJS=$(SRC)\a-c.$o \
+	$(SRC)\asmprot.$o \
+	$(SRC)\baselayer.$o \
+	$(SRC)\cache1d.$o \
+	$(SRC)\compat.$o \
+	$(SRC)\crc32.$o \
+	$(SRC)\defs.$o \
+	$(SRC)\engine.$o \
+	$(SRC)\polymost.$o \
+	$(SRC)\polymost_fs.$o \
+	$(SRC)\polymost_vs.$o \
+	$(SRC)\polymostaux_fs.$o \
+	$(SRC)\polymostaux_vs.$o \
+	$(SRC)\polymosttex.$o \
+	$(SRC)\polymosttexcache.$o \
+	$(SRC)\polymosttexcompress.$o \
+	$(SRC)\hightile.$o \
+	$(SRC)\mdsprite.$o \
+	$(SRC)\glbuild.$o \
+	$(SRC)\glbuild_fs.$o \
+	$(SRC)\glbuild_vs.$o \
+	$(SRC)\kplib.$o \
+	$(SRC)\mmulti.$o \
+	$(SRC)\osd.$o \
+	$(SRC)\pragmas.$o \
+	$(SRC)\scriptfile.$o \
+	$(SRC)\textfont.$o \
+	$(SRC)\smalltextfont.$o \
+	$(SRC)\winlayer.$o
+
+LIBSQUISHOBJS=$(LIBSQUISH)\alpha.$o $(LIBSQUISH)\clusterfit.$o \
+	      $(LIBSQUISH)\colourblock.$o $(LIBSQUISH)\colourfit.$o \
+	      $(LIBSQUISH)\colourset.$o $(LIBSQUISH)\maths.$o \
+	      $(LIBSQUISH)\rangefit.$o $(LIBSQUISH)\singlecolourfit.$o \
+	      $(LIBSQUISH)\squish.$o $(SRC)\rg_etc1.$o
+
+EDITOROBJS=$(SRC)\build.$o \
+	$(SRC)\startwin_editor.$o \
+	$(SRC)\config.$o
+
+GAMEEXEOBJS=$(GAME)\config.$o \
+	$(GAME)\game.$o \
+	$(GAME)\gameres.$(res) \
+	$(GAME)\startwin_game.$o \
+	$(GAME)\kdmsound.$o \
+	$(GAME)\kdmsound_stub.$o \
+	$(SRC)\$(ENGINELIB)
+
+EDITOREXEOBJS=$(GAME)\common.$o \
+	$(GAME)\xmpstub.$o \
+	$(GAME)\screen.$o \
+	$(GAME)\trig.$o \
+	$(GAME)\iob.$o \
+	$(GAME)\replace.$o \
+	$(GAME)\db.$o \
+	$(GAME)\sectorfx.$o \
+	$(GAME)\qheap.$o \
+	$(GAME)\resource.$o \
+	$(GAME)\misc.$o \
+	$(GAME)\inifile.$o \
+	$(GAME)\keyboard.$o \
+	$(GAME)\tracker.$o \
+	$(GAME)\tile.$o \
+	$(GAME)\gameutil.$o \
+	$(GAME)\gfx.$o \
+	$(GAME)\gui.$o \
+	$(GAME)\edit2d.$o \
+	$(GAME)\edit3d.$o \
+	$(GAME)\fire.$o \
+	$(GAME)\callback.$o \
+	$(GAME)\eventq.$o \
+	$(GAME)\enumstr.$o \
+	$(GAME)\nnexts.$o \
+	$(GAME)\grdshd.$o \
+	$(GAME)\hglt.$o \
+	$(GAME)\prefabs.$o \
+	$(GAME)\tilefav.$o \
+	$(GAME)\aadjust.$o \
+	$(GAME)\preview.$o \
+	$(GAME)\img2tile.$o \
+	$(GAME)\mapcmt.$o \
+	$(GAME)\xmphud.$o \
+	$(GAME)\xmphudlg.$o \
+	$(GAME)\xmpror.$o \
+	$(GAME)\xmpact.$o \
+	$(GAME)\xmptrig.$o \
+	$(GAME)\xmpgib.$o \
+	$(GAME)\xmpfx.$o \
+	$(GAME)\xmpconf.$o \
+	$(GAME)\xmpmisc.$o \
+	$(GAME)\xmpexplo.$o \
+	$(GAME)\xmpevox.$o \
+	$(GAME)\xmpseq.$o \
+	$(GAME)\xmpview.$o \
+	$(GAME)\xmpsnd.$o \
+	$(GAME)\xmpseqed.$o \
+	$(GAME)\xmparted.$o \
+	$(GAME)\xmptools.$o \
+	$(GAME)\xmpwarp.$o \
+	$(GAME)\xmpqav.$o \
+	$(GAME)\xmpqaved.$o \
+	$(GAME)\buildres.$(res) \
+	$(SRC)\$(EDITORLIB) \
+	$(SRC)\$(ENGINELIB) \
+
+!if $(USE_ASM)
+ENGINEOBJS=$(ENGINEOBJS) $(SRC)\a.$o
+!endif
+
+RENDERTYPE=WIN
+BUILDCFLAGS=/DRENDERTYPEWIN=1 /DUSE_QHEAP=1 /DWITHOUT_GTK=1
+BUILDLIBS=user32.lib gdi32.lib shell32.lib ws2_32.lib comctl32.lib comdlg32.lib uxtheme.lib xinput9_1_0.lib
+
+!if $(USE_POLYMOST)
+BUILDCFLAGS=$(BUILDCFLAGS) /DUSE_POLYMOST=$(USE_POLYMOST)
+!endif
+!if $(USE_OPENGL)
+BUILDCFLAGS=$(BUILDCFLAGS) /DUSE_OPENGL=$(USE_OPENGL)
+!endif
+!if $(USE_ASM)
+BUILDCFLAGS=$(BUILDCFLAGS) /DUSE_ASM=$(USE_ASM)
+!endif
+
+LIBS=$(LIBS) $(BUILDLIBS)
+CFLAGS=$(CFLAGS) $(BUILDCFLAGS)
+
+# Source-control version stamping
+!if [git --version >nul] == 0
+ENGINEOBJS=$(ENGINEOBJS) $(SRC)\version-auto.$o
+!else
+ENGINEOBJS=$(ENGINEOBJS) $(SRC)\version.$o
+!endif
+
+# RULES
+.SUFFIXES: .masm .cc .glsl
+
+{$(SRC)}.masm{$(SRC)}.$o:
+	$(AS) /c $(ASFLAGS) /Fo$@ $<
+
+{$(SRC)}.c{$(SRC)}.$o:
+	$(CC) /c $(CFLAGS) $(OURCFLAGS) /Fo$@ $<
+
+{$(SRC)}.cc{$(SRC)}.$o:
+	$(CC) /TP /c $(CFLAGS) $(OURCFLAGS) /Fo$@ $<
+
+{$(SRC)}.cpp{$(SRC)}.$o:
+	$(CC) /c $(CFLAGS) $(OURCFLAGS) /Fo$@ $<
+
+{$(LIBSQUISH)}.cpp{$(LIBSQUISH)}.$o:
+	$(CC) /TP /c $(CFLAGS) $(OURCFLAGS) /Fo$@ $<
+
+{$(TOOLS)}.c{$(TOOLS)}.$o:
+	$(CC) /c $(CFLAGS) $(OURCFLAGS) /Fo$@ $<
+
+{$(TOOLS)}.cc{$(TOOLS)}.$o:
+	$(CC) /TP /c $(CFLAGS) $(OURCFLAGS) /Fo$@ $<
+
+{$(GAME)}.c{$(GAME)}.$o:
+	$(CC) /c $(CFLAGS) $(OURCFLAGS) $(GAMECFLAGS) /Fo$@ $<
+
+{$(GAME)}.cpp{$(GAME)}.$o:
+	$(CC) /c $(CFLAGS) $(OURCFLAGS) $(GAMECFLAGS) /Fo$@ $<
+
+{$(GAME)}.rc{$(GAME)}.$(res):
+	$(RC) $(RFLAGS) /fo$@ /r $<
+
+{$(SRC)}.glsl{$(SRC)}.c:
+	if not exist bin2c$(EXESUFFIX) $(MAKE) /f Makefile.msvc /$(MAKEFLAGS) /nologo bin2c$(EXESUFFIX)
+	bin2c$(EXESUFFIX) -text $< default_$(@B)_glsl > $@
+
+# TARGETS
+UTILS=kextract$(EXESUFFIX) kgroup$(EXESUFFIX) transpal$(EXESUFFIX) wad2map$(EXESUFFIX) wad2map$(EXESUFFIX)
+
+all: enginelib editorlib $(GAMEDATA)\xmapedit$(EXESUFFIX) ;
+utils: $(UTILS) ;
+
+enginelib: $(SRC)\$(ENGINELIB) ;
+$(SRC)\$(ENGINELIB): $(ENGINEOBJS) $(LIBSQUISHOBJS)
+	lib /out:$@ /nologo $**
+
+editorlib: $(SRC)\$(EDITORLIB) ;
+$(SRC)\$(EDITORLIB): $(EDITOROBJS)
+	lib /out:$@ /nologo $**
+
+
+$(GAMEDATA)\game$(EXESUFFIX): $(GAMEEXEOBJS)
+	$(LINK) /OUT:$@ /SUBSYSTEM:WINDOWS "/LIBPATH:$(DXROOT)\lib" $(LINKFLAGS) /MAP $** $(LIBS) msvcrt.lib
+
+$(GAMEDATA)\xmapedit$(EXESUFFIX): $(EDITOREXEOBJS) $(AUDIOLIBROOT)\$(JFAUDIOLIB)
+	$(LINK) /OUT:$@ /SUBSYSTEM:WINDOWS "/LIBPATH:$(DXROOT)\lib" $(LINKFLAGS) /MAP $** $(LIBS) $(JFAUDIOLIB_LINKFLAGS) msvcrt.lib
+
+# the tools
+kextract$(EXESUFFIX): $(TOOLS)\kextract.$o $(SRC)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE $(LINKFLAGS) /MAP $** $(LIBS) msvcrt.lib
+
+kgroup$(EXESUFFIX): $(TOOLS)\kgroup.$o $(SRC)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE $(LINKFLAGS) /MAP $** $(LIBS) msvcrt.lib
+
+transpal$(EXESUFFIX): $(TOOLS)\transpal.$o $(SRC)\pragmas.$o $(SRC)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE $(LINKFLAGS) /MAP $** $(LIBS) msvcrt.lib
+
+wad2map$(EXESUFFIX): $(TOOLS)\wad2map.$o $(SRC)\pragmas.$o $(SRC)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE $(LINKFLAGS) /MAP $** $(LIBS) msvcrt.lib
+
+wad2art$(EXESUFFIX): $(TOOLS)\wad2art.$o $(SRC)\pragmas.$o $(SRC)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE $(LINKFLAGS) /MAP $** $(LIBS) msvcrt.lib
+
+bin2c$(EXESUFFIX): $(TOOLS)\bin2c.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE $(LINKFLAGS) /MAP $** msvcrt.lib
+
+jfaudiolib: AlwaysBuild
+	cd "$(AUDIOLIBROOT)"
+	$(MAKE) /f Makefile.msvc /$(MAKEFLAGS) RELEASE=$(RELEASE)
+	cd "$(MAKEDIR)"
+
+$(SRC)\version-auto.c: AlwaysBuild
+	cmd /c $(TOOLS)\generateversion.cmd > $@
+
+AlwaysBuild: ;
+$(AUDIOLIBROOT)\$(JFAUDIOLIB): jfaudiolib ;
+
+# DEPENDENCIES
+!include Makefile.deps
+
+# PHONIES
+clean:
+	-del /q $(ENGINEOBJS) $(LIBSQUISHOBJS) $(EDITOROBJS) $(GAMEEXEOBJS) $(EDITOREXEOBJS)
+	cd "$(AUDIOLIBROOT)"
+	$(MAKE) /f Makefile.msvc $@
+	cd "$(MAKEDIR)"
+veryclean: clean
+	-del /q $(SRC)\$(ENGINELIB) $(SRC)\$(EDITORLIB) $(GAMEDATA)\game$(EXESUFFIX) $(GAMEDATA)\build$(EXESUFFIX) $(UTILS)
+

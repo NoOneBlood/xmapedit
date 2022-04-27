@@ -1,0 +1,86 @@
+
+ PFB FILE FORMAT [MAR 04 2021]
+ -----------------------------
+
+ Prefab is a text file with INI structure that contains information about sprites that
+ should be automatically created once user inserting it in a map.
+
+ [PrefabInfo]                                          // A prefab header section
+ Version=3                                             // Version of the PFB format. At the moment of writing this text it should be 3.		
+ BoxSize=(Xwidth, Yheight, Zheight)                    // mostRight spr.X - mostLeft spr.X, mostBottom spr.Y - mostTop spr.Y, mostBottom spr.Z - mostTop spr.Z.
+ Offsets=(Z above ceiling, Z below floor, 0, 0, 0, 0)  // mostBottom spr.Z + sprite size, mostTop spr.Z + sprite size.
+ FaceAngle=1536 | 1024 | 0 | 512                       // If not exist or -1, the prefab treating as non-wall.
+ Sprite#0000 = (n, n, n, n, n ...)                     // Sprite #N info. the first 17 values is a common BUILD sprite info,
+ ..........                                            // if sprite is an x-sprite, then additional 21 values will be appended to param
+ ..........                                            // see below for param offsets description
+ ..........
+ Sprite#0511 = (n, n, n, n, n ...)
+ 
+ 
+
+ BUILD SPRITE PARAM OFFSET DESCRIPTION
+ -------------------------------------
+ [0]  sprite[n].x coordinate relative to center
+ [1]  sprite[n].y coordinate relative to center
+ [2]  sprite[n].z coordinate relative to center
+ [3]  sprite[n].picnum
+ [4]  sprite[n].pal
+ [5]  sprite[n].shade
+ [6]  < sprite slope >, for Nblood
+ [7]  sprite[n].xrepeat
+ [8]  sprite[n].yrepeat
+ [9]  sprite[n].xoffset
+ [10] sprite[n].yoffset
+ [11] sprite[n].clipdist
+ [12] sprite[n].ang
+ [13] sprite[n].cstat
+ [14] sprite[n].statnum
+ [15] sprite[n].hitag
+ [16] sprite[n].lotag
+
+ BLOOD XSPRITE PARAM OFFSET DESCRIPTION
+ --------------------------------------
+ [17] xsprite[n].rxID
+ [18] xsprite[n].txID
+ [19] xsprite[n].state
+ [20] xsprite[n].restState
+ [21] xsprite[n].command
+ [22] xsprite[n].triggerOn        (BIT 0x0001),
+      xsprite[n].triggerOff       (BIT 0x0002),
+ 
+ [23] xsprite[n].busyTime
+ [24] xsprite[n].waitTime
+ [25] xsprite[n].data1
+ [26] xsprite[n].data2
+ [27] xsprite[n].data3
+ [28] xsprite[n].data4
+ [29] xsprite[n].triggerPush      (BIT 0x0001),
+      xsprite[n].triggerVector    (BIT 0x0002),
+      xsprite[n].triggerImpact    (BIT 0x0004),
+      xsprite[n].triggerPickup    (BIT 0x0008),
+      xsprite[n].triggerTouch     (BIT 0x0010),
+      xsprite[n].triggerSight     (BIT 0x0020),
+      xsprite[n].triggerProximity (BIT 0x0040),
+ 
+ [30] xsprite[n].dropItem
+ [31] xsprite[n].respawn
+ [32] xsprite[n].key
+ [33] xsprite[n].busyWave
+ [34] xsprite[n].locked           (BIT 0x0001),
+      xsprite[n].dudeLockout      (BIT 0x0002),
+      xsprite[n].triggerOnce      (BIT 0x0004),
+      xsprite[n].decoupled        (BIT 0x0008),
+      xsprite[n].interruptable    (BIT 0x0010),
+ 
+ [35] xsprite[n].dudeFlag4        (BIT 0x0001),
+      xsprite[n].dudeDeaf         (BIT 0x0002),
+      xsprite[n].dudeGuard        (BIT 0x0004),
+      xsprite[n].dudeAmbush       (BIT 0x0008),
+      xsprite[n].difficulty       (BIT 0x0010, used as Stealth dude flag in Nblood),
+ 
+ [36] xsprite[n].launchLevel
+ [37] xsprite[n].launchSingle     (BIT 0x0001)
+      xsprite[n].launchBath       (BIT 0x0002)
+      xsprite[n].launchCoop       (BIT 0x0004)
+      xsprite[n].launchTeam       (BIT 0x0008)
+       
