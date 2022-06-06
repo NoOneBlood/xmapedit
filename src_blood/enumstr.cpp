@@ -84,3 +84,56 @@ int enumStrGetInt(int offset, char* astr, char expcr, int retn) {
 	
 	return retn;
 }
+
+char* enumStrGetChar(int offset, char* out, char* astr, char expcr, char* def)
+{
+	int i, j, start = 0;
+	static char* ptr = NULL;
+	static int len   = -1;
+	
+	out[0] = '\0';
+	
+	if (astr != NULL)
+	{
+		if (ptr)
+			free(ptr);
+		
+		if ((len = strlen(astr)) > 0)
+		{
+			ptr = (char*)malloc(len);
+			strncpy(ptr, astr, len);
+		}
+	}
+	else
+	{
+		dassert(ptr != NULL);
+	}
+	
+	if (len > 0)
+	{
+		if ((offset = ClipLow(offset, 0)) > 0)
+		{
+			// search for start
+			for (i = 0; i < len; i++)
+			{
+				if (ptr[i] == expcr) start++;
+				if (start != offset) continue;
+				start = i + 1;
+				break;
+			}
+			
+			if (i >= len || start >= len)
+				return def;
+		}
+		
+		for (i = start, j = 0; i < len; i++)
+		{
+			if (ptr[i] == expcr) break;
+			else out[j++] = ptr[i];
+		}
+		
+		out[j] = '\0';
+	}
+
+	return (out[0]) ? out : def;
+}

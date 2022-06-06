@@ -531,7 +531,6 @@ void previewProcess() {
 		trProcessBusy();
 		evProcess(gFrameClock);
 		seqProcess(gPreview.speed);
-		DoSectorPanning();
 		
 		actProcessSprites();
 		actPostProcess();

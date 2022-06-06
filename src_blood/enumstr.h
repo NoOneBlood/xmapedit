@@ -22,3 +22,4 @@
 ***********************************************************************************/
 
 int enumStrGetInt(int offset, char* astr = NULL, char expcr = ',', int retn = 0);
+char* enumStrGetChar(int offset, char* out = NULL, char* astr = NULL, char expcr = ',', char* def = NULL);

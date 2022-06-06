@@ -136,7 +136,7 @@ extern BOOL gDirtTiles[kMaxTiles];
 extern char* gArtEdModeNames[3];
 extern NAMED_TYPE paintMenu[2];
 extern NAMED_TYPE artedSaveMenu[2];
-extern NAMED_TYPE importMenu[2];
+extern NAMED_TYPE importMenu[3];
 typedef void HTILEFUNC1( int nTile, int value);
 
 void artedInit();
@@ -156,6 +156,7 @@ int artedDlgViewTypeSet(int nTile);
 int artedDlgSelectVoxel(int nTile);
 int artedDlgImportImage(int nTile);
 int artedDlgImportArt(int nTile);
+int artedDlgImportFLOORS(int nTile);
 int artedDlgPaint(int nTile);
 int artedDlgCopyTiles(int nTile, int total);
 int artedDlgSelectTilePart(char* title);
@@ -199,6 +200,7 @@ BOOL canEdit();
 
 int readArtHead(int hFile, int* tstart, int* tend, int* sixofs, int* siyofs, int* pnmofs, int* datofs);
 int readArtHead(char* file, int* tstart, int* tend, int* sixofs, int* siyofs, int* pnmofs, int* datofs);
+int readTileArt(int nTile, int hFile, short* six = NULL, short* siy = NULL, BYTE** image = NULL, int32_t* imgofs = NULL, PICANM* pnm = NULL);
 int readTileArt(int nTile, char* file, short* six = NULL, short* siy = NULL, BYTE** image = NULL, int32_t* imgofs = NULL, PICANM* pnm = NULL);
 int readTileShade(int nTile, char* file, schar* out);
 int readTileSurface(int nTile, char* file, BYTE* out);

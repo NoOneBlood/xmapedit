@@ -47,7 +47,7 @@ inline int QRandom2(int a1)
     return mulscale14(qrand(), a1)-a1;
 }
 
-void viewDoQuake(int strength, int* x, int* y, int* z, int* a, int* h) {
+void viewDoQuake(int strength, int* x, int* y, int* z, short* a, int* h) {
 	
 	if (!strength)
 		return;

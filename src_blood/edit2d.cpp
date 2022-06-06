@@ -871,7 +871,6 @@ void DialogText( int x, int y, short nFore, short nBack, char *string)
 	
 	gfxSetColor(nBack);
 	gfxFillBox(x1, y1, x2, y2);
-	//printext2(x1, y1, nFore, string, &rfonts[11]);
 	printextShadowL(x1, y1, nFore, string);
 }
 
@@ -916,7 +915,16 @@ void PaintDialogItem(DIALOG_ITEM *dialog, DIALOG_ITEM *control, int focus)
 			DialogText(control->x, control->y, foreColor, backColor, control->formatLabel);
 			break;
 		case LABEL:
-			DialogText(control->x, control->y, clr2std(kColorLightCyan), -1, control->formatLabel);
+			if (control->names)
+			{
+				sprintf(buffer, control->formatLabel, control->names[control->value]);
+				controlSetReadyLabel(control, buffer);
+				DialogText(control->x, control->y, foreColor, backColor, buffer);
+			}
+			else
+			{
+				DialogText(control->x, control->y, foreColor, backColor, control->formatLabel);
+			}
 			break;
 		case NUMBER:
 			if (dialog == dlgXSprite && control->tabGroup >= kSprDialogData1 && control->tabGroup <= kSprDialogData4)
@@ -931,12 +939,13 @@ void PaintDialogItem(DIALOG_ITEM *dialog, DIALOG_ITEM *control, int focus)
 
 				if (label[0] == kPrefixSpecial) // special case
 				{
+					DIALOG_ITEM* ctrl;
 					switch (sprType->value) {
 						case 500: // data names depends on CMD type
-							for (DIALOG_ITEM *control = dialog; control->tabGroup != 5; control++);
+							for (ctrl = dialog; ctrl->tabGroup != 5; ctrl++);
 							for (j = 0; j < LENGTH(pCtrlDataNames); j++, label = defLabel)
 							{
-								if (pCtrlDataNames[j].var1 != control->value) continue;
+								if (pCtrlDataNames[j].var1 != ctrl->value) continue;
 								else if (!pCtrlDataNames[j].dataOvr[di]) continue;
 								else label = pCtrlDataNames[j].dataOvr[di];
 								break;
@@ -3601,6 +3610,8 @@ void ProcessKeys2D( void )
 	{
 		cmthglt = gCommentMgr.ClosestToPoint(gMisc.hgltTreshold, x, y, zoom);
 		pointhighlight = getpointhighlight(gMisc.hgltTreshold, x, y, zoom);
+		if (linehighlight < 0 && pointhighlight >= 0 && (pointhighlight & 0x4000) == 0)
+			linehighlight = pointhighlight;
 	}
 
 	if ((type = getHighlightedObject()) == 200 && !gPreviewMode)
@@ -3798,7 +3809,7 @@ void ProcessKeys2D( void )
 			}
 		}
 		else if (gMouse.press & 4)
-		{			
+		{
 			switch (searchstat) {
 				case OBJ_SPRITE:
 				case OBJ_WALL:
@@ -3907,7 +3918,7 @@ void ProcessKeys2D( void )
 					if (!(wall[i].cstat & kWallMoveMask)) // skip kinetic motion marked
 					{
 						if (wall[i].x == wall[j].x && wall[i].y == wall[j].y)
-							fixrepeats((short)i);
+							fixrepeats((short)i); // must be i here!
 					}
 					
 					// wall that connects to current one

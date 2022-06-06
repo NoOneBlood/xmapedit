@@ -57,12 +57,12 @@
 #include "xmpview.h"
 #include "edit3d.h"
 
-
 IniFile* gHints = NULL;
 
 char h = 0;
 BYTE key, ctrl, alt, shift;
 int gHighSpr = -1, gHovSpr = -1;
+int bpsx, bpsy, bpsz, bang, bhorz;
 short temptype = 0, tempslope = 0, tempidx = -1, spriteNamesLength = 0;
 char tempvisibility = 0;
 short tempang = 0;
@@ -78,6 +78,8 @@ XSECTOR cpyxsector[kMaxXSectors + 1];
 int cpywallcnt = 0;
 walltype cpywall[kMaxWalls + 1];
 XWALL cpyxwall[kMaxXWalls + 1];
+
+char gMapInfoStr[kBufferSize];
 
 
 char *gSpriteNames[1024];
@@ -103,13 +105,6 @@ char *gCaptionStyleNames[] = {
 	"Mapedit style",
 	"BUILD style",
 	
-};
-
-CHECKBOX_LIST saveMenu[] = {
-
-	{TRUE,  "Save &MAP changes."},
-	{TRUE,  "Save &ART changes."},
-
 };
 
 static char* sharedTxt[] = {
@@ -594,12 +589,62 @@ char *gZModeNames[4] = {
 
 };
 
-
+void ExtPreLoadMap(void) { }
+void ExtLoadMap(const char *mapname) { }
+void ExtPreSaveMap(void) { }
+void ExtSaveMap(const char *mapname) { }
 void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid );
 void qsetvgapalette(void);
 void HookReplaceFunctions(void);
 void ProcessKeys3D();
 void ProcessKeys2D();
+
+int formatMapInfo(char* str)
+{
+	int i = 0; char* tmp;
+	IniFile* pIni = gPreview.pEpisode;
+	
+	getFilename(gPaths.maps, buffer, FALSE);
+	
+	i = sprintf(str, strupr(buffer));
+	if (pIni && pIni->SectionExists(buffer) && (tmp = pIni->GetKeyString(buffer, "Title", "")) != "")
+		i += sprintf(&str[i], " - \"%s\"", tmp);
+	
+	if (gMapRev)
+		i+=sprintf(&str[i], " rev.%d", gMapRev);
+		
+	if (pIni && pIni->SectionExists(buffer) && (tmp = pIni->GetKeyString(buffer, "Author", "")) != "")
+		i+=sprintf(&str[i]," by %s", tmp);
+	
+	i+=sprintf(&str[i], ", format: v%d", mapversion);
+	if (gModernMap)
+		i+=sprintf(&str[i], " with modern features");
+	
+	return i;
+}
+
+int getPrevWall(int nWall) {
+	
+	int swal, ewal;
+	getSectorWalls(sectorofwall(nWall), &swal, &ewal);
+	for (int i = swal; i <= ewal; i++)
+	{
+		if (wall[i].point2 == nWall)
+			return i;
+	}
+	
+	return -1;
+}
+
+/* void mapInfoToDialog()
+{
+	gTest.pathptr[0] = gPaths.maps;
+	gTest.authptr[0] = gMapAuthor;
+
+	SetControlValue(dlgMapInfo, 1, 0);
+	SetControlValue(dlgMapInfo, 2, 0);
+	SetControlValue(dlgMapInfo, 3, gMapRev);
+} */
 
 void InitializeNames( void ) {
 
@@ -936,290 +981,9 @@ char *ExtGetSpriteCaption( short nSprite ) {
 
 }
 
-void setStartPos(int x, int y, int z, int ang)
-{
-	updatesector(x, y, &startsectnum);
-	if (startsectnum >= 0)
-		z = getflorzofslope(startsectnum, x, y);
-	
-	startposx = x;
-	startposy = y;
-	startposz = z;
-	startang = ang;
-}
-
-int qloadboard( char *filename, char fromwhere, int *x, int *y, int *z, short *ang, short *sectnum )
-{
-	short j, i, k, f, sect;
-	short xidx, sprsect;
-	short sectors = 0, walls = 0, sprites = 0;
-	gXTracker.TrackClear();
-	keyClear();
-
-	char mapname[BMAX_PATH];
-	memset(joinsector, -1, sizeof(joinsector));
-
-	// don't try to load it if it doesn't exist
-	if (!filename)
-		return -1;
-
-	sprintf(mapname, filename);
-	if (!fileExists(mapname))
-	{
-		removeExtension(mapname); // try load from RFF
-		if (!gSysRes.Lookup(mapname, gExtNames[kMap]))
-			return -1;
-	}
-
-	hgltReset(kHgltPoint | kHgltGradient);
-	if (qsetmode == 200)
-	{
-		sprintf(message, "Loading the %s", mapname);
-		splashScreen(message);
-	}
-
-	// save all the highlighted stuff before loading other map
-	if (highlightsectorcnt > 0)
-	{
-		cpyObjectClear();
-		updatenumsprites();
-		//CleanUp(); // this must be done to set proper marker0 and marker1 for sectors
-
-		// check if it's enough space in arrays first
-		for(i = k = j = 0; i < highlightsectorcnt; i++)
-		{
-			j += sector[highlightsector[i]].wallnum;
-			for (f = headspritesect[highlightsector[i]]; f != -1; f = nextspritesect[f])
-			{
-				if (sprite[f].statnum < kMaxStatus)
-					k++;
-			}
-		}
-
-		buffer3[0] = 0;
-		if (numsectors + i >= kMaxSectors)		sprintf(buffer3, "sectors");
-		else if (numwalls + j >= kMaxWalls)		sprintf(buffer3, "walls");
-		else if (numsprites + k >= kMaxSprites) sprintf(buffer3, "sprites");
-		if (buffer3[0])
-		{
-			Alert("Failed to COPY objects: too many %s to backup!", buffer3);
-			highlightsectorcnt = -1;
-		}
-		else
-		{
-			buffer3[0] = 0;
-			getFilename(gPaths.maps, buffer3);
-			switch (YesNoCancel("Import %d sectors with %d walls and %d sprites in \"%s\" map?", i, j, k, buffer3)) {
-				case mrCancel:
-					return -1;
-				case mrNo:
-					highlightsectorcnt = -1;
-					break;
-			}
-		}
-
-		//put sectors and walls to end of lists
-		for(i = 0, k = kMaxWalls; i < highlightsectorcnt; i++)
-			k -= sector[highlightsector[i]].wallnum;
-
-		for(i = 0; i < highlightsectorcnt; i++) {
-
-
-			sect = highlightsector[i];
-			copysector(sect,(short)(kMaxSectors - highlightsectorcnt + i),(short)k, 0);
-			k += sector[sect].wallnum;
-
-			// sectors
-			cpysector[cpysectorcnt] = sector[sect];
-			if (sector[sect].extra > 0)
-			{
-				cpyxsector[cpysectorcnt] = xsector[sector[sect].extra];
-
-				// markers that sector own can be outside highlight so
-				// we have to add it in by just changing sectnum since
-				// it doesn't really matter for markers
-				if ((j = (short)xsector[sector[sect].extra].marker0) >= 0 && sprite[j].statnum == kStatMarker)
-					ChangeSpriteSect(j, sect);
-				if ((j = (short)xsector[sector[sect].extra].marker1) >= 0 && sprite[j].statnum == kStatMarker)
-					ChangeSpriteSect(j, sect);
-			}
-
-			cpysectorcnt++;
-
-			// walls of sectors
-			for (j = sector[sect].wallptr; j < sector[sect].wallptr + sector[sect].wallnum; j++)
-			{
-				cpywall[cpywallcnt] = wall[j];
-				if (wall[j].extra > 0) cpyxwall[cpywallcnt] = xwall[wall[j].extra];
-				cpywallcnt++;
-			}
-
-			// sprites of sectors
-			for (j = headspritesect[sect]; j != -1; j = nextspritesect[j])
-			{
-				if (sprite[j].statnum < kMaxStatus)
-				{
-					cpysprite[cpyspritecnt] = sprite[j];
-					if (sprite[j].extra > 0) cpyxsprite[cpyspritecnt] = xsprite[sprite[j].extra];
-					cpyspritecnt++;
-				}
-			}
-		}
-	}
-
-	eraseExtra();
-	dbLoadMap(mapname, x, y, z, ang, sectnum);
-	CleanUpMisc();
-
-	// restore highlight stuff after loading another map
-	if (highlightsectorcnt > 0)
-	{
-		buffer3[0] = 0;
-		if (numsectors + cpysectorcnt >= kMaxSectors) 		sprintf(buffer3, "sectors");
-		else if (numwalls + cpywallcnt >= kMaxWalls)		sprintf(buffer3, "walls");
-		else if (numsprites + cpyspritecnt >= kMaxSprites)	sprintf(buffer3, "sprites");
-		if (buffer3[0])
-		{
-			Alert("Failed to PASTE objects: too many %s in destination map!", buffer3);
-			highlightsectorcnt = -1;
-		}
-
-		//Re-attach sectors
-		for(i = 0; i < highlightsectorcnt; i++)
-		{
-			sprsect = highlightsector[i];
-			copysector((short)(kMaxSectors - highlightsectorcnt + i), numsectors, numwalls, 0);
-			numwalls += sector[numsectors].wallnum;
-			highlightsector[i] = sect = numsectors++;
-
-			// copy xsector
-			if (cpysector[sectors].extra > 0)
-			{
-				xidx = dbInsertXSector(sect);
-				cpyxsector[sectors].reference = xsector[xidx].reference;
-				memcpy(&xsector[xidx], &cpyxsector[sectors], sizeof(XSECTOR));
-
-				// fix sector marker sprites
-				if (xsector[xidx].marker0 >= 0 || xsector[xidx].marker1 >= 0)
-				{
-
-					for (j = 0; j < cpyspritecnt; j++)
-					{
-						if (cpysprite[j].statnum != kStatMarker) continue;
-						if (xsector[xidx].marker0 != cpysprite[j].index && xsector[xidx].marker1 != cpysprite[j].index)
-							continue;
-
-						k = (short)InsertSprite(sect, kStatMarker);
-						memcpy(&sprite[k], &cpysprite[j], sizeof(spritetype));
-						sprite[k].owner = sprite[k].sectnum = sect;
-						sprite[k].index = k;
-
-						if (xsector[xidx].marker0 == cpysprite[j].index) xsector[xidx].marker0 = sprite[k].index;
-						else xsector[xidx].marker1 = sprite[k].index;
-					}
-				}
-			}
-
-			// copy sprites
-			for (j = 0; j < cpyspritecnt; j++)
-			{
-				if (cpysprite[j].sectnum != sprsect || cpysprite[j].statnum == kStatMarker)
-					continue;
-
-				k = (short)InsertSprite(sect, cpysprite[j].statnum);
-				memcpy(&sprite[k], &cpysprite[j], sizeof(spritetype));
-				sprite[k].sectnum = sect;
-				sprite[k].index = k;
-
-				// copy xsprite
-				if (sprite[k].extra > 0)
-				{
-					xidx = dbInsertXSprite(k);
-					cpyxsprite[j].reference = xsprite[xidx].reference;
-					memcpy(&xsprite[xidx], &cpyxsprite[j], sizeof(XSPRITE));
-				}
-			}
-
-			// copy walls
-			for(j = sector[sect].wallptr; j < sector[sect].wallptr + sector[sect].wallnum; j++)
-			{
-				// copy xwall
-				if (cpywall[walls].extra > 0)
-				{
-					xidx = dbInsertXWall(j);
-					cpyxwall[walls].reference = xwall[xidx].reference;
-					memcpy(&xwall[xidx], &cpyxwall[walls], sizeof(XWALL));
-				}
-
-				walls++;
-			}
-
-			sectors++;
-
-		}
-
-		for(i = 0; i < highlightsectorcnt; i++)
-		{
-			k = sector[highlightsector[i]].wallptr;
-			f = (short) (k + sector[highlightsector[i]].wallnum);
-			for(j = k; j < f; j++)
-			{
-				if (wall[j].nextwall >= 0)
-					checksectorpointer(wall[j].nextwall, wall[j].nextsector);
-
-				checksectorpointer((short)j, highlightsector[i]);
-			}
-		}
-
-
-		AutoAdjustSprites();
-
-	}
-
-	clampCamera();
-	if (zmode == 1)
-	{
-		if (cursectnum < 0) zmode = 3;
-		else zlock = (getflorzofslope(cursectnum, posx, posy)-posz) & ~0x3FF;
-	}
-
-
-	if (gModernMap && gMisc.showTypes != 2)
-	{
-		gMisc.showTypes = 2;
-		InitializeNames();
-	}
-
-	gMapLoaded = TRUE;
-	updatenumsprites();
-	setStartPos(*x, *y, *z, *ang);
-	updatesector(posx, posy, &cursectnum);
-	
-	CleanUp();
-	scrSetMessage("The board \"%s\" is loaded (Revisions: %d)", filename, gMapRev);
-	return 0;
-}
-
-
-
 void faketimerhandler( void )
 {
 	sampletimer();
-}
-
-int qsaveboard(char *filename, int *x, int *y, int *z, short *ang, short *sectnum)
-{
-	keyClear();
-	UndoSectorLighting(); // fix up floor and ceiling shade values for sectors that have dynamic lighting
-	grshUnhgltObjects(-1, FALSE); // restore shade and picnum for objects that was highlighted for gradient shading
-	gByte1A76C6 = gByte1A76C8 = gByte1A76C7 = 1;
-	//updatesector(*x, *y, *sectnum);
-	fixspritesectors();
-	dbSaveMap(filename, *x, *y, *z, *ang, *sectnum);
-		
-	if (!gResetHighlight) grshHgltObjects(-1); // change picnum and shade back to highlighted for highlighted objects
-	asksave = 0;
-	return 0;
 }
 
 /***********************************************************************
@@ -1232,33 +996,48 @@ void ExtPreCheckKeys(void)
 {
 	if (qsetmode == 200)	// in 3D mode
 	{
-		// animate sector lighting
-		DoSectorLighting();
+		FireProcess();	// animate dynamic fire
+		DoSectorLighting();	// animate sector lighting
+		if (gMisc.pan && totalclock >= gTimers.pan + 4)
+		{
+			// animate panning sectors
+			gTimers.pan = totalclock;
+			DoSectorPanning();
+		}
+		
+		clearview(gStdColor[29]);
 	}
 }
 
 void ExtAnalyzeSprites(void)
 {
-	int x = posx, y = posy, z = posz, a = ang, hz = horiz, s = cursectnum;
-
-	if (gNoclip)
-		clearview(gStdColor[31]);
-
 	if (gPreviewMode)
 	{
+		// backup position before drawrooms
+		bpsx = posx, bpsy = posy, bpsz = posz;
+		bang = ang, bhorz = horiz;
+	
 		if (gPreview.scrEffects[kScrEffectQuake1])
-			viewDoQuake(gPreview.scrEffects[kScrEffectQuake1], &x, &y, &z, &a, &hz);
+			viewDoQuake(gPreview.scrEffects[kScrEffectQuake1], &posx, &posy, &posz, &ang, &horiz);
 
 		if (gPreview.scrEffects[kScrEffectQuake2])
-			viewDoQuake(gPreview.scrEffects[kScrEffectQuake2], &x, &y, &z, &a, &hz);
-
-		viewProcessSprites(x, y, z, a);
-		DrawMirrors(x, y, z, a, hz);
-		drawrooms(x, y, z, a, hz, s);
+			viewDoQuake(gPreview.scrEffects[kScrEffectQuake2], &posx, &posy, &posz, &ang, &horiz);
+		
+		// makes no sense...
+		// ...but this is how we can get proper searchstat
+		viewProcessSprites(posx, posy, posz, ang);
+		DrawMirrors(posx, posy, posz, ang, horiz);
+		drawrooms(posx, posy, posz, ang, horiz, cursectnum);
+		viewProcessSprites(posx, posy, posz, ang);
+		
+		// restore position after drawrooms
+		posx = bpsx, posy = bpsy, posz = bpsz;
+		ang = bang, horiz = bhorz;
 	}
-
-	drawrooms(x, y, z, a, hz, s);
-	viewProcessSprites(x, y, z, a);
+	else
+	{
+		viewProcessSprites(posx, posy, posz, ang);
+	}
 }
 
 void process2DMode() {
@@ -1301,20 +1080,12 @@ void process2DMode() {
 	}
 }
 
-void processDrawRooms() {
-	
+void processDrawRooms()
+{
+	ExtPreCheckKeys();
+	drawrooms(posx,posy,posz,ang,horiz,cursectnum);
 	ExtAnalyzeSprites();
 	drawmasks();
-	
-	FireProcess();
-	DoSectorLighting();
-
-	// animate panning sectors
-	if (gMisc.pan && totalclock >= gTimers.pan + 4)
-	{
-		gTimers.pan = totalclock;
-		DoSectorPanning();
-	}
 }
 
 
@@ -1335,19 +1106,6 @@ void process3DMode() {
 		return;
 	}
 
-
-	if (!gPreviewMode)
-	{
-		UndoSectorLighting();
-
-		// animate panning sectors
-		if (gMisc.pan && totalclock >= gTimers.pan + 4)
-		{
-			gTimers.pan = totalclock;
-			DoSectorPanning();
-		}
-	}
-
 	gHovSpr = (searchstat == OBJ_SPRITE) ? searchwall : -1;
 	FireProcess();
 }
@@ -1360,13 +1118,22 @@ void process3DMode() {
  **********************************************************************/
 void ExtCheckKeys( void )
 {
-	int x, y, len, lay = 1;
+	int i, x, y, len, lay = 1;
 	static int oldnumwalls = 0, oldnumsectors = 0, oldnumsprites = 0;
 	static int objType = -1, objIdx = -1;
 	static int omode, oxdim, oydim;
 	BOOL dialog = FALSE, objUpd = FALSE;
 	
-	lay = (qsetmode == 200) ? gHudPrefs.layout3D : gHudPrefs.layout2D;
+	if (qsetmode == 200)
+	{
+		UndoSectorLighting();
+		lay = gHudPrefs.layout3D;
+	}
+	else
+	{
+		lay = gHudPrefs.layout2D;
+	}
+	
 	if (omode != qsetmode || oxdim != xdim || oydim != ydim)
 	{
 		if (omode != qsetmode)
@@ -1424,7 +1191,7 @@ void ExtCheckKeys( void )
 				ShowSpriteData(objIdx, !ctrl, dialog);
 				break;
 			default:
-				gMapedHud.SetMsg();
+				gMapedHud.SetMsg(gMapInfoStr);
 				gMapedHud.SetComment();
 				gMapedHud.SetTile();
 				break;
@@ -1455,8 +1222,10 @@ void ExtCheckKeys( void )
 				if (gAutosave.current > gAutosave.max)
 					gAutosave.current = 1;
 
-				sprintf(buffer, "%s%d.%s", gAutosave.basename, gAutosave.current, gExtNames[kMap]);
-				qsaveboard(buffer, &startposx, &startposy, &startposz, &startang, &startsectnum);
+				getPath(gPaths.maps, buffer, FALSE);
+				sprintf(buffer2, "%s%s%d", buffer, gAutosave.basename, gAutosave.current);
+				ChangeExtension(buffer2, gExtNames[kMap]);
+				boardSave(buffer2, TRUE);
 			}
 		}
 	}
@@ -1465,39 +1234,26 @@ void ExtCheckKeys( void )
 		previewProcess();
 	}
 
-	BOOL flushKey = FALSE;
 	keyGetHelper(&key, &ctrl, &shift, &alt);
-		
-	if (key)
+	if ((key) && (gPreviewMode && (previewProcessKeys() || !previewCheckKey(key))) || (processKeysShared()))
 	{
-		if (gPreviewMode)
-		{
-			if (previewProcessKeys() || !previewCheckKey(key))
-				flushKey = TRUE;
-		}
-		else if (processKeysShared())
-			flushKey = TRUE;
-
-		if (flushKey)
-		{
-			keyClear();
-			keystatus[key] = 0;
-			key = 0;
-		}
+		keyClear();
+		keystatus[key] = 0;
+		key = 0;
 	}
-
+	
 	CalcFrameRate();
 	scrDisplayMessage(kColorWhite);
 
 	if (qsetmode == 200)
 	{
-		ProcessKeys3D();
 		process3DMode();
+		ProcessKeys3D();
 	}
 	else
 	{
-		ProcessKeys2D();
 		process2DMode();
+		ProcessKeys2D();
 	}
 
 	if (totalclock < gTimers.diskPic)
@@ -1510,7 +1266,8 @@ void ExtCheckKeys( void )
 		gfxFillBox(xdim - 29, 21, xdim - 5, 31);
 		gfxDrawText(xdim - 25, 22, gStdColor[kColorBlack], saves, qFonts[1]);
 
-	} else
+	}
+	else
 	{
 		QFONT* pFont = qFonts[1];
 		sprintf(buffer, "%4d FPS", gFrameRate);
@@ -1567,8 +1324,6 @@ int ExtInit(int argc, char const * const argv[])
 	
 	HookReplaceFunctions();
 	setbrightness_replace 		= qsetbrightness;
-	loadboard_replace 			= qloadboard;
-	saveboard_replace 			= qsaveboard;
 	draw2dscreen_replace 		= qdraw2dscreen;
 	setvgapalette_replace 		= qsetvgapalette;
 	printmessage16_replace 		= qprintmessage16;
@@ -1582,7 +1337,7 @@ int ExtInit(int argc, char const * const argv[])
 		addsearchpath(appdir);
 		if ((i = strlen(appdir) - 1) >= 0)
 		{
-			if (appdir[i] == '\\') appdir[i] = 0;
+			if (slash(appdir[i])) appdir[i] = 0;
 			_chdir(appdir); // we need this so opening files through "Open with..." dialog works in Windows...
 			sprintf(buffer, "Using \"%s\" as working dirctory.\n", appdir);
 		}
@@ -1613,16 +1368,38 @@ int ExtInit(int argc, char const * const argv[])
 	if (fileExists(kCoreRffName)) gGuiRes.Init(kCoreRffName);
 	else ThrowError("%s is not found.", kCoreRffName);
 	// ---------------------------------------------------------------------------
-	if (!fileExists(kCoreIniName))
-	{
-		buildprintf("Creating \"%s\" with default settings.\n", kCoreIniName);
-		gGuiRes.Extract((unsigned int)0, "INI", kCoreIniName);
-		iniGenerated = TRUE;
-	}
-	// ---------------------------------------------------------------------------
 	// load config files
 	buildprintf("Loading file: \"%s\".\n", kCoreIniName);
-	MapEditINI = new IniFile(kCoreIniName);		// read xmapedit settings
+	while( 1 )
+	{
+		// create INI file with default settings
+		if (!fileExists(kCoreIniName))
+		{
+			RESHANDLE hIni = gGuiRes.Lookup((unsigned int)0, "INI");
+			if (hIni)
+			{
+				buildprintf("Creating \"%s\" with default settings.\n", kCoreIniName);
+				MapEditINI = new IniFile(gGuiRes.Load(hIni), kCoreIniName);
+				MapEditINI->PutKeyInt("General", "ConfigVersion", kConfigReqVersion);
+				iniGenerated = TRUE;
+			}
+			else
+			{
+				buildprintf("--> Failed to load default settings!\n");
+			}
+			
+			break;
+		}
+		
+		MapEditINI = new IniFile(kCoreIniName);	// read xmapedit settings
+		if ((i = MapEditINI->GetKeyInt("General", "ConfigVersion", -1)) == kConfigReqVersion) // check config version
+			break;
+			
+		buildprintf("--> Current config has incorrect version: Given=%d, Required=%d!\n", i, kConfigReqVersion);
+		unlink(kCoreIniName); delete(MapEditINI); // force creating new file
+		continue;
+	}
+	
 	// ---------------------------------------------------------------------------
 	// initialize game resource archive
 	gPaths.InitResourceRFF(MapEditINI,	"Resources.RFF"); // paths to game resource archive
@@ -1680,7 +1457,7 @@ int ExtInit(int argc, char const * const argv[])
 	gAutosave.Init(MapEditINI,				"Autosave");
 	gAutoGrid.Init(MapEditINI,				"AutoGrid");
 	gCompat.Init(MapEditINI,				"Compatibility");
-	gMapImport.Init(MapEditINI,				"BUILD.LevelImport");
+	gImportPrefs.Init(MapEditINI,			"ImportWizard");
 	gLightBomb.Init(MapEditINI,				"LightBomb");
 	gRotateOpts.Init(MapEditINI,			"Rotation");
 	gTileView.Init(MapEditINI,				"TileViewer");
@@ -1724,8 +1501,10 @@ int ExtInit(int argc, char const * const argv[])
 	buildprintf("Initialising misc stuff...\n");
 	defaultspritecstat 	= kSprOrigin;
 	showinvisibility 	= TRUE;
+	gSkyCount			= 16;
 	visibility 			= 0;
-
+	mapversion			= 7;
+	
 	trigInit(gSysRes);		FireInit();
 	hgltReset();			eraseExtra();
 	InitializeNames();		dbInit();
@@ -1747,9 +1526,9 @@ int ExtInit(int argc, char const * const argv[])
 		
 		if (!gMisc.autoLoadMap)
 		{
-			sprintf(gPaths.maps, buffer); splashScreen();
+			sprintf(gPaths.maps, buffer);
 			char* tmp = dirBrowse("Load board", gPaths.maps, ".map");
-			if (!tmp || !sprintf(buffer, tmp))
+			if (!tmp)
 			{
 				while ( 1 )
 				{
@@ -1760,6 +1539,7 @@ int ExtInit(int argc, char const * const argv[])
 						case mrReload:
 						case mrLoadAsave:
 						case mrNew:
+						case mrToolImportWizard:
 							return 0;
 						case mrCancel:
 						case mrToolArtEdit:
@@ -1770,6 +1550,10 @@ int ExtInit(int argc, char const * const argv[])
 					}
 					break;
 				}
+			}
+			else
+			{
+				sprintf(buffer, tmp);
 			}
 		}
 		else if (strlen(gPaths.maps))
@@ -1786,41 +1570,41 @@ int ExtInit(int argc, char const * const argv[])
 	if (sprintf(gPaths.maps, buffer) > 0)
 		ChangeExtension(gPaths.maps, getExt(kMap));
 	
-	if (gMisc.openWithDialog)
-	{
-		switch (i = toolOpenWith(buffer)) {
-			case kToolMapEdit:
-				break; // continue normal loading
-			case -1:
-				Alert("Could not open file \"%s\".", buffer);
-				xmpQuit(1);
-				break;
-			case kToolArtEdit:
-			case kToolSeqEdit:
-			case kToolQavEdit:
-				gTool.cantest = FALSE;
-				switch (i) {
-					case kToolSeqEdit:
-						sprintf(gSeqEd.filename, buffer);
-						ChangeExtension(gPaths.images, getExt(kSeq));
-						seqeditStart(gSeqEd.filename);
-						break;
-					case kToolArtEdit:
-						sprintf(gPaths.images, buffer);
-						ChangeExtension(gPaths.images, getExt(kArt));
-						artedStart(gPaths.images, TRUE);
-						break;
-					case kToolQavEdit:
-						sprintf(gPaths.qavs, buffer);
-						ChangeExtension(gPaths.qavs, getExt(kQav));
-						gQaved.Start(gPaths.qavs);
-						break;
-				}
-				// no break
-			default:
-				xmpQuit();
-				break;
-		}
+	boardReset();
+	switch (i = toolOpenWith(buffer)) {
+		case kToolMapEdit:
+			gMapLoaded = TRUE;
+			boardLoad(buffer);
+			break;
+		case -1:
+			Alert("Could not open file \"%s\".", buffer);
+			xmpQuit(1);
+			break;
+		case kToolArtEdit:
+		case kToolSeqEdit:
+		case kToolQavEdit:
+			gTool.cantest = FALSE;
+			switch (i) {
+				case kToolSeqEdit:
+					sprintf(gSeqEd.filename, buffer);
+					ChangeExtension(gPaths.images, getExt(kSeq));
+					seqeditStart(gSeqEd.filename);
+					break;
+				case kToolArtEdit:
+					sprintf(gPaths.images, buffer);
+					ChangeExtension(gPaths.images, getExt(kArt));
+					artedStart(gPaths.images, TRUE);
+					break;
+				case kToolQavEdit:
+					sprintf(gPaths.qavs, buffer);
+					ChangeExtension(gPaths.qavs, getExt(kQav));
+					gQaved.Start(gPaths.qavs);
+					break;
+			}
+			// no break
+		default:
+			xmpQuit();
+			break;
 	}
 
 	return retn;
@@ -1832,7 +1616,7 @@ void ExtUnInit(void)
 	scrUnInit(false);
 	favoriteTileSave();
 	if (MapEditINI)
-	{
+	{	
 		gMisc.Save(MapEditINI, 		"General");
 		gTileView.Save(MapEditINI,	"TileViewer");
 		gAutoGrid.Save(MapEditINI, 	"AutoGrid");
@@ -1842,44 +1626,9 @@ void ExtUnInit(void)
 		gScreen.Save(MapEditINI, 	"Screen");
 		gHudPrefs.Save(MapEditINI,  "HUD");
 		gCmtPrefs.Save(MapEditINI,  "Comments");
+		gImportPrefs.Save(MapEditINI, "ImportWizard");
 		MapEditINI->Save();
 	}
-}
-
-void ExtPreLoadMap(void)
-{
-}
-
-void ExtLoadMap(const char *mapname)
-{
-	int i;
-	for (i = 0; i < numsectors; i++)
-	{
-		tilePreloadTile(sector[i].ceilingpicnum);
-		tilePreloadTile(sector[i].floorpicnum);
-	}
-
-	for (i = 0; i < numwalls; i++)
-	{
-		tilePreloadTile(wall[i].picnum);
-		if (wall[i].overpicnum >= 0)
-			tilePreloadTile(wall[i].overpicnum);
-	}
-
-	for (i = 0; i < kMaxSprites; i++)
-	{
-		if (sprite[i].statnum < kMaxStatus)
-			tilePreloadTile(sprite[i].picnum);
-	}
-}
-
-void ExtPreSaveMap(void)
-{
-}
-
-void ExtSaveMap(const char *mapname)
-{
-	//wm_setwindowtitle(mapname);
 }
 
 void assignXObject(int nType, int nIdx, XSPRITE** pXSpr, XSECTOR** pXSect, XWALL** pXWall) {
@@ -2028,13 +1777,6 @@ BOOL processKeysShared() {
 	int i = 0, j = 0, k = 0, f = 0, sect = -1, nwall = -1, type = getHighlightedObject();
 	BOOL in2d = (qsetmode != 200);
 	
-/* 	char path[_MAX_PATH];
-	sprintf(path, "ITEST\\");
-	if (key == KEY_F8)
-	{
-		mapImportArtDlg(path);
-	} */
-
 	switch (key) {
 		default: return FALSE;
 		case KEY_F11:
@@ -2451,6 +2193,60 @@ BOOL processKeysShared() {
 				BeepOk();
 				break;
 			}
+/* 			// point deletion
+			else if (type == 100)
+			{
+				if (in2d)
+				{
+					i = (pointhighlight >= 0) ? (pointhighlight & 0x3FFF) : -1;
+					if (i >= 0)
+					{
+						k = 0;
+						for (j = 0; j < numwalls; j++)
+						{
+							if (wall[j].x == wall[i].x && wall[j].y == wall[i].y) k++;
+						}
+						
+						if (linehighlight >= 0)
+						{
+							j = linehighlight;
+							
+							if (i != j && wall[j].x == wall[i].x && wall[j].y == wall[i].y)
+							{
+									Alert("!! %d / %d", j, i);
+									if (wall[j].nextwall >= 0)
+									
+									dragpoint(i, wall[wall[j].nextwall].x, wall[wall[j].nextwall].y);
+									else
+										dragpoint(i, wall[j].x, wall[j].y);
+									
+									CleanUp();
+									//deletepoint(i);
+							}
+							else 
+								if (wall[wall[j].point2].x == wall[i].x && wall[wall[j].point2].y == wall[i].y)
+								{
+									//Alert(" ?? %d / %d", j, i);
+									dragpoint(i, wall[j].x, wall[j].y);
+									CleanUp();
+									//deletepoint(j);
+								}
+							
+							}
+							//if (linehighlight == i) deletepoint(i);
+							//else if (linehighlight == getPrevWall(i))
+								//deletepoint(linehighlight);
+							
+							//if (linehighlight == i || linehighlight)
+							//{
+								
+							//}
+							
+							//Alert("%d", k);
+					}
+					
+				}
+			} */
 			BeepFail();
 			break;
 		case KEY_SCROLLLOCK:
@@ -2883,12 +2679,13 @@ void xmpOptions(void) {
 		FieldSet* pField1 = new FieldSet(pad, pad, dw-(pad*3), (bth<<1)-(pad>>1), "RESOLUTION");
 		TextButton* pVideoChange = new TextButton(pad, pad, btw, bth, "Chan&ge...", 100);
 		
-		Checkbox* pFullscreen = new Checkbox(btw+(pad<<1), half, 0, fullscreen, "&Fullscreen", 101);
+		Checkbox* pFullscreen = new Checkbox(btw+(pad<<1), half, fullscreen, "&Fullscreen", 101);
 		sprintf(buffer, "%dx%d", xdimgame, ydimgame); len = gfxGetTextLen(buffer, pFont);
 		Label* pLabel = new Label(dw-(pad<<2)-len, half+2, buffer, kColorBlue);
 		
+		
 		sprintf(buffer, "Show this &window at startup"); len = gfxGetLabelLen(buffer, pFont) + 14;
-		Checkbox* pForceSetup = new Checkbox((dw>>1)-(len>>1), dh-bth-(pad*5), 0, gMisc.forceSetup, buffer);
+		Checkbox* pForceSetup = new Checkbox((dw>>1)-(len>>1), dh-bth-(pad*5), gMisc.forceSetup, buffer);
 		TextButton* pClose = new TextButton((dw>>1)-(btw>>1), dh-bth-(pad*3), btw, bth, "&Close", mrOk);
 		pClose->fontColor = kColorRed;
 		
@@ -3138,6 +2935,7 @@ int xmpMenuCreate(char* name) {
 	dialog.Insert(new Label(8, y, ">TOOLS", kColorBlue)); y+=(pFont->height+pd);
 	TextButton* pPreviewMode   = new TextButton(x, y, 124,  bh, "&Preview mode", mrToolPreviewMode);	y+=bh;
 	TextButton* pExplodeSeq    = new TextButton(x, y, 124,  bh, "&Exploder sequence", mrToolExpSeq);	y+=bh;
+	TextButton* pImportWizard  = new TextButton(x, y, 124,  bh, "&Import wizard", mrToolImportWizard);	y+=bh;
 
 	i = 124/3;
 	TextButton* pButtonQavedit = new TextButton(x, y, i,  bh, editors[0], mrToolQavEdit); 	x+=i;
@@ -3155,6 +2953,7 @@ int xmpMenuCreate(char* name) {
 	dialog.height = y + (pd*6);
 	dialog.Insert(pPreviewMode);
 	dialog.Insert(pExplodeSeq);
+	dialog.Insert(pImportWizard);
 	dialog.Insert(pButtonQavedit);
 	dialog.Insert(pButtonSeqedit);
 	dialog.Insert(pButtonArtedit);
@@ -3178,7 +2977,6 @@ int xmpMenuProcess() {
 				{
 					sprintf(gPaths.maps,"%s%d.%s", gAutosave.basename, result - mrAsave, gExtNames[kMap]);
 					result = mrLoadAsave;
-					gMapLoaded = TRUE;
 					break;
 				}
 				result = mrMenu;
@@ -3211,6 +3009,12 @@ int xmpMenuProcess() {
 				if (toolExploderSeq() == mrOk) return result;
 				result = mrMenu;
 				break;
+			case mrToolImportWizard:
+			{
+				IMPORT_WIZARD wizard;
+				wizard.ShowDialog();			
+			}
+			return result;
 			case mrToolSeqEdit:
 				gTool.cantest = gMapLoaded;
 				seqeditStart(NULL);
@@ -3229,32 +3033,9 @@ int xmpMenuProcess() {
 					result = mrMenu;
 					break;
 				}
-
-				gPaths.maps[0] = 0;
-
+				boardReset();
+				sprintf(gPaths.maps, kDefaultMapName);
 				scrSetMessage("New board started.");
-				gTimers.autosave = gFrameClock + gAutosave.interval;
-				numsprites = numsectors = numwalls = 0;
-				numxsectors = numxwalls = numxsprites = 0;
-
-				asksave    = 0;
-				startposz  = posz = 0;
-				startposx  = posx = 0;
-				startposy  = posy = 0;
-				startang   = ang  = 1536;
-				horiz	   = 100;
-				cursectnum = startsectnum = -1;
-				gModernMap = (BOOL)gCompat.modernMap;
-				memset(joinsector, -1, sizeof(joinsector));
-				gCommentMgr.DeleteAll();
-				
-				hgltReset();
-				eraseExtra();
-				dbInit();
-
-				if (gMapLoaded)
-					sprintf(gPaths.maps, kDefaultMapName);
-
 				gMapLoaded = TRUE;
 				return result;
 			case mrSave:
@@ -3274,7 +3055,7 @@ int xmpMenuProcess() {
 
 						gTimers.autosave = gFrameClock + gAutosave.interval;
 
-						qsaveboard(gPaths.maps, &startposx, &startposy, &startposz, &startang, &startsectnum);
+						boardSave(gPaths.maps, FALSE);
 						scrSetMessage("Board saved to \"%s\".", gPaths.maps);
 						BeepOk();
 						return result;
@@ -3293,7 +3074,6 @@ int xmpMenuProcess() {
 				// no break
 			case mrLoad:
 			case mrLoadAsave:
-
 				if (result != mrLoad) filename = gPaths.maps;
 				else
 				{
@@ -3312,49 +3092,25 @@ int xmpMenuProcess() {
 					result = mrMenu;
 					break;
 				}
-
-				if (gMapLoaded)
-				{
-					asksave = 0;
-					somethingintab = 255;
-					gTimers.autosave = gFrameClock + gAutosave.interval;
-					numsprites  = numsectors = numwalls = 0;
-					numxsectors = numxwalls  = numxsprites = 0;
-					horiz	    = 100;
-					qloadboard(filename, -1, &posx, &posy, &posz, &ang, &cursectnum);
-					ExtLoadMap(filename);
-				}
+				if (boardLoad(filename) == -2) break;
 				return result;
-			case mrQuit:
-				if (gArtEd.asksave)
-				{
-					if ((i = createCheckboxList(saveMenu, LENGTH(saveMenu), "Quit editor", TRUE)) == mrCancel)
-					{
-						result = mrMenu;
-						break;
-					}
-
-					asksave = 0;
-					if (saveMenu[0].option)
-						qsaveboard(gPaths.maps, &startposx, &startposy, &startposz, &startang, &startsectnum);
-
-					if (saveMenu[1].option)
-					{
-						extVoxUninit();
-						tileUninitSystemTiles();
-						artedSaveArtFiles();
-						artedSaveDatFiles();
-					}
-				}
-
-				switch (result = (asksave) ? YesNoCancel("Save map changes?") : mrNo) {
-					case mrOk:
-						qsaveboard(gPaths.maps, &startposx, &startposy, &startposz, &startang, &startsectnum);
+			case mrQuit:	
+				switch (result = DlgSaveChanges("Save changes?", gArtEd.asksave)) {
+					case 2:
+					case 1:
+						boardSave(gPaths.maps, FALSE);
+						if (result > 1)
+						{
+							extVoxUninit();
+							tileUninitSystemTiles();
+							artedSaveArtFiles();
+							artedSaveDatFiles();
+						}
 						// no break
-					case mrNo:
+					case 0:
 						xmpQuit();
-						return result;
-					case mrCancel:
+						return 0;
+					default:
 						result = mrMenu;
 						break;
 				}
@@ -3391,12 +3147,14 @@ BOOL getDataNameOf(short otype, short idx, short didx, char* out) {
 }
 
 
-#define kMoveVal1 1024 // 4<<8
-#define kMoveVal2 2048 // 8<<8
-#define kMoveVal3 4096 // 16<<8
-#define kMoveVal4 6144 // 24<<8
-#define kMoveVal5 3072 // 12<<8
+
 void processMove() {
+	
+	#define kMoveVal1 1024 // 4<<8
+	#define kMoveVal2 2048 // 8<<8
+	#define kMoveVal3 4096 // 16<<8
+	#define kMoveVal4 6144 // 24<<8
+	#define kMoveVal5 3072 // 12<<8
 	
 	BOOL block = FALSE;
 	BYTE ctrl, shift, alt; BOOL in2d = (qsetmode != 200);
@@ -3417,7 +3175,7 @@ void processMove() {
 		doubvel = gFrameTicks;
 		if (shift)
 			doubvel += gFrameTicks >> 1;
-		ang = (short)((ang + (angvel * doubvel >> 4)) & kAngMask);
+		ang = (short)((ang + ((angvel+perc2val(angvel, 35)) * doubvel >> 4)) & kAngMask);
 	}
 
 	if (vel | svel)
@@ -3425,7 +3183,8 @@ void processMove() {
 		doubvel = gFrameTicks;
 		if (shift)
 			doubvel += gFrameTicks;
-				
+		
+		doubvel += perc2val(doubvel, 40);
 		if (vel)
 		{
 			xvect += mulscale30(vel * doubvel >> 2, Cos(ang));
@@ -3730,29 +3489,333 @@ void processMove() {
 	}
 }
 
-void SetupSky( int nTile ) {
+void setStartPos(int x, int y, int z, int ang)
+{
+	updatesector(x, y, &startsectnum);
+	z = (startsectnum >= 0) ? getflorzofslope(startsectnum, x, y) : 0;
+	
+	startposx = x;
+	startposy = y;
+	startposz = z - kensplayerheight;
+	startang  = ang;
+}
 
-
-	short i;
-	dassert(nTile >= 0 && nTile < kMaxTiles);
-	if (!gCustomSkyBits)
-		pskybits = (short)(10 - (picsiz[nTile] & 0x0F));
-
-	gSkyCount = 1 << pskybits;
-
-	// setup the sky tile offset table
-	for (i = 0; i < gSkyCount; i++)
-		pskyoff[i] = i;
-
-	// reset the base tile for all the parallaxed skies (ceiling & floor!)
-	if (!gMisc.diffSky)
+void boardPreloadTiles()
+{
+	int i, j, swal, ewal;
+	for (i = 0; i < numsectors; i++)
 	{
-		for (i = 0; i < numsectors; i++)
+		tilePreloadTile(sector[i].ceilingpicnum);
+		tilePreloadTile(sector[i].floorpicnum);
+		
+		getSectorWalls(i, &swal, &ewal);
+		for (j = swal; j <= ewal; j++)
 		{
-			if (sector[i].ceilingstat & kSectParallax)
-				sector[i].ceilingpicnum = (short)nTile;
-			if (sector[i].floorstat & kSectParallax)
-				sector[i].floorpicnum = (short)nTile;
+			tilePreloadTile(wall[i].picnum);
+			if ((wall[i].cstat & kWallMasked) && wall[i].overpicnum >= 0)
+				tilePreloadTile(wall[i].overpicnum);
+		}
+		
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+			tilePreloadTile(sprite[i].picnum);
+	}
+}
+
+int boardLoad(char *filename)
+{
+	BOOL bloodMap;
+	BYTE* pData = NULL;
+	short j, i, k, f, sect;
+	short xidx, sprsect;
+	short sectors = 0, walls = 0, sprites = 0;
+	char mapname[_MAX_PATH];
+	int nSize = 0;
+	keyClear();
+
+	sprintf(mapname, filename);	ChangeExtension(mapname, getExt(kMap));
+	if ((nSize = fileLoadHelper(mapname, &pData)) <= 0)
+		return -1;
+	
+	IOBuffer* pIo = new IOBuffer(nSize, pData);
+	if ((i = dbCheckMap(pIo, gSuppMapVersions, LENGTH(gSuppMapVersions), &bloodMap)) <= 0)
+	{
+		Alert("Unknown map file format!");
+		free(pData);
+		return -1;
+	}
+	else if (!bloodMap)
+	{
+		IMPORT_WIZARD_MAP_ARG mapArg;
+		mapArg.filepath = mapname;	mapArg.pIo = pIo;
+		mapArg.version  = i;		mapArg.blood = bloodMap;
+		mapArg.allowSel = 0;
+		
+		IMPORT_WIZARD wizard;
+		i = wizard.ShowDialog(&mapArg);
+		free(pData);
+		return i;	
+	}
+	
+	sprintf(buffer3, "Loading the %s", mapname);
+	splashScreen(buffer3);
+	
+	// save all the highlighted stuff before loading other map
+	if (highlightsectorcnt > 0)
+	{
+		cpyObjectClear();
+		updatenumsprites();
+
+		// check if it's enough space in arrays first
+		for(i = k = j = 0; i < highlightsectorcnt; i++)
+		{
+			j += sector[highlightsector[i]].wallnum;
+			for (f = headspritesect[highlightsector[i]]; f != -1; f = nextspritesect[f])
+			{
+				if (sprite[f].statnum < kMaxStatus)
+					k++;
+			}
+		}
+
+		buffer3[0] = 0;
+		if (numsectors + i >= kMaxSectors)		sprintf(buffer3, "sectors");
+		else if (numwalls + j >= kMaxWalls)		sprintf(buffer3, "walls");
+		else if (numsprites + k >= kMaxSprites) sprintf(buffer3, "sprites");
+		if (buffer3[0])
+		{
+			Alert("Failed to COPY objects: too many %s to backup!", buffer3);
+			highlightsectorcnt = -1;
+		}
+		else
+		{
+			buffer3[0] = 0;
+			getFilename(gPaths.maps, buffer3);
+			switch (YesNoCancel("Import %d sectors with %d walls and %d sprites in \"%s\" map?", i, j, k, buffer3)) {
+				case mrCancel:
+					return -1;
+				case mrNo:
+					highlightsectorcnt = -1;
+					break;
+			}
+		}
+
+		//put sectors and walls to end of lists
+		for(i = 0, k = kMaxWalls; i < highlightsectorcnt; i++)
+			k -= sector[highlightsector[i]].wallnum;
+
+		for(i = 0; i < highlightsectorcnt; i++) {
+
+
+			sect = highlightsector[i];
+			copysector(sect,(short)(kMaxSectors - highlightsectorcnt + i),(short)k, 0);
+			k += sector[sect].wallnum;
+
+			// sectors
+			cpysector[cpysectorcnt] = sector[sect];
+			if (sector[sect].extra > 0)
+			{
+				cpyxsector[cpysectorcnt] = xsector[sector[sect].extra];
+
+				// markers that sector own can be outside highlight so
+				// we have to add it in by just changing sectnum since
+				// it doesn't really matter for markers
+				if ((j = (short)xsector[sector[sect].extra].marker0) >= 0 && sprite[j].statnum == kStatMarker)
+					ChangeSpriteSect(j, sect);
+				if ((j = (short)xsector[sector[sect].extra].marker1) >= 0 && sprite[j].statnum == kStatMarker)
+					ChangeSpriteSect(j, sect);
+			}
+
+			cpysectorcnt++;
+
+			// walls of sectors
+			for (j = sector[sect].wallptr; j < sector[sect].wallptr + sector[sect].wallnum; j++)
+			{
+				cpywall[cpywallcnt] = wall[j];
+				if (wall[j].extra > 0) cpyxwall[cpywallcnt] = xwall[wall[j].extra];
+				cpywallcnt++;
+			}
+
+			// sprites of sectors
+			for (j = headspritesect[sect]; j != -1; j = nextspritesect[j])
+			{
+				if (sprite[j].statnum < kMaxStatus)
+				{
+					cpysprite[cpyspritecnt] = sprite[j];
+					if (sprite[j].extra > 0) cpyxsprite[cpyspritecnt] = xsprite[sprite[j].extra];
+					cpyspritecnt++;
+				}
+			}
 		}
 	}
+	
+	boardReset(kHgltPoint | kHgltGradient);
+	dbLoadMap(pIo, gCmtPrefs.enabled ? mapname : NULL);
+	free(pData);
+
+	// restore highlight stuff after loading another map
+	if (highlightsectorcnt > 0)
+	{
+		buffer3[0] = 0;
+		if (numsectors + cpysectorcnt >= kMaxSectors) 		sprintf(buffer3, "sectors");
+		else if (numwalls + cpywallcnt >= kMaxWalls)		sprintf(buffer3, "walls");
+		else if (numsprites + cpyspritecnt >= kMaxSprites)	sprintf(buffer3, "sprites");
+		if (buffer3[0])
+		{
+			Alert("Failed to PASTE objects: too many %s in destination map!", buffer3);
+			highlightsectorcnt = -1;
+		}
+
+		//Re-attach sectors
+		for(i = 0; i < highlightsectorcnt; i++)
+		{
+			sprsect = highlightsector[i];
+			copysector((short)(kMaxSectors - highlightsectorcnt + i), numsectors, numwalls, 0);
+			numwalls += sector[numsectors].wallnum;
+			highlightsector[i] = sect = numsectors++;
+
+			// copy xsector
+			if (cpysector[sectors].extra > 0)
+			{
+				xidx = dbInsertXSector(sect);
+				cpyxsector[sectors].reference = xsector[xidx].reference;
+				memcpy(&xsector[xidx], &cpyxsector[sectors], sizeof(XSECTOR));
+
+				// fix sector marker sprites
+				if (xsector[xidx].marker0 >= 0 || xsector[xidx].marker1 >= 0)
+				{
+
+					for (j = 0; j < cpyspritecnt; j++)
+					{
+						if (cpysprite[j].statnum != kStatMarker) continue;
+						if (xsector[xidx].marker0 != cpysprite[j].index && xsector[xidx].marker1 != cpysprite[j].index)
+							continue;
+
+						k = (short)InsertSprite(sect, kStatMarker);
+						memcpy(&sprite[k], &cpysprite[j], sizeof(spritetype));
+						sprite[k].owner = sprite[k].sectnum = sect;
+						sprite[k].index = k;
+
+						if (xsector[xidx].marker0 == cpysprite[j].index) xsector[xidx].marker0 = sprite[k].index;
+						else xsector[xidx].marker1 = sprite[k].index;
+					}
+				}
+			}
+
+			// copy sprites
+			for (j = 0; j < cpyspritecnt; j++)
+			{
+				if (cpysprite[j].sectnum != sprsect || cpysprite[j].statnum == kStatMarker)
+					continue;
+
+				k = (short)InsertSprite(sect, cpysprite[j].statnum);
+				memcpy(&sprite[k], &cpysprite[j], sizeof(spritetype));
+				sprite[k].sectnum = sect;
+				sprite[k].index = k;
+
+				// copy xsprite
+				if (sprite[k].extra > 0)
+				{
+					xidx = dbInsertXSprite(k);
+					cpyxsprite[j].reference = xsprite[xidx].reference;
+					memcpy(&xsprite[xidx], &cpyxsprite[j], sizeof(XSPRITE));
+				}
+			}
+
+			// copy walls
+			for(j = sector[sect].wallptr; j < sector[sect].wallptr + sector[sect].wallnum; j++)
+			{
+				// copy xwall
+				if (cpywall[walls].extra > 0)
+				{
+					xidx = dbInsertXWall(j);
+					cpyxwall[walls].reference = xwall[xidx].reference;
+					memcpy(&xwall[xidx], &cpyxwall[walls], sizeof(XWALL));
+				}
+
+				walls++;
+			}
+
+			sectors++;
+
+		}
+
+		for(i = 0; i < highlightsectorcnt; i++)
+		{
+			k = sector[highlightsector[i]].wallptr;
+			f = (short) (k + sector[highlightsector[i]].wallnum);
+			for(j = k; j < f; j++)
+			{
+				if (wall[j].nextwall >= 0)
+					checksectorpointer(wall[j].nextwall, wall[j].nextsector);
+
+				checksectorpointer((short)j, highlightsector[i]);
+			}
+		}
+	}
+
+	if (gModernMap && gMisc.showTypes != 2)
+	{
+		gMisc.showTypes = 2;
+		InitializeNames();
+	}
+	
+	formatMapInfo(gMapInfoStr);
+	
+	gMapLoaded = TRUE;
+	boardPreloadTiles();
+	AutoAdjustSprites();
+	CleanUpMisc();
+	CleanUp();
+	
+	updatesector(posx, posy, &cursectnum); clampCamera();
+	gMapedHud.SetMsgImp(256, gMapInfoStr);
+	return 0;
+}
+
+int boardSave(char* filename, BOOL autosave)
+{
+	keyClear();
+	UndoSectorLighting(); // fix up floor and ceiling shade values for sectors that have dynamic lighting
+	grshUnhgltObjects(-1, FALSE); // restore shade and picnum for objects that was highlighted for gradient shading
+	fixspritesectors();
+	
+	if (!autosave)
+		gMapRev++;
+	
+	
+	CleanUp();
+	setStartPos(startposx, startposy, startposz, startang); // this updates startsectnum as well
+	dbSaveMap(filename, (mapversion == 7 || gCompat.modernMap));
+	if (!gResetHighlight) grshHgltObjects(-1); // change picnum and shade back to highlighted for highlighted objects
+	formatMapInfo(gMapInfoStr);
+	asksave = 0;
+	return 0;
+}
+
+void boardReset(int hgltreset)
+{
+	gTimers.autosave = gFrameClock + gAutosave.interval;
+	numsprites  = numsectors = numwalls		= 0;
+	numxsectors = numxwalls  = numxsprites	= 0;
+	gModernMap  = (BOOL)gCompat.modernMap;
+	
+	asksave    = 0;
+	horiz	   = 100;
+	startposz  = posz = 0;
+	startposx  = posx = 0;
+	startposy  = posy = 0;
+	startang   = ang  = 1536;
+	cursectnum = startsectnum = -1;
+	somethingintab = 255;
+	gMapRev    = 0;
+	
+	memset(joinsector, -1, sizeof(joinsector));
+	
+	if (!hgltreset) hgltReset(); // reset using default params
+	else hgltReset(hgltreset); 	// override param
+	
+	memset(gMapInfoStr, 0, sizeof(gMapInfoStr));
+	gCommentMgr.DeleteAll();
+	gXTracker.TrackClear();
+	eraseExtra();
+	dbInit();
 }

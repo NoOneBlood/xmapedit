@@ -161,6 +161,8 @@ mrOptions						,
 mrAbout							,
 mrToolPreviewMode				,
 mrToolExpSeq					,
+mrToolImportWizard				,
+mrToolArtGrabber				,
 mrToolSeqEdit					,
 mrToolArtEdit					,
 mrToolQavEdit					,
@@ -210,7 +212,6 @@ char* onOff(int var);
 char* isNot(int var);
 char* yesNo(int var);
 BOOL getDataNameOf(short otype, short idx, short didx, char* out);
-void SetupSky( int nTile );
 int xmpMenuCreate(char* name);
 int xmpMenuProcess();
 void xmpQuit(int code = 0);
@@ -218,4 +219,11 @@ void xmpOptions(void);
 int xsysConnect(int nTypeA, int nIdxA, int nTypeB, int nIdxB);
 int xsysConnect2(int nTypeA, int nIdxA, int nTypeB, int nIdxB);
 void processMove();
+void setStartPos(int x, int y, int z, int ang);
+int boardLoad(char *filename);
+void boardPreloadTiles();
+int boardSave(char* filename, BOOL autosave);
+void boardReset(int hgltreset = 0);
+
+
 #endif

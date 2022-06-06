@@ -460,20 +460,15 @@ void seqeditProcess( void ) {
 		switch (key) {
 			case KEY_ESC:
 				if (!gSeqEd.asksave) return;
-				switch (toolAskSaveChanges("Save sequence?")) {
-					case mrNo:
-						return;
-					case mrOk:
-						if (gSeqEd.filename[0] || toolSaveAs(gSeqEd.filename, kSeqExt)) {
-							artedSaveChanges();
-							SEQSave();
-							return;
-						}
-						
-						if (gSeqEd.filename[0])
-							Alert("Must enter a filename.");
-						
+				switch (i = DlgSaveChanges("Save sequence?", gArtEd.asksave)) {
+					case 2:
+					case 1:
+						if (!gSeqEd.filename[0] && !toolSaveAs(gSeqEd.filename, kSeqExt)) break;
+						if (i > 1) artedSaveChanges();
+						SEQSave();
 						// no break
+					case 0:
+						return;
 					default:
 						break;
 				}

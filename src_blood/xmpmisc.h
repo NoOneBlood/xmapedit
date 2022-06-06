@@ -55,7 +55,14 @@ kSurfLava,
 kSurfMax,
 };
 
+#pragma pack(push, 1)
 struct NAMED_TYPE;
+struct FUNCT_LIST
+{
+	int funcType;
+	void* pFunc;
+};
+#pragma pack(pop)
 
 void Delay(int time);
 BOOL Beep(BOOL cond);
@@ -64,7 +71,7 @@ void BeepFail( void );
 int scanBakFile(char* file);
 inline BOOL rngok(int val, int rngA, int rngB) { return (val >= rngA && val < rngB); }
 BYTE fileExists(char* filename, RESHANDLE* rffItem = NULL);
-uint32_t filemtime(char* filename);
+int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom = NULL);
 void updateClocks();
 void gfxPrinTextShadow(int x, int y, int col, char* text, QFONT *pFont = NULL, int shofs = 1);
 void splashScreen(char* text = NULL);
@@ -96,6 +103,7 @@ void eraseExtra();
 BOOL objectLockShowStatus(int x, int y);
 int getHighlightedObject();
 char* getFilename(char* pth, char* out, BOOL addExt = FALSE);
+char* getPath(char* pth, char* out, BOOL addSlash = FALSE);
 void playSound(int sndId, int showMsg = 1);
 
 
@@ -136,7 +144,6 @@ void getSectorWalls(int nSect, int* swal, int *ewal);
 void avePointWall(int nWall, int* x, int* y);
 BOOL isMultiTx(short nSpr);
 BOOL multiTxPointsRx(int rx, short nSpr);
-void getBoardZEdges(int *lz, int* hz);
 void setCstat(BOOL enable, short* pStat, int nStat);
 short wallCstatAdd(int nWall, short cstat, BOOL nextWall = TRUE);
 short wallCstatRem(int nWall, short cstat, BOOL nextWall = TRUE);
@@ -148,6 +155,14 @@ int scaleZ(int sy, int hz);
 int keyneg(int step, BYTE key = 0, bool rvrs = false);
 int kneg(int step, bool rvrs = false);
 char* getExt(int nExt);
+int DlgSaveChanges(char* text, BOOL askForArt = FALSE);
+int countUniqBytes(BYTE* pBytes, int len);
+void* getFuncPtr(FUNCT_LIST* db, int dbLen, int nType);
+int getTypeByExt(char* str, NAMED_TYPE* db, int len);
+BOOL isSkySector(int nSect, int nFor);
+BOOL ceilPicMatch(int nSect, int nPic);
+BOOL floorPicMatch(int nSect, int nPic);
+BOOL makeBackup(char* filename);
 //void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1);
 //BOOL ss2obj(int* objType, int* objIdx, BOOL asIs = FALSE);
 //BOOL dosboxRescan();

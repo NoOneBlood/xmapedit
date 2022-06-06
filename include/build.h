@@ -317,7 +317,6 @@ extern int fpgrouscan;
 EXTERN unsigned char gStdColor[256]; // temporary std colors for overheadeditor()...
 EXTERN long clipmovemask2d, clipmovemask3d;
 EXTERN char gPreviewMode, gMapLoaded;
-EXTERN char boardpath[BMAX_PATH];
 EXTERN int numsprites;
 EXTERN short grid, gridlock, showtags;
 EXTERN int zoom;
@@ -474,8 +473,6 @@ EXTERN int(*insertsprite_replace)(short sectnum, short statnum);
 EXTERN int(*deletesprite_replace)(short spritenum);
 EXTERN int(*changespritesect_replace)(short spritenum, short newsectnum);
 EXTERN int(*changespritestat_replace)(short spritenum, short newstatnum);
-EXTERN int(*loadboard_replace)(char *filename, char fromwhere, int *daposx, int *daposy, int *daposz, short *daang, short *dacursectnum);
-EXTERN int(*saveboard_replace)(char *filename, int *daposx, int *daposy, int *daposz, short *daang, short *dacursectnum);
 EXTERN void(*loadvoxel_replace)(int voxindex);
 EXTERN void(*draw2dscreen_replace)(int posxe, int posye, short ange, int zoome, short gride);
 EXTERN void(*loadtile_replace)(short tilenume);
@@ -485,10 +482,7 @@ int    preinitengine(void);	// a partial setup of the engine used for launch win
 int    initengine(void);
 void   uninitengine(void);
 void   initspritelists(void);
-int   loadboard(char *filename, char fromwhere, int *daposx, int *daposy, int *daposz, short *daang, short *dacursectnum);
 int   loadmaphack(char *filename);
-int   saveboard(char *filename, int *daposx, int *daposy, int *daposz, short *daang, short *dacursectnum);
-int   saveoldboard(char *filename, int *daposx, int *daposy, int *daposz, short *daang, short *dacursectnum);
 int   loadpics(char *filename, int askedsize);
 void   loadtile(short tilenume);
 int   qloadkvx(int voxindex, char *filename);
@@ -638,8 +632,7 @@ int md_undefinemodel(int modelid);
 
 int loaddefinitionsfile(const char *fn);
 
-extern int mapversion;	// if loadboard() fails with -2 return, try loadoldboard(). if it fails with -2, board is dodgy
-int loadoldboard(char *filename, char fromwhere, int *daposx, int *daposy, int *daposz, short *daang, short *dacursectnum);
+extern int mapversion;
 
 void buildprintf(const char *fmt, ...) PRINTF_FORMAT(1, 2);
 void buildputs(const char *str);

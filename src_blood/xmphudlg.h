@@ -57,6 +57,17 @@ DISABLED = 0x01,
 };
 
 
+/* struct DLG_MAP_INFO
+{
+	char* pathptr[1];
+	char* authptr[1];
+	unsigned int revision;
+	
+};
+
+
+extern DLG_MAP_INFO gTest; */
+
 extern DIALOG_ITEM dlgSprite[];
 extern DIALOG_ITEM dlgXSprite[];
 extern DIALOG_ITEM dlgWall[];
@@ -64,6 +75,7 @@ extern DIALOG_ITEM dlgXWall[];
 extern DIALOG_ITEM dlgSector[];
 extern DIALOG_ITEM dlgXSector[];
 extern DIALOG_ITEM dlgXSectorFX[];
+extern DIALOG_ITEM dlgMapInfo[];
 
 // dialog helper function prototypes
 BYTE GetNextUnusedID(DIALOG_ITEM *dialog, DIALOG_ITEM *control, BYTE key );

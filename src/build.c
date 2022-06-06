@@ -25,7 +25,7 @@ static int crctable[256];
 static char kensig[24];
 
 static int synctics = 0, lockclock = 0;
-int vel, hvel = 0, svel, angvel, doubvel = 0;
+int vel = 0, hvel = 0, svel = 0, angvel = 0, doubvel = 0;
 int posx, posy, posz, horiz = 100;		short ang, cursectnum;
 int startposx, startposy, startposz;	short startang, startsectnum;
 int ydim16, halfxdim16, midydim16, grponlymode = 0, editorgridextent;
@@ -141,25 +141,6 @@ static int osdcmd_vidmode(const osdfuncparm_t *parm)
 	return OSDCMD_OK;
 }
 
-static int osdcmd_mapversion(const osdfuncparm_t *parm)
-{
-	int newversion;
-
-	if (parm->numparms < 1) {
-		buildprintf("mapversion is %d\n", mapversion);
-		return OSDCMD_OK;
-	}
-	newversion = Batol(parm->parms[0]);
-	if (newversion < 5 || newversion > 8) {
-		return OSDCMD_SHOWHELP;
-	}
-
-	buildprintf("mapversion is now %d (was %d)\n", newversion, mapversion);
-	mapversion = newversion;
-
-	return OSDCMD_OK;
-}
-
 extern char *defsfilename;	// set in bstub.c
 int app_main(int argc, char const * const argv[])
 {
@@ -171,7 +152,6 @@ int app_main(int argc, char const * const argv[])
 
 	OSD_RegisterFunction("restartvid","restartvid: reinitialise the video mode",osdcmd_restartvid);
 	OSD_RegisterFunction("vidmode","vidmode [xdim ydim] [bpp] [fullscreen]: immediately change the video mode",osdcmd_vidmode);
-	OSD_RegisterFunction("mapversion","mapversion [ver]: change the map version for save (min 5, max 8)", osdcmd_mapversion);
 
 	//wm_setapptitle("BUILD by Ken Silverman");
 
@@ -220,74 +200,13 @@ int app_main(int argc, char const * const argv[])
 	if ((i = ExtInit(argc, argv)) < 0)
 		return -1;
 
-	//buildsetlogfile("build.log");
-	//loadpics("tiles000.art",1048576);
-	//loadnames();
-
 	Bstrcpy(kensig,"BUILD by Ken Silverman");
 	initcrc();
 
-	//if (!loaddefinitionsfile(defsfilename)) buildputs("Definitions file loaded.\n");
-/* 	if (setgamemode(fullscreen,xdimgame,ydimgame,bppgame) < 0)
+	if (qsetmode != 200)
 	{
-		ExtUnInit();
-		uninitengine();
-		buildprintf("%d * %d not supported in this graphics mode\n",xdim,ydim);
-		exit(0);
-	} */
-		
-	//setbrightness(brightness,palette,0);
-/* 	dark = INT_MAX; light = 0;
-	
-	for(i=0;i<256;i++)
-	{
-		j = ((int)palette[i*3])+((int)palette[i*3+1])+((int)palette[i*3+2]);
-		if (j > light) { light = j; whitecol = i; }
-		if (j < dark) { dark = j; blackcol = i; }
-	} */
-	
-	if (!gMapLoaded)
-	{
-		gMapLoaded = 1;
-		
-		for(i=0;i<MAXSECTORS;i++) sector[i].extra = -1;
-		for(i=0;i<MAXWALLS;i++) wall[i].extra = -1;
-		for(i=0;i<MAXSPRITES;i++) sprite[i].extra = -1;
-
-		ExtPreLoadMap();
-		j = pathsearchmode == PATHSEARCH_GAME && grponlymode ? KOPEN4LOAD_ANYGRP : KOPEN4LOAD_ANY;
-		i = loadboard(boardpath,j,&posx,&posy,&posz,&ang,&cursectnum);
-		if (i < 0 || qsetmode != 200)
-		{
-			if (i < 0)
-			{
-				posx = 32768;
-				posy = 32768;
-				posz = 0;
-				ang = 1536;
-				numsectors = 0;
-				numwalls = 0;
-				cursectnum = -1;
-			}
-			
-			overheadeditor();
-			keystatus[0x9c] = 0;
-		}
-		else
-		{
-			ExtLoadMap(boardpath);
-		}
-
-		updatenumsprites();
-		
-		if (i < 0)
-		{
-			startposx = posx;
-			startposy = posy;
-			startposz = posz;
-			startang = ang;
-			startsectnum = cursectnum;
-		}
+		overheadeditor();
+		keystatus[0x9c] = 0;
 	}
 	
 	while (quitflag == 0)

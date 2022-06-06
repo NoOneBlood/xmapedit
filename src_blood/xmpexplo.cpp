@@ -29,8 +29,10 @@
 #include "misc.h"
 #include "xmpexplo.h"
 #include "xmpmisc.h"
+#include "enumstr.h"
 
-#define kDirExpMaxFiles 512 // per directory
+
+#define kDirExpMaxFiles 1024 // per directory
 #define kDirExpDefaultDirColor 0
 #define kDirExpDefaultFileColor 1
 #define kDirExpBakFileColor 6
@@ -87,26 +89,28 @@ void dirExpFormatTitle(char* titleArg, char* path, int dwidth) {
 
 }
 
+
+
 BOOL compareExtension(char* ext, char* allow) {
 	
-	int len = strlen(ext), i;
-	char tmp[256], saved; i = sprintf(tmp, allow);
-	char* pStart = tmp, *pAllow = tmp, *pEnd = tmp;
-	if (i <= 0) return TRUE;
-	else if (len > 0)
-	{
-		if (Bstrcasecmp(allow, ext) == 0)
-			return TRUE;
-		while ((pStart = strchr(pAllow, '.')) != NULL)
-		{
-			pEnd = pStart, pEnd+=len, saved = *pEnd, *pEnd = '\0';
-			if (Bstrcasecmp(pStart, ext) == 0)
-				return TRUE;
-						
-			*pEnd = saved, pAllow+=len;
-		} 
-	}
+	int i = 0;
+	char *pExt = ext, *pAllow = allow, tmp[16];
+	if (!pAllow) return TRUE;
+	if (!pExt)   return FALSE;
+
+	if (pExt[0] == '.')
+		pExt =& ext[1];
 	
+	if (pAllow[0] == '.')
+		pAllow =& allow[1];
+
+	enumStrGetChar(i, tmp, pAllow, '.');
+	while(enumStrGetChar(i++, tmp, NULL, '.'))
+	{
+		if (stricmp(tmp, pExt) == 0)
+			return TRUE;
+	}
+
 	return FALSE;
 }
 

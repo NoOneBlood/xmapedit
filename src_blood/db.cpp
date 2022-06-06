@@ -27,119 +27,59 @@
 #include "common_game.h"
 #include "crc32.h"
 #include "db.h"
-#include "iob.h"
 #include "misc.h"
 
 #include "mapcmt.h"
 #include "xmpconf.h"
 #include "xmpstub.h"
 #include "xmpmisc.h"
+#include "gui.h"
 
+int gSuppMapVersions[] = { 4, 6, 7, 8, 9, };
+bool gModernMap = false, gCustomSkyBits = false;
+int gMapRev = 0, gSkyCount = 1;
 
 unsigned short gStatCount[kMaxStatus + 1];
-int gSuppBuildMapVersion[] = {
-	4,
-	6,
-	7,
-	//8,	// same as 7, but with higher limits?
-	//9,	// ion fury
-};
+unsigned short nextXSprite[kMaxXSprites];
+unsigned short nextXSector[kMaxXSectors];
+unsigned short nextXWall[kMaxXWalls];
 
 XSPRITE xsprite[kMaxXSprites];
 XSECTOR xsector[kMaxXSectors];
 XWALL xwall[kMaxXWalls];
 
-SPRITEHIT gSpriteHit[kMaxXSprites];
+int xvel[kMaxSprites];
+int yvel[kMaxSprites];
+int zvel[kMaxSprites];
 
-bool gModernMap = false, gCustomSkyBits = false;
-bool gByte1A76C6 = false, gByte1A76C7 = false, gByte1A76C8 = false;
-short numxsprites = 0, numxwalls = 0, numxsectors = 0;
-const int nXSectorSize = 60, nXSpriteSize = 56, nXWallSize = 24;
-int xvel[kMaxSprites], yvel[kMaxSprites], zvel[kMaxSprites];
-int gMapRev, gSongId, gSkyCount;
-MAPHEADER2 mapHead;
+short numxsprites = 0;
+short numxsectors = 0;
+short numxwalls   = 0;
 
-#pragma pack(push,1)
-struct SECTOR4 {
-	uint16_t wallptr, wallnum;
-	int8_t   ceilingstat, ceilingxpanning, ceilingypanning;
-	int8_t   ceilingshade;
-	int32_t  ceilingz;
-	int16_t  ceilingpicnum, ceilingheinum;
-	int8_t   floorstat, floorxpanning, floorypanning;
-	int8_t   floorshade;
-	int32_t  floorz;
-	int16_t  floorpicnum, floorheinum;
-	int32_t  tag;
-};
-
-struct WALL4 {
-	int32_t x, y;
-	int16_t point2;
-	int8_t cstat;
-	int8_t shade;
-	uint8_t xrepeat, yrepeat, xpanning, ypanning;
-	int16_t picnum, overpicnum;
-	int16_t nextsector1, nextwall1;
-	int16_t nextsector2, nextwall2;
-	int32_t tag;
-};
-
-struct SPRITE4 {
-	int32_t x, y, z;
-	int8_t cstat, shade;
-	uint8_t xrepeat, yrepeat;
-	int16_t picnum, ang, xvel, yvel, zvel, owner;
-	int16_t sectnum, statnum;
-	int32_t tag;
-	int8_t *extra;
-};
-
-struct SECTOR6 {
-	uint16_t wallptr, wallnum;
-	int16_t ceilingpicnum, floorpicnum;
-	int16_t ceilingheinum, floorheinum;
-	int32_t ceilingz, floorz;
-	int8_t ceilingshade, floorshade;
-	uint8_t ceilingxpanning, floorxpanning;
-	uint8_t ceilingypanning, floorypanning;
-	uint8_t ceilingstat, floorstat;
-	uint8_t ceilingpal, floorpal;
-	uint8_t visibility;
-	int16_t lotag, hitag, extra;
-};
-
-struct WALL6 {
-	int32_t x, y;
-	int16_t point2, nextsector, nextwall;
-	int16_t picnum, overpicnum;
-	int8_t  shade;
-	int8_t  pal;
-	int16_t cstat;
-	int8_t xrepeat, yrepeat, xpanning, ypanning;
-	int16_t lotag, hitag, extra;
-};
-
-struct SPRITE6 {
-	int32_t x, y, z;
-	int16_t cstat;
-	int8_t  shade;
-	uint8_t pal, clipdist;
-	uint8_t xrepeat, yrepeat;
-	int8_t  xoffset, yoffset;
-	int16_t picnum, ang, xvel, yvel, zvel, owner;
-	int16_t sectnum, statnum;
-	int16_t lotag, hitag, extra;
-};
-#pragma pack(pop)
+int qdeletesprite(short nSprite) { return DeleteSprite(nSprite); }
+int qchangespritesect(short nSprite, short nSector) { return ChangeSpriteSect(nSprite, nSector); }
+int qchangespritestat(short nSprite, short nStatus) { return ChangeSpriteStat(nSprite, nStatus); }
+int qinsertsprite(short nSector, short nStat) { return InsertSprite(nSector, nStat); }
+void qinitspritelists(void) // Replace
+{
+	int i = kMaxSprites;
+	memset(headspritesect, -1, sizeof(headspritesect));
+	memset(headspritestat, -1, sizeof(headspritestat));
+	memset(gStatCount, 		0, sizeof(gStatCount));
+	while(i--)
+	{
+		sprite[i].sectnum = sprite[i].index = -1;
+		InsertSpriteStat(i, kMaxStatus);
+	}
+}
 
 void dbCrypt(char *pPtr, int nLength, int nKey)
 {
-    for (int i = 0; i < nLength; i++)
-    {
-        pPtr[i] = pPtr[i] ^ nKey;
-        nKey++;
-    }
+	for (int i = 0; i < nLength; i++)
+	{
+		pPtr[i] = pPtr[i] ^ nKey;
+		nKey++;
+	}
 }
 
 void InsertSpriteSect(int nSprite, int nSector)
@@ -148,165 +88,137 @@ void InsertSpriteSect(int nSprite, int nSector)
 	dassert(nSprite >= 0 && nSprite < kMaxSprites);
 	dassert(nSector >= 0 && nSector < kMaxSectors);
 
-    int nOther = headspritesect[nSector];
-    if (nOther >= 0)
-    {
-        prevspritesect[nSprite] = prevspritesect[nOther];
-        nextspritesect[nSprite] = -1;
-        nextspritesect[prevspritesect[nOther]] = nSprite;
-        prevspritesect[nOther] = nSprite;
-    }
-    else
-    {
-        prevspritesect[nSprite] = nSprite;
-        nextspritesect[nSprite] = -1;
-        headspritesect[nSector] = nSprite;
-    }
-    sprite[nSprite].sectnum = nSector;
+	int nOther = headspritesect[nSector];
+	if (nOther >= 0)
+	{
+		prevspritesect[nSprite] = prevspritesect[nOther];
+		nextspritesect[nSprite] = -1;
+		nextspritesect[prevspritesect[nOther]] = nSprite;
+		prevspritesect[nOther] = nSprite;
+	}
+	else
+	{
+		prevspritesect[nSprite] = nSprite;
+		nextspritesect[nSprite] = -1;
+		headspritesect[nSector] = nSprite;
+	}
+	sprite[nSprite].sectnum = nSector;
 }
 
 void RemoveSpriteSect(int nSprite)
 {
-    dassert(nSprite >= 0 && nSprite < kMaxSprites);
-    int nSector = sprite[nSprite].sectnum;
-    dassert(nSector >= 0 && nSector < kMaxSectors);
-    int nOther = nextspritesect[nSprite];
-    if (nOther < 0)
-    {
-        nOther = headspritesect[nSector];
-    }
-    prevspritesect[nOther] = prevspritesect[nSprite];
-    if (headspritesect[nSector] != nSprite)
-    {
-        nextspritesect[prevspritesect[nSprite]] = nextspritesect[nSprite];
-    }
-    else
-    {
-        headspritesect[nSector] = nextspritesect[nSprite];
-    }
-    sprite[nSprite].sectnum = -1;
+	dassert(nSprite >= 0 && nSprite < kMaxSprites);
+	int nSector = sprite[nSprite].sectnum;
+	dassert(nSector >= 0 && nSector < kMaxSectors);
+	int nOther = nextspritesect[nSprite];
+	if (nOther < 0)
+	{
+		nOther = headspritesect[nSector];
+	}
+	prevspritesect[nOther] = prevspritesect[nSprite];
+	if (headspritesect[nSector] != nSprite)
+	{
+		nextspritesect[prevspritesect[nSprite]] = nextspritesect[nSprite];
+	}
+	else
+	{
+		headspritesect[nSector] = nextspritesect[nSprite];
+	}
+	sprite[nSprite].sectnum = -1;
 }
 
 void InsertSpriteStat(int nSprite, int nStat)
 {
-    dassert(nSprite >= 0 && nSprite < kMaxSprites);
-    dassert(nStat >= 0 && nStat <= kMaxStatus);
-    int nOther = headspritestat[nStat];
-    if (nOther >= 0)
-    {
-        prevspritestat[nSprite] = prevspritestat[nOther];
-        nextspritestat[nSprite] = -1;
-        nextspritestat[prevspritestat[nOther]] = nSprite;
-        prevspritestat[nOther] = nSprite;
-    }
-    else
-    {
-        prevspritestat[nSprite] = nSprite;
-        nextspritestat[nSprite] = -1;
-        headspritestat[nStat] = nSprite;
-    }
-    sprite[nSprite].statnum = nStat;
-    gStatCount[nStat]++;
+	dassert(nSprite >= 0 && nSprite < kMaxSprites);
+	dassert(nStat >= 0 && nStat <= kMaxStatus);
+	int nOther = headspritestat[nStat];
+	if (nOther >= 0)
+	{
+		prevspritestat[nSprite] = prevspritestat[nOther];
+		nextspritestat[nSprite] = -1;
+		nextspritestat[prevspritestat[nOther]] = nSprite;
+		prevspritestat[nOther] = nSprite;
+	}
+	else
+	{
+		prevspritestat[nSprite] = nSprite;
+		nextspritestat[nSprite] = -1;
+		headspritestat[nStat] = nSprite;
+	}
+	sprite[nSprite].statnum = nStat;
+	gStatCount[nStat]++;
 }
 
 void RemoveSpriteStat(int nSprite)
 {
-    dassert(nSprite >= 0 && nSprite < kMaxSprites);
-    int nStat = sprite[nSprite].statnum;
-    dassert(nStat >= 0 && nStat <= kMaxStatus);
-    int nOther = nextspritestat[nSprite];
-    if (nOther < 0)
-    {
-        nOther = headspritestat[nStat];
-    }
-    prevspritestat[nOther] = prevspritestat[nSprite];
-    if (headspritestat[nStat] != nSprite)
-    {
-        nextspritestat[prevspritestat[nSprite]] = nextspritestat[nSprite];
-    }
-    else
-    {
-        headspritestat[nStat] = nextspritestat[nSprite];
-    }
-    sprite[nSprite].statnum = kStatNothing;
-    gStatCount[nStat]--;
-}
-
-void qinitspritelists(void) // Replace
-{
-    for (short i = 0; i <= kMaxSectors; i++)
-    {
-        headspritesect[i] = -1;
-    }
-    for (short i = 0; i <= kMaxStatus; i++)
-    {
-        headspritestat[i] = -1;
-    }
-
-    for (short i = 0; i < kMaxSprites; i++)
-    {
-        sprite[i].sectnum = -1;
-        sprite[i].index = -1;
-        InsertSpriteStat(i, kMaxStatus);
-    }
-    memset(gStatCount, 0, sizeof(gStatCount));
-    // Numsprites = 0;
+	dassert(nSprite >= 0 && nSprite < kMaxSprites);
+	int nStat = sprite[nSprite].statnum;
+	dassert(nStat >= 0 && nStat <= kMaxStatus);
+	int nOther = nextspritestat[nSprite];
+	if (nOther < 0)
+	{
+		nOther = headspritestat[nStat];
+	}
+	prevspritestat[nOther] = prevspritestat[nSprite];
+	if (headspritestat[nStat] != nSprite)
+	{
+		nextspritestat[prevspritestat[nSprite]] = nextspritestat[nSprite];
+	}
+	else
+	{
+		headspritestat[nStat] = nextspritestat[nSprite];
+	}
+	sprite[nSprite].statnum = kStatNothing;
+	gStatCount[nStat]--;
 }
 
 int InsertSprite(int nSector, int nStat)
 {
-    int nSprite = headspritestat[kMaxStatus];
-    dassert(nSprite < kMaxSprites);
-    if (nSprite < 0)
-    {
-        return nSprite;
-    }
-    RemoveSpriteStat(nSprite);
-    spritetype *pSprite = &sprite[nSprite];
-    memset(&sprite[nSprite], 0, sizeof(spritetype));
-    InsertSpriteStat(nSprite, nStat);
-    InsertSpriteSect(nSprite, nSector);
-    pSprite->cstat = defaultspritecstat;
-    pSprite->clipdist = 32;
-    pSprite->xrepeat = pSprite->yrepeat = 64;
-    pSprite->owner = -1;
-    pSprite->extra = -1;
-    pSprite->index = nSprite;
+	int nSprite = headspritestat[kMaxStatus];
+	dassert(nSprite < kMaxSprites);
+	if (nSprite < 0)
+	{
+		return nSprite;
+	}
+	RemoveSpriteStat(nSprite);
+	spritetype *pSprite = &sprite[nSprite];
+	memset(&sprite[nSprite], 0, sizeof(spritetype));
+	InsertSpriteStat(nSprite, nStat);
+	InsertSpriteSect(nSprite, nSector);
+	pSprite->cstat = defaultspritecstat;
+	pSprite->clipdist = 32;
+	pSprite->xrepeat = pSprite->yrepeat = 64;
+	pSprite->owner = -1;
+	pSprite->extra = -1;
+	pSprite->index = nSprite;
 
 	xvel[nSprite] = yvel[nSprite] = zvel[nSprite] = 0;
 	numsprites++;
 
-    return nSprite;
-}
-
-int qinsertsprite(short nSector, short nStat) // Replace
-{
-    return InsertSprite(nSector, nStat);
+	return nSprite;
 }
 
 int DeleteSprite(int nSprite)
 {
-    if (sprite[nSprite].extra > 0)
-        dbDeleteXSprite(sprite[nSprite].extra);
+	if (sprite[nSprite].extra > 0)
+		dbDeleteXSprite(sprite[nSprite].extra);
 
-    dassert(sprite[nSprite].statnum >= 0 && sprite[nSprite].statnum < kMaxStatus);
-    RemoveSpriteStat(nSprite);
-    dassert(sprite[nSprite].sectnum >= 0 && sprite[nSprite].sectnum < kMaxSectors);
-    RemoveSpriteSect(nSprite);
-    InsertSpriteStat(nSprite, kMaxStatus);
+	dassert(sprite[nSprite].statnum >= 0 && sprite[nSprite].statnum < kMaxStatus);
+	RemoveSpriteStat(nSprite);
+	dassert(sprite[nSprite].sectnum >= 0 && sprite[nSprite].sectnum < kMaxSectors);
+	RemoveSpriteSect(nSprite);
+	InsertSpriteStat(nSprite, kMaxStatus);
 
-    numsprites--;
+	numsprites--;
 
-    return nSprite;
+	return nSprite;
 }
-
-
 
 int ChangeSpriteSect(int nSprite, int nSector)
 {
-    dassert(nSprite >= 0 && nSprite < kMaxSprites);
-    dassert(nSector >= 0 && nSector < kMaxSectors);
-    //dassert(sprite[nSprite].sectnum >= 0 && sprite[nSprite].sectnum < kMaxSectors);
+	dassert(nSprite >= 0 && nSprite < kMaxSprites);
+	dassert(nSector >= 0 && nSector < kMaxSectors);
+	//dassert(sprite[nSprite].sectnum >= 0 && sprite[nSprite].sectnum < kMaxSectors);
 
 	// is error occured on BUILD side or on DB side?
 	if (!(sprite[nSprite].statnum >= 0 && sprite[nSprite].statnum < kMaxStatus))
@@ -316,29 +228,22 @@ int ChangeSpriteSect(int nSprite, int nSector)
 	if (!(sprite[nSprite].sectnum >= 0 && sprite[nSprite].sectnum < kMaxSectors))
 		ThrowError("DB SECTCHECK !!! [%d]: nSprite=%d .statnum=%d .sectnum=%d nSector=%d .index=%d", highlightcnt, nSprite, sprite[nSprite].statnum, sprite[nSprite].sectnum, nSector, sprite[nSprite].index);
 
-    RemoveSpriteSect(nSprite);
-    InsertSpriteSect(nSprite, nSector);
-    return 0;
+	RemoveSpriteSect(nSprite);
+	InsertSpriteSect(nSprite, nSector);
+	return 0;
 }
 
 
 int ChangeSpriteStat(int nSprite, int nStatus)
 {
-    dassert(nSprite >= 0 && nSprite < kMaxSprites);
-    dassert(nStatus >= 0 && nStatus < kMaxStatus);
-    dassert(sprite[nSprite].statnum >= 0 && sprite[nSprite].statnum < kMaxStatus);
-    dassert(sprite[nSprite].sectnum >= 0 && sprite[nSprite].sectnum < kMaxSectors);
-    RemoveSpriteStat(nSprite);
-    InsertSpriteStat(nSprite, nStatus);
-    return 0;
+	dassert(nSprite >= 0 && nSprite < kMaxSprites);
+	dassert(nStatus >= 0 && nStatus < kMaxStatus);
+	dassert(sprite[nSprite].statnum >= 0 && sprite[nSprite].statnum < kMaxStatus);
+	dassert(sprite[nSprite].sectnum >= 0 && sprite[nSprite].sectnum < kMaxSectors);
+	RemoveSpriteStat(nSprite);
+	InsertSpriteStat(nSprite, nStatus);
+	return 0;
 }
-int qdeletesprite(short nSprite) { return DeleteSprite(nSprite); }
-int qchangespritesect(short nSprite, short nSector) { return ChangeSpriteSect(nSprite, nSector); }
-int qchangespritestat(short nSprite, short nStatus) { return ChangeSpriteStat(nSprite, nStatus); }
-
-unsigned short nextXSprite[kMaxXSprites];
-unsigned short nextXWall[kMaxXWalls];
-unsigned short nextXSector[kMaxXSectors];
 
 void InitFreeList(unsigned short *pList, int nCount)
 {
@@ -350,1084 +255,480 @@ void InitFreeList(unsigned short *pList, int nCount)
 
 void InsertFree(unsigned short *pList, int nIndex)
 {
-    pList[nIndex] = pList[0];
-    pList[0] = nIndex;
+	pList[nIndex] = pList[0];
+	pList[0] = nIndex;
 }
 
 unsigned short dbInsertXSprite(int nSprite)
 {
-    int nXSprite = nextXSprite[0];
-    nextXSprite[0] = nextXSprite[nXSprite];
-    if (nXSprite == 0)
-        ThrowError("Out of free XSprites");
+	int nXSprite = nextXSprite[0];
+	nextXSprite[0] = nextXSprite[nXSprite];
+	if (nXSprite == 0)
+		ThrowError("Out of free XSprites");
 
-    memset(&xsprite[nXSprite], 0, sizeof(XSPRITE));
-    xsprite[nXSprite].reference = nSprite;
-    sprite[nSprite].extra = nXSprite;
+	memset(&xsprite[nXSprite], 0, sizeof(XSPRITE));
+	xsprite[nXSprite].reference = nSprite;
+	sprite[nSprite].extra = nXSprite;
 	numxsprites++;
 
-    return nXSprite;
+	return nXSprite;
 }
 
 void dbDeleteXSprite(int nXSprite)
 {
-    dassert(xsprite[nXSprite].reference >= 0);
-    dassert(sprite[xsprite[nXSprite].reference].extra == nXSprite);
-    InsertFree(nextXSprite, nXSprite);
-    sprite[xsprite[nXSprite].reference].extra = -1;
-    xsprite[nXSprite].reference = -1;
+	dassert(xsprite[nXSprite].reference >= 0);
+	dassert(sprite[xsprite[nXSprite].reference].extra == nXSprite);
+	InsertFree(nextXSprite, nXSprite);
+	sprite[xsprite[nXSprite].reference].extra = -1;
+	xsprite[nXSprite].reference = -1;
 	numxsprites--;
 }
 
 unsigned short dbInsertXWall(int nWall)
 {
-    int nXWall = nextXWall[0];
-    nextXWall[0] = nextXWall[nXWall];
-    if (nXWall == 0)
-        ThrowError("Out of free XWalls");
+	int nXWall = nextXWall[0];
+	nextXWall[0] = nextXWall[nXWall];
+	if (nXWall == 0)
+		ThrowError("Out of free XWalls");
 
-    memset(&xwall[nXWall], 0, sizeof(XWALL));
-    xwall[nXWall].reference = nWall;
-    wall[nWall].extra = nXWall;
+	memset(&xwall[nXWall], 0, sizeof(XWALL));
+	xwall[nXWall].reference = nWall;
+	wall[nWall].extra = nXWall;
 
 	numxwalls++;
-    return nXWall;
+	return nXWall;
 }
 
 void dbDeleteXWall(int nXWall)
 {
-    dassert(xwall[nXWall].reference >= 0);
-    InsertFree(nextXWall, nXWall);
-    wall[xwall[nXWall].reference].extra = -1;
-    xwall[nXWall].reference = -1;
+	dassert(xwall[nXWall].reference >= 0);
+	InsertFree(nextXWall, nXWall);
+	wall[xwall[nXWall].reference].extra = -1;
+	xwall[nXWall].reference = -1;
 	numxwalls--;
 }
 
 unsigned short dbInsertXSector(int nSector)
 {
-    int nXSector = nextXSector[0];
-    nextXSector[0] = nextXSector[nXSector];
-    if (nXSector == 0)
-        ThrowError("Out of free XSectors");
+	int nXSector = nextXSector[0];
+	nextXSector[0] = nextXSector[nXSector];
+	if (nXSector == 0)
+		ThrowError("Out of free XSectors");
 
-    memset(&xsector[nXSector], 0, sizeof(XSECTOR));
-    xsector[nXSector].reference = nSector;
-    sector[nSector].extra = nXSector;
+	memset(&xsector[nXSector], 0, sizeof(XSECTOR));
+	xsector[nXSector].reference = nSector;
+	sector[nSector].extra = nXSector;
 
 	numxsectors++;
-    return nXSector;
+	return nXSector;
 }
 
 void dbDeleteXSector(int nXSector)
 {
-    dassert(xsector[nXSector].reference >= 0);
-    InsertFree(nextXSector, nXSector);
-    sector[xsector[nXSector].reference].extra = -1;
-    xsector[nXSector].reference = -1;
+	dassert(xsector[nXSector].reference >= 0);
+	InsertFree(nextXSector, nXSector);
+	sector[xsector[nXSector].reference].extra = -1;
+	xsector[nXSector].reference = -1;
 	numxsectors--;
 }
 
 void dbXSpriteClean(void)
 {
-    for (int i = 0; i < kMaxSprites; i++)
-    {
-        int nXSprite = sprite[i].extra;
-        if (nXSprite == 0)
-        {
-            sprite[i].extra = -1;
-        }
-        if (sprite[i].statnum < kMaxStatus && nXSprite > 0)
-        {
-            dassert(nXSprite < kMaxXSprites);
-            if (xsprite[nXSprite].reference != i)
-            {
-                int nXSprite2 = dbInsertXSprite(i);
-                memcpy(&xsprite[nXSprite2], &xsprite[nXSprite], sizeof(XSPRITE));
-                xsprite[nXSprite2].reference = i;
-            }
-        }
-    }
-    for (int i = 1; i < kMaxXSprites; i++)
-    {
-        int nSprite = xsprite[i].reference;
-        if (nSprite >= 0)
-        {
-            dassert(nSprite < kMaxSprites);
-            if (sprite[nSprite].statnum >= kMaxStatus || sprite[nSprite].extra != i)
-            {
-                InsertFree(nextXSprite, i);
-                xsprite[i].reference = -1;
-            }
-        }
-    }
+	for (int i = 0; i < kMaxSprites; i++)
+	{
+		int nXSprite = sprite[i].extra;
+		if (nXSprite == 0)
+		{
+			sprite[i].extra = -1;
+		}
+		if (sprite[i].statnum < kMaxStatus && nXSprite > 0)
+		{
+			dassert(nXSprite < kMaxXSprites);
+			if (xsprite[nXSprite].reference != i)
+			{
+				int nXSprite2 = dbInsertXSprite(i);
+				memcpy(&xsprite[nXSprite2], &xsprite[nXSprite], sizeof(XSPRITE));
+				xsprite[nXSprite2].reference = i;
+			}
+		}
+	}
+	for (int i = 1; i < kMaxXSprites; i++)
+	{
+		int nSprite = xsprite[i].reference;
+		if (nSprite >= 0)
+		{
+			dassert(nSprite < kMaxSprites);
+			if (sprite[nSprite].statnum >= kMaxStatus || sprite[nSprite].extra != i)
+			{
+				InsertFree(nextXSprite, i);
+				xsprite[i].reference = -1;
+				numxsprites--;
+			}
+		}
+	}
 }
 
 void dbXWallClean(void)
 {
-    for (int i = 0; i < numwalls; i++)
-    {
-        int nXWall = wall[i].extra;
-        if (nXWall == 0)
-        {
-            wall[i].extra = -1;
-        }
-        if (nXWall > 0)
-        {
-            dassert(nXWall < kMaxXWalls);
-            if (xwall[nXWall].reference == -1)
-            {
-                wall[i].extra = -1;
-            }
-            else
-            {
-                xwall[nXWall].reference = i;
-            }
-        }
-    }
-    for (int i = 0; i < numwalls; i++)
-    {
-        int nXWall = wall[i].extra;
-        if (nXWall > 0)
-        {
-            dassert(nXWall < kMaxXWalls);
-            if (xwall[nXWall].reference != i)
-            {
-                int nXWall2 = dbInsertXWall(i);
-                memcpy(&xwall[nXWall2], &xwall[nXWall], sizeof(XWALL));
-                xwall[nXWall2].reference = i;
-            }
-        }
-    }
-    for (int i = 1; i < kMaxXWalls; i++)
-    {
-        int nWall = xwall[i].reference;
-        if (nWall >= 0)
-        {
-            dassert(nWall < kMaxWalls);
-            if (nWall >= numwalls || wall[nWall].extra != i)
-            {
-                InsertFree(nextXWall, i);
-                xwall[i].reference = -1;
-            }
-        }
-    }
+	for (int i = 0; i < numwalls; i++)
+	{
+		int nXWall = wall[i].extra;
+		if (nXWall == 0)
+		{
+			wall[i].extra = -1;
+		}
+		if (nXWall > 0)
+		{
+			dassert(nXWall < kMaxXWalls);
+			if (xwall[nXWall].reference == -1)
+			{
+				wall[i].extra = -1;
+			}
+			else
+			{
+				xwall[nXWall].reference = i;
+			}
+		}
+	}
+	for (int i = 0; i < numwalls; i++)
+	{
+		int nXWall = wall[i].extra;
+		if (nXWall > 0)
+		{
+			dassert(nXWall < kMaxXWalls);
+			if (xwall[nXWall].reference != i)
+			{
+				int nXWall2 = dbInsertXWall(i);
+				memcpy(&xwall[nXWall2], &xwall[nXWall], sizeof(XWALL));
+				xwall[nXWall2].reference = i;
+			}
+		}
+	}
+	for (int i = 1; i < kMaxXWalls; i++)
+	{
+		int nWall = xwall[i].reference;
+		if (nWall >= 0)
+		{
+			dassert(nWall < kMaxWalls);
+			if (nWall >= numwalls || wall[nWall].extra != i)
+			{
+				InsertFree(nextXWall, i);
+				xwall[i].reference = -1;
+				numxwalls--;
+			}
+		}
+	}
 }
 
 void dbXSectorClean(void)
 {
-
-
-    for (int i = 0; i < numsectors; i++)
-    {
-        int nXSector = sector[i].extra;
-        if (nXSector == 0)
-        {
-            sector[i].extra = -1;
-        }
-        if (nXSector > 0)
-        {
-            dassert(nXSector < kMaxXSectors);
-            if (xsector[nXSector].reference == -1)
-            {
-                sector[i].extra = -1;
-            }
-            else
-            {
-                xsector[nXSector].reference = i;
-            }
-        }
-    }
-    for (int i = 0; i < numsectors; i++)
-    {
-        int nXSector = sector[i].extra;
-        if (nXSector > 0)
-        {
-            dassert(nXSector < kMaxXSectors);
-            if (xsector[nXSector].reference != i)
-            {
-                int nXSector2 = dbInsertXSector(i);
-                memcpy(&xsector[nXSector2], &xsector[nXSector], sizeof(XSECTOR));
-                xsector[nXSector2].reference = i;
-            }
-        }
-    }
-    for (int i = 1; i < kMaxXSectors; i++)
-    {
-        int nSector = xsector[i].reference;
-        if (nSector >= 0)
-        {
-            dassert(nSector < kMaxSectors);
-            if (nSector >= numsectors || sector[nSector].extra != i)
-            {
-                InsertFree(nextXSector, i);
-                xsector[i].reference = -1;
-            }
-        }
-    }
+	for (int i = 0; i < numsectors; i++)
+	{
+		int nXSector = sector[i].extra;
+		if (nXSector == 0)
+		{
+			sector[i].extra = -1;
+		}
+		if (nXSector > 0)
+		{
+			dassert(nXSector < kMaxXSectors);
+			if (xsector[nXSector].reference == -1)
+			{
+				sector[i].extra = -1;
+			}
+			else
+			{
+				xsector[nXSector].reference = i;
+			}
+		}
+	}
+	for (int i = 0; i < numsectors; i++)
+	{
+		int nXSector = sector[i].extra;
+		if (nXSector > 0)
+		{
+			dassert(nXSector < kMaxXSectors);
+			if (xsector[nXSector].reference != i)
+			{
+				int nXSector2 = dbInsertXSector(i);
+				memcpy(&xsector[nXSector2], &xsector[nXSector], sizeof(XSECTOR));
+				xsector[nXSector2].reference = i;
+			}
+		}
+	}
+	for (int i = 1; i < kMaxXSectors; i++)
+	{
+		int nSector = xsector[i].reference;
+		if (nSector >= 0)
+		{
+			dassert(nSector < kMaxSectors);
+			if (nSector >= numsectors || sector[nSector].extra != i)
+			{
+				InsertFree(nextXSector, i);
+				xsector[i].reference = -1;
+				numxsectors--;
+			}
+		}
+	}
 }
 
 void dbInit(void)
 {
-    InitFreeList(nextXSprite, kMaxXSprites);
-    for (int i = 1; i < kMaxXSprites; i++)
-    {
-        xsprite[i].reference = -1;
-    }
-    InitFreeList(nextXWall, kMaxXWalls);
-    for (int i = 1; i < kMaxXWalls; i++)
-    {
-        xwall[i].reference = -1;
-    }
-    InitFreeList(nextXSector, kMaxXSectors);
-    for (int i = 1; i < kMaxXSectors; i++)
-    {
-        xsector[i].reference = -1;
-    }
-    initspritelists();
-    for (int i = 0; i < kMaxSprites; i++)
-    {
-        sprite[i].cstat = defaultspritecstat;
-    }
+	InitFreeList(nextXSprite, kMaxXSprites);
+	for (int i = 1; i < kMaxXSprites; i++)
+	{
+		xsprite[i].reference = -1;
+	}
+	InitFreeList(nextXWall, kMaxXWalls);
+	for (int i = 1; i < kMaxXWalls; i++)
+	{
+		xwall[i].reference = -1;
+	}
+	InitFreeList(nextXSector, kMaxXSectors);
+	for (int i = 1; i < kMaxXSectors; i++)
+	{
+		xsector[i].reference = -1;
+	}
+	initspritelists();
+	for (int i = 0; i < kMaxSprites; i++)
+	{
+		sprite[i].cstat = defaultspritecstat;
+	}
 }
 
 void PropagateMarkerReferences(void)
 {
-    int nSprite, nNextSprite;
-    for (nSprite = headspritestat[kStatMarker]; nSprite != -1; nSprite = nNextSprite) {
+	int nSprite, nNextSprite;
+	for (nSprite = headspritestat[kStatMarker]; nSprite != -1; nSprite = nNextSprite) {
 
-        nNextSprite = nextspritestat[nSprite];
+		nNextSprite = nextspritestat[nSprite];
 
-        switch (sprite[nSprite].type)  {
-            case kMarkerOff:
-            case kMarkerAxis:
-            case kMarkerWarpDest: {
-                int nOwner = sprite[nSprite].owner;
-                if (nOwner >= 0 && nOwner < numsectors) {
-                    int nXSector = sector[nOwner].extra;
-                    if (nXSector > 0 && nXSector < kMaxXSectors) {
-                        xsector[nXSector].marker0 = nSprite;
-                        continue;
-                    }
-                }
-            }
-            break;
-            case kMarkerOn: {
-                int nOwner = sprite[nSprite].owner;
-                if (nOwner >= 0 && nOwner < numsectors) {
-                    int nXSector = sector[nOwner].extra;
-                    if (nXSector > 0 && nXSector < kMaxXSectors) {
-                        xsector[nXSector].marker1 = nSprite;
-                        continue;
-                    }
-                }
-            }
-            break;
-        }
-
-        DeleteSprite(nSprite);
-    }
-}
-
-#if 0
-XWALL*  GetPXWall(int nWall) {
-	
-	return &xwall[GetXWall(nWall)];
-}
-
-XSECTOR* GetPXSector(int nSector) {
-
-	return &xsector[GetXSector(nSector)];
-}
-
-XSPRITE* GetPXSprite(int nSprite) {
-	
-	return &xsprite[GetXSprite(nSprite)];
-	
-}
-
-int nextFZA(int nSect) {
-	
-	nSect = nextsectorneighborz(nSect, sector[nSect].floorz, 1, -1);
-	dassert(nSect >= 0);
-	
-	return sector[nSect].floorz;
-}
-
-int nextFZB(int nSect) {
-	
-	nSect = nextsectorneighborz(nSect, sector[nSect].floorz, 1, 1);
-	dassert(nSect >= 0);
-	
-	return sector[nSect].floorz;
-}
-
-
-
-int nextCZA(int nSect) {
-	
-	nSect = nextsectorneighborz(nSect, sector[nSect].ceilingz, -1, -1);
-	dassert(nSect >= 0);
-	
-	return sector[nSect].ceilingz;
-}
-
-int nextCZA2(int nSect, int ofs) {
-	
-	nSect = nextsectorneighborz(nSect, sector[nSect].floorz + ofs, -1, -1);
-	dassert(nSect >= 0);
-	
-	return sector[nSect].ceilingz;
-	
-}
-
-//void wayPoint2Path(spritetype* pSpr)
-
-void wayPointInc(int nHitag)
-{
-	spritetype* pSpr; int i;
-	
-	for (i = 0; i < kMaxSprites; i++)
-	{
-		pSpr =& sprite[i];
-		if (pSpr->statnum >= kMaxStatus) continue;
-		else if (pSpr->type >= 900  && pSpr->type < 950 && pSpr->hitag == nHitag)
-			pSpr->type++;
-	}
-
-	return;
-}
-
-int findFirstWayPoint(int nSector) {
-	
-	spritetype* pSpr; int i;
-	
-	for (i = 0; i < kMaxSprites; i++)
-	{
-		pSpr =& sprite[i];
-		if (pSpr->statnum >= kMaxStatus) continue;
-		else if (pSpr->type == 900 && pSpr->hitag == sector[nSector].hitag)
-			return pSpr->index;
-	}
-
-	return -1;
-}
-
-int findNextWayPoint(int nHitag, int nId, int nDir = 1) {
-	
-	spritetype* pSpr; int i;
-	for (i = 0; i < kMaxSprites; i++)
-	{
-		pSpr =& sprite[i];
-		if (pSpr->statnum >= kMaxStatus) continue;
-		else if (pSpr->type < 900 || pSpr->type >= 950 || pSpr->hitag != nHitag) continue;
-		else if (nDir > 0 && nId+1 == pSpr->type) return pSpr->index;
-		else if (nDir < 0 && nId-1 == pSpr->type) return pSpr->index;
-		
-	}
-	
-	return -1;
-}
-
-spritetype* insertSprite(int nSect, int x, int y, int z, XSPRITE** pXSpr = NULL) {
-	
-	int i;
-	i = InsertSprite(nSect, 0);
-	dassert(i >= 0);
-			
-	sprite[i].x = x;
-	sprite[i].y = y;
-	sprite[i].z = z;
-	
-	ChangeSpriteSect(i, nSect);
-	
-	if (pXSpr)
-		*pXSpr = GetPXSprite(i);
-	
-	return &sprite[i];
-}
-
-int insertSwitch(int nSect, int x, int y, int z, int RX, int TX, int cmd) {
-	
-	int i, j; spritetype* pSpr; XSPRITE* pXSpr;
-	pSpr = insertSprite(nSect, x, y, z, &pXSpr);
-	pSpr->type = 20;
-	
-	pXSpr->triggerOn = pXSpr->triggerOff = 0;
-	pXSpr->command = cmd;
-	pXSpr->rxID = RX;
-	pXSpr->txID = TX;
-	
-	return pSpr->index;
-}
-
-int insertEarthquake(int nSect, int x, int y, int z, int strength) {
-		
-	int i, j; spritetype* pSpr; XSPRITE* pXSpr;
-	pSpr = insertSprite(nSect, x, y, z, &pXSpr);
-	pXSpr->data1	= strength;
-	pSpr->type		= kMarkerEarthquake;
-	
-	if ((j = adjIdxByType(pSpr->type)) >= 0)
-		adjSetApperance(pSpr, j);
-		
-	clampSprite(pSpr);
-	return pSpr->index;
-}
-
-// experimental conversion of triggers and stuff from Exhumed to Blood Xsystem
-int exhum2xsystem() {
-	
-	int i, j, k, f, g, swal, ewal;
-	
-	
-	spritetype *spr1, *spr2;	XSPRITE *xspr1, *xspr2;
-	sectortype *sec1, *sec2; 	XSECTOR *xsec1, *xsec2;
-	walltype *wal1, *wal2; 		XWALL *xwal1, *xwal2; 
-	int spr1lo, spr2lo, spr1hi, spr2hi;
-	int sec1lo, sec2lo, sec1hi, sec2hi;
-	int wal1lo, wal2lo, wal1hi, wal2hi;
-	
-	int randBomb[] = {kItemAmmoTNTBundle, kItemAmmoRemoteBombBundle, kItemAmmoProxBombBundle};
-	int inserted[kMaxSprites];
-	
-	memset(inserted, -1, sizeof(inserted));
-	//int keymask[] = {1000, 2000, 4000, 8000}
-	for (i = 0; i < kMaxSprites; i++)
-	{
-		if (inserted[i] == 1 || sprite[i].statnum == kMaxStatus) continue;
-		spr1 =& sprite[i]; sec1 =& sector[spr1->sectnum];
-		spr1lo = spr1->type % 1000; spr1hi = spr1->hitag;
-				
-		switch(spr1lo) {
-/* 			case 45:
-			//case 46:
-			//case 47:
-			//case 48:
-				spr1->type = kItemKeySkull;
-				for (j = 0; j < numsectors; j++)
-				{
-					if (sector[j].hitag & 1000)
-					{
-						xsec1 = GetPXSector(j);
-						xsec1->key = kItemKeySkull - kItemKeyBase + 1;
+		switch (sprite[nSprite].type)  {
+			case kMarkerOff:
+			case kMarkerAxis:
+			case kMarkerWarpDest: {
+				int nOwner = sprite[nSprite].owner;
+				if (nOwner >= 0 && nOwner < numsectors) {
+					int nXSector = sector[nOwner].extra;
+					if (nXSector > 0 && nXSector < kMaxXSectors) {
+						xsector[nXSector].marker0 = nSprite;
+						continue;
 					}
 				}
-				spr1->hitag = 0;
-				break; */
-			case 25:
-				spr1->type = kItemArmorSuper;
-				break;
-			case 59:
-				spr1->type = kItemArmorBasic;
-				break;
-			case 60:
-				spr1->type = kSwitchOneWay;
-				spr1->picnum = 318;
-				xspr1 = GetPXSprite(spr1->index);
-				xspr1->command = 64;
-				xspr1->triggerOn = 1;
-				xspr1->triggerPush = 1;
-				xspr1->txID = 4;
-				break;
-			case 75:
-				spr1->type = kThingObjectExplode;
-				xspr1 = GetPXSprite(spr1->index);
-				xspr1->data1 = xspr1->data2 = 20;
-				xspr1->data4 = 313;
-				break;
-			case 76:
-				spr1->type = kThingTNTBarrel;
-				PutSpriteOnFloor(spr1, 0);
-				break;
-			case 20:
-				spr1->type = kItemTwoGuns;
-				break;
-			case 6:
-				spr1->type = (Chance(0x3000)) ? kItemAmmoFlares : kItemAmmoTommygunFew;
-				break;
-			case 7:
-				spr1->type = kItemAmmoSprayCan;
-				xspr1 = GetPXSprite(spr1->index);
-				xspr1->data4 = spr1->hitag;
-				break;
-			case 8:
-				spr1->type = kItemAmmoTommygunDrum;
-				break;
-			case 29:
-				spr1->type = kItemWeaponTommygun;
-				break;
-			case 27:
-			case 9:
-				spr1->type = randBomb[Random(LENGTH(randBomb) - 1)];
-				break;
-			case 23:
-				spr1->type = kItemDivingSuit;
-				break;
-			//case 10:
-			//case 11:
-				//break;
-			case 12:
-			case 17:
-				spr1->type = 0;
-				ChangeSpriteStat(spr1->index, 0);
-				break;
-			case 49:
-				DeleteSprite(spr1->index);
-				break;
-			case 13:
-				spr1->type = kItemHealthRedPotion;
-				ChangeSpriteStat(spr1->index, kStatItem);
-				break;
-			// bubble gen
-			case 93:
-				spr1->type = kGenBubbleMulti;
-				xspr1 = GetPXSprite(spr1->index);
-				xspr1->busyTime	= ClipLow(2, Random(25));
-				xspr1->data1 = ClipLow(2, BiRandom(25));
-				xspr1->state = 1;
-				spr1->cstat |= kSprInvisible;
-				break;
-			// sector underwater
-			case 80:
-				xsec1 = GetPXSector(spr1->sectnum);
-				xsec1->underwater = 1;
-				DeleteSprite(spr1->index);
-				break;
-			// sector panning angle
-			case 88:
-				xsec1 = GetPXSector(spr1->sectnum);
-				xsec1->panAngle	= spr1->ang & kAngMask;
-				DeleteSprite(spr1->index);
-				break;
-			// sector panning
-			case 79:
-			case 89:
-				xsec1 = GetPXSector(spr1->sectnum);
-				xsec1->panFloor		= (spr1lo == 89);
-				xsec1->panCeiling	= (spr1lo == 79);
-				xsec1->drag			= (spr1lo == 89);
-				xsec1->panVel		= ClipLow((spr1->type / 1000), 1)<<2;
-				xsec1->panAlways	= 1;
-				DeleteSprite(spr1->index);
-				break;
-			// lower stack or water
-			// if we found matching 99 here, it's gonna be a water stacks
-			// if just 98, the it's gonna be normal stacks and the lower one must be created.
-			case 98:
-				f = spr1hi;
-				for (j = headspritesect[f]; j >= 0; j = nextspritesect[j])
-				{
-					spr2 = &sprite[j]; spr2lo = spr2->type % 1000;
-					if (spr2lo != 99 || spr2->hitag != spr1->sectnum) continue;
-					spr2->type = kMarkerLowWater;
-					xspr2 = GetPXSprite(spr2->index);
-					xspr2->data1 = f;
-					spr2->hitag = 0;
-					
-					xsec2 = GetPXSector(spr2->sectnum);
-					xsec2->underwater = 1;
-					break;
-				}
-							
-				xspr1 = GetPXSprite(spr1->index);
-				spr1->hitag = 0;
-				xspr1->data1 = f;
-				
-				if (j >= 0)
-				{
-					spr1->type = kMarkerUpWater;
-					spr2->x = spr1->x;
-					spr2->y = spr1->y;
-
-				}
-				else if ((k = InsertSprite(f, 0)) >= 0)
-				{
-					spr2 = &sprite[k];
-					spr2->x = spr1->x;
-					spr2->y = spr1->y;
-					spr2->type = kMarkerLowStack;
-					
-					ChangeSpriteSect(spr2->index, f);
-					xspr2 = GetPXSprite(spr2->index);
-					xspr2->data1 = f;
-					
-					spr1->type = kMarkerUpStack;
-					inserted[k] = 1;
-				}
-				else
-				{
-					DeleteSprite(spr1->index);
-				}
-				break;
-			case 94:
-				xsec1 = GetPXSector(spr1->sectnum);
-				xsec1->Depth = spr1hi & 7;
-				DeleteSprite(spr1->index);
-				break;
-			// sector bobbing
-			case 95:
-			case 97:
-				xsec1 = GetPXSector(spr1->sectnum);
-				xsec1->bobZRange = 5;
-				xsec1->bobSpeed = 30;
-				xsec1->bobAlways = 1;
-				if (spr1lo == 95)
-					xsec1->bobFloor = 1;
-				else
-					xsec1->bobCeiling = 1;
-				DeleteSprite(spr1->index);
-				break;
-			case 100:
-				spr1->type = kDudeCultistShotgun;
-				break;
-			case 101:
-				spr1->type = kDudeZombieButcher;
-				break;
-			case 102:
-				spr1->type = (Chance(0x3000)) ? kDudeZombieAxeLaying  : kDudeZombieAxeNormal;
-				break;
-			case 105:
-				spr1->type = (Chance(0x3000)) ? kDudeSpiderRed : (Chance(0x0100)) ? kDudeSpiderBlack : kDudeSpiderBrown;
-				break;
-			case 106:
-				spr1->type = (Chance(0x3000)) ? kDudeGillBeast : kDudeBoneEel;
-				break;
-			case 115:
-				spr1->type = kDudeRat; spr1->pal = 14;
-				break;
-			//case 900:
-				//xsec1 = GetPXSector(spr1->sectnum);
-				//xsec1->type = kSectorSlide;
-				//break;
-			// sector glow / flicker
-			case 998:
-			case 999:
-				xsec1 = GetPXSector(spr1->sectnum);
-				if (spr1lo == 998)
-				{
-					xsec1->shadeWave = 2;
-					xsec1->amplitude = +10; // dunno how to count proper shade yet
-				}
-				else
-				{
-					xsec1->shadeWave = 7;
-					xsec1->amplitude = -5; // dunno how to count proper shade yet
-				}
-				xsec1->shadeFreq = spr1->type / 1000;
-				xsec1->shadeAlways	= 1;
-				xsec1->shadeWalls	= 1;
-				xsec1->shadeFloor	= 1;
-				xsec1->shadeCeiling = 1;
-				DeleteSprite(spr1->index);
-				break;
-			case 71:
-				xspr1 = GetPXSprite(i);
-				spr1->type = kGenMissileFireball;
-				break;
-		}
-		
-	}
-	
-	int avex, avey, avez, sec1vel;
-	int swal2, ewal2;
-	
-	for (i = 0; i < numsectors; i++)
-	{
-		sec1 =& sector[i];
-		sec1lo = sec1->type % 1000; sec1vel = ClipLow(1, sec1->type / 1000); //sec1vel <<= 2;
-		sec1hi = sec1->hitag;
-		
-		switch (sec1lo) {
-			case 1:
-			case 5:
-			case 6:
-			case 8:
-			case 10:
-			case 11:
-			case 12:
-			case 33:
-			case 34:
-			case 56:
-			case 58:
-				xsec1 = GetPXSector(i);
-				xsec1->busyWaveA = xsec1->busyWaveB = 1;
-				switch(sec1lo) {
-					case 1: // door (ceil)
-					case 58:
-					case 56:
-						switch (sec1lo) {
-							case 1:
-								xsec1->interruptable	= 1;
-								xsec1->waitTimeA		= 15;
-								xsec1->reTriggerA		= 1;
-								xsec1->triggerWallPush	= 1;
-								break;
-							case 58:
-								xsec1->interruptable	= 1;
-								xsec1->waitTimeA		= 15;
-								xsec1->reTriggerA		= 1;
-								break;
-						}
-						xsec1->offCeilZ  = sec1->ceilingz;
-						xsec1->onCeilZ = nextCZA(i);
-						xsec1->busyTimeA	= (abs(xsec1->offCeilZ - xsec1->onCeilZ) >> 10) & 255; // dunno
-						xsec1->busyTimeB	= xsec1->busyTimeA;
-						break;
-					case 5: // floor raise (once)
-					//case 6: // floor lower (multiple)
-					case 8:	// floor lower (once)
-						xsec1->offFloorZ	= sec1->floorz;
-						xsec1->onFloorZ		= (sec1lo == 8) ? nextFZB(i) : nextCZA2(i, 1);
-						xsec1->busyTimeA	= (abs(xsec1->offFloorZ - xsec1->onFloorZ) >> 10) & 255; // dunno
-						break;
-					case 10: // elevator
-					case 11: // with waitTime
-					case 12: // with waitTime
-						xsec1->triggerEnter	= 1;
-						xsec1->triggerExit	= 1;
-						xsec1->offFloorZ	= sec1->floorz;
-						xsec1->onFloorZ 	= nextFZA(i);
-						xsec1->busyTimeA 	= xsec1->busyTimeB = sec1vel & 255;
-						break;
-					case 33: // ceil crusher (perman)
-					case 34: // ceil crusher (by trigger)
-						xsec1->offCeilZ		= nextCZA(i);
-						xsec1->onCeilZ		= sec1->floorz;
-						xsec1->crush		= 1;
-
-						xsec1->busyTimeA 	= xsec1->busyTimeB = sec1vel & 255;
-						xsec1->reTriggerA	= xsec1->reTriggerB	= 1;
-						xsec1->busyWaveB	= 3;
-						
-						if (sec1lo == 33)
-							xsec1->rxID = 7;
-						
-						// let's create a little earthquake here...
-						avePointSector(i, &avex, &avey);
-						if ((k = insertEarthquake(i, avex, avey, sec1->floorz, 150 - xsec1->busyTimeA)))
-						{
-							xspr1 = GetPXSprite(k); xspr1->rxID = findUnusedChannel();
-							xsec1->txID = xspr1->rxID;
-							xsec1->triggerOn = 1;
-						}
-						break;
-				}
-				sec1->type = kSectorZMotion;
-				break;
-			case 40:
-			{
-				//break;
-				xsec1 = GetPXSector(i);
-				int nFirst = findFirstWayPoint(i); dassert(nFirst >= 0);
-				int nPrev = nFirst; int nCur = nFirst, nId = sprite[nFirst].type;
-				
-				int nFirst2 = nFirst;
-				if (sprite[nFirst].sectnum != i)
-				{
-					wayPointInc(sec1hi);
-					k = InsertSprite(i, 0);
-					avePointSector(i, &avex, &avey);
-					sprite[k].x = avex, sprite[k].y = avey; sprite[k].z = sec1->floorz;
-					sprite[k].type = 900;
-					sprite[k].hitag = sec1hi;
-					nFirst2 = findFirstWayPoint(i); dassert(nFirst2 >= 0);
-					nPrev = nFirst2, nId = sprite[nFirst2].type;
-					
-				}
-				
-				int nIdNew = findUnusedPath();
-				xsec1->data = nIdNew;
-				xsec1->rxID = 7;
-				xsec1->drag = 1;
-				sec1->floorstat |= kSectRelAlign;
-				while( 1 )
-				{
-					spr1 = &sprite[nPrev]; xspr1 = GetPXSprite(nPrev);
-					ChangeSpriteStat(spr1->index, kStatPathMarker);
-					spr1->type 		= kMarkerPath; spr1->ang		= 0; spr1->clipdist	= 8;
-					spr1->z			= sprite[nFirst].z;
-					spr1->cstat		|= kSprFloor;
-					
-					xspr1->data1	= nIdNew;
-					xspr1->wave		= 1;
-					
-					if ((nCur = findNextWayPoint(sec1hi, nId)) >= 0)
-					{
-						spr2 = &sprite[nCur]; nIdNew = findUnusedPath(); nId = spr2->type; 
-						xspr1->data2 = nIdNew;
-						//Alert("%d", i);
-						//int time = 0;
-						int dx = sprite[nCur].x - sprite[nPrev].x;
-						int dy = sprite[nCur].y - sprite[nPrev].y;
-						int dist = approxDist(dx, dy);
-						int time = (ClipLow(dist / sec1->type, 1) *120) / 10;
-
-
-						xspr1->busyTime	= time;
-						
-						
-						xspr2 = GetPXSprite(spr2->index);
-						ChangeSpriteStat(spr2->index, kStatPathMarker);
-						spr2->type = kMarkerPath;
-						spr2->ang		= 0;
-						spr2->clipdist	= 8;
-						spr1->z			= sprite[nFirst].z;
-						spr1->cstat		|= kSprFloor;
-						xspr2->data1 	= nIdNew;
-						xspr2->wave		= 1;
-						xspr2->busyTime	= time;
-						
-						
-						nPrev = nCur;
-					}
-					else
-					{
-						spr2 = &sprite[nFirst]; xspr2 = GetPXSprite(spr2->index);
-						xspr1->data2 = xspr2->data1;
-						break;
-					}
-				}
-				sec1->type = kSectorPath;
-				break;
 			}
-			case 45:
-				sec1->floorz = nextFZB(i);
-				k = InsertSprite(i, kStatDude);
-				sprite[k].type = kDudeGargoyleStatueFlesh;
-				avePointSector(i, &sprite[k].x, &sprite[k].y);
-				PutSpriteOnFloor(&sprite[k], 0);
-				break;
-			case 21:
-				xsec1 = GetPXSector(i);
-				xsec1->triggerEnter = 1;
-				xsec1->dudeLockout = 1;
-				k = findUnusedChannel();
-				for (j = 0; j < numsectors; j++)
-				{
-					if (j != i && sector[j].hitag == sector[i].hitag)
-					{
-						xsec2 = GetPXSector(j);
-						xsec2->rxID = k;
+			break;
+			case kMarkerOn: {
+				int nOwner = sprite[nSprite].owner;
+				if (nOwner >= 0 && nOwner < numsectors) {
+					int nXSector = sector[nOwner].extra;
+					if (nXSector > 0 && nXSector < kMaxXSectors) {
+						xsector[nXSector].marker1 = nSprite;
+						continue;
 					}
 				}
-				xsec1->txID = k;
-				xsec1->triggerOn = 1;
-				xsec1->command = 1;
-				sec1->type = 0;
-				break;
+			}
+			break;
 		}
+
+		DeleteSprite(nSprite);
 	}
-	
-	int wal1vel;
-	for (i = 0; i < numwalls; i++)
-	{
-		wal1 = &wall[i];
-		switch(wal1->type) {
-			case 7:
-			case 8:
-			case 9:
-				wal1->type = 20;
-				xwal1 = GetPXWall(i);
-				xwal1->command = (wal1->type == 8) ? 0 : 1;
-				k = findUnusedChannel();
-				for (j = 0; j < numsectors; j++)
-				{
-					if (sector[j].hitag == wal1->hitag)
-					{
-						xsec1 = GetPXSector(j);
-						if (xsec1->rxID >= 100) // already connected with something else
-						{
-							Alert("%d", j);
-							int x, y;
-							avePointSector(j, &x, &y);
-							//f = insertSwitch(j, x, y, sector[j].floorz, k, xsec1->rxID, xwal1->command);
-						}
-						else
-						{
-							//dassert(xsec1->rxID <= 0);
-							xsec1->rxID = k;
-						}
-					}
-				}
-				xwal1->txID = k;
-				xwal1->triggerOn = xwal1->triggerOff = 1;
-				xwal1->triggerPush = 1;
-				xwal1->triggerOnce = 1; // !!!
-				break;
-			
-		}
-	}
-	
-	return 0;
-	
 }
-#endif
+
+int dbCheckMap(IOBuffer* pIo, int* pSuppVerDB, int DBLen, BOOL* bloodMap)
+{
+	#define kSiz sizeof(kBloodMapSig)
+
+	int i, ver = 0;
+	char tmp[kSiz]; memset(tmp, 0, sizeof(tmp));
+	*bloodMap = FALSE;
+
+	pIo->rewind();
+	if (pIo->nRemain <= kSiz)
+		return -2;
+
+	pIo->read(tmp, kSiz-1);
+	// check if this is a Blood map via signature
+	if (memcmp(tmp, kBloodMapSig, kSiz) == 0)
+	{
+		if (pIo->nRemain < 4)
+			return -2;
+
+		pIo->read(&i, 4);
+		i = i & 0xFF00;
+		if (i == (0x0603 & 0xFF00)) ver = 6;
+		else if (i == (0x0700 & 0xFF00))
+			ver = 7;
+
+		if (ver)
+			*bloodMap = TRUE;
+	}
+	// probably a generic BUILD map file
+	else
+	{
+		pIo->rewind();
+		if (pIo->nRemain < 4)
+			return -2;
+
+		pIo->read(&ver, 4);
+	}
+
+	if (!pSuppVerDB) return ver;
+	else
+	{
+		// check supported versions
+		while(DBLen--)
+		{
+			if (ver == pSuppVerDB[DBLen])
+				return ver;
+		}
+	}
+
+	return -3;
+}
 
 int dbLoadBuildMap(IOBuffer* pIo) {
-	
+
 	int i, len, ver = 0;
 	SECTOR4 sector4; WALL4 wall4; SPRITE4 sprite4;
 	SECTOR6 sector6; WALL6 wall6; SPRITE6 sprite6;
-	pIo->seek(0, SEEK_SET);
-	
-	pIo->read(&ver, 4);
-	len = LENGTH(gSuppBuildMapVersion);
-	for (i = 0; i < len && ver != gSuppBuildMapVersion[i]; i++);
-	if (i >= len)
-		return -2;
-	
-	gCustomSkyBits = TRUE;
-	gSkyCount	= 1;
-	pskyoff[0]	= 0;
-	dbInit();
-	
-	pIo->read(&startposx, 		4);								// x-pos
-	pIo->read(&startposy, 		4);								// y-pos
-	pIo->read(&startposz, 		4);								// z-pos
-	pIo->read(&startang, 		2);								// angle
-	pIo->read(&startsectnum, 	2);								// start sector
+
+	gModernMap          = FALSE;
+	gCustomSkyBits      = TRUE;
+	gSkyCount           = 1;
+	pskybits            = 0;
+	pskyoff[0]          = 0;
+	parallaxtype        = 0;
+	visibility          = 0;
+	parallaxvisibility  = 0;
+	dbInit(); // this calling initspritelists() too
+
+	pIo->rewind();
+	pIo->read(&ver,             4);                             // version
+	pIo->read(&startposx,       4);                             // x-pos
+	pIo->read(&startposy,       4);                             // y-pos
+	pIo->read(&startposz,       4);                             // z-pos
+	pIo->read(&startang,        2);                             // angle
+	pIo->read(&startsectnum,    2);                             // start sector
 
 	switch(ver) {
 		case 7L:
 		case 8L:
 		case 9L:
-			pIo->read(&numsectors, 	2);							// read numsectors
-			pIo->read(sector, sizeof(sectortype)*numsectors);	// fill the array
-			pIo->read(&numwalls, 	2);	 						// read numwalls
-			pIo->read(wall, sizeof(walltype)*numwalls);			// fill the array
-			pIo->read(&numsprites, 	2);							// read numsprites
-			for (i =0; i < numsprites; i++)						// insert sprites
+			pIo->read(&numsectors,  2);                         // read numsectors
+			pIo->read(sector, sizeof(sectortype)*numsectors);   // fill the array
+			pIo->read(&numwalls,    2);                         // read numwalls
+			pIo->read(wall, sizeof(walltype)*numwalls);         // fill the array
+			pIo->read(&numsprites,  2);                         // read numsprites
+			for (i =0; i < numsprites; i++)                     // insert sprites
 			{
 				RemoveSpriteStat(i);
 				pIo->read(&sprite[i], sizeof(spritetype));
 				InsertSpriteSect(i, sprite[i].sectnum);
 				InsertSpriteStat(i, sprite[i].statnum);
-				sprite[i].index 	= i;
+				sprite[i].index     = i;
 			}
 			break;
 		case 4L:
 			// this is based on Ken's convmaps
-			pIo->read(&numsectors, 	2);							// read numsectors
-			pIo->read(&numwalls, 	2);	 						// read numwalls
-			pIo->read(&numsprites, 	2);							// read numsprites
-			for (i = 0; i < numsectors; i++)					// convert each sector
+			pIo->read(&numsectors,  2);                         // read numsectors
+			pIo->read(&numwalls,    2);                         // read numwalls
+			pIo->read(&numsprites,  2);                         // read numsprites
+			for (i = 0; i < numsectors; i++)                    // convert each sector
 			{
 				pIo->read(&sector4, sizeof(SECTOR4));
-				sector[i].wallptr 			= sector4.wallptr;
-				sector[i].wallnum 			= sector4.wallnum;
-				sector[i].ceilingshade 		= sector4.ceilingshade;
-				sector[i].ceilingz 			= sector4.ceilingz;
-				sector[i].ceilingpicnum 	= sector4.ceilingpicnum;
-				sector[i].ceilingslope 		= 0;
-				sector[i].floorshade 		= sector4.floorshade;
-				sector[i].floorz 			= sector4.floorz;
-				sector[i].floorpicnum 		= sector4.floorpicnum;
-				sector[i].floorslope 		= 0;
-				sector[i].type 				= (short)(sector4.tag & 65535);
-				sector[i].hitag 			= (short)(sector4.tag >> 16);
-
-				sector[i].ceilingstat = (short)(sector4.ceilingstat & ~4);
-				if ((sector[i].ceilingstat & 4) == 0)
-				{
-					sector[i].ceilingypanning = 0;
-					sector[i].ceilingxpanning = sector4.ceilingxpanning;
-				}
-				else
-				{
-					sector[i].ceilingxpanning = 0;
-					sector[i].ceilingypanning = sector4.ceilingypanning;
-				}
-
-				sector[i].floorstat = (short)(sector4.floorstat & ~4);
-				if ((sector[i].floorstat&4) == 0)
-				{
-					sector[i].floorypanning = 0;
-					sector[i].floorxpanning = sector4.floorxpanning;
-				}
-				else
-				{
-					sector[i].floorxpanning = 0;
-					sector[i].floorypanning = sector4.floorypanning;
-				}
+				sector[i].wallptr           = sector4.wallptr;
+				sector[i].wallnum           = sector4.wallnum;
+				sector[i].ceilingshade      = sector4.ceilingshade;
+				sector[i].ceilingz          = sector4.ceilingz;
+				sector[i].ceilingpicnum     = sector4.ceilingpicnum;
+				sector[i].ceilingslope      = 0;
+				sector[i].floorshade        = sector4.floorshade;
+				sector[i].floorz            = sector4.floorz;
+				sector[i].floorpicnum       = sector4.floorpicnum;
+				sector[i].floorslope        = 0;
+				sector[i].type              = (short)(sector4.tag & 65535);
+				sector[i].hitag             = (short)(sector4.tag >> 16);
+				sector[i].ceilingstat       = sector4.ceilingstat;
+				sector[i].floorstat         = sector4.floorstat;
 			}
-			for (i = 0; i < numwalls; i++)							// convert each wall
+			for (i = 0; i < numwalls; i++)                          // convert each wall
 			{
 				pIo->read(&wall4, sizeof(WALL4));
-				wall[i].x 				= wall4.x;
-				wall[i].y 				= wall4.y;
-				wall[i].point2 			= wall4.point2;
-				wall[i].nextsector 		= wall4.nextsector1;
-				wall[i].nextwall 		= wall4.nextwall1;
-				wall[i].picnum 			= wall4.picnum;
-				wall[i].overpicnum 		= wall4.overpicnum;
-				wall[i].shade 			= wall4.shade;
-				wall[i].pal 			= sector[sectorofwall((short)i)].floorpal;
-				wall[i].cstat 			= wall4.cstat;
-				wall[i].xrepeat 		= wall4.xrepeat;
-				wall[i].yrepeat 		= wall4.yrepeat;
-				wall[i].xpanning 		= wall4.xpanning;
-				wall[i].ypanning 		= wall4.ypanning;
-				wall[i].type 			= (short)(wall4.tag & 65535);
-				wall[i].hitag 			= (short)(wall4.tag >> 16);
+				wall[i].x               = wall4.x;
+				wall[i].y               = wall4.y;
+				wall[i].point2          = wall4.point2;
+				wall[i].nextsector      = wall4.nextsector1;
+				wall[i].nextwall        = wall4.nextwall1;
+				wall[i].picnum          = wall4.picnum;
+				wall[i].overpicnum      = wall4.overpicnum;
+				wall[i].shade           = wall4.shade;
+				wall[i].pal             = sector[sectorofwall((short)i)].floorpal;
+				wall[i].cstat           = wall4.cstat;
+				wall[i].xrepeat         = wall4.xrepeat;
+				wall[i].yrepeat         = wall4.yrepeat;
+				wall[i].xpanning        = wall4.xpanning;
+				wall[i].ypanning        = wall4.ypanning;
+				wall[i].type            = (short)(wall4.tag & 65535);
+				wall[i].hitag           = (short)(wall4.tag >> 16);
 			}
-			for (i = 0; i < numsprites; i++)						// convert each sprite
+			for (i = 0; i < numsprites; i++)                        // convert each sprite
 			{
 				RemoveSpriteStat(i);
 				pIo->read(&sprite4, sizeof(SPRITE4));
 				InsertSpriteSect(i, sprite4.sectnum);
 				InsertSpriteStat(i, sprite4.statnum);
-				sprite[i].index 		= i;
-				sprite[i].x 			= sprite4.x;
-				sprite[i].y 			= sprite4.y;
-				sprite[i].z 			= sprite4.z;
-				sprite[i].cstat 		= sprite4.cstat;
-				sprite[i].shade 		= sprite4.shade;
-				sprite[i].xrepeat 		= sprite4.xrepeat;
-				sprite[i].yrepeat		= sprite4.yrepeat;
-				sprite[i].pal			= 0;
-				sprite[i].xoffset		= 0;
-				sprite[i].yoffset		= 0;
-				sprite[i].clipdist		= 32;
-				sprite[i].picnum 		= sprite4.picnum;
-				sprite[i].ang 			= sprite4.ang;
-				sprite[i].yvel	 		= sprite4.yvel;
-				sprite[i].zvel	 		= sprite4.zvel;
-				sprite[i].owner 		= sprite4.owner;
-				sprite[i].sectnum 		= sprite4.sectnum;
-				sprite[i].statnum 		= sprite4.statnum;
-				sprite[i].type 			= (short)(sprite4.tag & 65535);
-				sprite[i].flags 		= (short)(sprite4.tag >> 16);
-							
+				sprite[i].index         = i;
+				sprite[i].x             = sprite4.x;
+				sprite[i].y             = sprite4.y;
+				sprite[i].z             = sprite4.z;
+				sprite[i].cstat         = sprite4.cstat;
+				sprite[i].shade         = sprite4.shade;
+				sprite[i].xrepeat       = sprite4.xrepeat;
+				sprite[i].yrepeat       = sprite4.yrepeat;
+				sprite[i].pal           = 0;
+				sprite[i].xoffset       = 0;
+				sprite[i].yoffset       = 0;
+				sprite[i].clipdist      = 32;
+				sprite[i].picnum        = sprite4.picnum;
+				sprite[i].ang           = sprite4.ang;
+				sprite[i].yvel          = sprite4.yvel;
+				sprite[i].zvel          = sprite4.zvel;
+				sprite[i].owner         = sprite4.owner;
+				sprite[i].sectnum       = sprite4.sectnum;
+				sprite[i].statnum       = sprite4.statnum;
+				sprite[i].type          = (short)(sprite4.tag & 65535);
+				sprite[i].flags         = (short)(sprite4.tag >> 16);
+
 				if ((sprite[i].cstat & kSprRelMask) == 48)
 					sprite[i].cstat &= ~48;
 			}
 			break;
 		case 6L:
 			// this is based on eduke32 v6->v7 conversion
-			pIo->read(&numsectors, 2);								// read numsectors
-			for (i = 0; i < numsectors; i++)						// convert each one
+			pIo->read(&numsectors, 2);                              // read numsectors
+			for (i = 0; i < numsectors; i++)                        // convert each one
 			{
 				pIo->read(&sector6, sizeof(SECTOR6));
-				sector[i].wallptr 			= sector6.wallptr;
-				sector[i].wallnum 			= sector6.wallnum;
-				sector[i].ceilingstat		= sector6.ceilingstat;
-				sector[i].ceilingz 			= sector6.ceilingz;
-				sector[i].ceilingpicnum 	= sector6.ceilingpicnum;
-				sector[i].ceilingshade 		= sector6.ceilingshade;
-				sector[i].ceilingpal 		= sector6.ceilingpal;
-				sector[i].ceilingxpanning 	= sector6.ceilingxpanning;
-				sector[i].ceilingypanning 	= sector6.ceilingypanning;
-				sector[i].floorstat			= sector6.floorstat;
-				sector[i].floorz 			= sector6.floorz;
-				sector[i].floorpicnum 		= sector6.floorpicnum;
-				sector[i].floorshade 		= sector6.floorshade;
-				sector[i].floorpal 			= sector6.floorpal;
-				sector[i].floorxpanning 	= sector6.floorxpanning;
-				sector[i].floorypanning 	= sector6.floorypanning;
-				sector[i].visibility 		= sector6.visibility;
-				sector[i].type 				= sector6.lotag;
-				sector[i].hitag 			= sector6.hitag;
-				//sector[i].extra				= sector6.extra;
+				sector[i].wallptr           = sector6.wallptr;
+				sector[i].wallnum           = sector6.wallnum;
+				sector[i].ceilingstat       = sector6.ceilingstat;
+				sector[i].ceilingz          = sector6.ceilingz;
+				sector[i].ceilingpicnum     = sector6.ceilingpicnum;
+				sector[i].ceilingshade      = sector6.ceilingshade;
+				sector[i].ceilingpal        = sector6.ceilingpal;
+				sector[i].ceilingxpanning   = sector6.ceilingxpanning;
+				sector[i].ceilingypanning   = sector6.ceilingypanning;
+				sector[i].floorstat         = sector6.floorstat;
+				sector[i].floorz            = sector6.floorz;
+				sector[i].floorpicnum       = sector6.floorpicnum;
+				sector[i].floorshade        = sector6.floorshade;
+				sector[i].floorpal          = sector6.floorpal;
+				sector[i].floorxpanning     = sector6.floorxpanning;
+				sector[i].floorypanning     = sector6.floorypanning;
+				sector[i].visibility        = sector6.visibility;
+				sector[i].type              = sector6.lotag;
+				sector[i].hitag             = sector6.hitag;
+				//sector[i].extra               = sector6.extra;
 
 				sector[i].ceilingslope = (short)max(min(((int)sector6.ceilingheinum) << 5, 32767), -32768);
 				if ((sector6.ceilingstat & 2) == 0)
@@ -1438,1079 +739,645 @@ int dbLoadBuildMap(IOBuffer* pIo) {
 					sector[i].floorslope = 0;
 			}
 
-			pIo->read(&numwalls, 2);	 							// read numwalls
-			for (i = 0; i < numwalls; i++)							// convert each one
+			pIo->read(&numwalls, 2);                                // read numwalls
+			for (i = 0; i < numwalls; i++)                          // convert each one
 			{
 				pIo->read(&wall6, sizeof(WALL6));
-				wall[i].x 			= wall6.x;
-				wall[i].y 			= wall6.y;
-				wall[i].point2 		= wall6.point2;
-				wall[i].nextwall 	= wall6.nextwall;
-				wall[i].nextsector 	= wall6.nextsector;
-				wall[i].cstat 		= wall6.cstat;
-				wall[i].picnum 		= wall6.picnum;
-				wall[i].overpicnum 	= wall6.overpicnum;
-				wall[i].shade 		= wall6.shade;
-				wall[i].pal 		= wall6.pal;
-				wall[i].xrepeat 	= wall6.xrepeat;
-				wall[i].yrepeat 	= wall6.yrepeat;
-				wall[i].xpanning 	= wall6.xpanning;
-				wall[i].ypanning 	= wall6.ypanning;
-				wall[i].type 		= wall6.lotag;
-				wall[i].hitag 		= wall6.hitag;
-				//wall[i].extra		= wall6.extra;
+				wall[i].x           = wall6.x;
+				wall[i].y           = wall6.y;
+				wall[i].point2      = wall6.point2;
+				wall[i].nextwall    = wall6.nextwall;
+				wall[i].nextsector  = wall6.nextsector;
+				wall[i].cstat       = wall6.cstat;
+				wall[i].picnum      = wall6.picnum;
+				wall[i].overpicnum  = wall6.overpicnum;
+				wall[i].shade       = wall6.shade;
+				wall[i].pal         = wall6.pal;
+				wall[i].xrepeat     = wall6.xrepeat;
+				wall[i].yrepeat     = wall6.yrepeat;
+				wall[i].xpanning    = wall6.xpanning;
+				wall[i].ypanning    = wall6.ypanning;
+				wall[i].type        = wall6.lotag;
+				wall[i].hitag       = wall6.hitag;
+				//wall[i].extra     = wall6.extra;
 			}
 
-			pIo->read(&numsprites, sizeof(short));						// read numsprites
-			for (i = 0; i < numsprites; i++)							// convert each one
+			pIo->read(&numsprites, sizeof(short));                      // read numsprites
+			for (i = 0; i < numsprites; i++)                            // convert each one
 			{
 				RemoveSpriteStat(i);
 				pIo->read(&sprite6, sizeof(SPRITE6));
 				InsertSpriteSect(i, sprite6.sectnum);
 				InsertSpriteStat(i, sprite6.statnum);
-				sprite[i].index 	= i;
-				sprite[i].x 		= sprite6.x;
-				sprite[i].y 		= sprite6.y;
-				sprite[i].z 		= sprite6.z;
-				sprite[i].cstat 	= sprite6.cstat;
-				sprite[i].picnum 	= sprite6.picnum;
-				sprite[i].shade 	= sprite6.shade;
-				sprite[i].pal 		= sprite6.pal;
-				sprite[i].clipdist 	= sprite6.clipdist;
-				sprite[i].xrepeat 	= sprite6.xrepeat;
-				sprite[i].yrepeat 	= sprite6.yrepeat;
-				sprite[i].xoffset 	= sprite6.xoffset;
-				sprite[i].yoffset 	= sprite6.yoffset;
-				sprite[i].owner		= sprite6.owner;
-				sprite[i].sectnum 	= sprite6.sectnum;
-				sprite[i].statnum 	= sprite6.statnum;
-				sprite[i].ang 		= sprite6.ang;
-				sprite[i].yvel 		= sprite6.yvel;
-				sprite[i].zvel 		= sprite6.zvel;
-				sprite[i].type 		= sprite6.lotag;
-				sprite[i].flags 	= sprite6.hitag;
-				//sprite[i].extra		= sprite6.extra;
-							
-				if ((sprite[i].cstat & kSprRelMask) == 48)
-					sprite[i].cstat &= ~48;
+				sprite[i].index     = i;
+				sprite[i].x         = sprite6.x;
+				sprite[i].y         = sprite6.y;
+				sprite[i].z         = sprite6.z;
+				sprite[i].cstat     = sprite6.cstat;
+				sprite[i].picnum    = sprite6.picnum;
+				sprite[i].shade     = sprite6.shade;
+				sprite[i].pal       = sprite6.pal;
+				sprite[i].clipdist  = sprite6.clipdist;
+				sprite[i].xrepeat   = sprite6.xrepeat;
+				sprite[i].yrepeat   = sprite6.yrepeat;
+				sprite[i].xoffset   = sprite6.xoffset;
+				sprite[i].yoffset   = sprite6.yoffset;
+				sprite[i].owner     = sprite6.owner;
+				sprite[i].sectnum   = sprite6.sectnum;
+				sprite[i].statnum   = sprite6.statnum;
+				sprite[i].ang       = sprite6.ang;
+				sprite[i].yvel      = sprite6.yvel;
+				sprite[i].zvel      = sprite6.zvel;
+				sprite[i].type      = sprite6.lotag;
+				sprite[i].flags     = sprite6.hitag;
+				//sprite[i].extra       = sprite6.extra;
+
+				if ((sprite[i].cstat & kSprRelMask) == kSprSloped)
+					sprite[i].cstat &= ~kSprSloped;
 			}
 			break;
 	}
-
-	updatenumsprites();
+	
 	eraseExtra();
-	
-	for (i = 0; i < numsprites; i++)
-	{
-		if (!gMapImport.eraseSprites)
-		{
-			//sprite[i].owner		= -1;
-			//sprite[i].detail	= 0;
-			//sprite[i].type = (short)ClipRange(sprite[i].type, 0, gMapImport.eraseTypes ? 0 : 1023);
-
-			if (gMapImport.sprite2pic) sprite[i].picnum = gMapImport.sprite2pic;
-			if (gMapImport.erasePals)  sprite[i].pal = 0;
-		}
-		else
-		{
-			DeleteSprite(i);
-		}
-	}
-	
-	for (i = 0; i < numwalls; i++)
-	{
-		if (gMapImport.erasePals) wall[i].pal = 0;
-		if (gMapImport.wall2pic) wall[i].picnum = gMapImport.wall2pic;
-		if (gMapImport.wallOver2pic) wall[i].overpicnum = gMapImport.wallOver2pic;
-		//wall[i].type = ClipRange(wall[i].type, 0, gMapImport.eraseTypes ? 0 : 1023);
-	}
-
-	for (i = 0; i < numsectors; i++)
-	{
-		sector[i].alignto = 0;
-		//sector[i].type = ClipRange(sector[i].type, 0, gMapImport.eraseTypes ? 0 : 1023);
-		if (sector[i].floorstat & kSectParallax)
-		{
-			if (gMapImport.parallax2pic)
-				sector[i].floorpicnum = gMapImport.parallax2pic;
-
-			SetupSky(sector[i].floorpicnum);
-		}
-		else if (gMapImport.floor2pic)
-		{
-			sector[i].floorpicnum = gMapImport.floor2pic;
-		}
-
-		if (sector[i].ceilingstat & kSectParallax)
-		{
-			if (gMapImport.parallax2pic)
-				sector[i].ceilingpicnum = gMapImport.parallax2pic;
-
-			SetupSky(sector[i].ceilingpicnum);
-
-		} else if (gMapImport.ceil2pic)
-		{
-			sector[i].ceilingpicnum = gMapImport.ceil2pic;
-		}
-
-		if (gMapImport.erasePals) sector[i].floorpal = sector[i].ceilingpal = 0;
-		
-	}
-	
-	//exhum2xsystem();
-	//AutoAdjustSprites();
-		
 	posx = startposx;
 	posy = startposy;
 	posz = startposz;
-	ang	 = startang;
-
-	updatesector(posx, posy, &cursectnum);
+	ang  = startang;
 	return ver;
 }
 
-int dbLoadBuildMap(const char *mapname) {
-
-	int hFile, len, retn; char* pData;
-	if ((hFile = open(mapname, O_RDONLY|O_BINARY, S_IWRITE)) < 0) return -1;
-	else if ((len = filelength(hFile)) <= 0)
-	{
-		close(hFile);
-		return -1;
-	}
-
-	pData = (char*)Resource::Alloc(len); read(hFile, pData, len); close(hFile);
-	IOBuffer iobuf= IOBuffer(len, pData);
+int dbLoadMap(IOBuffer* pIo, char* cmtpath)
+{
+	int16_t tpskyoff[LENGTH(pskyoff)];
+	char temp[kXSectorDiskSize + kXSpriteDiskSize + kXWallDiskSize];
+	int i, nSkySize, nKey, oExtra, nExtra; unsigned int nCRC;
 	
-	retn = dbLoadBuildMap(&iobuf);
-	Resource::Free(pData);
-	return retn;
-}
+	BOOL ver7, loadComments = (cmtpath != NULL);
+	BLMMAGIC magic; BLMHEADER_MAIN header; BLMHEADER_EXTRA extra;
+	XWALL* pXWall;  XSECTOR* pXSect;  XSPRITE* pXSpr;
 
-int dbLoadMap(char *pPath, int *pX, int *pY, int *pZ, short *pAngle, short *pSector) {
-
-	int i, nSize, hFile; bool ERROR = true;
-	char *pData, *dsk, *dir, *fname, *ext;
-	char mapname[BMAX_PATH], tmp[BMAX_PATH];
-	RESHANDLE hMap = NULL;
-	MAPSIGNATURE magic;
-	MAPHEADER header;
-
-	int16_t tpskyoff[256];
-
-	memset(show2dsector, 0, sizeof(show2dsector));
-    memset(show2dwall, 0, sizeof(show2dwall));
-    memset(show2dsprite, 0, sizeof(show2dsprite));
-
-	gMapRev = 0;
-	gModernMap = false;
-	numxsprites = numxwalls = numxsectors = 0;
-
-	pathSplit2(pPath, tmp, &dsk, &dir, &fname, &ext);
-	sprintf(mapname, pPath);
-	ChangeExtension(mapname, getExt(kMap));
-
-	// check if file exists on the disk or inside RFF?
-	if ((i = fileExists(mapname, &hMap)) == 0) { ThrowError("%s is not exists!", mapname); }
-	else if ((i & 0x01) && (hFile = open(mapname, O_RDONLY | O_BINARY)) >= 0) // file on the disk is the priority
-	{
-		if ((nSize = filelength(hFile)) > 0)
-		{
-			pData = (char*)Resource::Alloc(nSize);
-			ERROR  = (read(hFile, (char*)pData, nSize) < nSize);
-		}
-
-		close(hFile);
-	}
-	else if (hMap && (nSize = gSysRes.Size(hMap)) > 0) // load map from the RFF then
-	{
-		pData = (char*)Resource::Alloc(nSize);
-		memcpy(pData, gSysRes.Load(hMap), nSize);
-		ERROR = false;
-	}
-
-	if (ERROR)
-		ThrowError("Error loading map file %s", pPath);
-
-    mapversion = 7;
-	IOBuffer IOBuffer1 = IOBuffer(nSize, pData);
-    IOBuffer1.read(&magic, 6);
-
-#if B_BIG_ENDIAN == 1
-    magic.version = B_LITTLE16(magic.version);
-#endif
-
-	if (memcmp(magic.signature, "BLM\x1a", 4) != 0)
-	{
-		// let's try to load it as BUILD map...
-		switch (dbLoadBuildMap(&IOBuffer1)) {
-			case -2:
-				ThrowError("Unsupported version or not a BUILD board file!");
-				break;
-			default:
-				break;
-		}
-
-		Resource::Free(pData);
-		return 0; // success!
-	}
-
-    gByte1A76C8 = false;
-	if ((magic.version & 0xFF00) != (0x0603 & 0xFF00))
-	{
-		if ((magic.version & 0x00FF) == 0x001) gModernMap = true; // the map uses modern features
-		if ((magic.version & 0xFF00) == (0x0700 & 0xFF00)) gByte1A76C8 = true;
-		else ThrowError("Map file is wrong version");
-	}
-
-    IOBuffer1.read(&header, 37);
-    if (header.at16 != 0 && header.at16 != 0x7474614d && header.at16 != 0x4d617474)
-	{
-        dbCrypt((char*)&header, sizeof(header), 0x7474614d);
-        gByte1A76C7 = true;
-    }
-
-#if B_BIG_ENDIAN == 1
-    header.at0 = B_LITTLE32(header.at0);
-    header.at4 = B_LITTLE32(header.at4);
-    header.at8 = B_LITTLE32(header.at8);
-    header.atc = B_LITTLE16(header.atc);
-    header.ate = B_LITTLE16(header.ate);
-    header.at10 = B_LITTLE16(header.at10);
-    header.at12 = B_LITTLE32(header.at12);
-    header.at16 = B_LITTLE32(header.at16);
-    header.at1b = B_LITTLE32(header.at1b);
-    header.at1f = B_LITTLE16(header.at1f);
-    header.at21 = B_LITTLE16(header.at21);
-    header.at23 = B_LITTLE16(header.at23);
-#endif
-
-    *pX = header.at0;
-    *pY = header.at4;
-    *pZ = header.at8;
-    *pAngle = header.atc;
-    *pSector = header.ate;
-
-	pskybits = header.at10;
-    visibility = header.at12;
-    gSongId = header.at16;
-
-    if (gByte1A76C8)
-    {
-        if (header.at16 == 0x7474614d || header.at16 == 0x4d617474) gByte1A76C6 = true;
-        else if (!header.at16) gByte1A76C6 = 0;
-        else
-        {
-			ThrowError("Corrupted Map file");
-        }
-    }
-    else if (header.at16)
-    {
-		ThrowError("Corrupted Map file");
-    }
-
-    parallaxtype 	= header.at1a;
-    gMapRev 		= header.at1b;
-    numsectors 		= header.at1f;
-    numwalls 		= header.at21;
-    dbInit();
-
-    if (gByte1A76C8)
-    {
-        IOBuffer1.read(&mapHead, 128);
-        dbCrypt((char*)&mapHead, 128, numwalls);
-#if B_BIG_ENDIAN == 1
-        mapHead.at40 = B_LITTLE32(mapHead.at40);
-        mapHead.at44 = B_LITTLE32(mapHead.at44);
-        mapHead.at48 = B_LITTLE32(mapHead.at48);
-#endif
-    }
-    else
-    {
-        memset(&mapHead, 0, 128);
-    }
+	pIo->seek(4, SEEK_END); pIo->read(&nCRC, 4);
 	
-	/////////////////
-	if (gCmtPrefs.enabled)
-	{
-		gCommentMgr.DeleteAll();
-		char cmtfile[_MAX_PATH];
-		sprintf(cmtfile, pPath);
-		ChangeExtension(cmtfile, kCommentExt);
-		if (fileExists(cmtfile))
-		{
-			IniFile* pComment = new IniFile(cmtfile);
-			gCommentMgr.LoadFromIni(pComment);
-			delete(pComment);
-		}
-	}
-	//////
-	
-	gSkyCount = 1<<pskybits;
-    IOBuffer1.read(tpskyoff, gSkyCount*sizeof(tpskyoff[0]));
-    if (gByte1A76C8)
-        dbCrypt((char*)tpskyoff, gSkyCount*sizeof(tpskyoff[0]), gSkyCount*2);
-
-	for (i = 0; i < ClipHigh(gSkyCount, MAXPSKYTILES); i++)
-        pskyoff[i] = B_LITTLE16(tpskyoff[i]);
-
-    for (i = 0; i < numsectors; i++)
-    {
-        sectortype *pSector = &sector[i];
-        IOBuffer1.read(pSector, sizeof(sectortype));
-		
-        if (gByte1A76C8)
-        {
-            dbCrypt((char*)pSector, sizeof(sectortype), gMapRev*sizeof(sectortype));
-        }
-#if B_BIG_ENDIAN == 1
-        pSector->wallptr = B_LITTLE16(pSector->wallptr);
-        pSector->wallnum = B_LITTLE16(pSector->wallnum);
-        pSector->ceilingz = B_LITTLE32(pSector->ceilingz);
-        pSector->floorz = B_LITTLE32(pSector->floorz);
-        pSector->ceilingstat = B_LITTLE16(pSector->ceilingstat);
-        pSector->floorstat = B_LITTLE16(pSector->floorstat);
-        pSector->ceilingpicnum = B_LITTLE16(pSector->ceilingpicnum);
-        pSector->ceilingheinum = B_LITTLE16(pSector->ceilingheinum);
-        pSector->floorpicnum = B_LITTLE16(pSector->floorpicnum);
-        pSector->floorheinum = B_LITTLE16(pSector->floorheinum);
-        pSector->type = B_LITTLE16(pSector->type);
-        pSector->hitag = B_LITTLE16(pSector->hitag);
-        pSector->extra = B_LITTLE16(pSector->extra);
-#endif
-        if (sector[i].extra > 0)
-        {
-			XSECTOR *pXSector;
-			char pBuffer[nXSectorSize];
-			int oExtra, nXSector, nCount;
-
-			oExtra   = pSector->extra;
-			nXSector = dbInsertXSector(i);
-            pXSector = &xsector[nXSector];
-            nCount   = (gByte1A76C8) ? mapHead.at48 : nXSectorSize;
-
-			dassert(nCount <= nXSectorSize);
-			memset(pXSector, 0, sizeof(XSECTOR));
-
-			// rebind from old xsector to newly created
-			if (gCmtPrefs.enabled)
-				gCommentMgr.RebindMatching(OBJ_SECTOR, oExtra, OBJ_SECTOR, nXSector, TRUE);
-			
-			IOBuffer1.read(pBuffer, nCount);
-            BitReader bitReader(pBuffer, nCount);
-            pXSector->reference = bitReader.readSigned(14);
-            pXSector->state = bitReader.readUnsigned(1);
-            pXSector->busy = bitReader.readUnsigned(17);
-            pXSector->data = bitReader.readUnsigned(16);
-            pXSector->txID = bitReader.readUnsigned(10);
-            pXSector->busyWaveA = bitReader.readUnsigned(3);
-            pXSector->busyWaveB = bitReader.readUnsigned(3);
-            pXSector->rxID = bitReader.readUnsigned(10);
-            pXSector->command = bitReader.readUnsigned(8);
-            pXSector->triggerOn = bitReader.readUnsigned(1);
-            pXSector->triggerOff = bitReader.readUnsigned(1);
-            pXSector->busyTimeA = bitReader.readUnsigned(12);
-            pXSector->waitTimeA = bitReader.readUnsigned(12);
-            pXSector->restState = bitReader.readUnsigned(1);
-            pXSector->interruptable = bitReader.readUnsigned(1);
-            pXSector->amplitude = bitReader.readSigned(8);
-            pXSector->shadeFreq = bitReader.readUnsigned(8);
-            pXSector->reTriggerA = bitReader.readUnsigned(1);
-            pXSector->reTriggerB = bitReader.readUnsigned(1);
-            pXSector->shadePhase = bitReader.readUnsigned(8);
-            pXSector->shadeWave = bitReader.readUnsigned(4);
-            pXSector->shadeAlways = bitReader.readUnsigned(1);
-            pXSector->shadeFloor = bitReader.readUnsigned(1);
-            pXSector->shadeCeiling = bitReader.readUnsigned(1);
-            pXSector->shadeWalls = bitReader.readUnsigned(1);
-            pXSector->shade = bitReader.readSigned(8);
-            pXSector->panAlways = bitReader.readUnsigned(1);
-            pXSector->panFloor = bitReader.readUnsigned(1);
-            pXSector->panCeiling = bitReader.readUnsigned(1);
-            pXSector->drag = bitReader.readUnsigned(1);
-            pXSector->underwater = bitReader.readUnsigned(1);
-            pXSector->Depth = bitReader.readUnsigned(3);
-            pXSector->panVel = bitReader.readUnsigned(8);
-            pXSector->panAngle = bitReader.readUnsigned(11);
-            pXSector->unused1 = bitReader.readUnsigned(1);
-            pXSector->decoupled = bitReader.readUnsigned(1);
-            pXSector->triggerOnce = bitReader.readUnsigned(1);
-            pXSector->isTriggered = bitReader.readUnsigned(1);
-            pXSector->key = bitReader.readUnsigned(3);
-            pXSector->triggerPush = bitReader.readUnsigned(1);
-            pXSector->triggerVector = bitReader.readUnsigned(1);
-            pXSector->triggerReserved = bitReader.readUnsigned(1);
-            pXSector->triggerEnter = bitReader.readUnsigned(1);
-            pXSector->triggerExit = bitReader.readUnsigned(1);
-            pXSector->triggerWallPush = bitReader.readUnsigned(1);
-            pXSector->coloredLights = bitReader.readUnsigned(1);
-            pXSector->unused2 = bitReader.readUnsigned(1);
-            pXSector->busyTimeB = bitReader.readUnsigned(12);
-            pXSector->waitTimeB = bitReader.readUnsigned(12);
-            pXSector->stopOn = bitReader.readUnsigned(1);
-            pXSector->stopOff = bitReader.readUnsigned(1);
-            pXSector->ceilpal2 = bitReader.readUnsigned(4);
-            pXSector->offCeilZ = bitReader.readSigned(32);
-            pXSector->onCeilZ = bitReader.readSigned(32);
-            pXSector->offFloorZ = bitReader.readSigned(32);
-            pXSector->onFloorZ = bitReader.readSigned(32);
-            pXSector->marker0 = bitReader.readUnsigned(16);
-            pXSector->marker1 = bitReader.readUnsigned(16);
-            pXSector->crush = bitReader.readUnsigned(1);
-            pXSector->ceilXPanFrac = bitReader.readUnsigned(8);
-            pXSector->ceilYPanFrac = bitReader.readUnsigned(8);
-            pXSector->floorXPanFrac = bitReader.readUnsigned(8);
-            pXSector->damageType = bitReader.readUnsigned(3);
-            pXSector->floorpal2 = bitReader.readUnsigned(4);
-            pXSector->floorYPanFrac = bitReader.readUnsigned(8);
-            pXSector->locked = bitReader.readUnsigned(1);
-            pXSector->windVel = bitReader.readUnsigned(10);
-            pXSector->windAng = bitReader.readUnsigned(11);
-            pXSector->windAlways = bitReader.readUnsigned(1);
-            pXSector->dudeLockout = bitReader.readUnsigned(1);
-            pXSector->bobTheta = bitReader.readUnsigned(11);
-            pXSector->bobZRange = bitReader.readUnsigned(5);
-            pXSector->bobSpeed = bitReader.readSigned(12);
-            pXSector->bobAlways = bitReader.readUnsigned(1);
-            pXSector->bobFloor = bitReader.readUnsigned(1);
-            pXSector->bobCeiling = bitReader.readUnsigned(1);
-            pXSector->bobRotate = bitReader.readUnsigned(1);
-            xsector[sector[i].extra].reference = i;
-            xsector[sector[i].extra].busy = xsector[sector[i].extra].state<<16;
-
-        }
-    }
-    for (i = 0; i < numwalls; i++)
-    {
-        walltype *pWall = &wall[i];
-        IOBuffer1.read(pWall, sizeof(walltype));
-        if (gByte1A76C8)
-            dbCrypt((char*)pWall, sizeof(walltype), (gMapRev*sizeof(sectortype)) | 0x7474614d);
-		
-#if B_BIG_ENDIAN == 1
-        pWall->x = B_LITTLE32(pWall->x);
-        pWall->y = B_LITTLE32(pWall->y);
-        pWall->point2 = B_LITTLE16(pWall->point2);
-        pWall->nextwall = B_LITTLE16(pWall->nextwall);
-        pWall->nextsector = B_LITTLE16(pWall->nextsector);
-        pWall->cstat = B_LITTLE16(pWall->cstat);
-        pWall->picnum = B_LITTLE16(pWall->picnum);
-        pWall->overpicnum = B_LITTLE16(pWall->overpicnum);
-        pWall->type = B_LITTLE16(pWall->type);
-        pWall->hitag = B_LITTLE16(pWall->hitag);
-        pWall->extra = B_LITTLE16(pWall->extra);
-#endif
-        if (wall[i].extra > 0)
-        {
-			XWALL *pXWall;
-			char pBuffer[nXWallSize];
-			int oExtra, nXWall, nCount;
-
-			oExtra = wall[i].extra;
-			nXWall = dbInsertXWall(i);
-            pXWall = &xwall[nXWall];
-            nCount = (gByte1A76C8) ? mapHead.at44 : nXWallSize;
-            
-			dassert(nCount <= nXWallSize);
-			memset(pXWall, 0, sizeof(XWALL));
-			
-
-			// rebind from old xwall to newly created
-			if (gCmtPrefs.enabled)
-				gCommentMgr.RebindMatching(OBJ_WALL, oExtra, OBJ_WALL, nXWall, TRUE);
-
-	
-            IOBuffer1.read(pBuffer, nCount);
-            BitReader bitReader(pBuffer, nCount);
-            pXWall->reference = bitReader.readSigned(14);
-            pXWall->state = bitReader.readUnsigned(1);
-            pXWall->busy = bitReader.readUnsigned(17);
-            pXWall->data = bitReader.readSigned(16);
-            pXWall->txID = bitReader.readUnsigned(10);
-            pXWall->unused1 = bitReader.readUnsigned(6);
-            pXWall->rxID = bitReader.readUnsigned(10);
-            pXWall->command = bitReader.readUnsigned(8);
-            pXWall->triggerOn = bitReader.readUnsigned(1);
-            pXWall->triggerOff = bitReader.readUnsigned(1);
-            pXWall->busyTime = bitReader.readUnsigned(12);
-            pXWall->waitTime = bitReader.readUnsigned(12);
-            pXWall->restState = bitReader.readUnsigned(1);
-            pXWall->interruptable = bitReader.readUnsigned(1);
-            pXWall->panAlways = bitReader.readUnsigned(1);
-            pXWall->panXVel = bitReader.readSigned(8);
-            pXWall->panYVel = bitReader.readSigned(8);
-            pXWall->decoupled = bitReader.readUnsigned(1);
-            pXWall->triggerOnce = bitReader.readUnsigned(1);
-            pXWall->isTriggered = bitReader.readUnsigned(1);
-            pXWall->key = bitReader.readUnsigned(3);
-            pXWall->triggerPush = bitReader.readUnsigned(1);
-            pXWall->triggerVector = bitReader.readUnsigned(1);
-            pXWall->triggerTouch = bitReader.readUnsigned(1);
-            pXWall->unused2 = bitReader.readUnsigned(2);
-            pXWall->xpanFrac = bitReader.readUnsigned(8);
-            pXWall->ypanFrac = bitReader.readUnsigned(8);
-            pXWall->locked = bitReader.readUnsigned(1);
-            pXWall->dudeLockout = bitReader.readUnsigned(1);
-            pXWall->unused3 = bitReader.readUnsigned(4);
-            pXWall->unused4 = bitReader.readUnsigned(32);
-            xwall[wall[i].extra].reference = i;
-            xwall[wall[i].extra].busy = xwall[wall[i].extra].state << 16;
-			
-
-
-        }
-    }
-
-    initspritelists();
-
-	for (i = 0; i < header.at23; i++)
-    {
-        RemoveSpriteStat(i);
-        spritetype *pSprite = &sprite[i];
-        IOBuffer1.read(pSprite, sizeof(spritetype));
-        if (gByte1A76C8)
-        {
-            dbCrypt((char*)pSprite, sizeof(spritetype), (gMapRev*sizeof(spritetype)) | 0x7474614d);
-        }
-#if B_BIG_ENDIAN == 1
-        pSprite->x = B_LITTLE32(pSprite->x);
-        pSprite->y = B_LITTLE32(pSprite->y);
-        pSprite->z = B_LITTLE32(pSprite->z);
-        pSprite->cstat = B_LITTLE16(pSprite->cstat);
-        pSprite->picnum = B_LITTLE16(pSprite->picnum);
-        pSprite->sectnum = B_LITTLE16(pSprite->sectnum);
-        pSprite->statnum = B_LITTLE16(pSprite->statnum);
-        pSprite->ang = B_LITTLE16(pSprite->ang);
-        pSprite->owner = B_LITTLE16(pSprite->owner);
-        pSprite->index = B_LITTLE16(pSprite->index);
-        pSprite->yvel = B_LITTLE16(pSprite->yvel);
-        pSprite->inittype = B_LITTLE16(pSprite->inittype);
-        pSprite->type = B_LITTLE16(pSprite->type);
-        pSprite->flags = B_LITTLE16(pSprite->hitag);
-        pSprite->extra = B_LITTLE16(pSprite->extra);
-#endif
-        InsertSpriteSect(i, sprite[i].sectnum);
-        InsertSpriteStat(i, sprite[i].statnum);
-        // Numsprites++;
-		
-		// rebind from old index to newly created
-		if (gCmtPrefs.enabled)
-			gCommentMgr.RebindMatching(OBJ_SPRITE, sprite[i].index, OBJ_SPRITE, i, TRUE);
-        
-		sprite[i].index = i;
-        // qsprite_filler[i] = pSprite->blend;
-        // pSprite->blend = 0;
-        if (sprite[i].extra > 0)
-        {
-            char pBuffer[nXSpriteSize];
-            int nXSprite = dbInsertXSprite(i);
-            XSPRITE *pXSprite = &xsprite[nXSprite];
-            memset(pXSprite, 0, sizeof(XSPRITE));
-            int nCount;
-            if (!gByte1A76C8)
-            {
-                nCount = nXSpriteSize;
-            }
-            else
-            {
-                nCount = mapHead.at40;
-            }
-            dassert(nCount <= nXSpriteSize);
-            IOBuffer1.read(pBuffer, nCount);
-            BitReader bitReader(pBuffer, nCount);
-            pXSprite->reference = bitReader.readSigned(14);
-            pXSprite->state = bitReader.readUnsigned(1);
-            pXSprite->busy = bitReader.readUnsigned(17);
-            pXSprite->txID = bitReader.readUnsigned(10);
-            pXSprite->rxID = bitReader.readUnsigned(10);
-            pXSprite->command = bitReader.readUnsigned(8);
-            pXSprite->triggerOn = bitReader.readUnsigned(1);
-            pXSprite->triggerOff = bitReader.readUnsigned(1);
-            pXSprite->wave = bitReader.readUnsigned(2);
-            pXSprite->busyTime = bitReader.readUnsigned(12);
-            pXSprite->waitTime = bitReader.readUnsigned(12);
-            pXSprite->restState = bitReader.readUnsigned(1);
-            pXSprite->interruptable = bitReader.readUnsigned(1);
-            pXSprite->unused1 = bitReader.readUnsigned(2);
-            pXSprite->respawnPending = bitReader.readUnsigned(2);
-            pXSprite->unused2 = bitReader.readUnsigned(1);
-            pXSprite->lT = bitReader.readUnsigned(1);
-            pXSprite->dropItem = bitReader.readUnsigned(8);
-            pXSprite->decoupled = bitReader.readUnsigned(1);
-            pXSprite->triggerOnce = bitReader.readUnsigned(1);
-            pXSprite->isTriggered = bitReader.readUnsigned(1);
-            pXSprite->key = bitReader.readUnsigned(3);
-            pXSprite->triggerPush = bitReader.readUnsigned(1);
-            pXSprite->triggerVector = bitReader.readUnsigned(1);
-            pXSprite->triggerImpact = bitReader.readUnsigned(1);
-            pXSprite->triggerPickup = bitReader.readUnsigned(1);
-            pXSprite->triggerTouch = bitReader.readUnsigned(1);
-            pXSprite->triggerSight = bitReader.readUnsigned(1);
-            pXSprite->triggerProximity = bitReader.readUnsigned(1);
-            pXSprite->unused3 = bitReader.readUnsigned(2);
-            pXSprite->lSkill = bitReader.readUnsigned(5);
-            pXSprite->lS = bitReader.readUnsigned(1);
-            pXSprite->lB = bitReader.readUnsigned(1);
-            pXSprite->lC = bitReader.readUnsigned(1);
-            pXSprite->dudeLockout = bitReader.readUnsigned(1);
-            pXSprite->data1 = bitReader.readSigned(16);
-            pXSprite->data2 = bitReader.readSigned(16);
-            pXSprite->data3 = bitReader.readSigned(16);
-            pXSprite->goalAng = bitReader.readUnsigned(11);
-            pXSprite->dodgeDir = bitReader.readSigned(2);
-            pXSprite->locked = bitReader.readUnsigned(1);
-            pXSprite->medium = bitReader.readUnsigned(2);
-            pXSprite->respawn = bitReader.readUnsigned(2);
-            pXSprite->data4 = bitReader.readUnsigned(16);
-            pXSprite->unused4 = bitReader.readUnsigned(6);
-            pXSprite->lockMsg = bitReader.readUnsigned(8);
-            pXSprite->health = bitReader.readUnsigned(12);
-            pXSprite->dudeDeaf = bitReader.readUnsigned(1);
-            pXSprite->dudeAmbush = bitReader.readUnsigned(1);
-            pXSprite->dudeGuard = bitReader.readUnsigned(1);
-            pXSprite->dudeFlag4 = bitReader.readUnsigned(1);
-            pXSprite->target = bitReader.readSigned(16);
-            pXSprite->targetX = bitReader.readSigned(32);
-            pXSprite->targetY = bitReader.readSigned(32);
-            pXSprite->targetZ = bitReader.readSigned(32);
-            pXSprite->burnTime = bitReader.readUnsigned(16);
-            pXSprite->burnSource = bitReader.readSigned(16);
-            pXSprite->height = bitReader.readUnsigned(16);
-            pXSprite->stateTimer = bitReader.readUnsigned(16);
-            pXSprite->aiState = NULL;
-            bitReader.skipBits(32);
-            xsprite[sprite[i].extra].reference = i;
-            xsprite[sprite[i].extra].busy = xsprite[sprite[i].extra].state << 16;
-            if (!gByte1A76C8)
-                xsprite[sprite[i].extra].lT |= xsprite[sprite[i].extra].lB;
-
-            if (!gModernMap && pXSprite->rxID == 60 && pXSprite->txID == 60 && pXSprite->command == 100)
-				gModernMap = true;
-        }
-
-		// remove spin sprite flag for older map versions
-		if ((magic.version < 0x0700) && ((sprite[i].cstat & 0x30) == 0x30))
-            sprite[i].cstat &= ~0x30;
-
-		#if 0
-		if ((sprite[i].cstat & 0x30) == 0x30)
-            sprite[i].cstat &= ~0x30;
-		#endif
-
-    }
-
-	
-
-	unsigned int nCRC;
-    IOBuffer1.read(&nCRC, 4);
 	#if B_BIG_ENDIAN == 1
-		nCRC = B_LITTLE32(nCRC);
+	nCRC = B_LITTLE32(nCRC);
 	#endif
 	
-	if (gCmtPrefs.enabled)
+	pIo->rewind();
+	if (crc32once(pIo->pBuffer, pIo->nTotal - 4) != nCRC)
+		ThrowError("Map File does not match CRC");
+	
+	pIo->read(&magic, sizeof(magic));
+	if (memcmp(magic.sign, kBloodMapSig, 4) != 0)
+		ThrowError("Map file is not Blood format");
+	
+	#if B_BIG_ENDIAN == 1
+	magic.version = B_LITTLE16(magic.version);
+	#endif
+
+	ver7 = ((magic.version & 0xFF00) == (0x0700 & 0xFF00));
+	if (!ver7 && (magic.version & 0xFF00) != (0x0603 & 0xFF00))
+		ThrowError("Map file is wrong version");
+		
+	pIo->read(&header, sizeof(header));
+	if (ver7)
+		dbCrypt((char*)&header, sizeof(header), kMattID2);
+
+	startposx		= B_LITTLE32(header.startX);
+	startposy		= B_LITTLE32(header.startY);
+	startposz		= B_LITTLE32(header.startZ);
+	startang        = B_LITTLE16(header.startA);
+	startsectnum    = B_LITTLE16(header.startS);
+	pskybits        = B_LITTLE16(header.skyBits);
+	visibility      = B_LITTLE32(header.visibility);
+	gMapRev         = B_LITTLE32(header.revision);
+	numsectors      = B_LITTLE16(header.numsectors);
+	numwalls        = B_LITTLE16(header.numwalls);
+	numsprites      = B_LITTLE16(header.numsprites);
+	parallaxtype    = header.skyType;
+	
+	gSkyCount       = ClipHigh(1 << pskybits, MAXPSKYTILES);
+	nSkySize        = gSkyCount*sizeof(tpskyoff[0]);
+
+	if (ver7)
+	{
+		pIo->read(&extra, sizeof(extra));
+		dbCrypt((char*)&extra, sizeof(extra), numwalls);
+	
+		// XMAPEDIT specific info
+		if (memcmp(kXMPHeadSig, extra.xmpsign, sizeof(kXMPHeadSig)-1) == 0 && extra.xmpheadver == kXMPHeadVer)
+			gCustomSkyBits = (bool)(extra.xmpmapflags & 0x01);
+		
+		pIo->read(tpskyoff, nSkySize);
+		dbCrypt((char*)tpskyoff, nSkySize, nSkySize);
+	}
+	else
+	{
+		extra.xsecSiz = kXSectorDiskSize;
+		extra.xsprSiz = kXSpriteDiskSize;
+		extra.xwalSiz = kXWallDiskSize;
+		pIo->read(tpskyoff, nSkySize);
+	}
+
+	#if B_BIG_ENDIAN == 1
+	extra.xsecSiz = B_LITTLE32(extra.xsecSiz);
+	extra.xsprSiz = B_LITTLE32(extra.xsprSiz);
+	extra.xwalSiz = B_LITTLE32(extra.xwalSiz);
+	#endif
+	
+	i = 0;
+	while (i < gSkyCount)
+		pskyoff[i] = B_LITTLE16(tpskyoff[i++]);
+	
+	gModernMap  = (ver7 && (magic.version & 0x00FF) == 0x001); // do the map use modern features?
+	numxsprites = numxwalls = numxsectors = 0;
+
+	dbInit();                   // this calling initspritelists() too
+	gCommentMgr.DeleteAll();    // erase all the comments that may left from the previous map
+
+	if (loadComments)
+		loadComments = (BOOL)(gCommentMgr.LoadFromIni(cmtpath) > 0);
+
+	nKey = gMapRev*sizeof(sectortype);
+	for (i = 0; i < numsectors; i++)
+	{
+		sectortype *pSect = &sector[i];
+		pIo->read(pSect, sizeof(sectortype));
+		if (ver7)
+			dbCrypt((char*)pSect, sizeof(sectortype), nKey);
+
+		#if B_BIG_ENDIAN == 1
+		pSect->wallptr 			= B_LITTLE16(pSect->wallptr);
+		pSect->wallnum 			= B_LITTLE16(pSect->wallnum);
+		pSect->ceilingz 		= B_LITTLE32(pSect->ceilingz);
+		pSect->floorz 			= B_LITTLE32(pSect->floorz);
+		pSect->ceilingstat		= B_LITTLE16(pSect->ceilingstat);
+		pSect->floorstat 		= B_LITTLE16(pSect->floorstat);
+		pSect->ceilingpicnum	= B_LITTLE16(pSect->ceilingpicnum);
+		pSect->ceilingheinum 	= B_LITTLE16(pSect->ceilingheinum);
+		pSect->floorpicnum 		= B_LITTLE16(pSect->floorpicnum);
+		pSect->floorheinum 		= B_LITTLE16(pSect->floorheinum);
+		pSect->type 			= B_LITTLE16(pSect->type);
+		pSect->hitag 			= B_LITTLE16(pSect->hitag);
+		pSect->extra 			= B_LITTLE16(pSect->extra);
+		#endif
+
+		if (pSect->extra <= 0)
+			continue;
+
+		oExtra = pSect->extra;
+		nExtra = dbInsertXSector(i);
+		pXSect =& xsector[nExtra];
+
+		if (loadComments) // rebind from old xsector to a newly created
+			gCommentMgr.RebindMatching(OBJ_SECTOR, oExtra, OBJ_SECTOR, nExtra, TRUE);
+
+		pIo->read(temp, extra.xsecSiz);
+		// -----------------------------------------------------------------------
+		BitReader BR(temp, extra.xsecSiz);
+		pXSect->reference = BR.readSigned(14);          pXSect->state = BR.readUnsigned(1);
+		pXSect->busy = BR.readUnsigned(17);             pXSect->data = BR.readUnsigned(16);
+		pXSect->txID = BR.readUnsigned(10);             pXSect->busyWaveA = BR.readUnsigned(3);
+		pXSect->busyWaveB = BR.readUnsigned(3);         pXSect->rxID = BR.readUnsigned(10);
+		pXSect->command = BR.readUnsigned(8);           pXSect->triggerOn = BR.readUnsigned(1);
+		pXSect->triggerOff = BR.readUnsigned(1);        pXSect->busyTimeA = BR.readUnsigned(12);
+		pXSect->waitTimeA = BR.readUnsigned(12);        pXSect->restState = BR.readUnsigned(1);
+		pXSect->interruptable = BR.readUnsigned(1);     pXSect->amplitude = BR.readSigned(8);
+		pXSect->shadeFreq = BR.readUnsigned(8);         pXSect->reTriggerA = BR.readUnsigned(1);
+		pXSect->reTriggerB = BR.readUnsigned(1);        pXSect->shadePhase = BR.readUnsigned(8);
+		pXSect->shadeWave = BR.readUnsigned(4);         pXSect->shadeAlways = BR.readUnsigned(1);
+		pXSect->shadeFloor = BR.readUnsigned(1);        pXSect->shadeCeiling = BR.readUnsigned(1);
+		pXSect->shadeWalls = BR.readUnsigned(1);        pXSect->shade = BR.readSigned(8);
+		pXSect->panAlways = BR.readUnsigned(1);         pXSect->panFloor = BR.readUnsigned(1);
+		pXSect->panCeiling = BR.readUnsigned(1);        pXSect->drag = BR.readUnsigned(1);
+		pXSect->underwater = BR.readUnsigned(1);        pXSect->Depth = BR.readUnsigned(3);
+		pXSect->panVel = BR.readUnsigned(8);            pXSect->panAngle = BR.readUnsigned(11);
+		pXSect->unused1 = BR.readUnsigned(1);           pXSect->decoupled = BR.readUnsigned(1);
+		pXSect->triggerOnce = BR.readUnsigned(1);       pXSect->isTriggered = BR.readUnsigned(1);
+		pXSect->key = BR.readUnsigned(3);               pXSect->triggerPush = BR.readUnsigned(1);
+		pXSect->triggerVector = BR.readUnsigned(1);     pXSect->triggerReserved = BR.readUnsigned(1);
+		pXSect->triggerEnter = BR.readUnsigned(1);      pXSect->triggerExit = BR.readUnsigned(1);
+		pXSect->triggerWallPush = BR.readUnsigned(1);   pXSect->coloredLights = BR.readUnsigned(1);
+		pXSect->unused2 = BR.readUnsigned(1);           pXSect->busyTimeB = BR.readUnsigned(12);
+		pXSect->waitTimeB = BR.readUnsigned(12);        pXSect->stopOn = BR.readUnsigned(1);
+		pXSect->stopOff = BR.readUnsigned(1);           pXSect->ceilpal2 = BR.readUnsigned(4);
+		pXSect->offCeilZ = BR.readSigned(32);           pXSect->onCeilZ = BR.readSigned(32);
+		pXSect->offFloorZ = BR.readSigned(32);          pXSect->onFloorZ = BR.readSigned(32);
+		pXSect->marker0 = BR.readUnsigned(16);          pXSect->marker1 = BR.readUnsigned(16);
+		pXSect->crush = BR.readUnsigned(1);             pXSect->ceilXPanFrac = BR.readUnsigned(8);
+		pXSect->ceilYPanFrac = BR.readUnsigned(8);      pXSect->floorXPanFrac = BR.readUnsigned(8);
+		pXSect->damageType = BR.readUnsigned(3);        pXSect->floorpal2 = BR.readUnsigned(4);
+		pXSect->floorYPanFrac = BR.readUnsigned(8);     pXSect->locked = BR.readUnsigned(1);
+		pXSect->windVel = BR.readUnsigned(10);          pXSect->windAng = BR.readUnsigned(11);
+		pXSect->windAlways = BR.readUnsigned(1);        pXSect->dudeLockout = BR.readUnsigned(1);
+		pXSect->bobTheta = BR.readUnsigned(11);         pXSect->bobZRange = BR.readUnsigned(5);
+		pXSect->bobSpeed = BR.readSigned(12);           pXSect->bobAlways = BR.readUnsigned(1);
+		pXSect->bobFloor = BR.readUnsigned(1);          pXSect->bobCeiling = BR.readUnsigned(1);
+		pXSect->bobRotate = BR.readUnsigned(1);         pXSect->reference = i;
+		pXSect->busy = pXSect->state<<16;
+	}
+
+	nKey = (gMapRev*sizeof(sectortype)) | kMattID2;
+	for (i = 0; i < numwalls; i++)
+	{
+		walltype *pWall = &wall[i];
+		pIo->read(pWall, sizeof(walltype));
+		if (ver7)
+			dbCrypt((char*)pWall, sizeof(walltype), nKey);
+
+		#if B_BIG_ENDIAN == 1
+		pWall->x 			= B_LITTLE32(pWall->x);
+		pWall->y 			= B_LITTLE32(pWall->y);
+		pWall->point2 		= B_LITTLE16(pWall->point2);
+		pWall->nextwall 	= B_LITTLE16(pWall->nextwall);
+		pWall->nextsector 	= B_LITTLE16(pWall->nextsector);
+		pWall->cstat 		= B_LITTLE16(pWall->cstat);
+		pWall->picnum 		= B_LITTLE16(pWall->picnum);
+		pWall->overpicnum	= B_LITTLE16(pWall->overpicnum);
+		pWall->type 		= B_LITTLE16(pWall->type);
+		pWall->hitag 		= B_LITTLE16(pWall->hitag);
+		pWall->extra 		= B_LITTLE16(pWall->extra);
+		#endif
+
+		if (pWall->extra <= 0)
+			continue;
+
+		oExtra   = pWall->extra;
+		nExtra   = dbInsertXWall(i);
+		pXWall   =& xwall[nExtra];
+
+		if (loadComments) // rebind from old xwall to a newly created
+			gCommentMgr.RebindMatching(OBJ_WALL, oExtra, OBJ_WALL, nExtra, TRUE);
+
+		pIo->read(temp, extra.xwalSiz);
+		// -----------------------------------------------------------------------
+		BitReader BR(temp, extra.xwalSiz);
+		pXWall->reference = BR.readSigned(14);          pXWall->state = BR.readUnsigned(1);
+		pXWall->busy = BR.readUnsigned(17);             pXWall->data = BR.readSigned(16);
+		pXWall->txID = BR.readUnsigned(10);             pXWall->unused1 = BR.readUnsigned(6);
+		pXWall->rxID = BR.readUnsigned(10);             pXWall->command = BR.readUnsigned(8);
+		pXWall->triggerOn = BR.readUnsigned(1);         pXWall->triggerOff = BR.readUnsigned(1);
+		pXWall->busyTime = BR.readUnsigned(12);         pXWall->waitTime = BR.readUnsigned(12);
+		pXWall->restState = BR.readUnsigned(1);         pXWall->interruptable = BR.readUnsigned(1);
+		pXWall->panAlways = BR.readUnsigned(1);         pXWall->panXVel = BR.readSigned(8);
+		pXWall->panYVel = BR.readSigned(8);             pXWall->decoupled = BR.readUnsigned(1);
+		pXWall->triggerOnce = BR.readUnsigned(1);       pXWall->isTriggered = BR.readUnsigned(1);
+		pXWall->key = BR.readUnsigned(3);               pXWall->triggerPush = BR.readUnsigned(1);
+		pXWall->triggerVector = BR.readUnsigned(1);     pXWall->triggerTouch = BR.readUnsigned(1);
+		pXWall->unused2 = BR.readUnsigned(2);           pXWall->xpanFrac = BR.readUnsigned(8);
+		pXWall->ypanFrac = BR.readUnsigned(8);          pXWall->locked = BR.readUnsigned(1);
+		pXWall->dudeLockout = BR.readUnsigned(1);       pXWall->unused3 = BR.readUnsigned(4);
+		pXWall->unused4 = BR.readUnsigned(32);          pXWall->reference = i;
+		pXWall->busy = pXWall->state << 16;
+	}
+
+	nKey = (gMapRev*sizeof(spritetype)) | kMattID2;
+	for (i = 0; i < numsprites; i++)
+	{
+		RemoveSpriteStat(i);
+		spritetype *pSpr = &sprite[i];
+		pIo->read(pSpr, sizeof(spritetype));
+		if (ver7)
+			dbCrypt((char*)pSpr, sizeof(spritetype), nKey);
+
+		#if B_BIG_ENDIAN == 1
+		pSpr->x 			= B_LITTLE32(pSpr->x);
+		pSpr->y 			= B_LITTLE32(pSpr->y);
+		pSpr->z 			= B_LITTLE32(pSpr->z);
+		pSpr->cstat 		= B_LITTLE16(pSpr->cstat);
+		pSpr->picnum 		= B_LITTLE16(pSpr->picnum);
+		pSpr->sectnum 		= B_LITTLE16(pSpr->sectnum);
+		pSpr->statnum 		= B_LITTLE16(pSpr->statnum);
+		pSpr->ang 			= B_LITTLE16(pSpr->ang);
+		pSpr->owner 		= B_LITTLE16(pSpr->owner);
+		pSpr->index 		= B_LITTLE16(pSpr->index);
+		pSpr->yvel 			= B_LITTLE16(pSpr->yvel);
+		pSpr->inittype 		= B_LITTLE16(pSpr->inittype);
+		pSpr->type 			= B_LITTLE16(pSpr->type);
+		pSpr->flags 		= B_LITTLE16(pSpr->hitag);
+		pSpr->extra 		= B_LITTLE16(pSpr->extra);
+		#endif
+
+		InsertSpriteSect(i, sprite[i].sectnum);
+		InsertSpriteStat(i, sprite[i].statnum);
+		pSpr->index = i;
+
+		// remove spin (sloped) sprite cstat for older map versions
+		if (!ver7 && (pSpr->cstat & kSprRelMask) == kSprSloped)
+			pSpr->cstat &= ~kSprSloped;
+
+		if (loadComments) // rebind from old sprite index to a newly created
+			gCommentMgr.RebindMatching(OBJ_SPRITE, sprite[i].index, OBJ_SPRITE, i, TRUE);
+
+		if (pSpr->extra <= 0)
+			continue;
+
+		nExtra = dbInsertXSprite(i);
+		pXSpr  =& xsprite[nExtra];
+
+		pIo->read(temp, extra.xsprSiz);
+		// -----------------------------------------------------------------------
+		BitReader BR(temp, extra.xsprSiz);
+		pXSpr->reference = BR.readSigned(14);           pXSpr->state = BR.readUnsigned(1);
+		pXSpr->busy = BR.readUnsigned(17);              pXSpr->txID = BR.readUnsigned(10);
+		pXSpr->rxID = BR.readUnsigned(10);              pXSpr->command = BR.readUnsigned(8);
+		pXSpr->triggerOn = BR.readUnsigned(1);          pXSpr->triggerOff = BR.readUnsigned(1);
+		pXSpr->wave = BR.readUnsigned(2);               pXSpr->busyTime = BR.readUnsigned(12);
+		pXSpr->waitTime = BR.readUnsigned(12);          pXSpr->restState = BR.readUnsigned(1);
+		pXSpr->interruptable = BR.readUnsigned(1);      pXSpr->unused1 = BR.readUnsigned(2);
+		pXSpr->respawnPending = BR.readUnsigned(2);     pXSpr->unused2 = BR.readUnsigned(1);
+		pXSpr->lT = BR.readUnsigned(1);                 pXSpr->dropItem = BR.readUnsigned(8);
+		pXSpr->decoupled = BR.readUnsigned(1);          pXSpr->triggerOnce = BR.readUnsigned(1);
+		pXSpr->isTriggered = BR.readUnsigned(1);        pXSpr->key = BR.readUnsigned(3);
+		pXSpr->triggerPush = BR.readUnsigned(1);        pXSpr->triggerVector = BR.readUnsigned(1);
+		pXSpr->triggerImpact = BR.readUnsigned(1);      pXSpr->triggerPickup = BR.readUnsigned(1);
+		pXSpr->triggerTouch = BR.readUnsigned(1);       pXSpr->triggerSight = BR.readUnsigned(1);
+		pXSpr->triggerProximity = BR.readUnsigned(1);   pXSpr->unused3 = BR.readUnsigned(2);
+		pXSpr->lSkill = BR.readUnsigned(5);             pXSpr->lS = BR.readUnsigned(1);
+		pXSpr->lB = BR.readUnsigned(1);                 pXSpr->lC = BR.readUnsigned(1);
+		pXSpr->dudeLockout = BR.readUnsigned(1);        pXSpr->data1 = BR.readSigned(16);
+		pXSpr->data2 = BR.readSigned(16);               pXSpr->data3 = BR.readSigned(16);
+		pXSpr->goalAng = BR.readUnsigned(11);           pXSpr->dodgeDir = BR.readSigned(2);
+		pXSpr->locked = BR.readUnsigned(1);             pXSpr->medium = BR.readUnsigned(2);
+		pXSpr->respawn = BR.readUnsigned(2);            pXSpr->data4 = BR.readUnsigned(16);
+		pXSpr->unused4 = BR.readUnsigned(6);            pXSpr->lockMsg = BR.readUnsigned(8);
+		pXSpr->health = BR.readUnsigned(12);            pXSpr->dudeDeaf = BR.readUnsigned(1);
+		pXSpr->dudeAmbush = BR.readUnsigned(1);         pXSpr->dudeGuard = BR.readUnsigned(1);
+		pXSpr->dudeFlag4 = BR.readUnsigned(1);          pXSpr->target = BR.readSigned(16);
+		pXSpr->targetX = BR.readSigned(32);             pXSpr->targetY = BR.readSigned(32);
+		pXSpr->targetZ = BR.readSigned(32);             pXSpr->burnTime = BR.readUnsigned(16);
+		pXSpr->burnSource = BR.readSigned(16);          pXSpr->height = BR.readUnsigned(16);
+		pXSpr->stateTimer = BR.readUnsigned(16);        pXSpr->aiState = NULL;
+		pXSpr->reference = i;                           pXSpr->busy = pXSpr->state << 16;
+
+		if (!ver7)
+			pXSpr->lT |= pXSpr->lB;
+
+		if (!gModernMap) // check if map use modern features by magic sprite
+			gModernMap = (pXSpr->rxID == 60 && pXSpr->txID == 60 && pXSpr->command == 100);
+	}
+
+	if (loadComments)
 	{
 		if (!gCmtPrefs.compareCRC || gCommentMgr.CompareCRC(nCRC))
 			gCommentMgr.SetCRC(nCRC);
 		else
 			gCommentMgr.ResetAllTails();
 	}
-	
-	// who cares?
-	// commenting this allows to load alpha maps
-/* 	if (crc32once((unsigned char*)pData, nSize-4) != nCRC)
-    {
-        buildprintf("Map File does not match CRC");
-        gSysRes.Unlock(pNode);
-        return -1;
-    } */
 
-	Resource::Free(pData);
-    PropagateMarkerReferences();
-    return 0;
+	posx = startposx;
+	posy = startposy;
+	posz = startposz;
+	ang  = startang;
+
+	mapversion = (ver7) ? 7 : 6;
+	PropagateMarkerReferences();
+	return mapversion;
 }
 
-int dbSaveMap(char *pPath, int nX, int nY, int nZ, short nAngle, short nSector)
+int dbSaveMap(char *filename, BOOL ver7)
 {
-    char sMapExt[BMAX_PATH];
-    char sBakExt[BMAX_PATH];
-    int16_t tpskyoff[256];
-    int nSpriteNum;
-    // psky_t *pSky = tileSetupSky(0);
-    gSkyCount = 1<<pskybits;
-    gMapRev++;
-    nSpriteNum = 0;
-    strcpy(sMapExt, pPath);
-	strcpy(sBakExt, pPath);
-    ChangeExtension(sMapExt, getExt(kMap));
-	ChangeExtension(sBakExt, ".bak");
-    int nSize = sizeof(MAPSIGNATURE)+sizeof(MAPHEADER);
-    if (gByte1A76C8)
-    {
-        nSize += sizeof(MAPHEADER2);
-    }
-    for (int i = 0; i < gSkyCount; i++)
-        tpskyoff[i] = pskyoff[i];
-    nSize += gSkyCount*sizeof(tpskyoff[0]);
-    nSize += sizeof(sectortype)*numsectors;
-    for (int i = 0; i < numsectors; i++)
-    {
-        if (sector[i].extra > 0)
-        {
-            nSize += nXSectorSize;
-        }
-    }
-    nSize += sizeof(walltype)*numwalls;
-    for (int i = 0; i < numwalls; i++)
-    {
-        if (wall[i].extra > 0)
-        {
-            nSize += nXWallSize;
-        }
-    }
-    for (int i = 0; i < kMaxSprites; i++)
-    {
-        if (sprite[i].statnum < kMaxStatus)
-        {
-            nSpriteNum++;
-            if (sprite[i].extra > 0)
-            {
-                nSize += nXSpriteSize;
-            }
-        }
-    }
-    nSize += sizeof(spritetype)*nSpriteNum;
-    nSize += 4;
-    char *pData = (char*)Bmalloc(nSize);
-    IOBuffer IOBuffer1 = IOBuffer(nSize, pData);
-    MAPSIGNATURE magic;
-    memcpy(&magic, "BLM\x1a", 4);
-    if (gByte1A76C8)
-    {
-		magic.version = (gCompat.modernMap) ? 0x701 : 0x700;
-		gModernMap    = (magic.version == 0x701);
-        gByte1A76C7 = 1;
-    }
-    else
-    {
-        magic.version = 0x603;
-        gByte1A76C7 = 0;
-    }
-    IOBuffer1.write(&magic, sizeof(magic));
-    MAPHEADER mapheader;
-    mapheader.at0 = B_LITTLE32(nX);
-    mapheader.at4 = B_LITTLE32(nY);
-    mapheader.at8 = B_LITTLE32(nZ);
-    mapheader.atc = B_LITTLE16(nAngle);
-    mapheader.ate = B_LITTLE16(nSector);
-    mapheader.at10 = B_LITTLE16(pskybits);
-    mapheader.at12 = B_LITTLE32(visibility);
-    if (gByte1A76C6)
-    {
-        gSongId = 0x7474614d;
-    }
-    else
-    {
-        gSongId = 0;
-    }
-    mapheader.at16 = B_LITTLE32(gSongId);
-    mapheader.at1a = parallaxtype;
-    mapheader.at1b = gMapRev;
-    mapheader.at1f = B_LITTLE16(numsectors);
-    mapheader.at21 = B_LITTLE16(numwalls);
-    mapheader.at23 = B_LITTLE16(nSpriteNum);
-    if (gByte1A76C7)
-    {
-        dbCrypt((char*)&mapheader, sizeof(MAPHEADER), 'ttaM');
-    }
-    IOBuffer1.write(&mapheader, sizeof(MAPHEADER));
-    if (gByte1A76C8)
-    {
-        Bstrcpy(mapHead.at0, "");
-        mapHead.at48 = nXSectorSize;
-        mapHead.at44 = nXWallSize;
-        mapHead.at40 = nXSpriteSize;
-        dbCrypt((char*)&mapHead, sizeof(MAPHEADER2), numwalls);
-        IOBuffer1.write(&mapHead, sizeof(MAPHEADER2));
-        dbCrypt((char*)&mapHead, sizeof(MAPHEADER2), numwalls);
-    }
-    if (gByte1A76C8)
-    {
-        dbCrypt((char*)tpskyoff, gSkyCount*sizeof(tpskyoff[0]), gSkyCount*sizeof(tpskyoff[0]));
-    }
-    IOBuffer1.write(tpskyoff, gSkyCount*sizeof(tpskyoff[0]));
-    if (gByte1A76C8)
-    {
-        dbCrypt((char*)tpskyoff, gSkyCount*sizeof(tpskyoff[0]), gSkyCount*sizeof(tpskyoff[0]));
-    }
-    for (int i = 0; i < numsectors; i++)
-    {
-        if (gByte1A76C8)
-        {
-            dbCrypt((char*)&sector[i], sizeof(sectortype), gMapRev*sizeof(sectortype));
-        }
-        IOBuffer1.write(&sector[i], sizeof(sectortype));
-        if (gByte1A76C8)
-        {
-            dbCrypt((char*)&sector[i], sizeof(sectortype), gMapRev*sizeof(sectortype));
-        }
-        if (sector[i].extra > 0)
-        {
-            char pBuffer[nXSectorSize];
-            BitWriter bitWriter(pBuffer, nXSectorSize);
-            XSECTOR* pXSector = &xsector[sector[i].extra];
-            bitWriter.write(pXSector->reference, 14);
-            bitWriter.write(pXSector->state, 1);
-            bitWriter.write(pXSector->busy, 17);
-            bitWriter.write(pXSector->data, 16);
-            bitWriter.write(pXSector->txID, 10);
-            bitWriter.write(pXSector->busyWaveA, 3);
-            bitWriter.write(pXSector->busyWaveB, 3);
-            bitWriter.write(pXSector->rxID, 10);
-            bitWriter.write(pXSector->command, 8);
-            bitWriter.write(pXSector->triggerOn, 1);
-            bitWriter.write(pXSector->triggerOff, 1);
-            bitWriter.write(pXSector->busyTimeA, 12);
-            bitWriter.write(pXSector->waitTimeA, 12);
-            bitWriter.write(pXSector->restState, 1);
-            bitWriter.write(pXSector->interruptable, 1);
-            bitWriter.write(pXSector->amplitude, 8);
-            bitWriter.write(pXSector->shadeFreq, 8);
-            bitWriter.write(pXSector->reTriggerA, 1);
-            bitWriter.write(pXSector->reTriggerB, 1);
-            bitWriter.write(pXSector->shadePhase, 8);
-            bitWriter.write(pXSector->shadeWave, 4);
-            bitWriter.write(pXSector->shadeAlways, 1);
-            bitWriter.write(pXSector->shadeFloor, 1);
-            bitWriter.write(pXSector->shadeCeiling, 1);
-            bitWriter.write(pXSector->shadeWalls, 1);
-            bitWriter.write(pXSector->shade, 8);
-            bitWriter.write(pXSector->panAlways, 1);
-            bitWriter.write(pXSector->panFloor, 1);
-            bitWriter.write(pXSector->panCeiling, 1);
-            bitWriter.write(pXSector->drag, 1);
-            bitWriter.write(pXSector->underwater, 1);
-            bitWriter.write(pXSector->Depth, 3);
-            bitWriter.write(pXSector->panVel, 8);
-            bitWriter.write(pXSector->panAngle, 11);
-            bitWriter.write(pXSector->unused1, 1);
-            bitWriter.write(pXSector->decoupled, 1);
-            bitWriter.write(pXSector->triggerOnce, 1);
-            bitWriter.write(pXSector->isTriggered, 1);
-            bitWriter.write(pXSector->key, 3);
-            bitWriter.write(pXSector->triggerPush, 1);
-            bitWriter.write(pXSector->triggerVector, 1);
-            bitWriter.write(pXSector->triggerReserved, 1);
-            bitWriter.write(pXSector->triggerEnter, 1);
-            bitWriter.write(pXSector->triggerExit, 1);
-            bitWriter.write(pXSector->triggerWallPush, 1);
-            bitWriter.write(pXSector->coloredLights, 1);
-            bitWriter.write(pXSector->unused2, 1);
-            bitWriter.write(pXSector->busyTimeB, 12);
-            bitWriter.write(pXSector->waitTimeB, 12);
-            bitWriter.write(pXSector->stopOn, 1);
-            bitWriter.write(pXSector->stopOff, 1);
-            bitWriter.write(pXSector->ceilpal2, 4);
-            bitWriter.write(pXSector->offCeilZ, 32);
-            bitWriter.write(pXSector->onCeilZ, 32);
-            bitWriter.write(pXSector->offFloorZ, 32);
-            bitWriter.write(pXSector->onFloorZ, 32);
-            bitWriter.write(pXSector->marker0, 16);
-            bitWriter.write(pXSector->marker1, 16);
-            bitWriter.write(pXSector->crush, 1);
-            bitWriter.write(pXSector->ceilXPanFrac, 8);
-            bitWriter.write(pXSector->ceilYPanFrac, 8);
-            bitWriter.write(pXSector->floorXPanFrac, 8);
-            bitWriter.write(pXSector->damageType, 3);
-            bitWriter.write(pXSector->floorpal2, 4);
-            bitWriter.write(pXSector->floorYPanFrac, 8);
-            bitWriter.write(pXSector->locked, 1);
-            bitWriter.write(pXSector->windVel, 10);
-            bitWriter.write(pXSector->windAng, 11);
-            bitWriter.write(pXSector->windAlways, 1);
-            bitWriter.write(pXSector->dudeLockout, 1);
-            bitWriter.write(pXSector->bobTheta, 11);
-            bitWriter.write(pXSector->bobZRange, 5);
-            bitWriter.write(pXSector->bobSpeed, 12);
-            bitWriter.write(pXSector->bobAlways, 1);
-            bitWriter.write(pXSector->bobFloor, 1);
-            bitWriter.write(pXSector->bobCeiling, 1);
-            bitWriter.write(pXSector->bobRotate, 1);
-            IOBuffer1.write(pBuffer, nXSectorSize);
-        }
-    }
-    for (int i = 0; i < numwalls; i++)
-    {
-        if (gByte1A76C8)
-        {
-            dbCrypt((char*)&wall[i], sizeof(walltype), gMapRev*sizeof(sectortype) | 0x7474614d);
-        }
-        IOBuffer1.write(&wall[i], sizeof(walltype));
-        if (gByte1A76C8)
-        {
-            dbCrypt((char*)&wall[i], sizeof(walltype), gMapRev*sizeof(sectortype) | 0x7474614d);
-        }
-        if (wall[i].extra > 0)
-        {
-            char pBuffer[nXWallSize];
-            BitWriter bitWriter(pBuffer, nXWallSize);
-            XWALL* pXWall = &xwall[wall[i].extra];
-            bitWriter.write(pXWall->reference, 14);
-            bitWriter.write(pXWall->state, 1);
-            bitWriter.write(pXWall->busy, 17);
-            bitWriter.write(pXWall->data, 16);
-            bitWriter.write(pXWall->txID, 10);
-            bitWriter.write(pXWall->unused1, 6);
-            bitWriter.write(pXWall->rxID, 10);
-            bitWriter.write(pXWall->command, 8);
-            bitWriter.write(pXWall->triggerOn, 1);
-            bitWriter.write(pXWall->triggerOff, 1);
-            bitWriter.write(pXWall->busyTime, 12);
-            bitWriter.write(pXWall->waitTime, 12);
-            bitWriter.write(pXWall->restState, 1);
-            bitWriter.write(pXWall->interruptable, 1);
-            bitWriter.write(pXWall->panAlways, 1);
-            bitWriter.write(pXWall->panXVel, 8);
-            bitWriter.write(pXWall->panYVel, 8);
-            bitWriter.write(pXWall->decoupled, 1);
-            bitWriter.write(pXWall->triggerOnce, 1);
-            bitWriter.write(pXWall->isTriggered, 1);
-            bitWriter.write(pXWall->key, 3);
-            bitWriter.write(pXWall->triggerPush, 1);
-            bitWriter.write(pXWall->triggerVector, 1);
-            bitWriter.write(pXWall->triggerTouch, 1);
-            bitWriter.write(pXWall->unused2, 2);
-            bitWriter.write(pXWall->xpanFrac, 8);
-            bitWriter.write(pXWall->ypanFrac, 8);
-            bitWriter.write(pXWall->locked, 1);
-            bitWriter.write(pXWall->dudeLockout, 1);
-            bitWriter.write(pXWall->unused3, 4);
-            bitWriter.write(pXWall->unused4, 32);
-            IOBuffer1.write(pBuffer, nXWallSize);
-        }
-    }
-    for (int i = 0; i < kMaxSprites; i++)
-    {
-        if (sprite[i].statnum < kMaxStatus)
-        {
-            if (gByte1A76C8)
-            {
-                dbCrypt((char*)&sprite[i], sizeof(spritetype), gMapRev*sizeof(spritetype) | 'ttaM');
-            }
-            IOBuffer1.write(&sprite[i], sizeof(spritetype));
-            if (gByte1A76C8)
-            {
-                dbCrypt((char*)&sprite[i], sizeof(spritetype), gMapRev*sizeof(spritetype) | 'ttaM');
-            }
-            if (sprite[i].extra > 0)
-            {
-                char pBuffer[nXSpriteSize];
-                BitWriter bitWriter(pBuffer, nXSpriteSize);
-                XSPRITE* pXSprite = &xsprite[sprite[i].extra];
-                bitWriter.write(pXSprite->reference, 14);
-                bitWriter.write(pXSprite->state, 1);
-                bitWriter.write(pXSprite->busy, 17);
-                bitWriter.write(pXSprite->txID, 10);
-                bitWriter.write(pXSprite->rxID, 10);
-                bitWriter.write(pXSprite->command, 8);
-                bitWriter.write(pXSprite->triggerOn, 1);
-                bitWriter.write(pXSprite->triggerOff, 1);
-                bitWriter.write(pXSprite->wave, 2);
-                bitWriter.write(pXSprite->busyTime, 12);
-                bitWriter.write(pXSprite->waitTime, 12);
-                bitWriter.write(pXSprite->restState, 1);
-                bitWriter.write(pXSprite->interruptable, 1);
-                bitWriter.write(pXSprite->unused1, 2);
-                bitWriter.write(pXSprite->respawnPending, 2);
-                bitWriter.write(pXSprite->unused2, 1);
-                bitWriter.write(pXSprite->lT, 1);
-                bitWriter.write(pXSprite->dropItem, 8);
-                bitWriter.write(pXSprite->decoupled, 1);
-                bitWriter.write(pXSprite->triggerOnce, 1);
-                bitWriter.write(pXSprite->isTriggered, 1);
-                bitWriter.write(pXSprite->key, 3);
-                bitWriter.write(pXSprite->triggerPush, 1);
-                bitWriter.write(pXSprite->triggerVector, 1);
-                bitWriter.write(pXSprite->triggerImpact, 1);
-                bitWriter.write(pXSprite->triggerPickup, 1);
-                bitWriter.write(pXSprite->triggerTouch, 1);
-                bitWriter.write(pXSprite->triggerSight, 1);
-                bitWriter.write(pXSprite->triggerProximity, 1);
-                bitWriter.write(pXSprite->unused3, 2);
-                bitWriter.write(pXSprite->lSkill, 5);
-                bitWriter.write(pXSprite->lS, 1);
-                bitWriter.write(pXSprite->lB, 1);
-                bitWriter.write(pXSprite->lC, 1);
-                bitWriter.write(pXSprite->dudeLockout, 1);
-                bitWriter.write(pXSprite->data1, 16);
-                bitWriter.write(pXSprite->data2, 16);
-                bitWriter.write(pXSprite->data3, 16);
-                bitWriter.write(pXSprite->goalAng, 11);
-                bitWriter.write(pXSprite->dodgeDir, 2);
-                bitWriter.write(pXSprite->locked, 1);
-                bitWriter.write(pXSprite->medium, 2);
-                bitWriter.write(pXSprite->respawn, 2);
-                bitWriter.write(pXSprite->data4, 16);
-                bitWriter.write(pXSprite->unused4, 6);
-                bitWriter.write(pXSprite->lockMsg, 8);
-                bitWriter.write(pXSprite->health, 12);
-                bitWriter.write(pXSprite->dudeDeaf, 1);
-                bitWriter.write(pXSprite->dudeAmbush, 1);
-                bitWriter.write(pXSprite->dudeGuard, 1);
-                bitWriter.write(pXSprite->dudeFlag4, 1);
-                bitWriter.write(pXSprite->target, 16);
-                bitWriter.write(pXSprite->targetX, 32);
-                bitWriter.write(pXSprite->targetY, 32);
-                bitWriter.write(pXSprite->targetZ, 32);
-                bitWriter.write(pXSprite->burnTime, 16);
-                bitWriter.write(pXSprite->burnSource, 16);
-                bitWriter.write(pXSprite->height, 16);
-                bitWriter.write(pXSprite->stateTimer, 16);
-                IOBuffer1.write(pBuffer, nXSpriteSize);
-            }
-        }
-    }
-    unsigned int nCRC = crc32once((unsigned char*)pData, nSize-4);
-    IOBuffer1.write(&nCRC, 4);
-		
-	rename(sMapExt, sBakExt);
-    int nHandle = Bopen(sMapExt, BO_BINARY|BO_TRUNC|BO_CREAT|BO_WRONLY, BS_IREAD|BS_IWRITE);
-    if (nHandle == -1)
-    {
-        buildprintf("Couldn't open \"%s\" for writing: %s\n", sMapExt, strerror(errno));
-        Bfree(pData);
-        return -1;
-    }
-    if (Bwrite(nHandle, pData, nSize) != nSize)
-    {
-        buildprintf("Couldn't write to \"%s\": %s\n", sMapExt, strerror(errno));
-        Bclose(nHandle);
-        Bfree(pData);
-        return -1;
-    }
-    Bclose(nHandle);
-    Bfree(pData);
+	char temp[sizeof(pskyoff) + kXSectorDiskSize + kXSpriteDiskSize + kXWallDiskSize];
+	int nKey, i, nBytes = 0, nSkySize, nSkyCount;
+	short skyBits = pskybits;
+	unsigned int nCRC;
 	
-	if (gCmtPrefs.enabled)
+	BLMMAGIC magic; BLMHEADER_MAIN header; BLMHEADER_EXTRA extra;
+	walltype twall; sectortype tsect; spritetype tspr;
+	XWALL* pXWall;  XSECTOR* pXSect;  XSPRITE* pXSpr;
+	BYTE* pBytes; IOBuffer* pIo;
+	
+	// save just 1 pskyoff if there is no parallax sectors? (cannot be zero)
+	i = numsectors;
+	while(i-- && !isSkySector(i, OBJ_FLOOR) && !isSkySector(i, OBJ_CEILING));
+	if (i < 0)
+		skyBits = 0;
+	
+	nSkyCount = ClipHigh(1 << skyBits, MAXPSKYTILES);
+	nSkySize  = sizeof(int16_t)*nSkyCount;
+
+	updatenumsprites();
+	memset(temp,    0, sizeof(temp));
+	memset(&magic,  0, sizeof(magic));
+	memset(&header, 0, sizeof(header));
+	memset(&extra,  0, sizeof(extra));
+	// -----------------------------------------------------------------------
+	nBytes += 4;
+	nBytes += sizeof(magic);
+	nBytes += sizeof(header);
+	nBytes += nSkySize;
+	nBytes += (numsectors*sizeof(sectortype)) + (numxsectors*kXSectorDiskSize);
+	nBytes += (numwalls*sizeof(walltype))     + (numxwalls*kXWallDiskSize);
+	nBytes += (numsprites*sizeof(spritetype)) + (numxsprites*kXSpriteDiskSize);
+	if (ver7)
+		nBytes += sizeof(extra);
+	// -----------------------------------------------------------------------
+	if ((pBytes = (BYTE*)malloc(nBytes)) == NULL)
+		return -1;
+
+	pIo = new IOBuffer(nBytes, pBytes);
+	// -----------------------------------------------------------------------
+	sprintf(magic.sign, kBloodMapSig);
+	magic.version       = (ver7) ? ((gCompat.modernMap) ? 0x701 : 0x700) : 0x603;
+	// -----------------------------------------------------------------------
+	header.startX       = B_LITTLE32(startposx);
+	header.startY       = B_LITTLE32(startposy);
+	header.startZ       = B_LITTLE32(startposz);
+	header.startA       = B_LITTLE16(startang);
+	header.startS       = B_LITTLE16(startsectnum);
+	header.skyBits      = B_LITTLE16(skyBits);
+	header.visibility   = B_LITTLE32(visibility);
+	header.mattID       = 0; // no tile 2048 in the top right corner
+	header.skyType      = parallaxtype;
+	header.revision     = gMapRev;
+	header.numsectors   = B_LITTLE16(numsectors);
+	header.numwalls     = B_LITTLE16(numwalls);
+	header.numsprites   = B_LITTLE16(numsprites);
+	// -----------------------------------------------------------------------
+	// add some XMAPEDIT specific info
+	sprintf(extra.xmpsign, kXMPHeadSig);
+	extra.xmpheadver    = kXMPHeadVer;
+	if (gCustomSkyBits)
+		extra.xmpmapflags |= 0x01;
+	// -----------------------------------------------------------------------
+	extra.xsprSiz       = kXSpriteDiskSize;
+	extra.xwalSiz       = kXWallDiskSize;
+	extra.xsecSiz       = kXSectorDiskSize;
+	// -----------------------------------------------------------------------
+	memcpy(temp, pskyoff, nSkySize);
+	// -----------------------------------------------------------------------
+	if (ver7)
 	{
-		char cmtfile[_MAX_PATH];
-		sprintf(cmtfile, sMapExt);
-		ChangeExtension(cmtfile, kCommentExt);
-		if (fileExists(cmtfile))
-		{
-			fileAttrSetWrite(cmtfile);
-			unlink(cmtfile);
-		}
-		
-		gCommentMgr.SetCRC(nCRC);
-		if (gCommentMgr.commentsCount > 0)
-		{
-			IniFile* pFile = new IniFile(cmtfile);
-			gCommentMgr.SaveToIni(pFile);
-			delete pFile;
-		}
+		dbCrypt((char*)&header, sizeof(header), kMattID2);
+		dbCrypt((char*)&extra,  sizeof(extra),  numwalls);
+		dbCrypt((char*)temp,    nSkySize,       nSkySize);
+
+		pIo->write(&magic,  sizeof(magic));
+		pIo->write(&header, sizeof(header));
+		pIo->write(&extra,  sizeof(extra));
+		pIo->write(temp,    nSkySize);
+	}
+	else
+	{
+		pIo->write(&magic,  sizeof(magic));
+		pIo->write(&header, sizeof(header));
+		pIo->write(temp,    nSkySize);
+	}
+
+
+	nKey = gMapRev*sizeof(sectortype);
+	for (i = 0; i < numsectors; i++)
+	{
+		tsect = sector[i];
+		if (ver7)
+			dbCrypt((char*)&tsect, sizeof(sectortype), nKey);
+
+		pIo->write(&tsect, sizeof(sectortype));
+		if (sector[i].extra <= 0)
+			continue;
+
+		pXSect = &xsector[sector[i].extra];
+		BitWriter BW(temp, kXSectorDiskSize);
+		BW.write(pXSect->reference,         14);    BW.write(pXSect->state,             1);
+		BW.write(pXSect->busy,              17);    BW.write(pXSect->data,              16);
+		BW.write(pXSect->txID,              10);    BW.write(pXSect->busyWaveA,         3);
+		BW.write(pXSect->busyWaveB,         3);     BW.write(pXSect->rxID,              10);
+		BW.write(pXSect->command,           8);     BW.write(pXSect->triggerOn,         1);
+		BW.write(pXSect->triggerOff,        1);     BW.write(pXSect->busyTimeA,         12);
+		BW.write(pXSect->waitTimeA,         12);    BW.write(pXSect->restState,         1);
+		BW.write(pXSect->interruptable,     1);     BW.write(pXSect->amplitude,         8);
+		BW.write(pXSect->shadeFreq,         8);     BW.write(pXSect->reTriggerA,        1);
+		BW.write(pXSect->reTriggerB,        1);     BW.write(pXSect->shadePhase,        8);
+		BW.write(pXSect->shadeWave,         4);     BW.write(pXSect->shadeAlways,       1);
+		BW.write(pXSect->shadeFloor,        1);     BW.write(pXSect->shadeCeiling,      1);
+		BW.write(pXSect->shadeWalls,        1);     BW.write(pXSect->shade,             8);
+		BW.write(pXSect->panAlways,         1);     BW.write(pXSect->panFloor,          1);
+		BW.write(pXSect->panCeiling,        1);     BW.write(pXSect->drag,              1);
+		BW.write(pXSect->underwater,        1);     BW.write(pXSect->Depth,             3);
+		BW.write(pXSect->panVel,            8);     BW.write(pXSect->panAngle,          11);
+		BW.write(pXSect->unused1,           1);     BW.write(pXSect->decoupled,         1);
+		BW.write(pXSect->triggerOnce,       1);     BW.write(pXSect->isTriggered,       1);
+		BW.write(pXSect->key,               3);     BW.write(pXSect->triggerPush,       1);
+		BW.write(pXSect->triggerVector,     1);     BW.write(pXSect->triggerReserved,   1);
+		BW.write(pXSect->triggerEnter,      1);     BW.write(pXSect->triggerExit,       1);
+		BW.write(pXSect->triggerWallPush,   1);     BW.write(pXSect->coloredLights,     1);
+		BW.write(pXSect->unused2,           1);     BW.write(pXSect->busyTimeB,         12);
+		BW.write(pXSect->waitTimeB,         12);    BW.write(pXSect->stopOn,            1);
+		BW.write(pXSect->stopOff,           1);     BW.write(pXSect->ceilpal2,          4);
+		BW.write(pXSect->offCeilZ,          32);    BW.write(pXSect->onCeilZ,           32);
+		BW.write(pXSect->offFloorZ,         32);    BW.write(pXSect->onFloorZ,          32);
+		BW.write(pXSect->marker0,           16);    BW.write(pXSect->marker1,           16);
+		BW.write(pXSect->crush,             1);     BW.write(pXSect->ceilXPanFrac,      8);
+		BW.write(pXSect->ceilYPanFrac,      8);     BW.write(pXSect->floorXPanFrac,     8);
+		BW.write(pXSect->damageType,        3);     BW.write(pXSect->floorpal2,         4);
+		BW.write(pXSect->floorYPanFrac,     8);     BW.write(pXSect->locked,            1);
+		BW.write(pXSect->windVel,           10);    BW.write(pXSect->windAng,           11);
+		BW.write(pXSect->windAlways,        1);     BW.write(pXSect->dudeLockout,       1);
+		BW.write(pXSect->bobTheta,          11);    BW.write(pXSect->bobZRange,         5);
+		BW.write(pXSect->bobSpeed,          12);    BW.write(pXSect->bobAlways,         1);
+		BW.write(pXSect->bobFloor,          1);     BW.write(pXSect->bobCeiling,        1);
+		BW.write(pXSect->bobRotate,         1);
+		// -----------------------------------------------------------------------
+		pIo->write(temp, kXSectorDiskSize);
+	}
+
+	nKey = gMapRev*sizeof(sectortype) | kMattID2;
+	for (i = 0; i < numwalls; i++)
+	{
+		twall = wall[i];
+		if (ver7)
+			dbCrypt((char*)&twall, sizeof(walltype), nKey);
+
+		pIo->write(&twall, sizeof(walltype));
+		if (wall[i].extra <= 0)
+			continue;
+
+		pXWall = &xwall[wall[i].extra];
+		BitWriter BW(temp, kXWallDiskSize);
+		BW.write(pXWall->reference,         14);    BW.write(pXWall->state,             1);
+		BW.write(pXWall->busy,              17);    BW.write(pXWall->data,              16);
+		BW.write(pXWall->txID,              10);    BW.write(pXWall->unused1,           6);
+		BW.write(pXWall->rxID,              10);    BW.write(pXWall->command,           8);
+		BW.write(pXWall->triggerOn,         1);     BW.write(pXWall->triggerOff,        1);
+		BW.write(pXWall->busyTime,          12);    BW.write(pXWall->waitTime,          12);
+		BW.write(pXWall->restState,         1);     BW.write(pXWall->interruptable,     1);
+		BW.write(pXWall->panAlways,         1);     BW.write(pXWall->panXVel,           8);
+		BW.write(pXWall->panYVel,           8);     BW.write(pXWall->decoupled,         1);
+		BW.write(pXWall->triggerOnce,       1);     BW.write(pXWall->isTriggered,       1);
+		BW.write(pXWall->key,               3);     BW.write(pXWall->triggerPush,       1);
+		BW.write(pXWall->triggerVector,     1);     BW.write(pXWall->triggerTouch,      1);
+		BW.write(pXWall->unused2,           2);     BW.write(pXWall->xpanFrac,          8);
+		BW.write(pXWall->ypanFrac,          8);     BW.write(pXWall->locked,            1);
+		BW.write(pXWall->dudeLockout,       1);     BW.write(pXWall->unused3,           4);
+		BW.write(pXWall->unused4,           32);
+		// -----------------------------------------------------------------------
+		pIo->write(temp, kXWallDiskSize);
+
+	}
+
+	nKey = gMapRev*sizeof(spritetype) | kMattID2;
+	for (i = 0; i < kMaxSprites; i++)
+	{
+		if (sprite[i].statnum >= kMaxStatus)
+			continue;
+
+		tspr = sprite[i];
+		if (ver7)
+			dbCrypt((char*)&tspr, sizeof(spritetype), nKey);
+
+		pIo->write(&tspr, sizeof(spritetype));
+		if (sprite[i].extra <= 0)
+			continue;
+
+		pXSpr = &xsprite[sprite[i].extra];
+		BitWriter BW(temp, kXSpriteDiskSize);
+		BW.write(pXSpr->reference,          14);    BW.write(pXSpr->state,              1);
+		BW.write(pXSpr->busy,               17);    BW.write(pXSpr->txID,               10);
+		BW.write(pXSpr->rxID,               10);    BW.write(pXSpr->command,            8);
+		BW.write(pXSpr->triggerOn,          1);     BW.write(pXSpr->triggerOff,         1);
+		BW.write(pXSpr->wave,               2);     BW.write(pXSpr->busyTime,           12);
+		BW.write(pXSpr->waitTime,           12);    BW.write(pXSpr->restState,          1);
+		BW.write(pXSpr->interruptable,      1);     BW.write(pXSpr->unused1,            2);
+		BW.write(pXSpr->respawnPending,     2);     BW.write(pXSpr->unused2,            1);
+		BW.write(pXSpr->lT,                 1);     BW.write(pXSpr->dropItem,           8);
+		BW.write(pXSpr->decoupled,          1);     BW.write(pXSpr->triggerOnce,        1);
+		BW.write(pXSpr->isTriggered,        1);     BW.write(pXSpr->key,                3);
+		BW.write(pXSpr->triggerPush,        1);     BW.write(pXSpr->triggerVector,      1);
+		BW.write(pXSpr->triggerImpact,      1);     BW.write(pXSpr->triggerPickup,      1);
+		BW.write(pXSpr->triggerTouch,       1);     BW.write(pXSpr->triggerSight,       1);
+		BW.write(pXSpr->triggerProximity,   1);     BW.write(pXSpr->unused3,            2);
+		BW.write(pXSpr->lSkill,             5);     BW.write(pXSpr->lS,                 1);
+		BW.write(pXSpr->lB,                 1);     BW.write(pXSpr->lC,                 1);
+		BW.write(pXSpr->dudeLockout,        1);     BW.write(pXSpr->data1,              16);
+		BW.write(pXSpr->data2,              16);    BW.write(pXSpr->data3,              16);
+		BW.write(pXSpr->goalAng,            11);    BW.write(pXSpr->dodgeDir,           2);
+		BW.write(pXSpr->locked,             1);     BW.write(pXSpr->medium,             2);
+		BW.write(pXSpr->respawn,            2);     BW.write(pXSpr->data4,              16);
+		BW.write(pXSpr->unused4,            6);     BW.write(pXSpr->lockMsg,            8);
+		BW.write(pXSpr->health,             12);    BW.write(pXSpr->dudeDeaf,           1);
+		BW.write(pXSpr->dudeAmbush,         1);     BW.write(pXSpr->dudeGuard,          1);
+		BW.write(pXSpr->dudeFlag4,          1);     BW.write(pXSpr->target,             16);
+		BW.write(pXSpr->targetX,            32);    BW.write(pXSpr->targetY,            32);
+		BW.write(pXSpr->targetZ,            32);    BW.write(pXSpr->burnTime,           16);
+		BW.write(pXSpr->burnSource,         16);    BW.write(pXSpr->height,             16);
+		BW.write(pXSpr->stateTimer,         16);
+		// -----------------------------------------------------------------------
+		pIo->write(temp, kXSpriteDiskSize);
+
 	}
 	
-    return 0;
+	nCRC = crc32once(pBytes, nBytes - 4);
+	pIo->write(&nCRC, 4);
 
+	makeBackup(filename);
+	i = (FileSave(filename, pBytes, nBytes)) ? 0 : -1;
+	free(pBytes);
+
+	// map saved
+	if (i == 0 && gCmtPrefs.enabled)
+	{
+		gCommentMgr.SetCRC(nCRC); 		 // update CRC
+		gCommentMgr.SaveToIni(filename); // save comments
+	}
+
+	return i;
 }
-

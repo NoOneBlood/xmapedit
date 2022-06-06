@@ -30,26 +30,29 @@
 #include "gfx.h"
 
 //#define I2TDEBUG 1
+#define USE_KPLIB 1
 #define kMaxImageWidth 640
 #define kMaxImageHeight 640
+
+typedef int (*IMG2TILEFUNC)(unsigned char* pBuf, int bufLen, int nTile);
 
 #pragma pack(push, 1)
 struct NAMED_TYPE;
 struct PCX_HEADER {
-	
-	char manufacturer;
-	char version;
-	char encoding;
-	unsigned char bitsPerPixel;
-	short x0, y0, x1, y1;
-	short xDPI, yDPI;
+
+	int8_t manufacturer;
+	int8_t version;
+	int8_t encoding;
+	uint8_t bitsPerPixel;
+	int16_t x0, y0, x1, y1;
+	int16_t xDPI, yDPI;
 	RGB pal16[16];
-	char reserved;
-	char planes;
-	short bytesPerLine;
-	short paletteInfo;
-	short xScreenSize, yScreenSize;
-	char filler[54];
+	int8_t reserved;
+	int8_t planes;
+	int16_t bytesPerLine;
+	int16_t paletteInfo;
+	int16_t xScreenSize, yScreenSize;
+	int8_t filler[54];
 };
 
 struct TGA_HEADER {
@@ -70,10 +73,23 @@ struct TGA_HEADER {
 };
 
 struct QBM_HEADER {
+	
     uint8_t type, tcolor;
     uint16_t width, height, bpl;
     uint16_t xofs, yofs;
+	
 };
+
+struct CEL_HEADER {
+	
+	uint16_t magic;
+	uint16_t width, height;
+	uint16_t xoffs, yoffs;
+	uint8_t  bpp, compression;
+	uint32_t bytes;
+	uint8_t reserved[16];
+};
+
 #pragma pack(pop)
 
 
@@ -82,6 +98,13 @@ kImageQBM		= 0,
 kImagePCX		= 1,
 kImagePCC		= 2,
 kImageTGA		= 3,
+kImageCEL		= 4,
+#ifdef USE_KPLIB
+kImageBMP		= 5,
+kImageDDS		= 6,
+kImagePNG		= 7,
+kImageJPG		= 8,
+#endif
 kImageMax		   ,
 };
 
@@ -99,23 +122,35 @@ extern NAMED_TYPE gSuppPalettes[kPaletteMax];
 extern NAMED_TYPE gImgErrorsCommon[];
 extern NAMED_TYPE gPalErrorsCommon[];
 
-
 int imgGetType(char* str);
+int imgFile2TileFunc(IMG2TILEFUNC img2tileFunc, char* filepath, int nTile);
+IMG2TILEFUNC imgGetConvFunc(int nImgType);
+int qbm2tile(unsigned char* pBuf, int bufLen, int nTile);
+int cel2tile(unsigned char* pBuf, int bufLen, int nTile);
+int pcx2tile(unsigned char* pBuf, int bufLen, int nTile);
+int tga2tile(unsigned char* pBuf, int bufLen, int nTile);
+int png2tile(unsigned char* pBuf, int bufLen, int nTile);
+int bmp2tile(unsigned char* pBuf, int bufLen, int nTile);
+int dds2tile(unsigned char* pBuf, int bufLen, int nTile);
+int jpg2tile(unsigned char* pBuf, int bufLen, int nTile);
+
+
 int palGetType(char* str);
 int palLoad(char* fname, PALETTE out);
+void palShift(PALETTE pal, int by = 2);
 int pluLoad(char* fname, PALETTE out, int nPlu = 1, int nShade = 0);
-int getTypeByExt(char* str, NAMED_TYPE* db, int len);
 
-int tga2tile(char* pBuf, int bufLen, int nTile);
-int tga2tile(char* filepath, int nTile);
+
+
+
 int tile2tga(char* filepath, int nTile);
+int tile2pcx(char* filepath, int nTile);
+int tile2qbm(char* filepath, int nTile);
 
-int pcx2tile(char* filepath, int nTile);
-int tile2pcx(char* img, int nTile);
-
-int qbm2tile(char* filepath, int nTile);
-int tile2qbm(char* img, int nTile);
-
+int convertPixels(BYTE* pixels, int bufLen, int pxsize, char rgbOrder = 0);
+#ifdef USE_KPLIB
+int kplibImg2Tile(unsigned char* pBuf, int bufLen, int nTile);
+#endif
 int rawImg2Tile(BYTE* image, int nTile, int wh, int hg, int align = 1);
 BOOL palFixTransparentColor(PALETTE imgPal);
 BOOL BuildPLU(BYTE* out, PALETTE pal, int grayLevel = 0);

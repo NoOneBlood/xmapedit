@@ -711,68 +711,6 @@ void DragPoint(int nWall, int x, int y)
 	} while (vb != nWall && vsi > 0);
 }
 
-/* int getDistToSector(int nSect, int* x1, int* x2, int* y1, int* y2)
-{
-	int i, x, y, swal, ewal;
-	*x1 = *x2 = 0x7FFFFFFF;
-	*y1 = *y2 = 0x80000002;
-	
-	
-	for (i = swal; i <= ewal; i++)
-	{
-		x = wall[i].x, y = wall[i].y;
-		
-		if (x < *x1)
-			*x1 = x;
-		
-		if (*x2 < x)
-			*x2 = x;
-		
-		if (*y2 > y)
-			*y2 = y;
-		
-		if (*y2)
-	}
-	
-} */
-
-/* int getlinehighlight(int nTresh, int x, int y, int nZoom)
-{
-	int i, dst, dist, closest, xi, yi;
-	dist = divscale14(nTresh, nZoom);
-	closest = -1;
-
-	for (i = 0; i < numwalls; i++)
-	{
-		int lx = wall[wall[i].point2].x - wall[i].x;
-		int ly = wall[wall[i].point2].y - wall[i].y;
-		int qx = x - wall[i].x;
-		int qy = y - wall[i].y;
-
-		// is point on wrong side of wall?
-		if ( qx * ly > qy * lx )
-			continue;
-
-		int num = dmulscale(qx, lx, qy, ly, 4);
-		int den = dmulscale(lx, lx, ly, ly, 4);
-
-		if (num <= 0 || num >= den)
-			continue;
-
-		xi = wall[i].x + scale(lx, num, den);
-		yi = wall[i].y + scale(ly, num, den);
-		dst = approxDist(xi - x, yi - y);
-		
-		if (dst <= dist)
-		{
-			dist = dst;
-			closest = i;
-		}
-	}
-
-	return closest;
-} */
-
 BOOL isMovableSector(int nType)
 {
 	return (nType && nType != kSectorDamage && nType != kSectorTeleport && nType != kSectorCounter);
@@ -789,17 +727,11 @@ BOOL isMovableSector(sectortype* pSect)
 	return FALSE;
 }
 
-#define kMaxSpritesNearWall 512
-int gSprNearWalls[kMaxSpritesNearWall];
-int getSpritesNearWalls(int nSrcSect, int* spriOut, int nMax = kMaxSpritesNearWall, int nDist = 16)
+int getSpritesNearWalls(int nSrcSect, int* spriOut, int nMax, int nDist)
 {
 	int i, j, c = 0, nWall, nSect, swal, ewal;
 	int xi, yi, wx, wy, lx, ly, sx, sy, qx, qy, num, den;
-	static int skip[kMaxSprites];
-	spritetype* pSpr;
-	
-	if (sector[nSrcSect].type == kSectorZMotionSprite)
-		return 0;
+	int skip[kMaxSprites]; spritetype* pSpr;
 	
 	memset(skip, 0, sizeof(skip));
 	getSectorWalls(nSrcSect, &swal, &ewal);
@@ -807,38 +739,21 @@ int getSpritesNearWalls(int nSrcSect, int* spriOut, int nMax = kMaxSpritesNearWa
 	for (i = swal; i <= ewal; i++)
 	{
 		nSect = wall[i].nextsector;
-		if (nSect < 0 || isMovableSector(sector[nSect].type))
+		if (nSect < 0)
 			continue;
 		
 		nWall = i;
-		wx = baseWall[nWall].x;	wy = baseWall[nWall].y;
-		lx = baseWall[wall[nWall].point2].x - wx;
-		ly = baseWall[wall[nWall].point2].y - wy;
+		wx = wall[nWall].x;	wy = wall[nWall].y;
+		lx = wall[wall[nWall].point2].x - wx;
+		ly = wall[wall[nWall].point2].y - wy;
 				
 		for (j = headspritesect[nSect]; j >= 0; j = nextspritesect[j])
 		{
 			if (skip[j])
 				continue;
 			
-			pSpr =& sprite[j];
-			if (!(pSpr->cstat & kSprMoveMask))
-			{
-				skip[j] = 1;
-				continue;
-			}
-			
-			switch(pSpr->statnum) {
-				case kStatMarker:
-				case kStatPathMarker:
-					if (pSpr->flags & 0x1) break;
-					// no break
-				case kStatDude:
-					skip[j] = 1;
-					continue;
-			}
-			
-			sx = baseSprite[j].x;	qx = sx - wx;
-			sy = baseSprite[j].y;	qy = sy - wy;
+			sx = sprite[j].x;	qx = sx - wx;
+			sy = sprite[j].y;	qy = sy - wy;
 			num = dmulscale4(qx, lx, qy, ly);
 			den = dmulscale4(lx, lx, ly, ly);
 			
@@ -859,6 +774,113 @@ int getSpritesNearWalls(int nSrcSect, int* spriOut, int nMax = kMaxSpritesNearWa
 	return c;
 }
 
+// SPRITES_NEAR_SECTORS
+class SPRINSECT
+{
+	#define kMaxSprNear 256
+	#define kWallDist	16
+	
+	private:
+		struct SPRITES
+		{
+			unsigned int nSector;
+			signed   int sprites[kMaxSprNear + 1];
+		};
+		SPRITES* db;
+		unsigned int length;
+	public:
+		void Free();
+		void Init(int nDist = kWallDist);
+		void Save();
+		void Load();
+		int* GetSprPtr(int nSector);
+		~SPRINSECT() { Free(); };
+	
+} gSprNSect;
+
+void SPRINSECT::Free()
+{
+	length = 0;
+	if (db)
+		Bfree(db), db = NULL;
+}
+
+int* SPRINSECT::GetSprPtr(int nSector)
+{
+	int i;
+	for (i = 0; i < length; i++)
+	{
+		if (db[i].nSector == nSector)
+			return (int*)db[i].sprites;
+	}
+	return NULL;
+}
+
+void SPRINSECT::Init(int nDist)
+{
+	Free();
+
+	int i, j, k, nSprites;
+	int collected[kMaxSprites];
+	for (i = 0; i < numsectors; i++)
+	{
+		sectortype* pSect = &sector[i];
+		if (!isMovableSector(pSect->type))
+			continue;
+		
+		switch (pSect->type) {
+			case kSectorZMotionSprite:
+			case kSectorSlideMarked:
+			case kSectorRotateMarked:
+				continue;
+			// only allow non-marked sectors
+			default:
+				break;
+		}
+
+		nSprites = getSpritesNearWalls(i, collected, LENGTH(collected), nDist);
+		
+		// exclude sprites that is not allowed
+		for (j = nSprites - 1; j >= 0; j--)
+		{
+			spritetype* pSpr = &sprite[collected[j]];
+			if ((pSpr->cstat & kSprMoveMask) && pSpr->sectnum >= 0)
+			{
+				// if *next* sector is movable, exclude to avoid fighting
+				if (!isMovableSector(sector[pSpr->sectnum].type))
+				{
+					switch (pSpr->statnum) {
+						default:
+							continue;
+						case kStatMarker:
+						case kStatPathMarker:
+							if (pSpr->flags & 0x1) continue;
+							// no break
+						case kStatDude:
+							break;
+					}
+				}
+			}
+			
+			nSprites--;
+			for (k = j; k < nSprites; k++)
+				collected[k] = collected[k + 1];
+		}
+		
+		if (nSprites > 0)
+		{
+			db = (SPRITES*)Brealloc(db, (length + 1) * sizeof(SPRITES));
+			dassert(db != NULL);
+			
+			SPRITES* pEntry =& db[length];
+			memset(pEntry->sprites, -1, sizeof(pEntry->sprites));
+			memcpy(pEntry->sprites, collected, sizeof(pEntry->sprites[0])*ClipHigh(nSprites, kMaxSprNear));
+			pEntry->nSector = i;
+			length++;
+		}
+	}
+}
+
 void TranslateSector(int nSector, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, char a12)
 {
 	int x, y;
@@ -874,18 +896,12 @@ void TranslateSector(int nSector, int a2, int a3, int a4, int a5, int a6, int a7
 	int vbp = interpolate(a8, a11, a3);
 	int v14 = vbp - v44;
 	int nWall = sector[nSector].wallptr;
-	int i, nSprite, sprNearWallsCnt = 0;
+	int i, nSprite;
 	int fixY = (gModernMap) ? a5 : a4;
-
-
+	int* ptr;
 
 	if (a12) // non-marked sectors?
-	{
-		// collect sprites near outside walls before translation
-		////////////////////////////////////////////////////////////
-		if (gModernMap)
-			sprNearWallsCnt = getSpritesNearWalls(nSector, gSprNearWalls);
-		
+	{		
 		for (i = 0; i < sector[nSector].wallnum; nWall++, i++)
 		{
 			x = baseWall[nWall].x;
@@ -937,7 +953,6 @@ void TranslateSector(int nSector, int a2, int a3, int a4, int a5, int a6, int a7
 	for (nSprite = headspritesect[nSector]; nSprite >= 0; nSprite = nextspritesect[nSprite])
 	{
 		spritetype *pSprite = &sprite[nSprite];
-		// allow to move markers by sector movements in game if flags 1 is added in editor.
 		switch (pSprite->statnum) {
 			case kStatMarker:
 			case kStatPathMarker:
@@ -984,30 +999,35 @@ void TranslateSector(int nSector, int a2, int a3, int a4, int a5, int a6, int a7
 	
 	// translate sprites near outside walls
 	////////////////////////////////////////////////////////////
-	while(sprNearWallsCnt--)
+	if (gModernMap && (ptr = gSprNSect.GetSprPtr(nSector)) != NULL)
 	{
-		nSprite = gSprNearWalls[sprNearWallsCnt];
-		spritetype *pSprite = &sprite[nSprite];
-
-		x = baseSprite[nSprite].x;
-		y = baseSprite[nSprite].y;
-		if (pSprite->cstat & 8192)
+		while(*ptr >= 0)
 		{
-			if (vbp)
-				RotatePoint(&x, &y, vbp, a4, a5);
-			//viewBackupSpriteLoc(nSprite, pSprite);
-			pSprite->ang = (pSprite->ang+v14)&2047;
-			pSprite->x = x+vc-a4;
-			pSprite->y = y+v8-a5;
-		}
-		else if (pSprite->cstat & 16384)
-		{
-			if (vbp)
-				RotatePoint(&x, &y, -vbp, a4, fixY);
-			//viewBackupSpriteLoc(nSprite, pSprite);
-			pSprite->ang = (pSprite->ang-v14)&2047;
-			pSprite->x = x-(vc-a4);
-			pSprite->y = y-(v8-a5);
+			spritetype *pSprite = &sprite[*ptr++];
+			if (pSprite->statnum >= kMaxStatus)
+				continue;
+			
+			nSprite = pSprite->index;
+			x = baseSprite[nSprite].x;
+			y = baseSprite[nSprite].y;
+			if (pSprite->cstat & 8192)
+			{
+				if (vbp)
+					RotatePoint(&x, &y, vbp, a4, a5);
+				//viewBackupSpriteLoc(nSprite, pSprite);
+				pSprite->ang = (pSprite->ang+v14)&2047;
+				pSprite->x = x+vc-a4;
+				pSprite->y = y+v8-a5;
+			}
+			else if (pSprite->cstat & 16384)
+			{
+				if (vbp)
+					RotatePoint(&x, &y, -vbp, a4, fixY);
+				//viewBackupSpriteLoc(nSprite, pSprite);
+				pSprite->ang = (pSprite->ang-v14)&2047;
+				pSprite->x = x-(vc-a4);
+				pSprite->y = y-(v8-a5);
+			}
 		}
 	}
 	/////////////////////
@@ -1028,31 +1048,21 @@ void TranslateSector(int nSector, int a2, int a3, int a4, int a5, int a6, int a7
 	}
 }
 
-/* inline void internalTranslateSprZ(spritetype* pSpr, int z, int stat)
-{
-	if ((pSpr->cstat & stat) && pSpr->statnum != kStatMarker && pSpr->statnum != kStatPathMarker)
-	{
-		//viewBackupSpriteLoc(pSpr->index, pSpr);
-		pSpr->z += z;
-	}
-} */
-
 void ZTranslateSector(int nSector, XSECTOR *pXSector, int a3, int a4)
 {
 	sectortype *pSector = &sector[nSector];
 	//viewInterpolateSector(nSector, pSector);
 	
-	int i, nSprite, sprNearWallsCnt = 0;
-	int dfz, dcz;
+	int i, nSprite;
+	int dfz, dcz, *ptr1 = NULL, *ptr2;
 	
 	dfz = pXSector->onFloorZ-pXSector->offFloorZ;
 	dcz = pXSector->onCeilZ-pXSector->offCeilZ;
 	
-	// collect sprites near outside walls before translation
-	////////////////////////////////////////////////////////////
+	// get pointer to sprites near outside walls before translation
+	///////////////////////////////////////////////////////////////
 	if (gModernMap && (dfz || dcz))
-		sprNearWallsCnt = getSpritesNearWalls(nSector, gSprNearWalls);
-	
+		ptr1 = gSprNSect.GetSprPtr(nSector);
 	
 	if (dfz != 0)
 	{
@@ -1082,12 +1092,15 @@ void ZTranslateSector(int nSector, XSECTOR *pXSector, int a3, int a4)
 		
 		// translate sprites near outside walls (floor)
 		////////////////////////////////////////////////////////////
-		i = sprNearWallsCnt;
-		while(i--)
+		if (ptr1)
 		{
-			spritetype *pSprite = &sprite[gSprNearWalls[i]];
-			if (pSprite->cstat & 8192)
-				pSprite->z += pSector->floorz-oldZ;
+			ptr2 = ptr1;
+			while(*ptr2 >= 0)
+			{
+				spritetype *pSprite = &sprite[*ptr2++];
+				if (pSprite->cstat & 8192)
+					pSprite->z += pSector->floorz-oldZ;
+			}
 		}
 		/////////////////////
 	}
@@ -1111,12 +1124,15 @@ void ZTranslateSector(int nSector, XSECTOR *pXSector, int a3, int a4)
 		
 		// translate sprites near outside walls (ceil)
 		////////////////////////////////////////////////////////////
-		i = sprNearWallsCnt;
-		while(i--)
+		if (ptr1)
 		{
-			spritetype *pSprite = &sprite[gSprNearWalls[i]];
-			if (pSprite->cstat & 16384)
-				pSprite->z += pSector->ceilingz-oldZ;
+			ptr2 = ptr1;
+			while(*ptr2 >= 0)
+			{
+				spritetype *pSprite = &sprite[*ptr2++];
+				if (pSprite->cstat & 16384)
+					pSprite->z += pSector->ceilingz-oldZ;
+			}
 		}
 		/////////////////////
 		
@@ -2117,10 +2133,12 @@ void setBaseSpriteSect(int nSect)
 void trInit(void)
 {
 	gBusyCount = 0;
-	int i, j, swal, ewal, nSprite;
 	spritetype *pMark1, *pMark2;
+	int i, *ptr;
 	
 	dassert((numsectors >= 0) && (numsectors < kMaxSectors));
+	
+	gSprNSect.Init();
 	
 	for (i = 0; i < numwalls; i++)
 	{
@@ -2173,11 +2191,10 @@ void trInit(void)
 					if (pMark2) TranslateSector(i, 0, -65536, pMark1->x, pMark1->y, pMark1->x, pMark1->y, pMark1->ang, pMark2->x, pMark2->y, pMark2->ang, pSector->type == kSectorSlide);
 					else TranslateSector(i, 0, -65536, pMark1->x, pMark1->y, pMark1->x, pMark1->y, 0, pMark1->x, pMark1->y, pMark1->ang, pSector->type == kSectorRotate);
 					
-					if (gModernMap)
+					if (gModernMap && (ptr = gSprNSect.GetSprPtr(i)) != NULL)
 					{
-						j = getSpritesNearWalls(i, gSprNearWalls);
-						while(j--)
-							setBasePoint(OBJ_SPRITE, gSprNearWalls[j]);
+						while(*ptr >= 0)
+							setBasePoint(OBJ_SPRITE, *ptr++);
 					}
 					
 					setBaseWallSect(i); setBaseSpriteSect(i);

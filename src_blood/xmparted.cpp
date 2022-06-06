@@ -79,7 +79,8 @@ NAMED_TYPE exportMenu[] = {
 
 NAMED_TYPE importMenu[] = {
 	{ 0, "Import ima&ges" },
-	{ 1, "Import &ART files" },
+	{ 1, "Import Build Engine &ART files" },
+	{ 2, "Import Chasm: The Rift &FLOOR files"},
 };
 
 NAMED_TYPE paintMenu[] = {
@@ -235,6 +236,9 @@ BOOL artedProcessEditKeys(BYTE key, BYTE ctrl, BYTE alt, BYTE shift) {
 					case 1:
 						artedDlgImportArt(nTile);
 						break;
+					case 2:
+						artedDlgImportFLOORS(nTile);
+						break;
 				}
 
 				break;
@@ -285,7 +289,8 @@ BOOL artedProcessEditKeys(BYTE key, BYTE ctrl, BYTE alt, BYTE shift) {
 			}
 			return TRUE;
 		case KEY_BACKSPACE:
-			if (!gArtEd.asksave) return TRUE;
+			if (!canEdit()) break;
+			else if (!gArtEd.asksave) return TRUE;
 			else if ((i = artedDlgSelectTilePart("Select changes to revert")) <= 0) return TRUE;
 			else if ((j = hgltTileCount()) > 1 && tileInHglt(nVTile))
 			{
@@ -624,45 +629,38 @@ void artedFlipTileX(int nTile, int ofs) {
 
 void artedRotateTile(int nTile, int ofs) {
 
-	BYTE* pTile;
+	BYTE *pTile, *pTemp;
 	if ((pTile = tileLoadTile(nTile)) == NULL)
 		return;
 
-	int i = 0, j = 0, k = 0, f = 0;
+	int i = 0, j = 0, k = 0, f;
 	int wh = tilesizx[nTile];
 	int hg = tilesizy[nTile];
 	int len = wh*hg;
-
-	BYTE* pTileAlloc = NULL;
+	
 	PICANM backup = panm[nTile];
-	short voxel = voxelIndex[nTile];
-	char view = viewType[nTile];
-
-	pTileAlloc = (BYTE*)Resource::Alloc(len);
-	memcpy(pTileAlloc, pTile, len);
-
+	pTemp = (BYTE*)Resource::Alloc(len);
+	memcpy(pTemp, pTile, len);
+	
 	tileFreeTile(nTile);
 	pTile = tileAllocTile(nTile, hg, wh);
 
-	panm[nTile] = backup;
-	voxelIndex[nTile] = voxel;
-	viewType[nTile] = view;
-
 	while (i < len && k < len)
 	{
-		pTile[i] = pTileAlloc[j]; // ROW of the tile
+		pTile[i] = pTemp[j]; // ROW of the tile
 		k = i, f = j;
 		while ((f += hg) < len) // COLS of the tile from top to bottom
 		{
 			if (++k >= len)
 				break;
 
-			pTile[k] = pTileAlloc[f];
+			pTile[k] = pTemp[f];
 		}
 
 		i+=wh, j++;
 	}
-
+	
+	panm[nTile] = backup;
 	if (ofs)
 	{
 		i = panm[nTile].xcenter;
@@ -670,7 +668,7 @@ void artedRotateTile(int nTile, int ofs) {
 		panm[nTile].ycenter = i;
 	}
 
-	Resource::Free(pTileAlloc);
+	Resource::Free(pTemp);
 	artedFlipTileY(nTile, ofs);
 
 }
@@ -890,8 +888,6 @@ void artedEraseTileImage(int nTile, int) {
 	tilesizy[nTile] 		= 0;
 	picsiz[nTile] 			= 0;
 	hgltTileRem(nTile);
-
-	ARTFILE* file = &gArtFiles[tilefilenum[nTile]];
 }
 
 void artedEraseTileInfo(int nTile, int) {
@@ -1153,7 +1149,12 @@ int artedDlgImportArt(int nTile) {
 				}
 
 				if (noBlank ==  1)
+				{
+					if (infofs)
+						infofs += sizeof(tileInfo);
+					
 					continue;
+				}
 			}
 
 			artedEraseTileFull(nTile);
@@ -1201,6 +1202,106 @@ int artedDlgImportArt(int nTile) {
 
 }
 
+int artedDlgImportFLOORS(int nTile)
+{
+	#define kFileSize 352320
+	#define kPicSiz 64
+	#define kNumFloors 64
+	#define kSkipSiz (32*32)+(16*16)+(8*8)+64
+	
+	int i = 0, j = 0, idx = -1, retn = 0;
+	int hFile, nFloors, nTileTemp, siz = kPicSiz*kPicSiz, noDuplicates = -1;
+	char defaultPal[_MAX_PATH], tmp[300]; BYTE *pTemp, *pTile; PALETTE pal;
+	
+	sprintf(defaultPal, "%s\\chasm.pal", kPalImportDir);
+	while(i < 99)
+		j += sprintf(&tmp[j], ".%02d", ++i);
+
+	i = palLoad(defaultPal, pal);
+	
+	while( 1 )
+	{
+		if (i < 0 && artedDlgSelPal("Load palette", gPaths.palImport, pal) < 0) return -1;
+		else if (dirBrowse("Import FLOOR file(s)", gPaths.images, tmp, kDirExpTypeOpen, kDirExpMulti) != NULL) break;
+		else if (i >= 0)
+			return -1;
+	}
+	
+	palShift(pal);
+	nTileTemp = tileGetBlank();
+	j = countSelected(), i = 0;
+	while(retn >= 0 && enumSelected(&idx, buffer3))
+	{
+		getFilename(buffer3, buffer, TRUE);
+		sprintf(buffer2, "Processing %s (%d of %d)", buffer, ++i, j);
+		splashScreen(buffer2);
+		
+		if ((hFile = open(buffer3, O_BINARY|O_RDONLY, S_IREAD|S_IWRITE)) < 0) continue;
+		else if (filelength(hFile) != kFileSize)
+		{
+			Alert("\"%s\" is incorrect or not Chasm FLOOR file.", buffer);
+			close(hFile);
+			continue;
+		}
+		
+		// skip header
+		lseek(hFile, kNumFloors, SEEK_CUR);
+
+		nFloors = kNumFloors;
+		while(nFloors--)
+		{
+			while(nTile < gMaxTiles && isSysTile(nTile))
+				nTile++;
+
+			if (nTile >= gMaxTiles)
+			{
+				Alert("Max tiles reached!");
+				retn = -3;
+				break;
+			}
+			else if (!artedGetFile(nTile))
+			{
+				Alert("No ART file for tile #%d!", nTile);
+				retn = -3;
+				break;
+			}
+			
+			pTemp = tileAllocTile(nTileTemp, kPicSiz, kPicSiz);
+			
+			// read 64x64 texture
+			read(hFile, pTemp, siz);
+
+			// skip texture mips and appendix
+			lseek(hFile, kSkipSiz, SEEK_CUR);
+			
+			// unused entries always have single color, so skip it
+			if (countUniqBytes(pTemp, siz) > 1)
+			{
+				artedRotateTile(nTileTemp);
+				remapColors((intptr_t)pTemp, siz, pal);
+				if (tileExists(pTemp, kPicSiz, kPicSiz) >= 0)
+				{
+					if (noDuplicates == -1)
+						noDuplicates = (Confirm("Skip duplicates?")) ? 1 : 0;
+					
+					if (noDuplicates == 1)
+						continue;
+				}
+				
+				artedEraseTileImage(nTile);
+				artedCopyTile(nTileTemp, nTile);
+				artedArtDirty(nTile, kDirtyArt | kDirtyPicanm | kDirtyDat);
+				nTile++, retn++;
+			}
+		}
+		
+		close(hFile);
+	}
+	
+	tileFreeTile(nTileTemp);
+	return retn;
+}
+
 int artedDlgImportImage(int nTile) {
 
 	BOOL asked = FALSE;
@@ -1228,7 +1329,7 @@ int artedDlgImportImage(int nTile) {
 				if (nTile + j >= gMaxTiles) break;
 				else if (tileLoadTile(nTile + j))
 				{
-					if (!Confirm("Import may overlap. Continue?")) return -1;
+					if (!Confirm("Replace existing tiles?")) return -1;
 					break;
 				}
 			}
@@ -1260,20 +1361,9 @@ int artedDlgImportImage(int nTile) {
 			getFilename(tmp, buffer, TRUE);
 			sprintf(buffer2, "Processing: %s (%d of %d)", buffer, ++j, i);
 			splashScreen(buffer2);
-			switch (imgGetType(tmp)) {
-				case kImageQBM:
-					errCode = qbm2tile(tmp, nTile);
-					break;
-				case kImagePCX:
-					errCode = pcx2tile(tmp, nTile);
-					break;
-				case kImageTGA:
-					errCode = tga2tile(tmp, nTile);
-					break;
-				default:
-					errCode = -5;
-					break;
-			}
+			
+			IMG2TILEFUNC pFunc = imgGetConvFunc(imgGetType(tmp));
+			errCode = (pFunc) ? imgFile2TileFunc(pFunc, tmp, nTile) : -5;
 
 			if (errCode < 0)
 			{
@@ -2003,63 +2093,6 @@ void artedViewZoomReset() {
 
 }
 
-/* int readArtHead(&IoBuffer pIo) {
-	
-	int i = 0, slen, flen;
-	char tmp[256];
-
-	dassert(pIo != NULL);
-	
-	flen = pIo->nSize;
-	pIo->seek(0, SEEK_SET);
-	pIo->read(&i, sizeof(int32_t));
-
-	// check standard header by reading artversion
-	if (i != 0x0001)
-	{
-		// check for signs in the file
-		for (i = 0; i < LENGTH(gArtSigns); i++)
-		{
-			NAMED_TYPE* offset = &gArtSigns[i];
-			pIo->seek(0, SEEK_SET); memset(tmp, 0, sizeof(tmp));
-			if ((slen = strlen(offset->name)) >= sizeof(tmp)) continue;
-			else if (pIo->read(tmp, slen) != slen) return -1;
-			else if (strcmp(tmp, offset->name) != 0) continue;
-			switch (offset->id) {
-				case kArtSignBUILDART:
-					pIo->read(&i, sizeof(int32_t)); 			// artversion check
-					if (i != 0x0001) return -1;					// it must be 1
-					pIo->lseek(sizeof(int32_t), SEEK_CUR);	// skip numtiles
-					break;
-				case kArtSignBAFED:
-					pIo->lseek(0, SEEK_SET);
-					pIo->lseek(sizeof(int32_t)<<1, SEEK_CUR);	// skip artversion, numtiles
-					break;
-			}
-
-			break;
-		}
-
-		// unknown art file format
-		if (i >= LENGTH(gArtSigns))
-			return -2;
-	}
-	else
-	{
-		pIo->seek(sizeof(int32_t), SEEK_CUR); // only skip numtiles
-	}
-
-	pIo->read(tstart, sizeof(int32_t);
-	pIo->read(tend,   sizeof(int32_t);
-
-	i = *tend - *tstart + 1;
-	*sixofs = pIo->tell();
-	*siyofs = *sixofs + (sizeof(int16_t)*i);
-	*pnmofs = *siyofs + (sizeof(int16_t)*i);
-	*datofs = *pnmofs + (sizeof(PICANM)*i);
-
-	return (*sixofs >= flen || *siyofs >= flen || *pnmofs >= flen || *datofs > flen) ? -1 : 0;
-} */
 
 int readArtHead(int hFile, int* tstart, int* tend, int* sixofs, int* siyofs, int* pnmofs, int* datofs) {
 
@@ -2133,23 +2166,14 @@ int readArtHead(char* file, int* tstart, int* tend, int* sixofs, int* siyofs, in
 	return retn;
 }
 
-int readTileArt(int nTile, char* file, short* six, short* siy, BYTE** image, int32_t* imgofs, PICANM* pnm) {
-
+int readTileArt(int nTile, int hFile, short* six, short* siy, BYTE** image, int32_t* imgofs, PICANM* pnm)
+{
 	short tsx = -1, tsy = -1;
-	int hFile, start, end, sixofs, siyofs, pnmofs, datofs, imglen;
-	if ((hFile = open(file, O_BINARY | O_RDONLY)) < 0) return -1;
-	else if ((readArtHead(hFile, &start, &end, &sixofs, &siyofs, &pnmofs, &datofs) != 0))
-	{
-		close(hFile);
-		return -1;
-	}
-	
-	if ((end - start + 1) <= 0 || nTile < start || nTile > end)
-	{
-		close(hFile);
+	int start, end, sixofs, siyofs, pnmofs, datofs, imglen;
+	if ((readArtHead(hFile, &start, &end, &sixofs, &siyofs, &pnmofs, &datofs) != 0)) return -1;
+	else if ((end - start + 1) <= 0 || nTile < start || nTile > end)
 		return -2;
-	}
-		
+	
 	// must go through resolution data
 	// to determine image data offset
 	while ( 1 )
@@ -2162,7 +2186,7 @@ int readTileArt(int nTile, char* file, short* six, short* siy, BYTE** image, int
 		pnmofs+=sizeof(PICANM), datofs+=(tsx*tsy);
 		start++;
 	}
-
+	
 	if (lseek(hFile, datofs, SEEK_SET))
 	{				
 		if (image && (imglen = tsx*tsy) > 0)
@@ -2191,12 +2215,21 @@ int readTileArt(int nTile, char* file, short* six, short* siy, BYTE** image, int
 			read(hFile, pnm, sizeof(PICANM));
 		}
 
-		close(hFile);
 		return 0;
 	}
 
-	close(hFile);
 	return -4;
+}
+
+int readTileArt(int nTile, char* file, short* six, short* siy, BYTE** image, int32_t* imgofs, PICANM* pnm) {
+	
+	int i, hFile;
+	if ((hFile = open(file, O_BINARY|O_RDONLY, S_IREAD|S_IWRITE)) < 0)
+		return -1;
+	
+	i = readTileArt(nTile, hFile, six, siy, image, imgofs, pnm);
+	close(hFile);
+	return i;
 }
 
 

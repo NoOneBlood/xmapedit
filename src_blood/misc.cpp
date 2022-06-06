@@ -98,7 +98,7 @@ bool FileSave(char *fname, void *buffer, unsigned int size)
 
 	dassert(buffer != NULL);
 
-	hFile = open(fname, O_CREAT | O_WRONLY | O_BINARY | O_TRUNC, _S_IWRITE);
+	hFile = open(fname, O_CREAT | O_WRONLY | O_BINARY | O_TRUNC, _S_IREAD|_S_IWRITE);
 
 	if ( hFile == -1 )
 		return FALSE;

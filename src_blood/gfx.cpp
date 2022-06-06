@@ -420,9 +420,6 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
 			continue;
 		}
 		
-		//if (*s != 32 && (!pChar->w || !pChar->h))
-			//Alert("!!!");
-	
 		Rect rect1(x, y+pChar->oy, x+pChar->w, y+pChar->oy+pChar->h);
 
 		rect1 &= clipRect;

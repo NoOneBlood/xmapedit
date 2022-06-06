@@ -23,16 +23,64 @@
 #pragma once
 
 #include "common_game.h"
+#include "iob.h"
 
-#define kMaxXSprites kMaxSprites
-#define kMaxXWalls kMaxWalls
-#define kMaxXSectors kMaxSectors
+#define kMaxXSprites 			kMaxSprites
+#define kMaxXWalls 				kMaxWalls
+#define kMaxXSectors 			kMaxSectors
 
-extern int gSuppBuildMapVersion[];
+#define kXSectorDiskSize 		60
+#define kXSpriteDiskSize 		56
+#define kXWallDiskSize   		24
 
+#define kMattID1    			0x4d617474  // Matt
+#define kMattID2    			0x7474614d  // ttaM
+#define kXMPHeadSig    			"XmP"
+#define kXMPHeadVer     		1
+
+#define kMonoCopyriteCRC 		0x77443AF8
+#define kMonoCopyriteLength 	57
 
 #pragma pack(push, 1)
 struct AISTATE;
+
+struct BLMMAGIC
+{
+    char sign[4];
+    int16_t version;
+};
+
+struct BLMHEADER_MAIN
+{
+	int32_t startX;
+	int32_t startY;
+	int32_t startZ;
+	int16_t startA;
+	int16_t startS;
+	int16_t skyBits;
+	int32_t visibility;
+	int32_t mattID;
+	int8_t  skyType;
+	int32_t revision;
+	int16_t numsectors;
+	int16_t numwalls;
+	int16_t numsprites;
+};
+
+struct BLMHEADER_EXTRA
+{
+	char  pad[64]; 		// vanilla MAPEDIT writes a copyright here
+	int32_t xsprSiz;
+	int32_t xwalSiz;
+	int32_t xsecSiz;
+	// XMAPEDIT specific
+	// ------------------
+	char  	xmpsign[3];		// xmp signature
+	int8_t  xmpheadver;		// xmp header version
+	int8_t	xmpmapflags;	// & 0x01 = fixed sky bits number enabled so it won't be auto-adjusted
+	// ------------------
+	char  pad2[47];
+};
 
 struct XSPRITE {
     unsigned int unused1 : 2;           // additional dude flags in modern maps
@@ -224,64 +272,91 @@ struct XWALL {
     unsigned int unused4 : 32;          // unused
 };
 
-struct MAPSIGNATURE {
-    char signature[4];
-    short version;
+struct SECTOR4 {
+	uint16_t wallptr, wallnum;
+	int8_t   ceilingstat, ceilingxpanning, ceilingypanning;
+	int8_t   ceilingshade;
+	int32_t  ceilingz;
+	int16_t  ceilingpicnum, ceilingheinum;
+	int8_t   floorstat, floorxpanning, floorypanning;
+	int8_t   floorshade;
+	int32_t  floorz;
+	int16_t  floorpicnum, floorheinum;
+	int32_t  tag;
 };
 
-struct MAPHEADER  {
-    int at0; // x
-    int at4; // y
-    int at8; // z
-    short atc; // ang
-    short ate; // sect
-    short at10; // pskybits
-    int at12; // visibility
-    int at16; // song id, Matt
-    char at1a; // parallaxtype
-    int at1b; // map revision
-    short at1f; // numsectors
-    short at21; // numwalls
-    short at23; // numsprites
+struct WALL4 {
+	int32_t x, y;
+	int16_t point2;
+	int8_t cstat;
+	int8_t shade;
+	uint8_t xrepeat, yrepeat, xpanning, ypanning;
+	int16_t picnum, overpicnum;
+	int16_t nextsector1, nextwall1;
+	int16_t nextsector2, nextwall2;
+	int32_t tag;
 };
 
-struct MAPHEADER2 {
-    char at0[64];
-    int at40; // xsprite size
-    int at44; // xwall size
-    int at48; // xsector size
-    char pad[52];
+struct SPRITE4 {
+	int32_t x, y, z;
+	int8_t cstat, shade;
+	uint8_t xrepeat, yrepeat;
+	int16_t picnum, ang, xvel, yvel, zvel, owner;
+	int16_t sectnum, statnum;
+	int32_t tag;
+	int8_t *extra;
 };
 
-struct SPRITEHIT {
-    int hit, ceilhit, florhit;
+struct SECTOR6 {
+	uint16_t wallptr, wallnum;
+	int16_t ceilingpicnum, floorpicnum;
+	int16_t ceilingheinum, floorheinum;
+	int32_t ceilingz, floorz;
+	int8_t ceilingshade, floorshade;
+	uint8_t ceilingxpanning, floorxpanning;
+	uint8_t ceilingypanning, floorypanning;
+	uint8_t ceilingstat, floorstat;
+	uint8_t ceilingpal, floorpal;
+	uint8_t visibility;
+	int16_t lotag, hitag, extra;
 };
 
+struct WALL6 {
+	int32_t x, y;
+	int16_t point2, nextsector, nextwall;
+	int16_t picnum, overpicnum;
+	int8_t  shade;
+	int8_t  pal;
+	int16_t cstat;
+	int8_t xrepeat, yrepeat, xpanning, ypanning;
+	int16_t lotag, hitag, extra;
+};
+
+struct SPRITE6 {
+	int32_t x, y, z;
+	int16_t cstat;
+	int8_t  shade;
+	uint8_t pal, clipdist;
+	uint8_t xrepeat, yrepeat;
+	int8_t  xoffset, yoffset;
+	int16_t picnum, ang, xvel, yvel, zvel, owner;
+	int16_t sectnum, statnum;
+	int16_t lotag, hitag, extra;
+};
 #pragma pack(pop)
 
-extern unsigned short gStatCount[kMaxStatus + 1];
-
+extern int gMapRev, gSkyCount;
+extern int gSuppMapVersions[5];
 extern bool gModernMap, gCustomSkyBits;
-extern bool gByte1A76C6, gByte1A76C7, gByte1A76C8;
+extern unsigned short gStatCount[kMaxStatus + 1];
 extern short numxsprites, numxwalls, numxsectors;
-extern MAPHEADER2 mapHead;
 
 extern XSPRITE xsprite[kMaxXSprites];
 extern XSECTOR xsector[kMaxXSectors];
 extern XWALL xwall[kMaxXWalls];
 
-extern SPRITEHIT gSpriteHit[kMaxXSprites];
 extern int xvel[kMaxSprites], yvel[kMaxSprites], zvel[kMaxSprites];
 
-
-extern int gMapRev, gSongId, gSkyCount;
-extern const char *gItemText[];
-extern const char *gAmmoText[];
-extern const char *gWeaponText[];
-
-extern unsigned short nextXSprite[kMaxXSprites];
-extern unsigned short nextXWall[kMaxXWalls];
-extern unsigned short nextXSector[kMaxXSectors];
 
 void InsertSpriteSect(int nSprite, int nSector);
 void RemoveSpriteSect(int nSprite);
@@ -309,6 +384,8 @@ void dbXWallClean(void);
 void dbXSectorClean(void);
 void dbInit(void);
 void PropagateMarkerReferences(void);
-unsigned int dbReadMapCRC(const char *pPath);
-int dbLoadMap(char *pPath, int *pX, int *pY, int *pZ, short *pAngle, short *pSector);
-int dbSaveMap(char *pPath, int nX, int nY, int nZ, short nAngle, short nSector);
+
+int dbCheckMap(IOBuffer* pIo, int* pSuppVerDB, int DBLen, BOOL* bloodMap);
+int dbLoadMap(IOBuffer* pIo, char* cmtpath);
+int dbLoadBuildMap(IOBuffer* pIo);
+int dbSaveMap(char *filename, BOOL ver7);

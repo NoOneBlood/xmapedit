@@ -13,21 +13,15 @@
 #include "xmpmisc.h"
 
 #include "edit2d.h"
-/* DIALOG_ITEM dlgSeqFrame[] =
+
+
+/* DLG_MAP_INFO gTest;
+DIALOG_ITEM dlgMapInfo[] =
 {
-	{ NO,	1,		30,	0,	0,	HEADER,			"Frame flags:" },
-	{ NO,	1,		30,	1,	11,	CHECKBOX,		"Pushable" },
-	{ NO,	1,		30,	2,	12,	CHECKBOX,		"Hitscan" },
-	{ NO,	1,		30,	3,	13,	CHECKBOX,		"Blocking" },
-	{ NO,	1,		30,	4,	14,	CHECKBOX,		"Flip X" },
-	{ NO,	1,		30,	5,	15,	CHECKBOX, 		"Flip Y" },
-	{ NO,	1,		30,	6,	16,	CHECKBOX, 		"Autoaim" },
-	{ MO,	1,		30,	7,	17,	CHECKBOX, 		"Translucent" },
-	{ MO,	1,		30,	8,	18,	CHECKBOX, 		"less" },
-	{ MO,	1,		39,	8,	19,	CHECKBOX, 		"Invisible" },
-	{ MO,	1,		39,	8,	19,	CHECKBOX, 		"Smoke" },
-	{ MO,	1,		39,	8,	19,	CHECKBOX, 		"Trigger" },
-	{ MO,	1,		39,	8,	19,	CHECKBOX, 		"Sound" },
+	{ NO,	1,		0,	0,	0,	HEADER,			"General info:" },
+	{ NO,	1,		0,	1,	1,	LABEL,			"Filename....: %s", 0, 1, gTest.pathptr},
+	{ NO,	1,		0,	2,	2,	LABEL,			"Author......: %s", 0, 1, gTest.authptr},
+	{ NO,	1,		0,	3,	3,	NUMBER, 		"Revisions...: %d", 0, 13421722 },
 }; */
 
 DIALOG_ITEM dlgXSprite[] =

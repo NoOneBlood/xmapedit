@@ -1,5 +1,5 @@
  /////////////////////////////////
- // XMAPEDIT ART FILES EDITOR [OCT 22 2021]
+ // XMAPEDIT ART FILES EDITOR [MAY 07 2022]
  /////////////////////////////////////////////////////////////////////////////
  
  XMP ARTEDIT is a tool for editing ART files which contains game graphics. The main
@@ -10,10 +10,9 @@
  XMP ARTEDIT KEY FEATURES:
  ==================================================================
  - Two modes are included: batch and single tile editing.
- - Importing new images (PCX and TGA formats support included). The colors of the images
-   will be automatically converted to the closest game colors, include alpha channel of
-   32bit TGA image that will automatically converted in transparent color.
-   See more info below.
+ - Importing new images. The colors of the images will be automatically
+   converted to the closest game colors, include alpha channel 
+   that will automatically converted in transparent color. See more info below.
  - Importing ART files from another games with automatic color conversion as well.
  - Export tiles in another single ART file or 32bit TGA images with transparency.
  - Paint tiles with palookups and palettes or using GUI based color editor
@@ -33,7 +32,7 @@
  3. Launch art editor from command prompt. Example: "xmapedit tiles001" opens
     tiles001.art for editing.
  
- STANDALONE IMAGES & ART IMPORTING DETAILS
+ IMAGE IMPORTING DETAILS
  ==================================================================
  1. IMAGES:
  ----------
@@ -41,11 +40,18 @@
    in to Blood palette before importing since XMP ARTEDIT is smart enough to convert it
    to the closest game colors for you.
 		
-   At the moment, there is two image formats are supported:
-   1. Z-Soft Paintbrush PCX 8bit(256 colors) or 24bit (raw or RLE encoded).
-   2. TrueVision Targa  TGA 8bit(256 colors), 24bit or 32bit (raw or RLE encoded).
+   At the moment, the following formats are supported:
+   1. Z-Soft Paintbrush *.PCX 8bit(256 colors) or 24bit (raw or RLE encoded).
+   2. TrueVision Targa  *.TGA 8bit(256 colors), 24bit or 32bit (raw or RLE encoded).
+   3. Autodesk Animator *.CEL 8bit(256 colors).
+
+   Additional formats provided by Ken's Silverman KPLIB image decoding library:
+   1. Portable Network Graphics *.PNG 8bit(256 colors), 24bit or 32bit (raw or compressed).
+   2. Direct Draw Surface *.DDS (DXT1, DXT2, DXT3, DXT4, DXT5, A8R8G8B8).
+   3. JPEG File Interchange Format *JPG 8bit(256 colors) or 24bit.
+   4. Windows / OS/2 Bitmap *BMP 8bit(256 colors), 24bit or 32bit (raw or RLE encoded).
 		
-   I do recommend to use 32bit TGA format with alpha channel if your image intended to
+   I do recommend to use 32bit formats with alpha channel if your image intended to
    contain transparency since all opaque pixels will be treated as transparent color
    automatically. This is the fastest way to import such image correctly.
 
@@ -55,7 +61,15 @@
    indexes for selected file. This is especially true if you want to import graphics
    from another BUILD game. XMP ARTEDIT already contains a nice palette database that
    usually can be found in the XMAPEDIT\PALETTES\IMPORT directory.
-  
+ 
+ 3. FLOOR FILES:
+ -------------
+   This format used by Chasm: The Rift game. Each file may keep up to 64 textures that
+   normally have 64x64 resolution + 3 mip levels. To import images, a palette must be
+   loaded first. ARTEDIT will try to load it automatically using
+   XMAPEDIT\PALETTES\IMPORT\CHASM.PAL path.
+   
+
  PALETTES & TILE PAINTING DETAILS:
  ==================================================================
  To paint tiles, you must load the palette as well.
@@ -95,7 +109,7 @@
 	[F1] .............................. Show tile info window.
 	[F2] .............................. Save / revert changes menu.
 	[F3] .............................. Export selected tiles in a single ART file or TGA images.
-	[F4] .............................. Import images or ART files.
+	[F4] .............................. Import images.
 	[F7] .............................. Change tile animation type.
 	[F8] .............................. Open tile color editor or select palette to paint highlighted tiles.
 	[R] ............................... Rotate highlighted tiles.

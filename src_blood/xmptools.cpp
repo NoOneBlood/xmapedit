@@ -46,6 +46,7 @@
 #include "fire.h"
 #include "xmpexplo.h"
 
+#include "misc.h"
 #include "xmpmisc.h"
 #include "img2tile.h"
 
@@ -68,6 +69,37 @@ char* toolMenu[] = {
 	
 };
 
+NAMED_TYPE gMapErrorsCommon[] = {
+	
+	{ -1,	"Error opening file" },
+	{ -2,	"Corrupted file" },
+	{ -3, 	"Unsupported map version"},
+	{ -999,	"Unknown map error"},
+	
+};
+
+NAMED_TYPE gArtErrorsCommon[] = {
+	
+	{ -1,	"Corrupted file" },
+	{ -2,	"Unsupported file format"},
+	{ -10,	"localtilestart must be greater than in previous ART files"},
+	{ -999, "Unknown art error"},
+};
+
+NAMED_TYPE gMapArtImportErrors[] = {
+	
+	{ -1,	"No ART files selected" },
+	{ -3,	"Not enough memory for PICS" },
+	{ -4,	"Too many tiles" },
+	{ -5,	"One of destination tiles is system reserved" },
+	{ -6,	"Max tiles reached" },
+	{ -7,	"Tile number of source tile greater than max tiles" },
+	{ -8,	"Cannot overwrite already existing tile" },
+	{ -9,	"No tiles for processing" },
+	{ -999, "Unknown error"},
+	
+};
+
 int toolOpenWith(char* filename, char flags)
 {
 	RESHANDLE hFile;
@@ -75,10 +107,13 @@ int toolOpenWith(char* filename, char flags)
 	char tmp[_MAX_PATH], tmp2[_MAX_PATH]; char *dsk, *dir, *fname, *ext;
 	int i = 0, j = 0, k = 0, edit = -1;
 	
+	BOOL norff = FALSE;
 	pathSplit2(filename, tmp, &dsk, &dir, &fname, &ext);
+	norff = (dsk[0] || dir[0]);
+	
 	if (ext[0]) // extension found
 	{
-		if (fileExists(filename, &hFile))
+		if (fileExists(filename, norff ? NULL : &hFile))
 		{
 			// remove dot
 			if (ext[0] == '.')
@@ -92,15 +127,18 @@ int toolOpenWith(char* filename, char flags)
 			}
 		
 		}
+		
 		// editor for this extension is not found
 		return -1;
 	}
 	
+	_makepath(tmp2, dsk, dir, fname, NULL);
+	
 	// search for files with same name but different extensions...
 	for (i = 0; i < LENGTH(gExtNames); i++)
 	{
-		_makepath(tmp2, dsk, dir, fname, gExtNames[i]);
-		if ((k = fileExists(tmp2, &hFile)) <= 0) continue;
+		ChangeExtension(tmp2, gExtNames[i]);
+		if ((k = fileExists(tmp2, norff ? NULL : &hFile)) <= 0) continue;
 		else if (!(k & 0x01) && i == kToolArtEdit)
 			continue; // can only work with files outside RFF
 		
@@ -169,8 +207,13 @@ BOOL toolLoadAs(char* path, char* ext, char* title) {
 	return (dirBrowse(title, path, ext) != NULL);
 }
 
-int toolAskSaveChanges(char* text) {
-	return YesNoCancel(text);
+int toolLoadAsMulti(char* path, char* ext, char* title)
+{
+	int i = 0;
+	if (dirBrowse(title, path, ext, kDirExpTypeOpen, kDirExpMulti) != NULL)
+		i = countSelected();
+
+	return i;
 }
 
 void toolGetResTableValues() {
@@ -763,10 +806,13 @@ int replacePic(int nSrc, int nDest, char where = kRpcTileAll) {
 				wall[j].overpicnum = nDest, retn++;
 		}
 		
-		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+		if (where & kRpcTileSpr)
 		{
-			if ((where & kRpcTileSpr) && sprite[j].picnum == nSrc)
-				sprite[j].picnum = nDest, retn++;
+			for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+			{
+				if (sprite[j].picnum == nSrc)
+					sprite[j].picnum = nDest, retn++;
+			}
 		}
 	}
 	
@@ -774,52 +820,25 @@ int replacePic(int nSrc, int nDest, char where = kRpcTileAll) {
 	
 }
 
-int tileExists(BYTE* image, int wh, int hg) {
-	
-	int i, len = wh*hg;
-	for (i = 0; i < gMaxTiles; i++)
-	{
-		if (wh != tilesizx[i] || hg != tilesizy[i]) continue;
-		else if (tileLoadTile(i) && memcmp((void*)waloff[i], image, len) == 0)
-			return i;
-	}
-	
-	return -1;
+BOOL readData(char* file, int hOffs, BYTE* out, int len)
+{
+	int hFile, i;
+	if ((hFile = open(file, O_BINARY|O_RDONLY, S_IWRITE|S_IREAD)) < 0) return FALSE;
+	else if ((i = lseek(hFile, hOffs, SEEK_SET)) > hOffs || i < hOffs)
+		return FALSE;
+		
+	i = read(hFile, out, len);
+	close(hFile);
+	return TRUE;
 }
 
-enum {
-kFlgMapTypeBlood	= 0x0001,
-kFlgCompareTiles	= 0x0002,
-kFlgImportAnim		= 0x0004,
-kFlgImportView		= 0x0008,
-kFlgKeepOffset		= 0x0020,
-kFlgOverwrite		= 0x0040,
-kFlgNoTileMap		= 0x0080,
-kFlgReplace			= 0x0100,
-};
-
-NAMED_TYPE gMapArtImportErrors[] = {
+int toolMapArtGrabber(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int skyTiles, int flags, int grabFrom) {
 	
-	{ -1,	"No ART files selected" },
-	{ -3,	"Not enough memory for PICS" },
-	{ -4,	"Too many tiles" },
-	{ -5,	"One of destination tiles is system reserved" },
-	{ -6,	"Max tiles reached" },
-	{ -7,	"Tile number of source tile greater than max tiles" },
-	{ -8,	"Cannot overwrite already existing tile" },
-	{ -999, "Unknown error"},
 	
-};
-
-
-
-int mapImportArt(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int flags) {
-		
-	dassert(pal != NULL);
 	dassert(files != NULL);
 	if (nFiles <= 0)
 		return -1;
-	
+
 	//struct PLUS
 	//{
 		//STATUS_BIT1 used[kPluMax];
@@ -832,18 +851,31 @@ int mapImportArt(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int fl
 		unsigned int num		: 17;
 		unsigned int newnum		: 17;
 		unsigned int filenum	: 17;
+		unsigned int six		: 16;
+		unsigned int siy		: 16;
+		unsigned int duplicate	: 1;
+		unsigned int imgofs;
+		PICANM pnm;
 		//PLUS lookup;
 	};
 	
 	const int maxAllocUnits = 0x10000;
-	int i, j, k, cnt = 0, swal, ewal, skyTiles = gSkyCount, nCurPic, nOrigPic;
-	ARTFILE* file; BYTE* image; PICS* pics; PICANM pnm;
+	int hFile, start, end, tiles, sixofs, siyofs, pnmofs, datofs;
+	int i, j, k, cnt = 0, swal, ewal, nCurPic, nOrigPic, imgLen;
+	ARTFILE* file; BYTE* image; PICS* pics; PICANM* pnm;
+	char rplcFlags = 0;
 	short six, siy;
 	
+	BOOL replace	= (flags & kFlgReplace) > 0;
 	BOOL keepOffset = (flags & kFlgKeepOffset);
 	BOOL overwrite 	= (flags & kFlgOverwrite);
 	BOOL tileMap	= (!keepOffset && !(flags & kFlgNoTileMap));
 	BOOL readpnm	= ((flags & kFlgImportView) || (flags & kFlgImportAnim));
+	BOOL grabF		= (grabFrom & kGrabFloor);
+	BOOL grabC		= (grabFrom & kGrabCeil);
+	BOOL grabW		= (grabFrom & kGrabWall);
+	BOOL grabO		= (grabFrom & kGrabOWall);
+	BOOL grabS		= (grabFrom & kGrabSprite);
 
 	if ((pics = (PICS*)malloc(sizeof(PICS)*maxAllocUnits)) == NULL)
 		return -3;
@@ -851,76 +883,109 @@ int mapImportArt(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int fl
 	for (i = 0; i < maxAllocUnits; i++)
 	{
 		//memset(&pics[i].lookup, 0, sizeof(pics[i].lookup));
+		memset(&pics[i], 0, sizeof(PICS));
 		pics[i].newnum	= pics[i].num = maxAllocUnits;
 		pics[i].filenum = nFiles;
-		pics[i].rng		= 0;
 	}
-
-	// get number of an ART file for each tile
+	
+	// go through all files and fill the PICS info
 	///////////////////////////////////////////////////
 	for (i = 0; i < nFiles; i++)
 	{
-		for (j = files[i].start; j <= files[i].end; j++)
+		file = &files[i];
+		if ((hFile = open(file->path, O_BINARY|O_RDONLY, S_IWRITE|S_IREAD)) < 0)
+			continue;
+		
+		readArtHead(hFile, &start, &end, &sixofs, &siyofs, &pnmofs, &datofs);
+		for (j = file->start; j <= file->end; j++)
 		{
 			if (cnt >= maxAllocUnits)
 			{
+				close(hFile);
 				free(pics);
 				return -4;
+			}
+			
+			lseek(hFile, sixofs, SEEK_SET);	sixofs+=read(hFile, &six, 2);
+			lseek(hFile, siyofs, SEEK_SET);	siyofs+=read(hFile, &siy, 2);
+			lseek(hFile, pnmofs, SEEK_SET);	pnmofs+=read(hFile, &pics[j].pnm, sizeof(PICANM));
+			
+			pics[j].imgofs = ((imgLen = six*siy) > 0) ? datofs : 0;
+			if (pics[j].imgofs > 0)
+			{
+				datofs+=lseek(hFile, imgLen, SEEK_SET);	// only get image data file offset
+				pics[j].six = six;
+				pics[j].siy = siy;
 			}
 			
 			pics[j].filenum = i;
 			cnt++;
 		}
-	}
 		
+		close(hFile);
+	}
+			
 	// collect all the basic tiles for replacement
 	///////////////////////////////////////////////////
 	for (i = 0; i < numsectors; i++)
 	{
-		pics[sector[i].floorpicnum].rng		= 1;
-		if (sector[i].floorstat & kSectParallax)
-			pics[sector[i].floorpicnum].rng = skyTiles;
-				
-		pics[sector[i].ceilingpicnum].rng	= 1;
-		if (sector[i].ceilingstat & kSectParallax)
-			pics[sector[i].ceilingpicnum].rng = skyTiles;
-		
-		getSectorWalls(i, &swal, &ewal);
-		for (j = swal; j <= ewal; j++)
+		if (grabF)
 		{
-			pics[wall[j].picnum].rng		= 1;
-			pics[wall[j].overpicnum].rng	= 1;
+			pics[sector[i].floorpicnum].rng		= 1;
+			if (sector[i].floorstat & kSectParallax)
+				pics[sector[i].floorpicnum].rng = skyTiles;
 		}
 		
-		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+		if (grabC)
 		{
-			pics[sprite[j].picnum].rng = 1;
-			if (flags & kFlgMapTypeBlood)
+			pics[sector[i].ceilingpicnum].rng	= 1;
+			if (sector[i].ceilingstat & kSectParallax)
+				pics[sector[i].ceilingpicnum].rng = skyTiles;
+		}
+		
+		if (grabW || grabO)
+		{
+			getSectorWalls(i, &swal, &ewal);
+			for (j = swal; j <= ewal; j++)
 			{
-				switch(sprite[j].type) {
-					case kSwitchToggle:
-					case kSwitchOneWay:
-					case kDecorationTorch:
-						pics[sprite[j].picnum].rng = 2;
-						break;
-					case kSwitchCombo:
-						if (sprite[j].extra <= 0) break;
-						pics[sprite[j].picnum].rng = xsprite[sprite[j].extra].data3;
-						break;
+				if (grabW) pics[wall[j].picnum].rng		= 1;
+				if (grabO) pics[wall[j].overpicnum].rng	= 1;
+			}
+		}
+		
+		if (grabS)
+		{
+			for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+			{
+				pics[sprite[j].picnum].rng = 1;
+				if (flags & kFlgMapTypeBlood)
+				{
+					switch(sprite[j].type) {
+						case kSwitchToggle:
+						case kSwitchOneWay:
+						case kDecorationTorch:
+							pics[sprite[j].picnum].rng = 2;
+							break;
+						case kSwitchCombo:
+							if (sprite[j].extra <= 0) break;
+							pics[sprite[j].picnum].rng = xsprite[sprite[j].extra].data3;
+							break;
+					}
 				}
 			}
 		}
 	}
-	
+		
 	// lookup in palDB for correct 255s
 	/////////////////////////////////////////////////////////////////////
-	palFixTransparentColor(pal);
+	if (pal)
+		palFixTransparentColor(pal);
 	
 	// read PICANM information to add tiles that are animation or
 	// view parts of the basic ones and exclude tiles that cannot be replaced
 	/////////////////////////////////////////////////////////////////////
 	for (i = 0; i < maxAllocUnits; i++)
-	{
+	{	
 		if (!pics[i].rng) continue;
 		else if (pics[i].filenum >= nFiles) { pics[i].rng = 0; continue; }
 		else if ((flags & kFlgMapTypeBlood) || (flags & kFlgKeepOffset))
@@ -934,20 +999,19 @@ int mapImportArt(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int fl
 
 		if (readpnm)
 		{
-			file =& files[pics[i].filenum];
-			readTileArt(i, file->path, NULL, NULL, NULL, NULL, &pnm);
-			if ((flags & kFlgImportView) && pnm.view > 0)
+			pnm = &pics[i].pnm;
+			if ((flags & kFlgImportView) && pnm->view > 0)
 			{
-				if (pnm.view == kSprViewFull5)			pics[i].rng += 4;
-				else if (pnm.view == kSprViewFull8)		pics[i].rng += 7;
-				else if (pnm.view == kSprViewBounce)	pics[i].rng += 1;
+				if (pnm->view == kSprViewFull5)			pics[i].rng += 4;
+				else if (pnm->view == kSprViewFull8)	pics[i].rng += 7;
+				else if (pnm->view == kSprViewBounce)	pics[i].rng += 1;
 			}
-			
-			if ((flags & kFlgImportAnim) && pnm.type && pnm.frames && pnm.speed)
-			{
-				if (pnm.type != 3) pics[i].rng += pnm.frames;
-				else if (i - pnm.frames < 0) pics[i].rng = 1;
-				else pics[i - pnm.frames].rng += pnm.frames; // backward anim
+
+			if ((flags & kFlgImportAnim) && pnm->type && pnm->frames)
+			{	
+				if (pnm->type != 3) pics[i].rng += pnm->frames;
+				else if (i - pnm->frames < 0) pics[i].rng = 1;
+				else pics[i - pnm->frames].rng += pnm->frames; // backward anim
 			}
 		}
 		
@@ -955,27 +1019,40 @@ int mapImportArt(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int fl
 		{
 			// search for tiles that already exists and set newnum to the ones that found
 			for (j = i; j < i + pics[i].rng; j++)
-			{
-				image = NULL;
+			{ 
+				if (!pics[j].imgofs)
+					continue;
+				
 				file = &files[pics[j].filenum];
-				readTileArt(j, file->path, &six, &siy, &image, NULL, NULL);
-				if (image != NULL)
+				six = pics[j].six; siy = pics[j].siy;
+				image = NULL;
+				
+				imgLen = six*siy;
+				if ((image = (BYTE*)malloc(imgLen)) == NULL) continue;
+				else if (readData(file->path, pics[j].imgofs, image, imgLen))
 				{
 					// compare original colors first
 					if ((k = tileExists(image, six, siy)) < 0)
 					{
-						// compare changed colors
-						remapColors((intptr_t)image, six*siy, pal);
-						if ((k = tileExists(image, six, siy)) >= 0)
-							pics[j].newnum = k;
+						if (pal)
+						{
+							// compare changed colors
+							remapColors((intptr_t)image, imgLen, pal);
+							if ((k = tileExists(image, six, siy)) >= 0)
+							{
+								pics[j].newnum		= k;
+								pics[j].duplicate	= 1;
+							}
+						}
 					}
 					else
 					{
-						pics[j].newnum = k;
+						pics[j].newnum 		= k;
+						pics[j].duplicate	= 1;
 					}
-
-					Resource::Free(image);
 				}
+				
+				free(image);
 			}
 		}
 	}
@@ -984,17 +1061,44 @@ int mapImportArt(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int fl
 	///////////////////////////////////////////////////
 	for (i = cnt = 0; i < maxAllocUnits; i++)
 	{
-		if (!pics[i].rng || pics[i].num < maxAllocUnits) continue;
+		if (!pics[i].rng) continue;
 		for (j = i; j < i + pics[i].rng; j++)
 		{
-			pics[cnt].filenum	= pics[j].filenum;
-			pics[cnt].newnum	= pics[j].newnum;
-			pics[cnt].rng		= pics[j].rng;
-			pics[cnt].num		= j;
+			pics[cnt] = pics[j];
+			pics[cnt].num = j;
 			cnt++;
 		}
 	}
+	
+	
+	// change all blank tilenums to the nStartTile
+	///////////////////////////////////////////////////
+	if (!keepOffset)
+	{
+		for (i = 0; i < cnt; i++)
+		{
+			if (pics[i].imgofs)
+				continue;
+			
+			j = nStartTile++;
+			while(i < cnt)
+			{
+				if (!pics[i].imgofs)
+				{
+					pics[i].newnum		= j;
+					pics[i].duplicate	= 1;
+				}
+				
+				i++;
+			}
+			
+			artedEraseTileFull(j);
+			break;
+			
+		}
+	}
 
+	
 	// give pics newnums if required and / or check for limits
 	///////////////////////////////////////////////////
 	for (i = 0; i < cnt;)
@@ -1003,7 +1107,7 @@ int mapImportArt(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int fl
 		else if (pics[i].newnum < maxAllocUnits) { i++; continue; } // already set
 		else if (nStartTile >= gMaxTiles) i = -6;
 		else if (!keepOffset)
-		{
+		{			
 			if (tileMap)
 			{
 				// free range search
@@ -1038,322 +1142,937 @@ int mapImportArt(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int fl
 	
 	// finally, start replace
 	///////////////////////////////////////////////////
-		
-	if (flags & kFlgReplace)
+	if (replace)
 	{
+		if (grabF)	rplcFlags |= kRpcTileFloor;
+		if (grabC)	rplcFlags |= kRpcTileCeil;
+		if (grabW)	rplcFlags |= kRpcTileWall;
+		if (grabO)	rplcFlags |= kRpcTileMasked;
+		if (grabS)	rplcFlags |= kRpcTileSpr;
+		
 		// set temp tilenum so it won't cross with newnum
-		for (i = 0; i < cnt; i++) replacePic(pics[i].num, 32767 - i);
+		for (i = 0; i < cnt; i++)
+			replacePic(pics[i].num, 32767 - i, rplcFlags);
 	}
 	
 	for (i = 0; i < cnt; i++)
 	{
 		file = &files[pics[i].filenum]; 
 		nOrigPic = pics[i].num; nCurPic = pics[i].newnum; image = NULL;
-		tileFreeTile(nCurPic);
+		six = pics[i].six; siy = pics[i].siy; pnm = &pics[i].pnm;
+		imgLen = six*siy;
 		
-		readTileArt(nOrigPic, file->path, &six, &siy, &image, NULL, &pnm);
-		if (image != NULL)
+		if (!pics[i].duplicate)
 		{
-			if (tileAllocTile(nCurPic, six, siy, 0, 0))
+			artedEraseTileFull(nCurPic);
+			if (pics[i].imgofs && (image = tileAllocTile(nCurPic, six, siy, 0, 0)) != NULL)
 			{
-				memcpy((void*)waloff[nCurPic], image, six*siy);
-				panm[nCurPic].xcenter		= pnm.xcenter;
-				panm[nCurPic].ycenter		= pnm.ycenter;
-				
-				if (flags & kFlgImportAnim)
+				if (readData(file->path, pics[i].imgofs, image, imgLen))
 				{
-					panm[nCurPic].type		= pnm.type;
-					panm[nCurPic].speed		= pnm.speed;
-					panm[nCurPic].frames	= pnm.frames;
+					panm[nCurPic].xcenter		= pnm->xcenter;
+					panm[nCurPic].ycenter		= pnm->ycenter;
+					
+					if (flags & kFlgImportAnim)
+					{
+						panm[nCurPic].type		= pnm->type;
+						panm[nCurPic].speed		= pnm->speed;
+						panm[nCurPic].frames	= pnm->frames;
+					}
+					
+					if (flags & kFlgImportView)
+						panm[nCurPic].view = pnm->view;
+					
+					if (pal)
+						remapColors(waloff[nCurPic], imgLen, pal);
+					
+					switch(panm[nCurPic].view) {
+						case kSprViewVoxSpin:
+						case kSprViewVox:
+							panm[nCurPic].view = kSprViewSingle;
+							break;
+					}
 				}
-				
-				if (flags & kFlgImportView)
-					panm[nCurPic].view = pnm.view;
-
-				remapColors(waloff[nCurPic], six*siy, pal);
-				switch(panm[nCurPic].view) {
-					case kSprViewVoxSpin:
-					case kSprViewVox:
-						panm[nCurPic].view = kSprViewSingle;
-						break;
-				}
-			}
-			else
-			{
-				nCurPic = nOrigPic;
 			}
 			
-			Resource::Free(image);
+			artedArtDirty(nCurPic, kDirtyAll);
 		}
-		
-		if (flags & kFlgReplace)
-			replacePic(32767 - i, nCurPic);
-		
-		artedArtDirty(nCurPic, kDirtyAll);
-		if (!keepOffset && nCurPic == nOrigPic)
-			continue;
+			
+		if (replace)
+			replacePic(32767 - i, nCurPic, rplcFlags);
 		
 		viewType[nCurPic] = panm[nCurPic].view;
 		if (viewType[nCurPic] == kSprViewSingle)
 			tiletovox[nCurPic] = voxelIndex[nCurPic] = -1;
 		
-		tileShade[nCurPic] = 0;
+		if (!keepOffset && nCurPic == nOrigPic)
+			continue;
+
 		surfType[nCurPic]  = kSurfNone;
+		tileShade[nCurPic] = 0;
 	}
 	
-	//replacePal(0);
 	free(pics);
-	return cnt;
+	return (cnt > 0) ? cnt : -9;
 }
 
-void mapImportArtDlg(char* artPath) {
+int IMPORT_WIZARD::ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg)
+{
+	#define kBrowseColor		gStdColor[21]
+	#define kBannerPanelColor	gStdColor[kColorBlue]
+	#define kFieldBorderColor	23
+	#define kFieldTitleColor	kColorDarkGray
+	#define kHeaderFlags		kTextACenter|kTextAMiddle|kTextUnderline|kTextUppercase
+	#define kHeaderTextColor	kColorBlue
 	
-	PALETTE pal;
-	ARTFILE* files = NULL;
-	char *file = NULL, tmp[_MAX_PATH];
-	int i, j = mrOk, id = -1, cnt = 0, flags, start, end, sixofs, siyofs, pnmofs, datofs, nStartTile;
-	CHECKBOX_LIST importFlags[] =
+	Init();
+	
+	char* guiTxt[] =
 	{
-		{ FALSE, "This is a Blood map." },
-		{ TRUE,  "Import animation frames." },
-		{ TRUE,  "Import view frames." },
-		{ TRUE,  "Do not import duplicates." },
-		{ FALSE, "Keep original tile numbers." },
-		{ FALSE, "Overwrite existing tiles." },
-		{ FALSE, "Linear import." },
-		//{ FALSE, "Convert colors." },
+		"<not selected>",
+		"...",
+		"&Next",
+		"&Import",
 	};
 	
-	while( 1 )
-	{
-		if (j != mrCancel && artedDlgSelPal("Select palette", artPath, pal) < 0) break;
-		else if ((file = dirBrowse("Select files", artPath, ".ART", kDirExpTypeOpen, kDirExpMulti)) == NULL)
-		{
-			j = mrOk;
-			continue;
-		}
-		
-		if (files != NULL)
-			free(files);
-		
-		while(enumSelected(&id, tmp))
-		{
-			files = (ARTFILE*)realloc(files, sizeof(ARTFILE)*(cnt+1)); sprintf(files[cnt].path, tmp);
-			if (readArtHead(files[cnt].path, &start, &end, &sixofs, &siyofs, &pnmofs, &datofs) < 0) continue;
-			files[cnt].start = start; files[cnt].end = end;
-			cnt++;
-		}
-		
-		while((j = createCheckboxList(importFlags, LENGTH(importFlags), "Import options")) != mrCancel)
-		{
-			flags = 0;
-			if (importFlags[0].option) flags |= kFlgMapTypeBlood;
-			if (importFlags[1].option) flags |= kFlgImportAnim;
-			if (importFlags[2].option) flags |= kFlgImportView;
-			if (importFlags[3].option) flags |= kFlgCompareTiles;
-			if (importFlags[4].option) flags |= kFlgKeepOffset;
-			if (importFlags[5].option) flags |= kFlgOverwrite;
-			if (importFlags[6].option) flags |= kFlgNoTileMap;
-			
-			nStartTile = 4608; flags |= kFlgReplace;
-/* 			nStartTile = gMaxTiles - 1;
-			if (flags & kFlgKeepOffset)
-			{
-				nStartTile = 0;
-				if (!(flags & kFlgOverwrite) && Confirm("Allow overwriting?"))
-					flags |= kFlgOverwrite;
-			}
-			else
-			{
-				while( 1 )
-				{
-					do { nStartTile--; } while(nStartTile >= 0 && !tilesizx[nStartTile]);
-					nStartTile = tilePick(++nStartTile, -1, OBJ_ALL, "Pick start tile", kTilePickFlgAllowEmpty);
-					if (nStartTile >= 0)
-					{
-						j = mrOk;
-						if ((flags & kFlgNoTileMap) && !(flags & kFlgOverwrite) && tilesizx[nStartTile])
-						{
-							Alert("Tile %d is not blank!", nStartTile);
-							continue;
-						}
-					}
-					else
-					{
-						j = mrCancel;
-					}
-					
-					break;
-				}
-			} */
-
-			if (nStartTile >= 0)
-			{
-/*  			splashScreen();
-				if (!(flags & kFlgKeepOffset) && !(flags & kFlgReplace))
-				{
-					if (Confirm("Replace old tiles to the ones with new number?"))
-						flags |= kFlgReplace;
-				} */
-			
-				splashScreen("This may take some time.");
-				if ((i = mapImportArt(files, cnt, pal, nStartTile, flags)) < 0)
-				{
-					if (!Confirm("Error %d: %s. Try again?", abs(i), retnCodeCheck(i, gMapArtImportErrors))) break;
-					else continue;
-				}
-				else
-				{
-					Alert("%d pictures were added or changed.", i);
-					
-/* 					PALETTE paint;
-					Alert("%d", pluLoad("ITEST\\PALETTE.DAT", paint, 14, 0));
-					
-
-					int f = 0;
-					for (i = 0; i < 256; i++)
-					{
-						f = countBestColor(gamepal, paint[i].r, paint[i].g, paint[i].b);
-						paint[i] = gamepal[f];
-					}
-					artedPaint(4826, paint);
-					
-					artedPaint(4854, paint);
-					artedPaint(4778, paint);
-					artedPaint(4779, paint); */
-				}
-			}
-
-			break;
-		}
-		
-		if (j == mrCancel) continue;
-		break;
-	}
+	BOOL DLGUPD = TRUE;
+	IMPORT_WIZARD_PREFS* pPrefs =& gImportPrefs;
+	IOBuffer* pMapIo = NULL; BYTE* pScreen = NULL;
+	QFONT* pTextFont = qFonts[2]; Panel* pPage = NULL;
+	const int winW = 320, winH = 240, hdhg = 20, btw = 60, bth = 20, pd = 2;
+	int start, end, sixofs, siyofs, pnmofs, datofs, pgx, pgy, pgw, pgh, tw, th;
+	int i, j, k, dw, dh, x1, x2, y1, y2, dx, dy, banw, artFlags, retn = 0;
+	char pthmap[_MAX_PATH], pthpal[_MAX_PATH], pthart[_MAX_PATH];
+	char tmp[_MAX_PATH], *errMsg = NULL;
 	
-	free(files);
-	
-}
+	sprintf(pthmap, gPaths.maps);
+	sprintf(pthart, gPaths.maps);
+	sprintf(pthpal, gPaths.maps);
 
-
-/* void levelImportWizard()
-{
-	int curPage = 0;
-	int nTile = 0;
-	int i, j, k,pd = 2, dw, dh, x1, x2, y1, y2;
-	int hdwh, hdhg = 20, tw, th;
-	RESHANDLE hIco;
-	
-	Window dialog(0, 0, 320, 240, "Level import wizard");
+	Window dialog((xdim - winW)>>1, (ydim - winH)>>1, winW, winH, "Import wizard");
 	dialog.getEdges(&x1, &y1, &x2, &y2);
 	dialog.getSize(&dw, &dh);
 	
-	int dx = x1+pd, dy = y1+pd, banw = dw>>2, banh = dh;
-	Panel* banner = new Panel(x1, y1, banw, dh, 0, 1, -1, clr2std(kColorCyan));
+	dx = x1+pd, dy = y1+pd, banw = dw>>2;
+	Panel* pBanner = new Panel(x1, y1, banw, dh, 0, 1, -1, kBannerPanelColor);
 	dx+=banw;
 	
-	hIco = gGuiRes.Lookup((unsigned int)0, "TGA");
-	if (hIco && (nTile = tileGetBlank()) >= 0)
+	pgx = dx+4, pgy = y1, pgw = x2-dx-8, pgh = y2-30;
+	
+	tileDrawGetSize(gSysTiles.xmpIco, perc2val(banw, 84), &tw, &th);
+	Tile* tLogo = new Tile((banw>>1)-(tw>>1), pd<<1, gSysTiles.xmpIco, tw, th, 0, 0x02);
+	
+	Panel* pButtons 		= new Panel(dx, dh-bth, x2-dx, bth);
+	TextButton* bNext 		= new TextButton(pButtons->width-btw, 0, btw, bth, guiTxt[2], 100);
+	TextButton* bBack 		= new TextButton(pButtons->width-pd-(btw<<1), 0, btw, bth, "&Back", 101);
+	TextButton* bQuit 		= new TextButton(0, 0, btw, bth, "&Quit", mrCancel);
+		
+	Checkbox* cImpArt		= new Checkbox(0, 0,  pPrefs->mapImpotArt,			"Import graphics.");	
+	Checkbox* cErsi			= new Checkbox(4, 0,  pPrefs->mapErsInfo, 			"Erase object info.");
+	Checkbox* cErsp			= new Checkbox(4, 13, pPrefs->mapErsPal,			"Reset palookups.");
+	Checkbox* cErss			= new Checkbox(4, 26, pPrefs->mapErsSpr,			"Delete sprites.");
+	
+	Checkbox* cKeepOfs		= new Checkbox(4, 26,  pPrefs->artKeepOffset,		"Keep original tile numbers.", 131);
+	Checkbox* cImpAnim		= new Checkbox(4, 8,   pPrefs->artImportAnim,		"Import animation frames.");
+	Checkbox* cImpView		= new Checkbox(4, 21,  pPrefs->artImportView,		"Import view frames (blood).");
+	Checkbox* cTileMap		= new Checkbox(4, 34,  pPrefs->artTileMap,			"Use \"Tile Roadmap\" method.");
+	Checkbox* cReplaceOld	= new Checkbox(4, 47,  pPrefs->artChgTilenums,		"Change object tilenums to new.");
+	Checkbox* cNoDuplicate	= new Checkbox(4, 60,  pPrefs->artNoDuplicates,		"Do not import duplicates.");
+		
+	Label* lMapFile 		= new Label(4, 0, guiTxt[0], kColorRed);
+	Label* lArtFile 		= new Label(4, 0, guiTxt[0], kColorRed);
+	Label* lPalFile			= new Label(4, 0, guiTxt[0], kColorRed);
+	Label* lArea			= new Label(4, 0, guiTxt[0], kColorRed);
+	
+	TextButton* bMapBrow	= new TextButton(4, 4, 30, 20, guiTxt[1], 102);
+	TextButton* bArtBrow	= new TextButton(4, 4, 30, 20, guiTxt[1], 110);
+	TextButton* bPalBrow	= new TextButton(4, 4, 30, 20, guiTxt[1], 120);
+	TextButton* bAreaBrow	= new TextButton(4, 4, 30, 20, guiTxt[1], 130);
+	
+	sprintf(tmp, "ver %d.%d", kWizardVerMajor, kWizardVerMinor);
+	i = gfxGetTextLen(tmp, pFont); j = pFont->height<<1;
+	Text* tVer = new Text(0, 0, i+(pd<<2), j, tmp, kTextACenter|kTextAMiddle|kTextUppercase, kColorRed, pFont, kColorBlack);
+	tVer->left = abs((pBanner->width>>1)-(tVer->width>>1));
+	tVer->top  = pBanner->height-j-(pd<<2);
+	
+	//--------------------------------------------------------
+	Panel* pageMap = new Panel(pgx, pgy, pgw, pgh);
 	{
-		tga2tile((char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
-		tileDrawGetSize(nTile, banw - (pd<<2), &tw, &th);
-		Tile* logo = new Tile((banw>>1)-(tw>>1), 0, nTile, tw, th, 0, 0x02);
-		banner->Insert(logo);
-	}
-		
-	Panel* buttons = new Panel(dx, dh - 20, x2-dx, 20);
-	TextButton* next = new TextButton(x2-dx-60, 0, 60, 20, "&Next", 100);
-	TextButton* back = new TextButton(x2-dx-120-pd, 0, 60, 20, "&Back", 101);
-	TextButton* quit = new TextButton(0, 0, 60, 20, "&Cancel", mrCancel);
-	
-	back->disabled = 1;
-	back->fontColor = 8;
-	back->canFocus = 0;
-	
-	buttons->Insert(next);
-	buttons->Insert(back);
-	buttons->Insert(quit);
-	
-	dialog.Insert(banner);
-	dialog.Insert(buttons);
-	
-	while(1)
-	{
-		i = 0;
-		if (curPage <= 0)
-			i += sprintf(&buffer[i], "Welcome to the map import wizard!");
-		else if (curPage == 1)
-			i += sprintf(&buffer[i], "Prepare files for importing...");
-		
-		dx = x1 + banw + pd, dy = y1;
-		Text* header = new Text(dx, y1, x2 - dx, hdhg, buffer, kTextACenter|kTextAMiddle|kTextUnderline|kTextUppercase, kColorBlue);
-		dy += hdhg;
-		
-		i = 0;
-		if (curPage <= 0)
+		int dy = 0;
+		char* headText = "Welcome to the import wizard tool!";
+		char* tWelcDesc = "This tool helps you to import maps\n"
+						  "and/or graphics from another\n"
+						  "BUILD Engine game.";
+		// ---------------------------------------------------
+		Text* head = new Text(0, dy, pgw, hdhg, headText, kHeaderFlags, kHeaderTextColor);
+		dy+=head->top+head->height;
+		// ---------------------------------------------------
+		Text* tWelcText = new Text(0, dy, pgw, 0, tWelcDesc, kTextACenter, kColorBlack, pTextFont);
+		tWelcText->height = pFont->height*tWelcText->lines;
+		dy+=tWelcText->height+10;
+		// ---------------------------------------------------
+		i = 0, j = 0, k = LENGTH(gSuppMapVersions) - 1;
+		i += sprintf(&tmp[i], "Map file versions supported:\n");
+		while(j < k)
 		{
-			i += sprintf(&buffer[i], "This tool helps you to import maps\n");
-			i += sprintf(&buffer[i], "and game graphics from another\n");
-			i += sprintf(&buffer[i], "BUILD Engine games.");
+			i += sprintf(&tmp[i], " %d", gSuppMapVersions[j++]);
+			if (j < k)
+				i += sprintf(&tmp[i], ",");
 		}
-		else if (curPage == 1)
-		{
-			i += sprintf(&buffer[i], "Select a MAP file you want to\nimport..");
-		}
+		i += sprintf(&tmp[i], " and %d.", gSuppMapVersions[j]);
+		Text* tVerText = new Text(0, dy, pgw, 0, tmp, kTextACenter|kTextAMiddle, kColorRed, pTextFont);
+		tVerText->height = pFont->height*tVerText->lines;
+		dy+=tVerText->height+10;
+		// ---------------------------------------------------
 		
-		Text* welcome = new Text(dx, dy, x2 - dx, dh>>2, buffer, kTextACenter, 0, qFonts[0]);
-		dy+=dh>>2;
-		
-		FieldSet* pMapFileFieldset = NULL;
-		if (curPage == 1)
-		{
-			pMapFileFieldset = new FieldSet(dx, dy, x2-dx, dh>>2, "Map file");
-			EditText* pMapFileTextEd	= new EditText(4, 4, (x2-dx-8)>>1, 20, NULL);
-			
-			pMapFileFieldset->Insert(pMapFileTextEd);
-			dialog.Insert(pMapFileFieldset);
-		}
-		
-		dialog.Insert(header);
-		dialog.Insert(welcome);
+		FieldSet* fMapFile  = new FieldSet(0, dy, pgw, 78, "SELECT THE MAP FILE", kFieldTitleColor, kFieldBorderColor);
+		Panel* pMapFile		= new Panel(4, 6, fMapFile->width-8, 26, 0, 0, 0, kBrowseColor);
+		lMapFile->top 		= abs((pMapFile->height>>1)-(pFont->height>>1));
+		bMapBrow->left		= pMapFile->width-bMapBrow->width-4;
+		bMapBrow->top		= abs((pMapFile->height>>1)-(20>>1));
 
-		ShowModal(&dialog);
-		switch (dialog.endState) {
-			case 100:
-			case 101:
-			dialog.Remove(header);
-			dialog.Remove(welcome);
-			switch (dialog.endState) {
-				case 100:
-					curPage++;
-					continue;
-				case 101:
-					curPage--;
-					continue;
+		pMapFile->Insert(lMapFile);		
+		pMapFile->Insert(bMapBrow);
+		fMapFile->Insert(pMapFile);
+		
+		dy = pMapFile->height+10;
+		cErsi->top+=dy;	fMapFile->Insert(cErsi);
+		cErsp->top+=dy;	fMapFile->Insert(cErsp);
+		cErss->top+=dy;	fMapFile->Insert(cErss);
+		
+		cImpArt->left = pageMap->width-cImpArt->width-4;
+		cImpArt->top  = pageMap->height-cImpArt->height-4;
+		
+		pageMap->Insert(head);
+		pageMap->Insert(tWelcText);
+		pageMap->Insert(fMapFile);
+		pageMap->Insert(tVerText);
+		pageMap->Insert(cImpArt);
+
+	}
+	//--------------------------------------------------------
+	Panel* pageArt = new Panel(pgx, pgy, pgw, pgh);
+	{
+		int dy = 0;
+		char* headText = "Prepare game graphics for import";
+		char* tArtDesc = "Select an ART files that contains\nthe graphics which used\nin this map.";
+		char* tPalDesc = "Select a correct palette that\nmatching the content of the\nselected art files.";
+		
+		Text* head  = new Text(0, 0, pgw, hdhg, headText, kHeaderFlags, kHeaderTextColor);
+		dy+=head->top+head->height+8;
+		//------------------------------------------------------------------
+		FieldSet* fArtFile		= new FieldSet(0, dy, pgw, 68, "ART FILES", kFieldTitleColor, kFieldBorderColor);
+		Panel* pArtFile			= new Panel(4, 6, fArtFile->width-8, 26, 0, 0, 0, kBrowseColor);
+		lArtFile->top			= abs((pArtFile->height>>1)-(pFont->height>>1));
+		bArtBrow->left			= pArtFile->width-bArtBrow->width-4;
+		bArtBrow->top			= abs((pArtFile->height>>1)-(20>>1));
+		Text* tArtText 			= new Text(4, 36, fArtFile->width-8, 0, tArtDesc, kTextACenter, kColorBlack, pTextFont);
+		tArtText->height 		= pFont->height*tArtText->lines;
+		dy+=fArtFile->height+16;
+		//------------------------------------------------------------------
+		FieldSet* fPalFile		= new FieldSet(0, dy, pgw, 68, "PALETTE", kFieldTitleColor, kFieldBorderColor);
+		Panel* pPalFile			= new Panel(4, 6, fPalFile->width-8, 26, 0, 0, 0, kBrowseColor);
+		bPalBrow->left			= pPalFile->width-bPalBrow->width-4;
+		bPalBrow->top			= abs((pPalFile->height>>1)-(20>>1));
+		lPalFile->top			= abs((pPalFile->height>>1)-(pFont->height>>1));
+		Text* tPalText 			= new Text(4, 36, fPalFile->width-8, 0, tPalDesc, kTextACenter, kColorBlack, pTextFont);
+		tPalText->height 		= pFont->height*tPalText->lines;
+		
+		pArtFile->Insert(lArtFile);		fArtFile->Insert(pArtFile);
+		pArtFile->Insert(bArtBrow);		fArtFile->Insert(tArtText);
+
+		pPalFile->Insert(lPalFile);		fPalFile->Insert(pPalFile);
+		pPalFile->Insert(bPalBrow);		fPalFile->Insert(tPalText);
+
+		pageArt->Insert(head);
+		pageArt->Insert(fArtFile);
+		pageArt->Insert(fPalFile);
+	}
+	//--------------------------------------------------------
+	Panel* pageArtOpts = new Panel(pgx, pgy, pgw, pgh);
+	{
+		int dy = 0;
+		char* headText = "Additional graphics import options";
+		char* tAreaDesc = "Select start tile number";
+		Text* head  = new Text(0, 0, pgw, hdhg, headText, kHeaderFlags, kHeaderTextColor);
+		dy+=head->top+head->height+8;
+		
+		//------------------------------------------------------------------
+		FieldSet* fArea			= new FieldSet(0, dy, pgw, 54, "DEFINE STARTING TILE", kFieldTitleColor, kFieldBorderColor);
+		Panel* pArea			= new Panel(4, 6, fArea->width-8, 26, 0, 0, 0, kBrowseColor);
+		bAreaBrow->left			= pArea->width-bAreaBrow->width-4;
+		bAreaBrow->top			= abs((pArea->height>>1)-(20>>1));
+		lArea->top				= abs((pArea->height>>1)-(pFont->height>>1));
+		dy+=fArea->height+16;
+		//------------------------------------------------------------------
+		FieldSet* fAdva			= new FieldSet(0, dy, pgw, 77, "ADVANCED SETTINGS", kFieldTitleColor, kFieldBorderColor);
+		
+		fAdva->Insert(cImpAnim);
+		fAdva->Insert(cImpView);
+		fAdva->Insert(cTileMap);
+		//fAdva->Insert(cOverExist);
+		fAdva->Insert(cReplaceOld);
+		fAdva->Insert(cNoDuplicate);
+		
+		cKeepOfs->top = pArea->height+10;
+		
+		pArea->Insert(lArea);		fArea->Insert(pArea);
+		pArea->Insert(bAreaBrow);	fArea->Insert(cKeepOfs);
+	
+		pageArtOpts->Insert(head);
+		pageArtOpts->Insert(fArea);
+		pageArtOpts->Insert(fAdva);
+		
+	}
+	//--------------------------------------------------------
+	Panel* pagePrep = new Panel(pgx, pgy, pgw, pgh);
+	{
+		int dy = 0;
+		char* headText = "Everything is ready for import!";
+		char* desc1 = "Click \"Import\" button to start\n"
+					  "or \"Back\" to edit the settings.\n\n"
+					  "Please, do not interrupt the import\n"
+					  "process even if it seems like\n"
+					  "is not working.";
+					  
+		Text* head  	= new Text(0, 0, pgw, hdhg, headText, kHeaderFlags, kHeaderTextColor);
+		dy+=head->top+head->height;
+		
+		Text* tDesc1	= new Text(0, dy, pgw, 0, desc1, kTextACenter, kColorBlack, pTextFont);
+		tDesc1->height	= pTextFont->height*tDesc1->lines;
+		tDesc1->top 	= ((pagePrep->height-head->height)>>1)-(tDesc1->height>>1);
+		
+		pagePrep->Insert(head);
+		pagePrep->Insert(tDesc1);
+	}
+	//--------------------------------------------------------
+	Panel* pageError = new Panel(pgx, pgy, pgw, pgh);
+	{
+		int dy = 0;
+		char* headText = "Something goes the wrong way...";
+		char* desc1 = "An error occured while importing\n"
+					  "the selected items.\n\n"
+					  "Click \"Back\" button to edit settings\n"
+					  "or \"Quit\" to quit.";
+		
+		Text* head  = new Text(0, 0, pgw, hdhg, headText, kHeaderFlags, kHeaderTextColor);
+		dy+=head->top+head->height;
+		
+		Text* tDesc1	= new Text(0, dy, pgw, 0, desc1, kTextACenter, kColorBlack, pTextFont);
+		tDesc1->height	= pTextFont->height*tDesc1->lines;
+		tDesc1->top 	= ((pagePrep->height-head->height)>>1)-(tDesc1->height>>1);
+		
+		pageError->Insert(head);
+		pageError->Insert(tDesc1);
+	}
+	//--------------------------------------------------------
+	Panel* pageDone = new Panel(pgx, pgy, pgw, pgh);
+	{
+		int dy = 0;
+		char* headText = "Finishing the import process!";
+		char* desc1    = "Selected items were successfully\nimported!\n\n\n"
+					     "Click \"Back\" button to import\n"
+					     "something else or \"Quit\" to\n"
+					     "quit.";
+					  
+		Text* head  = new Text(0, 0, pgw, hdhg, headText, kHeaderFlags, kHeaderTextColor);
+		dy+=head->top+head->height;
+		
+		Text* tDesc1	= new Text(0, dy, pgw, 0, desc1, kTextACenter, kColorBlack, pTextFont);
+		tDesc1->height	= pTextFont->height*tDesc1->lines;
+		tDesc1->top 	= ((pagePrep->height-head->height)>>1)-(tDesc1->height>>1);
+		
+		pageDone->Insert(head);
+		pageDone->Insert(tDesc1);
+	}
+
+	pBanner->Insert(tLogo);
+	pBanner->Insert(tVer);
+	
+	pButtons->Insert(bNext);
+	pButtons->Insert(bBack);
+	pButtons->Insert(bQuit);
+	
+	pPage = pageMap;
+	dialog.Insert(pBanner);
+	dialog.Insert(pPage);
+	dialog.Insert(pButtons);
+	
+	DlgDisableButton(bBack);
+	
+	if (pMapArg)
+	{
+		sprintf(pthmap, pMapArg->filepath);
+		mapVersion 		= pMapArg->version;
+		bloodMap 		= pMapArg->blood;
+		pMapIo 			= pMapArg->pIo;
+		selmap 			= 1;
+		
+		lMapFile->fontColor = kColorDarkGray;
+		sprintf(pthmap, pMapArg->filepath);
+		DlgDisableButton(bMapBrow);
+		dialog.SetFocusOn(bNext);
+	}
+	else
+	{
+		DlgDisableButton(bNext);
+		dialog.SetFocusOn(bMapBrow);
+	}
+	
+	while( 1 )
+	{
+		if (DLGUPD)
+		{
+			if (cKeepOfs->checked)
+			{
+				lArea->fontColor = kColorDarkGray;
+				DlgDisableButton(bAreaBrow);
+				DlgDisableCheckbox(cTileMap, 0);
+				DlgDisableCheckbox(cReplaceOld, 1);
 			}
-			case mrCancel:
-				break;
+			else
+			{
+				lArea->fontColor = kColorRed;
+				DlgEnableButton(bAreaBrow);
+				DlgEnableCheckbox(cTileMap);
+				DlgEnableCheckbox(cReplaceOld);
+			}
 			
+			if (selmap)
+			{
+				getFilename(pthmap, tmp, TRUE);
+				sprintf(lMapFile->string, "%s (v%d, %s)", tmp, mapVersion, (bloodMap) ? "Blood" : "Build");
+				strupr(lMapFile->string);
+				
+				if (pPage == pageMap)
+					DlgEnableButton(bNext);
+				
+				if (!bloodMap)
+					DlgDisableCheckbox(cImpView, 0);
+			}
+			
+			sprintf(lArea->string, "Tile #%d", nStartTile);
+			strupr(lArea->string);
+			DLGUPD = FALSE;
+		}
+		
+		ShowModal(&dialog, kModalNoCenter|kModalNoFocus);
+		dialog.ClearFocus();
+				
+		switch (dialog.endState) {
+			case 100:	// prev page
+			//------------------------------------------------------------------
+				dialog.Remove(pPage);
+				
+				if (pPage == pageMap)			pPage = (cImpArt->checked) ? pageArt : pagePrep;
+				else if (pPage == pageArt)		pPage = pageArtOpts;
+				else if (pPage == pageArtOpts)	pPage = pagePrep;
+				
+				dialog.Insert(pPage);
+				
+				if (pPage != pageMap) DlgEnableButton(bBack);
+				if (pPage == pageArt && (!selpal || !nArtFiles)) DlgDisableButton(bNext);
+				else if (pPage == pagePrep)
+				{
+					bNext->text		= guiTxt[3];
+					bNext->result	= 103;
+				}
+				continue;
+			case 101:	// next page
+			//------------------------------------------------------------------
+				dialog.Remove(pPage);
+				if (pPage == pagePrep || pPage == pageError || pPage == pageDone)
+				{
+					pPage = (cImpArt->checked) ? pageArtOpts : pageMap;
+					bNext->text = guiTxt[2];
+					bNext->result = 100;
+					DlgEnableButton(bNext);
+				}
+				else if (pPage == pageArtOpts)
+				{
+					pPage = pageArt;
+				}
+				else if (pPage == pageArt)
+				{
+					pPage = pageMap;
+					DlgDisableButton(bBack);
+				}
+				
+				if (pPage == pageMap && selmap) DlgEnableButton(bNext);
+				dialog.Insert(pPage);
+				continue;
+			case 102:	// select map
+			//------------------------------------------------------------------
+				while ( 1 )
+				{
+					errMsg = NULL;
+					if (pMapData)
+						free(pMapData), pMapData = NULL;
+					
+					if (!toolLoadAs(gPaths.maps, ".map", "Select map")) break;
+					else if ((i = fileLoadHelper(gPaths.maps, &pMapData)) >= 0)
+					{
+						pMapIo = new IOBuffer(i, pMapData);
+						i = MapCheckFile(pMapIo, gSuppMapVersions, LENGTH(gSuppMapVersions), &bloodMap);
+						
+					}
+					
+					if (i < 0)
+						errMsg = retnCodeCheck(i, gMapErrorsCommon);
+					
+					getFilename(gPaths.maps, tmp, TRUE);
+					if (!errMsg)
+					{
+						sprintf(pthmap, gPaths.maps);
+						mapVersion = i;
+						DLGUPD = TRUE;
+						selmap = 1;
+						break;
+					}
+					else
+					{
+						Alert("Error #%d in %s: %s", abs(i), strupr(tmp), errMsg);
+					}
+				}
+				continue;
+			case 103:	// start import
+				i = -1;
+				
+				// import map
+				if (selmap)
+				{
+					boardReset();
+					
+					if (!bloodMap)
+					{
+						i = dbLoadBuildMap(pMapIo);
+					}
+					else
+					{
+						i = dbLoadMap(pMapIo, pthmap);
+					}
+								
+					if (i >= 0)
+					{
+						if (cErss->checked) MapEraseSprites();
+						if (cErsi->checked) MapEraseInfo();
+						if (cErsp->checked) MapErasePalookups();
+						gMapLoaded = TRUE;
+						sprintf(gPaths.maps, pthmap);
+						updatesector(posx, posy, &cursectnum);
+						updatenumsprites();
+						clampCamera();
+						retn |= 0x01;
+					}
+				}
+				
+				// import art
+				if (cImpArt->checked)
+				{
+					artFlags = kFlgOverwrite;
+					if (cReplaceOld->checked)	artFlags |= kFlgReplace;
+					if (bloodMap)				artFlags |= kFlgMapTypeBlood;
+					if (cKeepOfs->checked)		artFlags |= kFlgKeepOffset;
+					if (cImpAnim->checked)		artFlags |= kFlgImportAnim;
+					if (cImpView->checked)		artFlags |= kFlgImportView;
+					if (cNoDuplicate->checked)	artFlags |= kFlgCompareTiles;
+					if (!cTileMap->checked)		artFlags |= kFlgNoTileMap;
+					
+					i = toolMapArtGrabber(pArtFiles, nArtFiles, pal, nStartTile, gSkyCount, artFlags);
+					if (i < 0)
+						Alert("ART Import Error #%d: %s.", abs(i), retnCodeCheck(i, gMapArtImportErrors));
+					else
+						retn |= 0x02;
+				}
+				
+				dialog.Remove(pPage);
+				pPage = pageError;
+				if (selmap && (retn & 0x01))
+				{
+					MapClipPicnums();
+					CleanUp();
+					
+					processDrawRooms();
+					if (!cImpArt->checked || (retn & 0x02))
+						pPage = pageDone;
+					
+				}
+				DlgDisableButton(bNext);
+				dialog.Insert(pPage);
+				continue;
+			case 110:	// select art
+			case 120:	// select palette
+			//------------------------------------------------------------------
+			switch (dialog.endState) {
+				case 110:
+				//------------------------------------------------------------------
+					if (toolLoadAsMulti(gPaths.maps, ".art", "Select files") > 0)
+					{
+						if (pArtFiles)
+							free(pArtFiles), pArtFiles = NULL;
+						
+						k = -1;
+						nArtFiles = 0, i = -1;
+						while(enumSelected(&i, tmp))
+						{
+							errMsg = NULL;
+							pArtFiles = (ARTFILE*)realloc(pArtFiles, sizeof(ARTFILE)*(nArtFiles+1));
+							
+							sprintf(pArtFiles[nArtFiles].path, tmp);
+							j = readArtHead(pArtFiles[nArtFiles].path, &start, &end, &sixofs, &siyofs, &pnmofs, &datofs);						
+							if (j < 0)
+								errMsg = retnCodeCheck(j, gArtErrorsCommon);
+							
+							// additional check for localtilestart because of 7paladins...
+							if (!errMsg && start == k)
+								j = -10, errMsg = retnCodeCheck(j, gArtErrorsCommon);
+							
+							k = start;
+							char tmp2[_MAX_PATH];
+							getFilename(tmp, tmp2, TRUE);
+							if (!errMsg)
+							{
+								pArtFiles[nArtFiles].start = start; pArtFiles[nArtFiles].end = end;
+								nArtFiles++;
+							}
+							else if (!Confirm("Error #%d in %s: %s. Skip it?", abs(j), tmp2, errMsg))
+							{
+								nArtFiles = 0;
+								break;
+							}
+						}
+						
+						if (nArtFiles)
+						{
+							sprintf(lArtFile->string, "%d files selected", nArtFiles);
+							sprintf(pthart, gPaths.maps);
+							strupr(lArtFile->string);
+						}
+					}
+					break;
+				case 120:
+				//------------------------------------------------------------------
+					if (artedDlgSelPal("Load palette", gPaths.maps, pal) < 0) continue;
+					getFilename(gPaths.maps, tmp, TRUE);
+					sprintf(lPalFile->string, strupr(tmp));
+					sprintf(pthpal, gPaths.maps);
+					selpal = 1;
+					break;
+			}
+			if (nArtFiles && selpal) DlgEnableButton(bNext); else DlgDisableButton(bNext);
+			continue;
+			//------------------------------------------------------------------
+			case 130:	// select starting tile
+				j = bytesperline*ydim;
+				if ((pScreen = (BYTE*)malloc(j)) != NULL)
+					memcpy(pScreen, (void*)frameplace, j);
+				
+				while( 1 )
+				{
+					if (pScreen) memcpy((void*)frameplace, pScreen, j);
+					if ((i = tilePick(nStartTile, -1, OBJ_ALL, "Pick start tile (can be empty)", kTilePickFlgAllowEmpty)) < 0)
+						break;
+					
+					nStartTile = i;
+					break;
+				}
+				
+				if (pScreen)
+				{
+					memcpy((void*)frameplace, pScreen, j);
+					free(pScreen), pScreen = NULL;
+				}
+				// no break
+			case 131:
+				DLGUPD = TRUE;
+				continue;
+			//------------------------------------------------------------------
+			case mrCancel:
+				if (!retn) retn = -1;
+				break;
+			//------------------------------------------------------------------
+			default:
+				continue;
 		}
 		
 		break;
 	}
 	
-		//i = 0, j = 0, k = LENGTH(gSuppMapVersion) - 1;
-		//i += sprintf(&buffer[i], "Map versions supported:");
-		//while(j < k)
-		//{
-			//i += sprintf(&buffer[i], " %d", gSuppMapVersion[j++]);
-			//if (j < k)
-				//i += sprintf(&buffer[i], ",");
-		//}
-		//i += sprintf(&buffer[i], " and %d.", gSuppMapVersion[j]);
+	Free();
+	
+	// save ckeckbox states
+	pPrefs->mapErsSpr 		= cErss->checked;
+	pPrefs->mapErsPal 		= cErsp->checked;
+	pPrefs->mapErsInfo 		= cErsi->checked;
+	pPrefs->mapImpotArt		= cImpArt->checked;
+	
+	pPrefs->artKeepOffset	= cKeepOfs->checked;
+	pPrefs->artImportAnim	= cImpAnim->checked;
+	pPrefs->artImportView	= cImpView->checked;
+	pPrefs->artTileMap		= cTileMap->checked;
+	pPrefs->artChgTilenums	= cReplaceOld->checked;
+	pPrefs->artNoDuplicates	= cNoDuplicate->checked;
+	
+	return retn;
+	
+}
+
+void IMPORT_WIZARD::DlgDisableButton(TextButton* pButton)
+{
+	pButton->disabled  = 1;
+	pButton->canFocus  = 0;
+	pButton->fontColor = kColorDarkGray;
+}
+
+void IMPORT_WIZARD::DlgEnableButton(TextButton* pButton, char fontColor)
+{
+	pButton->disabled  = 0;
+	pButton->canFocus  = 1;
+	pButton->fontColor = fontColor;
+}
+
+void IMPORT_WIZARD::DlgDisableCheckbox(Checkbox* pButton, int checked)
+{
+	pButton->disabled  = 1;
+	pButton->canFocus  = 0;
+	
+	if (checked == 0)
+		pButton->checked = 0;
+	else if (checked == 1)
+		pButton->checked = 1;
+}
+
+void IMPORT_WIZARD::DlgEnableCheckbox(Checkbox* pButton, int checked, char fontColor)
+{
+	pButton->disabled  = 0;
+	pButton->canFocus  = 1;
+	
+	if (checked == 0)
+		pButton->checked = 0;
+	else if (checked == 1)
+		pButton->checked = 1;
+}
+
+void IMPORT_WIZARD::MapClipPicnums()
+{
+	int i, j, swal, ewal, nPicMax = gMaxTiles-1;
+	for (i = 0; i < numsectors; i++)
+	{
+		sectortype* pSect = &sector[i];
+		pSect->floorpicnum = ClipRange(pSect->floorpicnum, 0, nPicMax);
+		pSect->ceilingpicnum = ClipRange(pSect->ceilingpicnum, 0, nPicMax);
 		
-		//Label* versions = new Label(dx, dy, buffer);
-		//dialog.Insert(versions);
+		getSectorWalls(i, &swal, &ewal);
+		for (j = swal; j <= ewal; j++)
+		{
+			walltype* pWall = &wall[j];
+			pWall->picnum = ClipRange(pWall->picnum, 0, nPicMax);
+			pWall->overpicnum = ClipRange(pWall->overpicnum, 0, nPicMax);
+		}
+		
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+		{
+			spritetype* pSpr = &sprite[j];
+			pSpr->picnum = ClipRange(pSpr->picnum, 0, nPicMax);
+		}
+	}
+}
+
+void IMPORT_WIZARD::ArtSetStartTile()
+{
+	nStartTile = gMaxTiles - 1;
+	do { nStartTile--; } while(nStartTile >= 0 && !tilesizx[nStartTile] && !isSysTile(nStartTile));
+	nStartTile++;
+}
+
+void IMPORT_WIZARD::MapEraseSprites()
+{
+	int i, j;
+	for (i = 0; i < numsectors; i++)
+	{
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+		{
+			if (bloodMap && sprite[j].statnum == kStatMarker)
+				continue;
+			
+			DeleteSprite(j);
+		}
+	}
+}
+
+void IMPORT_WIZARD::MapErasePalookups(char nPalookup)
+{
+	int i, j, swal, ewal;
+	for (i = 0; i < numsectors; i++)
+	{
+		sector[i].floorpal	 = nPalookup;
+		sector[i].ceilingpal = nPalookup;
+		
+		getSectorWalls(i, &swal, &ewal);
+		for (j = swal; j <= ewal; j++)
+			wall[j].pal = nPalookup;
+		
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+			sprite[j].pal = nPalookup;
+	}		
+}
+
+void IMPORT_WIZARD::MapEraseInfo()
+{
+	short cstat;
+	int i, j, swal, ewal;
+	for (i = 0; i < numsectors; i++)
+	{
+		sectortype* pSect = &sector[i];
+		
+		pSect->alignto = 0;
+		pSect->hitag = pSect->lotag = 0;	
+		if (bloodMap)
+		{
+			if (pSect->extra > 0)
+				dbDeleteXSector(pSect->extra);
+		}
+		else
+		{
+			// cleanup cstat			
+			cstat = pSect->floorstat;	pSect->floorstat = 0;
+			if (cstat & kSectParallax)	pSect->floorstat |= kSectParallax;
+			if (cstat & kSectSloped)	pSect->floorstat |= kSectSloped;
+			if (cstat & kSectExpand)	pSect->floorstat |= kSectExpand;
+			if (cstat & kSectRelAlign)	pSect->floorstat |= kSectRelAlign;
+			switch ((j = (cstat & kSectFlipMask)))
+			{
+				case 0x04:	case 0x10:
+				case 0x14:	case 0x20:
+				case 0x24:	case 0x30:
+				case 0x34:	pSect->floorstat |= (BYTE)j;	break;
+			}
+			
+			cstat = pSect->ceilingstat;	pSect->ceilingstat = 0;
+			if (cstat & kSectParallax)	pSect->ceilingstat |= kSectParallax;
+			if (cstat & kSectSloped)	pSect->ceilingstat |= kSectSloped;
+			if (cstat & kSectExpand)	pSect->ceilingstat |= kSectExpand;
+			if (cstat & kSectRelAlign)	pSect->ceilingstat |= kSectRelAlign;
+			switch ((j = (cstat & kSectFlipMask)))
+			{
+				case 0x04:	case 0x10:
+				case 0x14:	case 0x20:
+				case 0x24:	case 0x30:
+				case 0x34:	pSect->ceilingstat |= (BYTE)j;	break;
+			}
+		}
+		
+		getSectorWalls(i, &swal, &ewal);
+		for (j = swal; j <= ewal; j++)
+		{
+			walltype* pWall = &wall[j];
+			pWall->hitag = pWall->lotag = 0;
+			if (bloodMap)
+			{
+				if (pWall->extra > 0)
+					dbDeleteXWall(pWall->extra);
+			}
+			else
+			{
+				// cleanup cstat
+				cstat = pWall->cstat;		pWall->cstat = 0;
+				if (cstat & kWallBlock)		pWall->cstat |= kWallBlock;
+				if (cstat & kWallSwap)		pWall->cstat |= kWallSwap;
+				if (cstat & kWallOrgBottom)	pWall->cstat |= kWallOrgBottom;
+				if (cstat & kWallFlipX)		pWall->cstat |= kWallFlipX;
+				if (cstat & kWallFlipY)		pWall->cstat |= kWallFlipY;
+				if (cstat & kWallMasked)	pWall->cstat |= kWallMasked;
+				if (cstat & kWallOneWay)	pWall->cstat |= kWallOneWay;
+				if (cstat & kWallHitscan)	pWall->cstat |= kWallHitscan;
+				if (cstat & kWallTransluc)	pWall->cstat |= kWallTransluc;
+			}
+		}
+		
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+		{
+			spritetype* pSpr = &sprite[j];
+			pSpr->hitag = pSpr->lotag = pSpr->detail = 0;
+			pSpr->owner = -1;
+			
+			if (bloodMap)
+			{
+				if (pSpr->extra > 0)
+					dbDeleteXSprite(pSpr->extra);
+			}
+			else
+			{
+				// cleanup cstat
+				cstat = pSpr->cstat;		pSpr->cstat = 0;
+				if (cstat & kSprBlock)		pSpr->cstat |= kSprBlock;
+				if (cstat & kSprTransluc1)	pSpr->cstat |= kSprTransluc1;
+				if (cstat & kSprFlipX)		pSpr->cstat |= kSprFlipX;
+				if (cstat & kSprFlipY)		pSpr->cstat |= kSprFlipY;
+				if (cstat & kSprOneSided)	pSpr->cstat |= kSprOneSided;
+				switch(cstat & kSprRelMask)
+				{
+					case kSprFace: 			pSpr->cstat |= kSprFace; 		break;
+					case kSprWall: 			pSpr->cstat |= kSprWall; 		break;
+					case kSprFloor: 		pSpr->cstat |= kSprFloor; 		break;
+				}
+				if (cstat & kSprOrigin)		pSpr->cstat |= kSprOrigin;
+				if (cstat & kSprHitscan)	pSpr->cstat |= kSprHitscan;
+				if (cstat & kSprInvisible)	pSpr->cstat |= kSprInvisible;
+			}
+		}
+	}
+
+	eraseExtra();
+}
+
+void IMPORT_WIZARD::MapAdjustShade(int nPalookus)
+{
+	// Blood has 64 palookups, so treat it as 100%
+	// Generic Build games mostly using 32, but
+	// Exhumed has 16
 	
-	//if (nTile >= 0)
-		//tileFreeTile(nTile);
+	int perc = (nPalookus * 100) / 64;
+	int i, j, swal, ewal;
+
+	for (i = 0; i < numsectors; i++)
+	{
+		sector[i].ceilingshade = (schar)ClipRange(sector[i].ceilingshade + perc2val(sector[i].ceilingshade, perc), -64, 63);
+		sector[i].floorshade   = (schar)ClipRange(sector[i].floorshade   + perc2val(sector[i].floorshade,   perc), -64, 63);
+		
+		getSectorWalls(i, &swal, &ewal);
+		for (j = swal; j <= ewal; j++)
+			wall[j].shade = (schar)ClipRange(wall[j].shade + perc2val(wall[j].shade, perc), -64, 63);
+		
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+			sprite[j].shade = (schar)ClipRange(sprite[j].shade + perc2val(sprite[j].shade, perc), -64, 63);
+	}
+}
+
+int IMPORT_WIZARD::MapCheckFile(IOBuffer* pIo, int* pSuppVerDB, int DBLen, BOOL* bloodMap)
+{
+	return dbCheckMap(pIo, pSuppVerDB, DBLen, bloodMap);
+}
+
+void IMPORT_WIZARD::Init()
+{
+	bloodMap = 0;
+	selmap = 0;
+	selpal = 0;
+	mapVersion = -1;
+	nArtFiles = 0;
 	
-	return;
-} */
+	pArtFiles = NULL;
+	pMapData  = NULL;
+	
+	ArtSetStartTile();
+}
+
+void IMPORT_WIZARD::Free()
+{
+	if (pArtFiles)
+		free(pArtFiles); 
+	
+	if (pMapData)
+		free(pMapData);
+	
+	pArtFiles = NULL;
+	pMapData  = NULL;
+}

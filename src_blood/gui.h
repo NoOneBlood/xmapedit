@@ -274,6 +274,8 @@ class Container : public Widget
 		Container( int left, int top, int width, int height);
 		virtual ~Container();
 		virtual BOOL SetFocus( int dir );
+		virtual BOOL SetFocusOn(Widget* pFocus);
+		virtual void ClearFocus();
 		virtual void Paint( int x, int y, BOOL hasFocus );
 		virtual void HandleEvent( GEVENT *event );
 		virtual void EndModal( int result );
@@ -347,6 +349,7 @@ public:
 	QFONT* font;
 	ushort fontColor;
 	TextButton( int left, int top, int width, int height, char *text, int result );
+	TextButton( int left, int top, int width, int height, char *text, CLICK_PROC clickProc);
 	virtual void Paint( int x, int y, BOOL hasFocus );
 	virtual void HandleEvent( GEVENT *event );
 };
@@ -359,8 +362,8 @@ public:
 	BOOL disabled;
 	char label[64];
 	int result;
-	Checkbox(int left, int top, int itemid, BOOL value, char* l);
-	Checkbox(int left, int top, int itemid, BOOL value, char* l, int rslt);
+	Checkbox(int left, int top, BOOL value, char* l);
+	Checkbox(int left, int top, BOOL value, char* l, int rslt);
 	virtual void Paint( int x, int y, BOOL hasFocus );
 	virtual void HandleEvent( GEVENT *event );
 };
@@ -410,11 +413,14 @@ public:
 class FieldSet : public Container
 {
 public:
-	char title[128];
+	char  title[128];
+	char  fontColor, borderColor;
 	virtual void Paint( int x, int y, BOOL hasFocus );
-	FieldSet(int left, int top, int width, int height, char* s = NULL) : Container(left, top, width, height)
+	FieldSet(int left, int top, int width, int height, char* s = NULL, char fontCol = 0, short brCol = 0) : Container(left, top, width, height)
 	{
-		canFocus = FALSE;
+		canFocus	= FALSE;
+		fontColor	= fontCol;
+		borderColor	= brCol;
 		memset(title, 0, sizeof(title));
 		if (s)
 			strcpy(title, s);
@@ -478,6 +484,7 @@ public:
 enum {
 kModalNoCenter 			= 0x01,
 kModalFadeScreen		= 0x02,
+kModalNoFocus			= 0x04,
 };
 
 int ShowModal(Container *dialog, int flags = 0x0);

@@ -57,4 +57,5 @@ void ShowSpriteData(int nSprite, BOOL xFirst, BOOL dialog = TRUE);
 void controlSetReadyLabel(DIALOG_ITEM *control, char* str);
 int getlinehighlight(int nTresh, int x, int y, int nZoom);
 int getpointhighlight(int nTresh, int x, int y, int nZoom);
+void SetControlValue(DIALOG_ITEM *dialog, int group, int value );
 #endif

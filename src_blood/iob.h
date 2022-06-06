@@ -25,8 +25,8 @@
 class IOBuffer
 {
 public:
-    IOBuffer(int _nRemain, char *pBuffer);
-    char *pBuffer;
+	IOBuffer(int _nRemain, unsigned char *pBuffer);
+    unsigned char *pBuffer;
 	int nTotal, nRemain;
     void read(void *, int);
     void write(void *, int);

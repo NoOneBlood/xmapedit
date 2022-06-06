@@ -74,6 +74,8 @@ class MAP_COMMENT_MGR {
 		char* cmtins;
 		int  LoadFromIni(IniFile* pFile);
 		int  SaveToIni(IniFile* pFile);
+		int  LoadFromIni(char* filename);
+		int  SaveToIni(char* filename);
 		int  GetCRC();
 		void SetCRC(int nCRC);
 		BOOL CompareCRC(int nCRC);

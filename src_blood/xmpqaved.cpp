@@ -113,7 +113,7 @@ void QAVEDIT::Start(char* filename)
 	toolGetResTableValues();
 	toolSetOrigin(&origin, xdim >> 1, ydim >> 1);
 	mouse.Init(MapEditINI, "Mouse");
-	mouse.ClampSpeed(10, 10);
+	mouse.ClampSpeed(5, 5);
 	edit3d = (gMapLoaded && cursectnum >= 0 && screenMode == 200);
 	messageTime = 0;
 	horiz = 100; // there is no mouse look because mouse is busy
@@ -451,15 +451,15 @@ void QAVEDIT::ProcessLoop()
 					if (!Confirm("Quit now?")) break;
 					return;
 				}
-				else if ((i = YesNoCancel("Save changes?")) == mrCancel) break;
-				else if (i == mrNo) return;
+				else if ((i = DlgSaveChanges("Save changes?", gArtEd.asksave)) == -1) break;
+				else if (i == 0) return;
 				// no break
 			case KEY_F2:
 				if ((ctrl || !fileExists(gPaths.qavs)) && !toolSaveAs(gPaths.qavs, kQavExt)) break;
 				else if (!AnimSave(gPaths.qavs)) Alert("Failed to save file \"%s\"", gPaths.qavs);
 				else
 				{
-					if (gArtEd.asksave) artedSaveChanges();
+					if (i > 1) artedSaveChanges();
 					scrSetMessage("Saved to \"%s\"", gPaths.qavs);
 					rffID = -1;
 				}
@@ -644,7 +644,7 @@ void QAVEDIT::ProcessLoop()
 		else if (keytimer < totalclock)
 		{
 			i = 0;
-			keytimer = totalclock + 4;
+			keytimer = totalclock + 6;
 			BOOL UP = ((!edit3d && keystatus[KEY_UP])    || keystatus[KEY_PADUP]);
 			BOOL DW = ((!edit3d && keystatus[KEY_DOWN])  || keystatus[KEY_PADDOWN]);
 			BOOL LT = ((!edit3d && keystatus[KEY_LEFT])  || keystatus[KEY_PADLEFT]);

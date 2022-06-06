@@ -27,7 +27,7 @@
 #include "iob.h"
 #include "gui.h"
 
-IOBuffer::IOBuffer(int _nRemain, char *_pBuffer)
+IOBuffer::IOBuffer(int _nRemain, unsigned char *_pBuffer)
 {
 	dassert(_pBuffer != NULL);
 	dassert(_nRemain >= 0);

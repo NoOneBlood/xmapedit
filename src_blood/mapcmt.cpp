@@ -32,6 +32,7 @@
 #include "gui.h"
 #include "db.h"
 #include "preview.h"
+#include "misc.h"
 
 short cmthglt = -1;
 MAP_COMMENT_MGR gCommentMgr;
@@ -83,6 +84,21 @@ int MAP_COMMENT_MGR::LoadFromIni(IniFile* pFile)
 	
 }
 
+int MAP_COMMENT_MGR::LoadFromIni(char* filename)
+{
+	char temp[_MAX_PATH];
+	int retn = 0;
+	
+	sprintf(temp, filename);
+	ChangeExtension(temp, kCommentExt);
+	
+	IniFile* pComment = new IniFile(temp);
+	retn = LoadFromIni(pComment);
+	delete(pComment);
+	
+	return retn;
+}
+
 int MAP_COMMENT_MGR::SaveToIni(IniFile* pFile)
 {
 	int i, j = 0;
@@ -124,6 +140,26 @@ int MAP_COMMENT_MGR::SaveToIni(IniFile* pFile)
 	
 	return i;
 	
+}
+
+int MAP_COMMENT_MGR::SaveToIni(char* filename)
+{
+	char temp[_MAX_PATH];
+	int retn = 0;
+	
+	sprintf(temp, filename);
+	ChangeExtension(temp, kCommentExt);
+	if (fileExists(temp))
+		unlink(temp);
+	
+	if (commentsCount > 0)  // save comments
+	{
+		IniFile* pFile = new IniFile(temp);
+		retn = SaveToIni(pFile);
+		delete pFile;
+	}
+	
+	return retn;
 }
 
 int MAP_COMMENT_MGR::GetCRC()
@@ -402,9 +438,9 @@ int MAP_COMMENT_MGR::ShowDialog(int xpos1, int ypos1, int xpos2, int ypos2, int 
 		Shape* pBgShape = new Shape(x+3, 23, 95, 4, (backColor >= 0) ? backColor : kColorBackground);		
 		x+=pBgButton->width;
 
-		Checkbox* pStand  = new Checkbox(x+2, 3,  0, standalone, "&Standalone comment", 102);		
-		Checkbox* pArrow  = new Checkbox(x+2, 16, 0, arrow, "With &tracer", 103);
-		Checkbox* pThick  = new Checkbox(x+92, 16, 0, thick, "t&hick", 104);
+		Checkbox* pStand  = new Checkbox(x+2, 3,   standalone, "&Standalone comment", 102);		
+		Checkbox* pArrow  = new Checkbox(x+2, 16,  arrow, "With &tracer", 103);
+		Checkbox* pThick  = new Checkbox(x+92, 16, thick, "t&hick", 104);
 		
 		x = dwh-60;
 		TextButton* pCancel = new TextButton(x, 0, 60, 30, "&Quit", mrCancel);

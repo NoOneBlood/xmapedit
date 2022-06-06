@@ -42,6 +42,7 @@
 #include "replace.h"
 #include "misc.h"
 #include "osd.h"
+#include "crc32.h"
 #include "xmpror.h"
 #include "img2tile.h"
 #include "xmparted.h"
@@ -377,14 +378,14 @@ void tileInitSystemTiles() {
 	
 	if ((hIco = gGuiRes.Lookup((unsigned int)0, "TGA")) && (nTile = tileGetBlank()) > 0)
 	{
-		tga2tile((char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
 		gSysTiles.xmpIco = nTile;
 		gSysTiles.add(nTile);
 	}
 
 	if ((hIco = gGuiRes.Lookup((unsigned int)1, "TGA")) && (nTile = tileGetBlank()) > 0)
 	{
-		tga2tile((char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
 		gSysTiles.noTileIco = nTile;
 		gSysTiles.add(nTile);
 	}
@@ -636,7 +637,7 @@ void tileFreeTile( int nTile )
 void tilePreloadTile( int nTile, int objType )
 {
 	int nCount = 0;
-	switch (panm[nTile].view)
+	switch (viewType[nTile])
 	{
 		case kSprViewSingle:
 			nCount = 1;
@@ -1371,20 +1372,8 @@ int tileCountColors(int nTile) {
 	BYTE* pTile = NULL;
 	if ((pTile = tileLoadTile(nTile)) == NULL)
 		return 0;
-
-	int i = 0, j = 0, count = 0;
-
-	int colors[256];
-	memset(colors, -1, sizeof(colors));
-
-	for (i = 0; i < tilesizx[nTile]*tilesizy[nTile]; i++) {
-		if (colors[pTile[i]] == -1) {
-			colors[pTile[i]] = 1;
-			count++;
-		}
-	}
-
-	return count;
+	
+	return countUniqBytes(pTile, tilesizx[nTile]*tilesizy[nTile]);
 }
 
 BOOL tileHasColor(int nTile, char color)
@@ -1535,12 +1524,27 @@ void tileDrawTile(int x, int y, short pic, int size, short plu, char flags, scha
 
 }
 
+int tileExists(BYTE* image, int wh, int hg) {
+	
+	int i, len = wh*hg;
+	for (i = 0; i < gMaxTiles; i++)
+	{
+		if (wh != tilesizx[i] || hg != tilesizy[i]) continue;
+		else if (tileLoadTile(i) && memcmp((void*)waloff[i], image, len) == 0)
+			return i;
+	}
+	
+	return -1;
+}
+
+
 void tileShowInfoWindow(int nTile) {
 
 	int x = 6, y = 4, len;
+	BYTE* pTile = tileLoadTile(nTile);
 	sprintf(buffer, "Tile #%d properties", nTile);
 	Window dialog(0, 0, 162, ydim, buffer);
-
+	
 	y+=4;
 	dialog.Insert(new Label(x, y, ">BASICS", kColorRed));
 	y+=12;
@@ -1673,6 +1677,12 @@ void tileShowInfoWindow(int nTile) {
 		y+=10;
 	}
 	
+	if (pTile)
+	{
+		sprintf(buffer, "CRC32: %x", crc32once(pTile, tilesizx[nTile]*tilesizy[nTile]));
+		dialog.Insert(new Label(x, y, buffer));
+		y+=10;
+	}
 	
 	sprintf(buffer, "Favorited: %s", yesNo(tileInFaves(nTile) >= 0));
 	dialog.Insert(new Label(x, y, buffer));

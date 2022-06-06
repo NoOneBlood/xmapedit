@@ -43,6 +43,7 @@
 #include "xmpexplo.h"
 #include "xmpconf.h"
 #include "xmptools.h"
+#include "xmpsky.h"
 #include "xmpmisc.h"
 
 /*******************************************************************************
@@ -64,8 +65,6 @@ static int SectorArea[kMaxSectors];
 static int WallNx[kMaxWalls], WallNy[kMaxWalls];
 static int FloorNx[kMaxSectors], FloorNy[kMaxSectors], FloorNz[kMaxSectors];
 static int CeilNx[kMaxSectors], CeilNy[kMaxSectors], CeilNz[kMaxSectors];
-
-
 
 
 void SetCeilingZ( int nSector, int z )
@@ -952,7 +951,7 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
 		case kDudeSpiderBlack:
 		case kDudeSpiderMother:
 		case kDudeBat:
-			if (where != OBJ_CEILING || (sector[nSector].ceilingstat & kSectParallax)) break;
+			if (where != OBJ_CEILING || isSkySector(nSector, searchstat)) break;
 			else if (pSprite->type == kDudeBat) pSprite->picnum = 1948; // make picnum ceiling bat
 			else pSprite->cstat |= kSprFlipY; // invert ceiling spiders
 			break;
@@ -1644,7 +1643,7 @@ void ProcessKeys3D( void )
 				break;
 		}
 	}
-
+		
 	switch (key) {
 		case KEY_A:
 		case KEY_Z:
@@ -1908,7 +1907,7 @@ void ProcessKeys3D( void )
 					case OBJ_CEILING:
 						for (i = 0; i < numsectors; i++)
 						{
-							if ( sector[i].ceilingstat & kSectParallax )
+							if (isSkySector(i, searchstat))
 							{
 								sector[i].ceilingpicnum = temppicnum;
 								sector[i].ceilingshade = tempshade;
@@ -1927,7 +1926,7 @@ void ProcessKeys3D( void )
 					case OBJ_FLOOR:
 						for (i = 0; i < numsectors; i++)
 						{
-							if ( sector[i].floorstat & kSectParallax )
+							if (isSkySector(i, searchstat))
 							{
 								sector[i].floorpicnum = temppicnum;
 								sector[i].floorshade = tempshade;
@@ -1975,11 +1974,11 @@ void ProcessKeys3D( void )
 							sector[searchsector].visibility = tempvisibility;
 
 							// if this sector is a parallaxed sky...
-							if (sector[searchsector].ceilingstat & kSectParallax)
+							if (isSkySector(searchsector, searchstat))
 							{
 								// propagate shade data on all parallaxed sky sectors
 								for (i = 0; i < numsectors; i++)
-									if (sector[i].ceilingstat & kSectParallax)
+									if (isSkySector(i, searchstat))
 									{
 										sector[i].ceilingshade = tempshade;
 										sector[i].ceilingpal = temppal;
@@ -2149,6 +2148,11 @@ void ProcessKeys3D( void )
 								sector[searchsector].ceilingstat |= kSectSloped;
 							break;
 					}
+					if (isSkySector(searchsector, searchstat))
+					{
+						Sky::FixPan(searchsector, searchstat, FALSE);
+						Sky::Setup(searchsector, searchstat, sector[searchsector].ceilingshade, sector[searchsector].ceilingpal, sector[searchsector].ceilingpicnum, -1, -1, FALSE);
+					}
 					break;
 				case OBJ_FLOOR:
 					sector[searchsector].floorpicnum = temppicnum;
@@ -2165,6 +2169,11 @@ void ProcessKeys3D( void )
 							if ((ostat & kSectSloped) && !(sector[searchsector].floorstat & kSectSloped))
 								sector[searchsector].floorstat |= kSectSloped;
 							break;
+					}
+					if (isSkySector(searchsector, searchstat))
+					{
+						Sky::FixPan(searchsector, searchstat, FALSE);
+						Sky::Setup(searchsector, searchstat, sector[searchsector].floorshade, sector[searchsector].floorpal, sector[searchsector].floorpicnum, -1, -1, FALSE);
 					}
 					break;
 				case OBJ_SPRITE:
@@ -2833,37 +2842,8 @@ void ProcessKeys3D( void )
 					break;
 				}
 				case OBJ_FLOOR:
-					if (!alt) {
-
-						if (sector[searchsector].ceilingstat & kSectParallax)
-							sector[searchsector].floorstat ^= kSectShadeFloor;
-
-						scrSetMessage("Forced floor shading for sector #%d is %s", searchsector, onOff(sector[searchsector].floorstat & kSectShadeFloor));
-
-					} else if (Confirm("Enable floor shade on all parallaxed sectors?")) {
-
-						for (i = 0; i < kMaxSectors; i++) {
-							if ((sector[i].ceilingstat & kSectParallax) && !(sector[i].floorstat & kSectShadeFloor))
-								sector[i].floorstat |= kSectShadeFloor;
-						}
-
-						scrSetMessage("Global floor shade enabled!");
-						BeepOk();
-
-					}
-					break;
 				case OBJ_CEILING:
-					if (alt && Confirm("Enable ceiling shade on all parallaxed sectors?")) {
-
-						for (i = 0; i < kMaxSectors; i++) {
-							if (sector[i].floorstat & kSectShadeFloor)
-								sector[i].floorstat &= ~kSectShadeFloor;
-						}
-
-						scrSetMessage("Global floor shade disabled!");
-						BeepOk();
-
-					}
+					Beep(Sky::ToggleFloorShade(searchsector, alt));
 					break;
 				default:
 					BeepFail();
@@ -2924,53 +2904,46 @@ void ProcessKeys3D( void )
 			}
 			break;
 		case KEY_P: {
-			if (ctrl) {
-
-				if (alt) {
-
-					int nTile = -1;
-					switch (searchstat) {
-						case OBJ_FLOOR:
-							if (!(sector[searchsector].ceilingstat & kSectParallax)) break;
-							else nTile = sector[searchsector].floorpicnum;
-							break;
-						case OBJ_CEILING:
-							if (!(sector[searchsector].ceilingstat & kSectParallax)) break;
-							else nTile = sector[searchsector].ceilingpicnum;
-							break;
-					}
-
-					if (nTile >= 0) {
-
-						i = (10 - (picsiz[nTile] & 0x0F));
-						pskybits = (short)IncRotate(pskybits, 6);
-						gCustomSkyBits = (BOOL)(i != pskybits);
-						SetupSky(nTile);
-
-						scrSetMessage("Parallax tiles: %i", gSkyCount);
-						BeepOk();
-
-					} else {
-
-						scrSetMessage("Must aim in parallax sector.");
-						BeepFail();
-					}
-
-				} else {
-
-					parallaxtype = (char)IncRotate(parallaxtype, 3);
-					scrSetMessage("Parallax type: %i", parallaxtype);
-					BeepOk();
-
+			if (ctrl)
+			{
+				int nTile = -1;
+				switch (searchstat) {
+					case OBJ_FLOOR:
+						if (!isSkySector(searchsector, searchstat)) break;
+						else nTile = sector[searchsector].floorpicnum;
+						break;
+					case OBJ_CEILING:
+						if (!isSkySector(searchsector, searchstat)) break;
+						else nTile = sector[searchsector].ceilingpicnum;
+						break;
 				}
+
+				if (Beep(nTile >= 0))
+				{
+					if (alt)
+					{
+						Sky::ToggleBits(nTile);
+					}
+					else
+					{
+						parallaxtype = (char)IncRotate(parallaxtype, 3);
+						scrSetMessage("Parallax type: %i", parallaxtype);
+					}
+				}
+				else
+				{
+					scrSetMessage("Must aim in parallax sector.");
+				}
+				
 				break;
 			}
-
+			
 			if (alt || shift)
 			{
 				char nPlu;
 				short nPic, nIdx, nStat = searchstat;
-
+				
+				i = 1;
 				switch (searchstat) {
 					case OBJ_WALL:
 					case OBJ_MASKED:
@@ -2979,7 +2952,7 @@ void ProcessKeys3D( void )
 						nIdx = searchwall;
 						if (shift) wall[searchwall].pal = getPLU(nPic, &nPlu, (BOOL)(shift & 0x01));
 						else wall[searchwall].pal = nPlu = (char)GetNumberBox("Wall palookup", nPlu, nPlu);
-						//else wall[searchwall].pal = nPlu =  toolGetPluDlg(nPic, nPlu);//wall[searchwall].pal = nPlu = (char)GetNumberBox("Wall palookup", nPlu, nPlu);
+						i = 0;
 						break;
 					case OBJ_CEILING:
 						nPic = sector[searchsector].ceilingpicnum;
@@ -2988,6 +2961,10 @@ void ProcessKeys3D( void )
 						nStat = OBJ_SECTOR;
 						if (shift) sector[searchsector].ceilingpal = getPLU(nPic, &nPlu, (BOOL)(shift & 0x01));
 						else sector[searchsector].ceilingpal = nPlu = (char)GetNumberBox("Ceiling palookup", nPlu, nPlu);
+						if (isSkySector(searchsector, searchstat))
+							i = Sky::SetPal(searchsector, searchstat, nPlu, FALSE);
+						else
+							i = 0;
 						break;
 					case OBJ_FLOOR:
 						nPic = sector[searchsector].floorpicnum;
@@ -2996,6 +2973,10 @@ void ProcessKeys3D( void )
 						nStat = OBJ_SECTOR;
 						if (shift) sector[searchsector].floorpal = getPLU(nPic, &nPlu, (BOOL)(shift & 0x01));
 						else sector[searchsector].floorpal = nPlu = (char)GetNumberBox("Floor palookup", nPlu, nPlu);
+						if (isSkySector(searchsector, searchstat))
+							i = Sky::SetPal(searchsector, searchstat, nPlu, FALSE);
+						else
+							i = 0;
 						break;
 					case OBJ_SPRITE:
 						nPic = sprite[searchwall].picnum;
@@ -3015,9 +2996,10 @@ void ProcessKeys3D( void )
 						}
 						else if (shift) sprite[searchwall].pal = getPLU(nPic, &nPlu, (BOOL)(shift & 0x01));
 						else sprite[searchwall].pal = nPlu = (char)GetNumberBox("Sprite palookup", nPlu, nPlu);
+						i = 0;
 						break;
 				}
-				if (i != 1)
+				if (i == 0)
 				{
 					buffer2[0] = '\0';
 					i =  (int)isEffectivePLU(nPic, palookup[nPlu]);
@@ -3030,19 +3012,25 @@ void ProcessKeys3D( void )
 				}
 				break;
 			}
-
+			
 			switch (searchstat) {
 				case OBJ_CEILING:
 					sector[searchsector].ceilingstat ^= kSectParallax;
-					scrSetMessage("sector[%i] ceiling %s parallaxed", searchsector, (sector[searchsector].ceilingstat & kSectParallax) ? "is" : "not");
-					if (sector[searchsector].ceilingstat & kSectParallax) SetupSky(sector[searchsector].ceilingpicnum);
+					scrSetMessage("sector[%i] ceiling %s parallaxed", searchsector, isNot(isSkySector(searchsector, searchstat)));
+					if (isSkySector(searchsector, searchstat))
+					{
+						Sky::MakeSimilar(searchsector, searchstat, 0);
+					}
 					else sector[searchsector].floorstat &= ~kSectShadeFloor;	// clear forced floor shading bit
 					BeepOk();
 					break;
-
 				case OBJ_FLOOR:
 					sector[searchsector].floorstat ^= kSectParallax;
-					scrSetMessage("sector[%i] floor %s parallaxed", searchsector, (sector[searchsector].floorstat & kSectParallax) ? "is" : "not");
+					scrSetMessage("sector[%i] floor %s parallaxed", searchsector, isNot(isSkySector(searchsector, searchstat)));
+					if (isSkySector(searchsector, searchstat))
+					{
+						Sky::MakeSimilar(searchsector, searchstat, 0);
+					}
 					BeepOk();
 					break;
 				default:
@@ -3305,18 +3293,30 @@ void ProcessKeys3D( void )
 
 					if (wall[searchwall].nextwall >= 0) wall[wall[searchwall].nextwall].overpicnum = npic;
 					break;
-				case OBJ_FLOOR:
-					opic = sector[searchsector].floorpicnum;
-					if (shift) npic = sector[searchsector].floorpicnum = (short)favoriteTileSelect(opic, opic, TRUE, searchstat);
-					else npic = sector[searchsector].floorpicnum = (short)tilePick(opic, opic, searchstat, buffer);
-					break;
 				case OBJ_CEILING:
-					opic = sector[searchsector].ceilingpicnum;
-					if (shift) npic = sector[searchsector].ceilingpicnum = (short)favoriteTileSelect(opic, opic, TRUE, searchstat);
-					else npic = sector[searchsector].ceilingpicnum = (short)tilePick(opic, opic, searchstat, buffer);
-
-					if (sector[searchsector].ceilingstat & kSectParallax) SetupSky(sector[searchsector].ceilingpicnum);
-					else sector[searchsector].floorstat &= ~kSectShadeFloor;	// clear forced floor shading bit
+				case OBJ_FLOOR:
+					if (searchstat == OBJ_FLOOR)
+					{
+						opic = sector[searchsector].floorpicnum;
+						if (shift) npic = (short)favoriteTileSelect(opic, opic, TRUE, searchstat);
+						else npic = (short)tilePick(opic, opic, searchstat, buffer);
+					}
+					else
+					{
+						opic = sector[searchsector].ceilingpicnum;
+						if (shift) npic = (short)favoriteTileSelect(opic, opic, TRUE, searchstat);
+						else npic = (short)tilePick(opic, opic, searchstat, buffer);
+					}
+					
+					if (isSkySector(searchsector, searchstat))
+						Sky::SetPic(searchsector, searchstat, npic, !gMisc.diffSky);
+					else if (searchstat == OBJ_FLOOR)
+						sector[searchsector].floorpicnum = npic;
+					else
+					{
+						sector[searchsector].ceilingpicnum = npic;
+						sector[searchsector].floorstat &= ~kSectShadeFloor;	// clear forced floor shading bit
+					}
 					break;
 			}
 
@@ -3336,7 +3336,7 @@ void ProcessKeys3D( void )
 			break;
 		}
 		case KEY_PADMINUS:
-			gStep = ctrl ? 128 : (alt) ? 2 : 1;
+			gStep = (ctrl) ? 128 : 1;
 			if (gHgltc > 0 && grshHighlighted(searchstat, (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING) ? searchsector : searchwall) >= 0)
 			{
 				grshUnhgltObjects(-1, FALSE);
@@ -3402,10 +3402,14 @@ void ProcessKeys3D( void )
 					case OBJ_CEILING:
 						sector[searchsector].ceilingshade = (schar)ClipHigh(sector[searchsector].ceilingshade + gStep, 63);
 						scrSetMessage("Shade: %i", sector[searchsector].ceilingshade);
+						if (isSkySector(searchsector, searchstat))
+							Sky::SetShade(searchsector, searchstat, sector[searchsector].ceilingshade, alt);
 						break;
 					case OBJ_FLOOR:
 						sector[searchsector].floorshade = (schar)ClipHigh(sector[searchsector].floorshade + gStep, 63);
 						scrSetMessage("Shade: %i", sector[searchsector].floorshade);
+						if (isSkySector(searchsector, searchstat))
+							Sky::SetShade(searchsector, searchstat, sector[searchsector].floorshade, alt);
 						break;
 					case OBJ_SPRITE:
 						if (!shift && sprInHglt(searchwall))
@@ -3423,7 +3427,7 @@ void ProcessKeys3D( void )
 			BeepOk();
 			break;
 		case KEY_PADPLUS:
-			gStep = ctrl ? 128 : (alt) ? 2 : 1;
+			gStep = (ctrl) ? 128 : 1;
 			if (gHgltc > 0 && grshHighlighted(searchstat, (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING) ? searchsector : searchwall) >= 0) {
 
 				grshUnhgltObjects(-1, FALSE);
@@ -3489,10 +3493,14 @@ void ProcessKeys3D( void )
 					case OBJ_CEILING:
 						sector[searchsector].ceilingshade = (schar)ClipLow(sector[searchsector].ceilingshade - gStep, -128);
 						scrSetMessage("Shade: %i", sector[searchsector].ceilingshade);
+						if (isSkySector(searchsector, searchstat))
+							Sky::SetShade(searchsector, searchstat, sector[searchsector].ceilingshade, alt);
 						break;
 					case OBJ_FLOOR:
 						sector[searchsector].floorshade = (schar)ClipLow(sector[searchsector].floorshade - gStep, -128);
 						scrSetMessage("Shade: %i", sector[searchsector].floorshade);
+						if (isSkySector(searchsector, searchstat))
+							Sky::SetShade(searchsector, searchstat, sector[searchsector].floorshade, alt);
 						break;
 					case OBJ_SPRITE:
 						if (!shift && sprInHglt(searchwall))
@@ -3529,9 +3537,18 @@ void ProcessKeys3D( void )
 			{
 				switch (searchstat) {
 					case OBJ_WALL:
-					case OBJ_MASKED:  wall[searchwall].shade = 0; 			break;
-					case OBJ_CEILING: sector[searchsector].ceilingshade = 0; break;
-					case OBJ_FLOOR:   sector[searchsector].floorshade = 0; 	break;
+					case OBJ_MASKED: 
+						wall[searchwall].shade = 0; 
+						break;
+					case OBJ_FLOOR:
+					case OBJ_CEILING:
+						if (searchstat == OBJ_CEILING)
+							sector[searchsector].ceilingshade = 0;
+						else
+							sector[searchsector].floorshade = 0;
+						if (isSkySector(searchsector, searchstat))
+							Sky::SetShade(searchsector, searchstat, 0, alt);
+						break;
 					case OBJ_SPRITE:
 						if (!shift) hgltSprCallFunc(sprShadeSet, 0);
 						else sprite[searchwall].shade = 0;
@@ -3554,11 +3571,21 @@ void ProcessKeys3D( void )
 						break;
 					case OBJ_CEILING:
 						sector[searchsector].ceilingxpanning = sector[searchsector].ceilingypanning = 0;
-						scrSetMessage("sector[%i] ceiling pan reset", searchsector);
+						if (isSkySector(searchsector, searchstat))
+						{
+							Sky::SetPan(searchsector, OBJ_CEILING, 0, 0, alt);
+						}
+						else
+							scrSetMessage("sector[%i] ceiling pan reset", searchsector);
 						break;
 					case OBJ_FLOOR:
 						sector[searchsector].floorxpanning = sector[searchsector].floorypanning = 0;
-						scrSetMessage("sector[%i] floor pan reset", searchsector);
+						if (isSkySector(searchsector, searchstat))
+						{
+							Sky::SetPan(searchsector, OBJ_FLOOR, 0, 0, alt);
+						}
+						else
+							scrSetMessage("sector[%i] floor pan reset", searchsector);
 						break;
 					case OBJ_SPRITE:
 						sprite[searchwall].xrepeat = sprite[searchwall].yrepeat = 64;
@@ -3576,6 +3603,7 @@ void ProcessKeys3D( void )
 		case KEY_PAD9: {
 			changedir = (key == KEY_PAD7) ? 1 : -1;
 			BOOL bCoarse = (!shift) ? TRUE : FALSE, fix = FALSE;
+			gStep = (bCoarse) ? 8 : 1;
 			walltype* curWall = NULL;
 			switch (searchstat) {
 				case OBJ_WALL:
@@ -3635,11 +3663,13 @@ void ProcessKeys3D( void )
 					}
 					break;
 				case OBJ_FLOOR:
+					if (isSkySector(searchsector, searchstat)) break;
 					sector[searchsector].floorxpanning = changechar(sector[searchsector].floorxpanning, changedir, bCoarse, 0);
 					sector[searchsector].floorypanning = changechar(sector[searchsector].floorypanning, changedir, bCoarse, 0);
 					scrSetMessage("sector %i floor xpan: %i ypan: %i", searchsector, sector[searchsector].floorxpanning, sector[searchsector].floorypanning );
 					break;
 				case OBJ_CEILING:
+					if (isSkySector(searchsector, searchstat)) break;
 					sector[searchsector].ceilingxpanning = changechar(sector[searchsector].ceilingxpanning, changedir, bCoarse, 0);
 					sector[searchsector].ceilingypanning = changechar(sector[searchsector].ceilingypanning, changedir, bCoarse, 0);
 					scrSetMessage("sector %i ceil xpan: %i ypan: %i", searchsector,sector[searchsector].ceilingxpanning, sector[searchsector].ceilingypanning);
@@ -3692,11 +3722,25 @@ void ProcessKeys3D( void )
 					break;
 				case OBJ_CEILING:
 					sector[searchsector].ceilingxpanning = changechar(sector[searchsector].ceilingxpanning, changedir, bCoarse, 0);
-					scrSetMessage("sector %i ceil xpan: %i ypan: %i", searchsector,sector[searchsector].ceilingxpanning, sector[searchsector].ceilingypanning );
+					if (isSkySector(searchsector, searchstat))
+					{
+						// fix panning first
+						Sky::FixPan(searchsector, searchstat,  alt);
+						Beep(Sky::Rotate(key == KEY_PADRIGHT));
+					}
+					else
+						scrSetMessage("sector %i ceil xpan: %i ypan: %i", searchsector,sector[searchsector].ceilingxpanning, sector[searchsector].ceilingypanning);
 					break;
 				case OBJ_FLOOR:
 					sector[searchsector].floorxpanning = changechar(sector[searchsector].floorxpanning, changedir, bCoarse, 0);
-					scrSetMessage("sector %i floor xpan: %i ypan: %i", searchsector, sector[searchsector].floorxpanning, sector[searchsector].floorypanning );
+					if (isSkySector(searchsector, searchstat))
+					{
+						// fix panning first
+						Sky::FixPan(searchsector, searchstat,  alt);
+						Beep(Sky::Rotate(key == KEY_PADRIGHT));
+					}
+					else
+						scrSetMessage("sector %i floor xpan: %i ypan: %i", searchsector, sector[searchsector].floorxpanning, sector[searchsector].floorypanning );
 					break;
 			}
 			BeepOk();
@@ -3736,11 +3780,21 @@ void ProcessKeys3D( void )
 					break;
 				case OBJ_CEILING:
 					sector[searchsector].ceilingypanning = changechar(sector[searchsector].ceilingypanning, changedir, bCoarse, 0);
-					scrSetMessage("sector %i ceil xpan: %i ypan: %i", searchsector,sector[searchsector].ceilingxpanning, sector[searchsector].ceilingypanning );
+					if (isSkySector(searchsector, searchstat))
+					{
+						Sky::SetPan(searchsector, searchstat, 0, sector[searchsector].ceilingypanning, alt);
+					}
+					else
+						scrSetMessage("sector %i ceil xpan: %i ypan: %i", searchsector,sector[searchsector].ceilingxpanning, sector[searchsector].ceilingypanning);
 					break;
 				case OBJ_FLOOR:
 					sector[searchsector].floorypanning = changechar(sector[searchsector].floorypanning, changedir, bCoarse, 0);
-					scrSetMessage("sector %i floor xpan: %i ypan: %i", searchsector, sector[searchsector].floorxpanning, sector[searchsector].floorypanning );
+					if (isSkySector(searchsector, searchstat))
+					{
+						Sky::SetPan(searchsector, searchstat, 0, sector[searchsector].floorypanning, alt);
+					}
+					else
+						scrSetMessage("sector %i floor xpan: %i ypan: %i", searchsector, sector[searchsector].floorxpanning, sector[searchsector].floorypanning );
 					break;
 			}
 			BeepOk();

@@ -45,7 +45,7 @@ BEEP gBeep;
 COMMENT_SYS_PREFS gCmtPrefs;
 COMPATIBILITY gCompat;
 LIGHT_BOMB gLightBomb;
-LEVEL_IMPORT gMapImport;
+IMPORT_WIZARD_PREFS gImportPrefs;
 MAPEDIT_HUD_SETTINGS gHudPrefs;
 MISC_PREFS gMisc;
 MOUSE gMouse;
@@ -199,17 +199,32 @@ void COMPATIBILITY::Init(IniFile* pIni, char* section)
 	}
 }
 
-void LEVEL_IMPORT::Init(IniFile* pIni, char* section)
+void IMPORT_WIZARD_PREFS::Init(IniFile* pIni, char* section)
 {
-	eraseSprites 	= pIni->GetKeyBool(section, "EraseSprites", 0);
-	erasePals 		= pIni->GetKeyBool(section, "ErasePalettes", 0);
-	eraseTypes	 	= pIni->GetKeyBool(section, "EraseTypes", 0);
-	wall2pic 		= ClipHigh(pIni->GetKeyInt(section, "WallPicToTilenum", 0), kMaxTiles -1);
-	wallOver2pic 	= ClipHigh(pIni->GetKeyInt(section, "WallOverPicToTilenum", 0), kMaxTiles -1);
-	sprite2pic 		= ClipHigh(pIni->GetKeyInt(section, "SpritePicToTilenum", 0), kMaxTiles -1);
-	floor2pic 		= ClipHigh(pIni->GetKeyInt(section, "FloorPicToTilenum", 0), kMaxTiles -1);
-	ceil2pic 		= ClipHigh(pIni->GetKeyInt(section, "CeilPicToTilenum", 0), kMaxTiles -1);
-	parallax2pic 	= ClipHigh(pIni->GetKeyInt(section, "ParallaxToTilenum", 0), kMaxTiles -1);
+	mapErsSpr 		= pIni->GetKeyBool(section, "MapEraseSprites", 		0);
+	mapErsPal 		= pIni->GetKeyBool(section, "MapErasePalettes", 	1);
+	mapErsInfo	 	= pIni->GetKeyBool(section, "MapEraseObjectInfo", 	1);
+	mapImpotArt 	= pIni->GetKeyBool(section, "MapImportArt", 		1);
+	artKeepOffset 	= pIni->GetKeyBool(section, "ArtKeepTilenums", 		1);
+	artImportAnim 	= pIni->GetKeyBool(section, "ArtImportAnim", 		1);
+	artImportView 	= pIni->GetKeyBool(section, "ArtImportView", 		1);
+	artTileMap 		= pIni->GetKeyBool(section, "ArtTileMap", 			1);
+	artChgTilenums 	= pIni->GetKeyBool(section, "ArtChangeTilenums", 	1);
+	artNoDuplicates = pIni->GetKeyBool(section, "ArtNoDuplicates", 		1);
+}
+
+void IMPORT_WIZARD_PREFS::Save(IniFile* pIni, char* section)
+{
+	pIni->PutKeyInt(section, "MapEraseSprites", 	mapErsSpr);
+	pIni->PutKeyInt(section, "MapErasePalettes", 	mapErsPal);
+	pIni->PutKeyInt(section, "MapEraseObjectInfo", 	mapErsInfo);
+	pIni->PutKeyInt(section, "MapImportArt", 		mapImpotArt);
+	pIni->PutKeyInt(section, "ArtKeepTilenums", 	artKeepOffset);
+	pIni->PutKeyInt(section, "ArtImportAnim", 		artImportAnim);
+	pIni->PutKeyInt(section, "ArtImportView", 		artImportView);
+	pIni->PutKeyInt(section, "ArtTileMap", 			artTileMap);
+	pIni->PutKeyInt(section, "ArtChangeTilenums", 	artChgTilenums);
+	pIni->PutKeyInt(section, "ArtNoDuplicates", 	artNoDuplicates);
 }
 
 void LIGHT_BOMB::Init(IniFile* pIni, char* section)
@@ -245,7 +260,6 @@ void MAPEDIT_HUD_SETTINGS::Save(IniFile* pIni, char* section)
 
 void MISC_PREFS::Init(IniFile* pIni, char* section)
 {
-	this->sndStartupInit	= pIni->GetKeyBool("Sound", "InitAtStartup", FALSE);
 	this->pan				= 1;
 	this->palette			= 0;
 	this->autoSecrets 		= pIni->GetKeyBool(section,	"AutoCountSecrets", 0);
@@ -267,7 +281,6 @@ void MISC_PREFS::Init(IniFile* pIni, char* section)
 	}
 	
 	this->autoLoadMap	 	= pIni->GetKeyBool(section, "AutoLoadMap", FALSE); 
-	this->openWithDialog 	= pIni->GetKeyBool(section, "ShowOpenWithDialog", TRUE);
 	this->editMode			= pIni->GetKeyBool(section, "EditMode", FALSE);
 	
 	usevoxels 				= (!externalModels || externalModels == 2) ? 0 : 1;
@@ -572,16 +585,12 @@ void OBJECT_LOCK::Init()
 
 void PATHS::InitBase()
 {
-
 	sprintf(prefabs, 		kPrefabsDir);
 	sprintf(palImport, 		kPalImportDir);
 	sprintf(palPaint, 		kPalPaintDir);
-	memset(images, 0, 		sizeof(images));
+	memset(images, 	   0, 	sizeof(images));
 	memset(episodeIni, 0, 	sizeof(episodeIni));
-	maps = boardpath;
-	//sprintf(prefabs, pIni->GetKeyString(section, "Prefabs", kPrefabsDir));
-	
-
+	memset(maps, 	   0, 	sizeof(maps));
 }
 
 void PATHS::InitResourceRFF(IniFile* pIni, char* section)

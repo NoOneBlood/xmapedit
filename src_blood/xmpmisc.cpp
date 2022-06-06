@@ -35,6 +35,8 @@
 #include "xmpsnd.h"
 #include "mapcmt.h"
 #include "keyboard.h"
+#include "xmparted.h"
+#include "misc.h"
 #include "db.h"
 
 
@@ -67,6 +69,8 @@ struct PREVIEW_PLU {
 			data = (BYTE*)Resource::Alloc(256 * 64);
 			palookup[id] = data;
 		}
+		
+		return TRUE;
 	}
 	
 	void Make(PALETTE pal, int gray = 0)
@@ -81,6 +85,7 @@ struct PREVIEW_PLU {
 	{
 		dassert(data != NULL);
 		Resource::Free(data);
+		data = NULL;
 	}
 	
 };
@@ -128,36 +133,42 @@ BYTE fileExists(char* filename, RESHANDLE* rffItem) {
 	return retn;
 }
 
-void getBoardZEdges(int *lz, int* hz) {
-
-	*hz = 0;
-	*lz = 0;
+int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom)
+{
+	RESHANDLE pFile;
+	int i, hFile, nSize = 0;
+	dassert(out != NULL && *out == NULL);
+	if (loadFrom)
+		*loadFrom = -1;
 	
-	int i, z;
-	for (i = 0; i < numsectors; i++)
+	
+	if ((i = fileExists(filepath, &pFile)) == 0)
+		return -1;
+	
+	// file on the disk is the priority
+	if ((i & 0x01) && (hFile = open(filepath, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
 	{
-		z = sector[i].floorz;
-		if (z > *lz)
-			*lz = z;
+		if ((nSize = filelength(hFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
+		{
+			read(hFile, *out, nSize);
+			if (loadFrom)
+				*loadFrom = 0x01;
+		}
 		
-		z = sector[i].ceilingz;
-		if (z < *hz)
-			*hz = z;
-	}
-}
-
-uint32_t filemtime(char* filename) {
-	
-	return 0;
-	/// !!!
-/* 	unsigned short date = 0, time = 0;
-	int hFile = open(filename, O_BINARY | O_RDWR);
-	if (hFile != -1) {
-		_dos_getftime(hFile, &date, &time);
 		close(hFile);
 	}
+	// load file from the RFF then
+	else if (pFile)
+	{
+		if ((nSize = gSysRes.Size(pFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
+		{
+			memcpy(*out, (BYTE*)gSysRes.Load(pFile), nSize);
+			if (loadFrom)
+				*loadFrom = 0x02;
+		}
+	}
 	
-	return date + time; */
+	return (*out) ? nSize : -2;
 }
 
 void updateClocks() {
@@ -327,15 +338,17 @@ void clampSpriteZ(spritetype* pSprite, int z, int which) {
 
 void clampCamera() {
 
+	int fz, cz;
 	if (cursectnum < 0)
 		return;
 	
-	int fz = getflorzofslope(cursectnum, posx, posy);
-	int cz = getceilzofslope(cursectnum, posx, posy);
+	fz = getflorzofslope(cursectnum, posx, posy);
+	cz = getceilzofslope(cursectnum, posx, posy);
+	if (posz > fz)
+		posz = fz;
 	
-	int height = (zmode == 0) ? kensplayerheight : kPlayerRadius;
-	if (posz > fz - height) posz = fz - height;
-	if (posz < cz) posz = cz;
+	if (posz < cz)
+		posz = cz;
 
 }
 
@@ -622,11 +635,27 @@ int getHighlightedObject() {
 
 char* getFilename(char* pth, char* out, BOOL addExt) {
 
-	char tmp[BMAX_PATH]; char *fname = NULL, *ext = NULL;
+	char tmp[_MAX_PATH]; char *fname = NULL, *ext = NULL;
 	pathSplit2(pth, tmp, NULL, NULL, &fname, &ext);
 	sprintf(out, fname);
 	if (addExt)
 		strcat(out, ext);
+	
+	return out;
+}
+
+char* getPath(char* pth, char* out, BOOL addSlash) {
+
+	int i;
+	char tmp[_MAX_PATH]; char *dsk = NULL, *dir = NULL;
+	pathSplit2(pth, tmp, &dsk, &dir, NULL, NULL);
+	_makepath(out, dsk, dir, NULL, NULL);
+	
+	if (addSlash)
+	{
+		if ((i = strlen(out)) > 0 && !slash(out[i - 1]))
+			catslash(out);
+	}
 	
 	return out;
 }
@@ -1356,18 +1385,18 @@ void setCstat(BOOL enable, short* pStat, int nStat)
 
 short wallCstatAdd(int nWall, short cstat, BOOL nextWall) {
 	
-	wall[nWall].cstat |= cstat;
+	setCstat(TRUE, &wall[nWall].cstat, cstat);
 	if (nextWall && wall[nWall].nextwall >= 0)
-		wall[wall[nWall].nextwall].cstat |= cstat;
-	
+		setCstat(TRUE, &wall[wall[nWall].nextwall].cstat, cstat);
+
 	return wall[nWall].cstat;
 }
 
 short wallCstatRem(int nWall, short cstat, BOOL nextWall) {
 	
-	wall[nWall].cstat &= ~cstat;
+	setCstat(FALSE, &wall[nWall].cstat, cstat);
 	if (nextWall && wall[nWall].nextwall >= 0)
-		wall[wall[nWall].nextwall].cstat &= ~cstat;
+		setCstat(FALSE, &wall[wall[nWall].nextwall].cstat, cstat);
 	
 	return wall[nWall].cstat;
 }
@@ -1455,6 +1484,137 @@ void toggleResolution(int fs, int xres, int yres, int bpp)
 		tileAllocTile(gSysTiles.sectfil, xres, yres);
 	}
 	gfxSetClip(0, 0, xdim, ydim);
+}
+
+int DlgSaveChanges(char* text, BOOL askForArt) {
+
+	int retn = -1;
+
+	// create the dialog
+	int len = ClipRange(gfxGetTextLen(text, pFont) + 10, 202, xdim - 5);
+	Window dialog(59, 80, len, ydim, text);
+
+	dialog.Insert(new TextButton(4, 4, 60,  20, "&Yes", mrOk));
+	dialog.Insert(new TextButton(68, 4, 60, 20, "&No", mrNo));
+ 	dialog.Insert(new TextButton(132, 4, 60, 20, "&Cancel", mrCancel));
+	
+	Checkbox* pArt = NULL;
+	if (askForArt)
+	{
+		pArt = new Checkbox(4, 30, TRUE, "With ART changes.");
+		pArt->canFocus = FALSE;
+		dialog.Insert(pArt);
+		dialog.height = 64;
+	}
+	else
+		dialog.height = 46;
+	
+	ShowModal(&dialog);
+	if (dialog.endState == mrOk && dialog.focus)	// find a button we are focusing on
+	{
+		Container* pCont = (Container*)dialog.focus;
+		TextButton* pFocus = (TextButton*)pCont->focus;
+		if (pFocus)
+			retn = pFocus->result;
+	}
+	else
+	{
+		retn = dialog.endState;
+	}
+	
+	switch(retn) {
+		case mrOk:
+			retn = (pArt && pArt->checked) ? 2 : 1;
+			break;
+		case mrNo:
+			retn = 0;
+			break;
+		case mrCancel:
+			retn = -1;
+			break;
+	}
+	return retn;
+
+}
+
+
+int countUniqBytes(BYTE* pBytes, int len)
+{
+	int i = 0;
+	char bytes[256];
+	memset(bytes, 0, sizeof(bytes));
+	
+	while(len--)
+	{
+		if (bytes[pBytes[len]]) continue;
+		bytes[pBytes[len]] = 1;
+		i++;
+	}
+	
+	return i;
+}
+
+void* getFuncPtr(FUNCT_LIST* db, int dbLen, int nType)
+{
+	while(dbLen--)
+	{
+		if (db[dbLen].funcType == nType)
+			return db[dbLen].pFunc;
+	}
+	
+	return NULL;
+}
+
+int getTypeByExt(char* str, NAMED_TYPE* db, int len) {
+	
+	int i; char* fext; char tmp[_MAX_PATH];
+	pathSplit2(str, tmp, NULL, NULL, NULL, &fext);
+	if (fext)
+	{
+		if (fext[0] == '.')
+			fext =& fext[1];
+		
+		while(len--)
+		{
+			if (stricmp(db[len].name, fext) == 0)
+				return db[len].id;
+		}
+	}
+
+	return -1;
+	
+}
+
+BOOL isSkySector(int nSect, int nFor)
+{
+	if (nFor == OBJ_CEILING)
+		return (BOOL)(sector[nSect].ceilingstat & kSectParallax);
+	
+	return (BOOL)(sector[nSect].floorstat & kSectParallax);
+}
+
+BOOL ceilPicMatch(int nSect, int nPic)
+{
+	return (sector[nSect].ceilingpicnum == nPic);
+}
+
+BOOL floorPicMatch(int nSect, int nPic)
+{
+	return (sector[nSect].floorpicnum == nPic);
+}
+
+BOOL makeBackup(char* filename)
+{
+	if (!fileExists(filename))
+		return TRUE;
+	
+	char temp[_MAX_PATH];
+	sprintf(temp, filename);
+	ChangeExtension(temp, ".bak");
+	if (fileExists(temp))
+		unlink(temp);
+	
+	return (rename(filename, temp) == 0);
 }
 
 /* void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1)

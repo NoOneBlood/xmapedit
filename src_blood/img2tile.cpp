@@ -42,6 +42,12 @@
 #include "xmpconf.h"
 #include "xmpmisc.h"
 
+#ifdef USE_KPLIB
+extern "C" {
+#include "kplib.h"
+}
+#endif
+
 #define kPluAreaLenOld 31872 // filesize-maxsize-palette
 #define kPluAreaLenNew 64766 // filesize-maxsize-numlookups-palette
 
@@ -53,6 +59,7 @@ enum {
 kTokenPAL		= 0,
 kTokenRGB		= 1,
 };
+
 
 NAMED_TYPE palDBTokens[] = {
 
@@ -82,9 +89,30 @@ NAMED_TYPE gPALSigns[] = {
 NAMED_TYPE gSuppImages[] = {
 
 	{kImageQBM, "QBM"},
+	{kImageCEL, "CEL"},
 	{kImagePCX, "PCX"},
 	{kImagePCX, "PCC"},
 	{kImageTGA,	"TGA"},
+#ifdef USE_KPLIB
+	{kImagePNG, "BMP"},
+	{kImageDDS, "DDS"},
+	{kImageJPG, "JPG"},
+	{kImagePNG, "PNG"},
+#endif
+};
+
+FUNCT_LIST gImgFuncs[] = {
+	
+	{kImageQBM, qbm2tile},
+	{kImageCEL, cel2tile},
+	{kImagePCX, pcx2tile},
+	{kImageTGA, tga2tile},
+#ifdef USE_KPLIB
+	{kImageBMP, bmp2tile},
+	{kImagePNG, png2tile},
+	{kImageDDS, dds2tile},
+	{kImageJPG, jpg2tile},
+#endif
 	
 };
 
@@ -101,6 +129,8 @@ NAMED_TYPE gImgErrorsCommon[] = {
 	{-9, "Max image height is exceed"},
 	{-10, "Only 8, 24 and 32bit images are supported"},
 	{-11, "Incorrect palette size"},
+	{-12, "Not enough memory to allocate buffer"},
+	{-13, "KPLIB failed to process the image"},
 	{-999, "Unknown common image error"},
 
 };
@@ -113,6 +143,31 @@ NAMED_TYPE gPalErrorsCommon[] = {
 	{-4, "Unsupported palette format"},
 	{-999, "Unknown common palette error"},
 };
+
+int imgFile2TileFunc(IMG2TILEFUNC img2tileFunc, char* filepath, int nTile)
+{
+	unsigned char* pData; int hFile, len, retn = -1;
+	if ((hFile = open(filepath, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) < 0) return retn;
+	else if ((len = filelength(hFile)) <= 0)
+	{
+		close(hFile);
+		return retn;
+	}
+
+	pData = (unsigned char*)Resource::Alloc(len); read(hFile, pData, len); close(hFile);
+	retn = img2tileFunc(pData, len, nTile);
+	Resource::Free(pData);
+	return retn;
+}
+
+int imgCheckResolution(int wh, int hg)
+{
+	int imgLen = wh*hg;
+	if (wh > kMaxImageWidth) 		return -8; 			// max width exceed
+	else if (hg > kMaxImageHeight) 	return -9; 			// max height exceed
+	else if (imgLen <= 0) 			return -2; 			// ???
+	else return 0;
+}
 
 int tile2tga(char* img, int nTile) {
 
@@ -131,14 +186,14 @@ int tile2tga(char* img, int nTile) {
 	memset(buffer, 0, sizeof(buffer));
 	
 	PICANM* pnm =& panm[nTile];
-	Bsprintf(buffer, "%s%d:\r\n", 			kArtedSig, kArtedVer);
-	Bsprintf(buffer2, "TileNum=%d\r\n", 	nTile);					Bstrcat(buffer, buffer2);
-	Bsprintf(buffer2, "Surface=%d\r\n", 	surfType[nTile]);		Bstrcat(buffer, buffer2);
-	Bsprintf(buffer2, "Shade=%d\r\n", 		tileShade[nTile]);		Bstrcat(buffer, buffer2);
-	Bsprintf(buffer2, "RFFVoxel=%d\r\n", 	voxelIndex[nTile]);		Bstrcat(buffer, buffer2);
+	sprintf(buffer, "%s%d:\r\n", 			kArtedSig, kArtedVer);
+	sprintf(buffer2, "TileNum=%d\r\n", 		nTile);					strcat(buffer, buffer2);
+	sprintf(buffer2, "Surface=%d\r\n", 		surfType[nTile]);		strcat(buffer, buffer2);
+	sprintf(buffer2, "Shade=%d\r\n", 		tileShade[nTile]);		strcat(buffer, buffer2);
+	sprintf(buffer2, "RFFVoxel=%d\r\n", 	voxelIndex[nTile]);		strcat(buffer, buffer2);
 	
-	Bsprintf(buffer2, "Picanm=%d,%d,%d,%d", pnm->xcenter, pnm->ycenter, pnm->type, pnm->frames, pnm->speed, viewType[nTile]);
-	Bstrcat(buffer, buffer2);
+	sprintf(buffer2, "Picanm=%d,%d,%d,%d", pnm->xcenter, pnm->ycenter, pnm->type, pnm->frames, pnm->speed, viewType[nTile]);
+	strcat(buffer, buffer2);
 	
 	header.idLength 	= (char)ClipHigh(strlen(buffer), 255);
 	header.imageType 	= 2;
@@ -241,37 +296,7 @@ int tile2pcx(char* img, int nTile) {
 	memcpy((void*)waloff[nTile2], (void*)waloff[nTile], imgLen);
 	artedRotateTile(nTile2); artedFlipTileY(nTile2);
 	BYTE* pTile = (BYTE*)waloff[nTile2];
-	
-	
-/* 	unpackPtr = image;
-
-	for (i = 0; i < height; i++)
-	{
-		j = width;
-		count = 0;
-		packPtr = packedData;
-		while (j--)
-		{
-			RLEbyte = *unpackPtr++;
-			count = 1;
-
-			while ( j > 0 && *unpackPtr == RLEbyte && count < 0x3F )
-			{
-				count++;
-				unpackPtr++;
-				j--;
-			}
-
-			if ( count > 1 || RLEbyte >= 0xC0 )
-				*packPtr++ = (BYTE)(count | 0xC0);
-
-			*packPtr++ = RLEbyte;
-		}
-
-		// write the encoded line
-		write(hFile, packedData, packPtr - (BYTE *)packedData);
-	} */
-	
+		
 	write(hFile, pTile, imgLen);
 	i = 0xC; write(hFile, &i, 1);
 	write(hFile, gamepal, sizeof(PALETTE));
@@ -281,8 +306,11 @@ int tile2pcx(char* img, int nTile) {
 	return 0;
 }
 
-int tga2tile(char* pBuf, int bufLen, int nTile) {
+int tga2tile(unsigned char* pBuf, int bufLen, int nTile) {
 
+#ifdef USE_KPLIB
+		return kplibImg2Tile(pBuf, bufLen, nTile);
+#else
 	char sign[32];
 	uint8_t pixel[4], color;
 	int i = 0, j, k, wh, hg, imgLen, dataLen, packLen, ps = 4;
@@ -303,14 +331,13 @@ int tga2tile(char* pBuf, int bufLen, int nTile) {
 	header.mapLength*=((header.mapWidth > 16) ? 3 : 2); // palette length in bytes
 	imgLen  = wh*hg;									// total length in bytes
 	
+	if (!header.imageType)		return -2;				// no image present
 	#ifndef I2TDEBUG
-	if (wh > kMaxImageWidth) 		i = -8; 			// max width exceed
-	else if (hg > kMaxImageHeight) 	i = -9; 			// max height exceed
-	else if (!header.imageType)		i = -2;				// no image present
-	else if (imgLen <= 0) 			i = -2; 			// ???
-	if (i != 0) return i;
+	if ((i = imgCheckResolution(wh, hg)) != 0)
+		return i;
 	#endif
 	
+
 	switch (header.pixelDepth) {
 		case 8:
 		case 24:
@@ -459,28 +486,14 @@ int tga2tile(char* pBuf, int bufLen, int nTile) {
 	
 	Resource::Free(tga);
 	return i;
+#endif
 
 }
 
-int tga2tile(char* filepath, int nTile) {
+int pcx2tile(unsigned char* pBuf, int bufLen, int nTile) {
+
+	// some images converts wrongly or cannot be at all with KPLIB
 	
-	char* pData; int hFile, len, retn = -1;
-	if ((hFile = open(filepath, O_RDONLY | O_BINARY)) < 0) return -1;
-	else if ((len = filelength(hFile)) <= 0)
-	{
-		close(hFile);
-		return -1;
-	}
-
-	pData = (char*)Resource::Alloc(len); read(hFile, pData, len); close(hFile);
-	retn = tga2tile(pData, len, nTile);
-	Resource::Free(pData);
-	return retn;
-}
-
- 
-int pcx2tile(char* pBuf, int bufLen, int nTile) {
-
 	int r, g, b, skip;
 	int i = 0, j, k, f, wh, hg, imgLen, dataLen, packLen, bits, bpl;
 	BYTE* pcx = NULL, *data = NULL, *unpk = NULL;
@@ -494,10 +507,8 @@ int pcx2tile(char* pBuf, int bufLen, int nTile) {
 	imgLen = wh * hg;									// total length in bytes
 	
 	#ifndef I2TDEBUG
-	if (wh > kMaxImageWidth) 		i = -8; 			// max width exceed
-	else if (hg > kMaxImageHeight) 	i = -9; 			// max height exceed
-	else if (imgLen <= 0) 			i = -2; 			// ???
-	if (i != 0) return i;
+	if ((i = imgCheckResolution(wh, hg)) != 0)
+		return i;
 	#endif
 	
 	bpl  = header.bytesPerLine;							// bytes per one scan line
@@ -578,26 +589,9 @@ int pcx2tile(char* pBuf, int bufLen, int nTile) {
 	i = rawImg2Tile(pcx, nTile, wh, hg);
 	Resource::Free(pcx);
 	return i;
-
 }
 
-int pcx2tile(char* filepath, int nTile) {
-	
-	char* pData; int hFile, len, retn = -1;
-	if ((hFile = open(filepath, O_RDONLY | O_BINARY)) < 0) return -1;
-	else if ((len = filelength(hFile)) <= 0)
-	{
-		close(hFile);
-		return -1;
-	}
-
-	pData = (char*)Resource::Alloc(len); read(hFile, pData, len); close(hFile);
-	retn = pcx2tile(pData, len, nTile);
-	Resource::Free(pData);
-	return retn;
-}
-
-int qbm2tile(char* pBuf, int bufLen, int nTile) {
+int qbm2tile(unsigned char* pBuf, int bufLen, int nTile) {
 
 	int wh, hg, imgLen, retn = 0;
 	BYTE* qbm = NULL; QBM_HEADER header;
@@ -606,10 +600,7 @@ int qbm2tile(char* pBuf, int bufLen, int nTile) {
 	io.read(&header, sizeof(header));
 	wh = header.width; hg = header.height; imgLen = wh*hg;
 	#ifndef I2TDEBUG
-	if (wh > kMaxImageWidth) 		retn = -8; 			// max width exceed
-	else if (hg > kMaxImageHeight) 	retn = -9; 			// max height exceed
-	else if (imgLen <= 0) 			retn = -2; 			// ???
-	if (retn != 0)
+	if ((retn = imgCheckResolution(wh, hg)) != 0)
 		return retn;
 	#endif
 	
@@ -630,26 +621,131 @@ int qbm2tile(char* pBuf, int bufLen, int nTile) {
 			artedReplaceColor(nTile, (char)header.tcolor, 255);
 	}
 	
+	Resource::Free(qbm);
 	return retn;
 
 }
 
 
-int qbm2tile(char* filepath, int nTile) {
+int cel2tile(unsigned char* pBuf, int bufLen, int nTile) {
+	
+#ifdef USE_KPLIB
+		return kplibImg2Tile(pBuf, bufLen, nTile);
+#else
+	int i, wh, hg, imgLen, retn = 0;
+	BYTE* cel = NULL; CEL_HEADER header; PALETTE pal;
+	IOBuffer io = IOBuffer(bufLen, pBuf);
+	
+	io.read(&header, sizeof(header));
+	wh = header.width; hg = header.height; imgLen = wh*hg;
+	#ifndef I2TDEBUG
+	if ((retn = imgCheckResolution(wh, hg)) != 0)
+		return retn;
+	#endif
+		
+	if (header.magic != 0x9119 || header.bpp != 8) return -5;
+	else if (header.compression != 0)
+		return -6;
+	
+	io.read(pal, sizeof(pal));
+	if (io.nRemain != header.bytes)
+		return -4;
 
-	char* pData; int hFile, len, retn = -1;
-	if ((hFile = open(filepath, O_RDONLY | O_BINARY)) < 0) return -1;
-	else if ((len = filelength(hFile)) <= 0)
-	{
-		close(hFile);
-		return -1;
-	}
+	// lookup in palette db to fix transparent color
+	palFixTransparentColor(pal);
+	
+	// palette shift
+	palShift(pal, 2);
 
-	pData = (char*)Resource::Alloc(len); read(hFile, pData, len); close(hFile);
-	retn = qbm2tile(pData, len, nTile);
-	Resource::Free(pData);
+	cel = (BYTE*)Resource::Alloc(imgLen); io.read(cel, imgLen);
+	if ((retn = rawImg2Tile(cel, nTile, wh, hg)) >= 0)
+		remapColors(waloff[nTile], imgLen, pal);
+	
+	Resource::Free(cel);
+	return retn;
+#endif
+}
+
+int png2tile(unsigned char* pBuf, int bufLen, int nTile)
+{
+	int retn;
+	#ifdef USE_KPLIB
+	retn = kplibImg2Tile(pBuf, bufLen, nTile);
+	#else
+	retn = -5;
+	#endif
 	return retn;
 }
+
+
+int bmp2tile(unsigned char* pBuf, int bufLen, int nTile)
+{
+	int retn;
+	#ifdef USE_KPLIB
+	retn = kplibImg2Tile(pBuf, bufLen, nTile);
+	#else
+	retn = -5;
+	#endif
+	return retn;
+}
+
+int dds2tile(unsigned char* pBuf, int bufLen, int nTile)
+{
+	int retn;
+	#ifdef USE_KPLIB
+	retn = kplibImg2Tile(pBuf, bufLen, nTile);
+	#else
+	retn = -5;
+	#endif
+	return retn;
+}
+
+int jpg2tile(unsigned char* pBuf, int bufLen, int nTile)
+{
+	int retn;
+	#ifdef USE_KPLIB
+	retn = kplibImg2Tile(pBuf, bufLen, nTile);
+	#else
+	retn = -5;
+	#endif
+	return retn;
+}
+
+int gif2tile(unsigned char* pBuf, int bufLen, int nTile)
+{
+	int retn;
+	#ifdef USE_KPLIB
+	retn = kplibImg2Tile(pBuf, bufLen, nTile);
+	#else
+	retn = -5;
+	#endif
+	return retn;
+}
+
+#ifdef USE_KPLIB
+int kplibImg2Tile(unsigned char* pBuf, int bufLen, int nTile)
+{
+	int wh, hg;
+	int imgLen, retn = 0; BYTE* pixels;
+	
+	kpgetdim(pBuf, bufLen, &wh, &hg); imgLen = wh*hg;
+	if (!wh || !hg)
+		return -13;
+	
+	#ifndef I2TDEBUG
+	if ((retn = imgCheckResolution(wh, hg)) != 0)
+		return retn;
+	#endif
+	
+	imgLen = hg*(wh<<2);
+	if ((pixels = (BYTE*)malloc(imgLen)) == NULL) return -12;
+	else if (kprender(pBuf, bufLen, (void*)pixels, wh<<2, wh, hg, 0, 0) < 0) retn = -13;
+	else if (convertPixels(pixels, imgLen, 4) >= 0 && rawImg2Tile(pixels, nTile, wh, hg) > 0) retn = 0;
+	free(pixels);
+	
+	return retn;
+}
+#endif
 
 int rawImg2Tile(BYTE* image, int nTile, int wh, int hg, int align) {
 
@@ -688,6 +784,34 @@ int rawImg2Tile(BYTE* image, int nTile, int wh, int hg, int align) {
 	return 0;
 }
 
+int convertPixels(BYTE* pixels, int bufLen, int pxsize, char rgbOrder)
+{
+	BYTE p[4], o[3];
+	int i = 0, j = 0;
+	BOOL trans;
+	
+	switch (rgbOrder)
+	{
+		case 1 :  o[0] = 0, o[1] = 1, o[2] = 2;
+		default:  o[0] = 2, o[1] = 1, o[2] = 0;
+	}
+
+	switch (pxsize) {
+		case 4:
+			trans = TRUE;
+			// no break
+		case 3:
+			while(i < bufLen)
+			{
+				memcpy(p, &pixels[i], pxsize);
+				pixels[j++] = (trans && p[3]) ? countBestColor(gamepal, p[o[0]], p[o[1]], p[o[2]]) : 255;
+				i+=pxsize;
+			}
+			return 0;
+	}
+	
+	return -1;
+}
 
 int pluLoad(char* fname, PALETTE out, int nPlu, int nShade) {
 	
@@ -723,6 +847,7 @@ int pluLoad(char* fname, PALETTE out, int nPlu, int nShade) {
 	return 0;
 }
 
+
 int palLoad(char* fname, PALETTE out) {
 	
 	dassert(out != NULL);
@@ -744,10 +869,15 @@ int palLoad(char* fname, PALETTE out) {
 		default:
 			retn = -4;
 			break;
-		// standard BUILD palette
 		case kPaletteDAT:								
-			read(hFile, out, palsiz);
-			while (i < 256) { out[i].r<<=2, out[i].g<<=2, out[i].b<<=2; i++; }
+			if (((flen - 65536 - 2 - 768) % 256 == 0) || ((flen - 32640 - 768) % 256 == 0))
+			{
+				// standard BUILD palette
+				read(hFile, out, palsiz);
+				palShift(out);
+				break;
+			}
+			retn = -2;
 			break;
 		case kPalettePAL:
 		case kPalettePaintShop:
@@ -841,6 +971,18 @@ int palLoad(char* fname, PALETTE out) {
 	return retn;
 }
 
+void palShift(PALETTE pal, int by)
+{
+	int i = 0;
+	while(i < 256)
+	{
+		pal[i].r = (unsigned char)ClipHigh(pal[i].r << by, 255);
+		pal[i].g = (unsigned char)ClipHigh(pal[i].g << by, 255);
+		pal[i].b = (unsigned char)ClipHigh(pal[i].b << by, 255);
+		i++;
+	}
+}
+
 BOOL palFixTransparentColor(PALETTE imgPal) {
 	
 	if (!fileExists(kPalDBIni))
@@ -915,23 +1057,7 @@ void bufRemap(BYTE* buf, int len, BYTE* table)
 	int i = 0; while (i < len) buf[i] = table[buf[i++]];
 }
 
-int getTypeByExt(char* str, NAMED_TYPE* db, int len) {
-	
-	int i; char* fext; char tmp[BMAX_PATH];
-	pathSplit2(str, tmp, NULL, NULL, NULL, &fext);
 
-	if (fext)
-	{
-		if (fext[0] == '.') fext =& fext[1];
-		for (i = 0; i < len; i++) {
-			if (stricmp(db[i].name, fext) == 0)
-				return db[i].id;
-		}
-	}
-
-	return -1;
-	
-}
 int imgGetType(char* str) {
 
 	return getTypeByExt(str, gSuppImages, LENGTH(gSuppImages));
@@ -942,6 +1068,12 @@ int palGetType(char* str) {
 	return getTypeByExt(str, gSuppPalettes, LENGTH(gSuppPalettes));
 	
 }
+
+IMG2TILEFUNC imgGetConvFunc(int nImgType)
+{
+	return (IMG2TILEFUNC)getFuncPtr(gImgFuncs, LENGTH(gImgFuncs), nImgType);
+}
+
 
 BYTE countBestColor(PALETTE in, int r, int g, int b, int wR, int wG, int wB)
 {

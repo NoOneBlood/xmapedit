@@ -27,6 +27,8 @@
 #include "inifile.h"
 #include "common_game.h"
 
+#define kConfigReqVersion	2
+
 #define kDefaultMapName		"newboard.map"
 #define kXmpDataDir			"xmapedit"
 #define kPrefabsDir			"xmapedit\\prefabs"
@@ -128,8 +130,6 @@ class MISC_PREFS {
 	unsigned int showTypes			: 2;
 	unsigned int diffSky			: 1;
 	unsigned int useCaptions		: 1;
-	unsigned int sndStartupInit		: 1;
-	unsigned int openWithDialog		: 1;
 	unsigned int autoLoadMap		: 1;
 	unsigned int palette			: 8;
 	unsigned int externalModels		: 2;
@@ -152,18 +152,20 @@ class LIGHT_BOMB {
 	void Init(IniFile* pIni, char* section);
 };
 
-class LEVEL_IMPORT {
+class IMPORT_WIZARD_PREFS {
 	public:
-	unsigned int eraseSprites		: 1;
-	unsigned int erasePals			: 1;
-	unsigned int eraseTypes			: 1;
-	unsigned int wall2pic			: 14;
-	unsigned int wallOver2pic		: 14;
-	unsigned int sprite2pic			: 14;
-	unsigned int floor2pic			: 14;
-	unsigned int ceil2pic			: 14;
-	unsigned int parallax2pic		: 14;
+	unsigned int mapErsSpr			: 1;
+	unsigned int mapErsPal			: 1;
+	unsigned int mapErsInfo			: 1;
+	unsigned int mapImpotArt		: 1;
+	unsigned int artKeepOffset		: 1;
+	unsigned int artImportAnim		: 1;
+	unsigned int artImportView		: 1;
+	unsigned int artTileMap			: 1;
+	unsigned int artChgTilenums		: 1;
+	unsigned int artNoDuplicates	: 1;
 	void Init(IniFile* pIni, char* section);
+	void Save(IniFile* pIni, char* section);
 };
 
 class MAPEDIT_HUD_SETTINGS {
@@ -278,7 +280,7 @@ class OBJECT_LOCK {
 
 class PATHS {
 	public:
-	char* maps; // boardpath[] in build.c
+	char maps[_MAX_PATH];
 	char prefabs[_MAX_PATH];
 	char seqs[_MAX_PATH];
 	char qavs[_MAX_PATH];
@@ -361,7 +363,7 @@ extern BEEP gBeep;
 extern COMMENT_SYS_PREFS gCmtPrefs;
 extern COMPATIBILITY gCompat;
 extern LIGHT_BOMB gLightBomb;
-extern LEVEL_IMPORT gMapImport;
+extern IMPORT_WIZARD_PREFS gImportPrefs;
 extern MAPEDIT_HUD_SETTINGS gHudPrefs;
 extern MISC_PREFS gMisc;
 extern MOUSE gMouse;

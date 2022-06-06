@@ -44,6 +44,7 @@ IniFile::IniFile(char *fileName)
 IniFile::IniFile(void *res, char* saveName)
 {
     head.next = &head;
+	strcpy(this->fileName, saveName);
     LoadRes(res, saveName);
 }
 
@@ -167,7 +168,8 @@ bool IniFile::FindSection(char *section)
             curNode = curNode->next;
             if (curNode == &head)
                 return false;
-        } while(Bstrcasecmp(curNode->name, buffer) != 0);
+        }
+		while(stricmp(curNode->name, buffer) != 0);
     }
     return true;
 }

@@ -284,7 +284,7 @@ Text::Text(int left, int top, int width, int height, char* s, int flagsA, char f
 	if ((textlen = strlen(s)) > 0)
 	{
 		lines++;
-		text = (char*)Resource::Alloc(textlen);
+		text = (char*)Resource::Alloc(textlen + 1);
 		memset(text, 0, textlen);
 		sprintf(text, s);
 		
@@ -518,12 +518,38 @@ BOOL Container::SetFocus( int dir )
 		if (dir > 0) focus = focus->next;
 		else focus = focus->prev;
 		
-		//if (focus->canDefault == 0) continue;
 		if (focus == &head)
 			return FALSE;
 	}
 	while (!focus->canFocus);
 	return TRUE;
+}
+
+void Container::ClearFocus()
+{
+	for ( Widget *w = head.next; w != &head; w = w->next)
+	{
+		focus = &head;
+		if (w->isContainer)
+			((Container*)w)->ClearFocus();
+	}
+}
+
+BOOL Container::SetFocusOn(Widget* pFocus)
+{
+	for ( Widget *w = head.next; w != &head; w = w->next)
+	{
+		if (w == pFocus)
+		{
+			focus = pFocus;
+			return TRUE;
+		}
+		
+		if (w->isContainer)
+			((Container*)w)->SetFocusOn(pFocus);
+	}
+	
+	return FALSE;
 }
 
 
@@ -638,13 +664,16 @@ void Container::EndModal( int result )
 
 void FieldSet::Paint( int x, int y, BOOL hasFocus ) {
 	
-	char col = gStdColor[0];
+	char fcol = gStdColor[fontColor];
+	char bcol = gStdColor[borderColor];
 	int len = 0, pad = 4, w1 = width, w2 = ClipLow(5*w1/100, pad), h = height;
 	int fh = pFont->height;
-	
-	gfxSetColor(col);
+		
 	if ((len = gfxGetTextLen(title, pFont)) > 0)
 		y+=(fh>>1);
+	
+	gfxDrawText(x+w2+pad, y-(fh>>1), fcol, title, pFont);
+	gfxSetColor(bcol);
 		
 	gfxVLine(x, y, y+h);
 	gfxVLine(x+w1, y, y+h);
@@ -653,7 +682,6 @@ void FieldSet::Paint( int x, int y, BOOL hasFocus ) {
 	if (len)
 	{
 		gfxHLine(y, x, x+w2);
-		gfxDrawText(x+w2+pad, y-(fh>>1), col, title, pFont);
 		gfxHLine(y, x+w2+len+(pad<<1), x+w1);
 	}
 	else
@@ -827,6 +855,15 @@ TextButton::TextButton( int left, int top, int width, int height, char *text, in
 	canFocus = TRUE;
 }
 
+TextButton::TextButton( int left, int top, int width, int height, char *text, CLICK_PROC clickProc ) :
+	Button(left, top, width, height, clickProc), text(text)
+{
+	font = pFont;
+	fontColor = 0;
+	hotKey = GetHotKey(text);
+	canFocus = TRUE;
+}
+
 void TextButton::Paint( int x, int y, BOOL hasFocus )
 {
 	gfxSetColor(gStdColor[0]);
@@ -864,33 +901,40 @@ void TextButton::HandleEvent(GEVENT *event)
 
 #define kCBSize 11
 #define kCBLabelPad 3
-Checkbox::Checkbox(int left, int top, int itemid, BOOL value, char* l) : Widget(left, top, 0, 0) {
+Checkbox::Checkbox(int left, int top, BOOL value, char* l) : Widget(left, top, 0, 0) {
 	
 	
-	width 		= kCBSize + (strlen(l) * 8);
+	width 		= kCBSize;
 	height 		= kCBSize + (kCBLabelPad >> 1);
 	checked 	= value;
-	id 			= itemid;
 	result		= 0;
 	canFocus	= TRUE;
 	disabled	= FALSE;
 	
-	strcpy(label, l);
+	if (l)
+	{
+		strcpy(label, l);
+		width+=gfxGetLabelLen(l, pFont);
+	}
 	hotKey		= GetHotKey(label);
 }
 
-Checkbox::Checkbox(int left, int top, int itemid, BOOL value, char* l, int rslt) : Widget(left, top, 0, 0) {
+Checkbox::Checkbox(int left, int top, BOOL value, char* l, int rslt) : Widget(left, top, 0, 0) {
 	
 	result		= mrOk;
-	width 		= kCBSize + (strlen(l) * 8);
+	width 		= kCBSize;
 	height 		= kCBSize + (kCBLabelPad >> 1);
 	checked 	= value;
-	id 			= itemid;
 	result		= rslt;
 	canFocus	= TRUE;
 	disabled	= FALSE;
 	
-	strcpy(label, l);
+	if (l)
+	{
+		strcpy(label, l);
+		width+=gfxGetLabelLen(l, pFont);
+	}
+	
 	hotKey		= GetHotKey(label);
 
 }
@@ -1794,7 +1838,8 @@ int ShowModal(Container *dialog, int flags)
 	}
 	
 	// find first item for focus
-	while (!desktop.SetFocus(+1));
+	if (!(flags & kModalNoFocus))
+		while (!desktop.SetFocus(+1));
 
 	int saveSize = bytesperline * ydim;
 	BYTE *saveUnder = (BYTE *)Resource::Alloc(saveSize);
@@ -2021,7 +2066,7 @@ int createCheckboxList(CHECKBOX_LIST* array, int len, char* title, BOOL buttons)
 	// insert checkboxes
 	for (i = 0; i < len; i++)
 	{
-		array[i].checkbox = new Checkbox(x,  y, 0, array[i].option, array[i].label, (buttons) ? 0 : mrUser + i);
+		array[i].checkbox = new Checkbox(x,  y, array[i].option, array[i].label, (buttons) ? 0 : mrUser + i);
 		dialog.Insert(array[i].checkbox);
 		y+=(kCBSize + kVertSpace);
 	}

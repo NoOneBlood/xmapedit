@@ -97,6 +97,8 @@ int tileSearchFreeRange(int range);
 BYTE tileGetMostUsedColor(int nTile, short noColor = 255);
 int tileReplaceColor(int nTile, char colorA, char colorB = 255);
 BOOL tileHasColor(int nTile, char color);
+int tileCountColors(int nTile);
+int tileExists(BYTE* image, int wh, int hg);
 
 short tileGetBlank();
 BOOL tileAllocSysTile(short* dest, int w, int h);

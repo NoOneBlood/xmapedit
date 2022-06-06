@@ -35,7 +35,7 @@ kViewEffectMiniCustomDude			,
 kViewEffectMax						,
 };
 
-void viewDoQuake(int strength, int* x, int* y, int* z, int* a, int* h);
+void viewDoQuake(int strength, int* x, int* y, int* z, short* a, int* h);
 void viewProcessSprites(int x, int y, int z, int a);
 int viewSpriteShade(int nShade, int nTile, int nSect);
 #endif
