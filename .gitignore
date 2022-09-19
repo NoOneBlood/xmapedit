@@ -2,6 +2,7 @@
 *.obj
 *.a
 *.lib
+!dxsdk\lib\*.lib
 *.exe
 *.res
 *.map
