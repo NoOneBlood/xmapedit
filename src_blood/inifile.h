@@ -35,7 +35,7 @@ class IniFile
 {
 public:
     IniFile(char *fileName);
-    IniFile(void *res, char *saveName);
+    IniFile(void *res, char *saveName = NULL);
     ~IniFile();
 
     void Save(void);
@@ -64,6 +64,6 @@ private:
 
     char *_13;
     char fileName[BMAX_PATH]; // watcom maxpath
-    void LoadRes(void *, char*);
+    void LoadRes(void *);
     void Load();
 };

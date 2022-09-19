@@ -41,18 +41,17 @@ void _SetErrorLoc(const char* pzFile, int nLine);
 void _ThrowError(const char* pzFormat, ...);
 void __dassert(const char* pzExpr, const char* pzFile, int nLine);
 
+
+
+#if _MSC_VER <= 1310
+#define ThrowError _SetErrorLoc(__FILE__, __LINE__), _ThrowError
+#else
 #define ThrowError(...) \
 	{ \
 		_SetErrorLoc(__FILE__,__LINE__); \
 		_ThrowError(__VA_ARGS__); \
 	}
-
-// print error to console only
-#define consoleSysMsg(...) \
-	{ \
-		_SetErrorLoc(__FILE__,__LINE__); \
-		_consoleSysMsg(__VA_ARGS__); \
-	}
+#endif
 
 #define dassert(x) if (!(x)) __dassert(#x,__FILE__,__LINE__)
 
@@ -104,6 +103,8 @@ typedef unsigned int	uint32;
 
 #define TRUE			1
 #define FALSE			0
+
+#define FASTCALL _fastcall
 
 #define kMaxPlayers 8
 
@@ -220,7 +221,10 @@ kSectFlipX    				= 0x10,
 kSectFlipY    				= 0x20,
 kSectFlipMask				= 0x34,
 kSectRelAlign 				= 0x40,
-kSectMasked					= 0x100,
+kSectMasked					= 0x80,
+kSectTransluc				= 0x100,
+kSectTranslucR				= 0x180,
+kSectTransluc2				= 0x180,
 kSectShadeFloor				= 0x8000,
 };
 
@@ -657,6 +661,8 @@ extern int gFrameRate;
 extern int gGamma;
 extern Resource gSysRes;
 
+extern int costable[2048];
+
 struct PICANM {
 	unsigned frames 	: 5;
 	unsigned update 	: 1;
@@ -682,9 +688,34 @@ struct POINT3D {
     int x, y, z;
 };
 
+unsigned int qrand(void);
+void ChangeExtension(char *pzFile, const char *pzExt);
+bool FileLoad(char *fname, void *buffer, unsigned int size);
+bool FileSave(char *fname, void *buffer, unsigned int size);
+
+int GetOctant(int x, int y);
+void RotateVector(int *dx, int *dy, int nAngle);
+void RotatePoint(int *x, int *y, int nAngle, int ox, int oy);
+void trigInit(Resource &Res);
+
+inline int Sin(int ang)
+{
+    return costable[(ang - 512) & 2047];
+}
+
+inline int Cos(int ang)
+{
+    return costable[ang & 2047];
+}
+
 inline int scale(int a1, int a2, int a3, int a4, int a5)
 {
     return a4 + (a5-a4) * (a1-a2) / (a3-a2);
+}
+
+inline int QRandom2(int a1)
+{
+    return mulscale14(qrand(), a1)-a1;
 }
 
 inline int IncBy(int a, int b)

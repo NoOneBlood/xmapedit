@@ -21,12 +21,6 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
-#include <string.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <io.h>
-
 #include "iob.h"
 #include "xmpstub.h"
 #include "img2tile.h"
@@ -36,7 +30,6 @@
 #include "enumstr.h"
 #include "gui.h"
 #include "common_game.h"
-#include "misc.h"
 
 #include "xmparted.h"
 #include "xmpconf.h"

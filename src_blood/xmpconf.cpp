@@ -21,14 +21,10 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include <stdio.h>
-#include <string.h>
-
 #include "xmpstub.h"
 #include "common_game.h"
 #include "editor.h"
 #include "aadjust.h"
-#include "misc.h"
 #include "gui.h"
 #include "xmpsnd.h"
 #include "xmpmisc.h"
@@ -48,7 +44,8 @@ LIGHT_BOMB gLightBomb;
 IMPORT_WIZARD_PREFS gImportPrefs;
 MAPEDIT_HUD_SETTINGS gHudPrefs;
 MISC_PREFS gMisc;
-MOUSE gMouse;
+MOUSE_PREFS gMousePrefs;
+MOUSE_LOOK  gMouseLook;
 OBJECT_LOCK gObjectLock;
 PATHS gPaths;
 ROTATION gRotateOpts;
@@ -272,6 +269,7 @@ void MISC_PREFS::Init(IniFile* pIni, char* section)
 	this->forceSetup		= pIni->GetKeyBool(section, "ForceSetup", 1);
 	this->externalModels	= ClipHigh(pIni->GetKeyInt(section, "ShowExternalModels", 2), 2);
 	this->zlockAvail		= !pIni->GetKeyBool(section, "SkipZStepMode", TRUE);
+	this->useTranslucency	= pIni->GetKeyBool(section,	"UseTranslucentEffects", TRUE);
 	
 	sprintf(this->tilesBaseName, (!fileExists("TILES000.ART")) ? "SHARE" : "TILES");
 	if ((this->ambShowRadius = pIni->GetKeyInt(section, "ShowAmbientRadius", 4)) == 4)
@@ -319,262 +317,19 @@ void MOUSE_LOOK::Init(IniFile* pIni, char* section)
 	maxSlopeF	= ClipHigh(maxSlope, (widescreen) ? 100 : 200);
 }
 
-void MOUSE::Init(IniFile* pIni, char* section)
+void MOUSE_LOOK::Save(IniFile* pIni, char* section)
 {
-	speedX = speedXInit	= ClipRange(pIni->GetKeyInt(section, "SpeedX", 50), 10, 512);
-	speedY = speedYInit = ClipRange(pIni->GetKeyInt(section, "SpeedY", 100), 10, 512);	
+	pIni->PutKeyInt(section, "Mode", mode);
+}
+
+
+void MOUSE_PREFS::Init(IniFile* pIni, char* section)
+{
+	speedX 				= ClipRange(pIni->GetKeyInt(section, "SpeedX", 50), 10, 2048);
+	speedY 				= ClipRange(pIni->GetKeyInt(section, "SpeedY", 100), 10, 2048);	
 	controls 			= ClipRange(pIni->GetKeyInt(section, "Controls", 1), 0, 3);
 	fixedGrid			= ClipRange(pIni->GetKeyInt(section, "FixedGridSize", 5), 0, kMaxGrids - 1);
 	
-	press				= 0;
-	hold				= 0;
-	release				= 0;
-	wheel				= 0;
-	acceleration		= 1.12;
-	rangeX1				= 0;
-	rangeX2				= 320;
-	rangeY1				= 0;
-	rangeY2				= 200;
-	X					= (rangeX2 - rangeX1) >> 1;
-	Y					= (rangeY2 - rangeY1) >> 1;
-	dX					= 0;
-	dY					= 0;
-	dX2					= 0;
-	dY2					= 0;
-	dfX					= 0;
-	dfY					= 0;
-	
-	look.Init(pIni, "MouseLook");
-}
-
-void MOUSE::SetRange(int x1, int y1, int x2, int y2, bool scaleSpeed)
-{
-	dfX |= (X << 16);
-	dfY |= (Y << 16);
-	
-	speedScale = scaleSpeed;
-	
-	if (speedScale)
-	{
-		dfX = scale(dfX, x2 - x1, rangeX2 - rangeX1);
-		dfY = scale(dfY, y2 - y1, rangeY2 - rangeY1);
-	}
-	else
-	{
-		dfX = scale(dfX, x2 - x1, xdim);
-		dfY = scale(dfY, y2 - y1, ydim);
-	}
-	
-	X = dfX >> 16;
-	Y = dfY >> 16;
-
-	dfX &= 0xFFFF;
-	dfY &= 0xFFFF;
-	
-	rangeX1 = x1;
-	rangeY1 = y1;
-	rangeX2 = x2;
-	rangeY2 = y2;
-}
-
-void MOUSE::PushRange() {
-	
-	if (stackCount >= LENGTH(rangeStack))
-		ThrowError("Mouse range stack overflow!");
-	
-	MOUSE_RANGE* pRange = &rangeStack[stackCount];
-	pRange->X1 = rangeX1;	pRange->X2 = rangeX2;
-	pRange->Y1 = rangeY1;	pRange->Y2 = rangeY2;
-	stackCount++;
-}
-
-void MOUSE::PopRange() {
-	
-	if (stackCount <= 0)
-		return;
-
-	stackCount--;
-	MOUSE_RANGE* pRange = &rangeStack[stackCount];
-	SetRange(pRange->X1, pRange->Y1, pRange->X2, pRange->Y2);
-}
-
-void MOUSE::Read(int nTicks)
-{
-	ResetSpeedSmooth();
-	
-	int mx = 0, my = 0, dummy;
-	getmousevalues(&mx, &my, &dummy);
-	ReadButtons();
-	
-	if (buttons & 16)		wheel = -1;
-	else if (buttons & 32)	wheel = 1;
-	else					wheel = 0;
-	
-
-/* 	if ( nTicks > 0 )
-	{
-		mx = qsgn(mx) * nTicks * pow((double)klabs(mx) / nTicks, acceleration);
-		my = qsgn(my) * nTicks * pow((double)klabs(my) / nTicks, acceleration);
-	} */
-	
-	mx *= speedX;
-	my *= speedY;
-	
-	if (speedScale)
-	{
-		dfX += mx * (rangeX2 - rangeX1);
-		dfY += my * (rangeY2 - rangeY1);
-	}
-	else
-	{
-		dfX += mx * xdim;
-		dfY += my * ydim;
-	}
-	
-	dX2 = dfX >> 16;
-	dY2 = dfY >> 16;
-
-	dfX &= 0xFFFF;
-	dfY &= 0xFFFF;
-
-	dX = X;
-	dY = Y;
-
-	X = ClipRange(X + dX2, rangeX1, rangeX2 - 1);
-	Y = ClipRange(Y + dY2, rangeY1, rangeY2 - 1);
-
-	dX = X - dX;
-	dY = Y - dY;
-	
-}
-
-int MOUSE::ReadButtons()
-{
-	ResetSpeedSmooth();
-	readmousebstatus(&buttons);
-	
-	release = 0;
-	if ((hold & 1) && !(buttons & 1)) release |= 1;
-	if ((hold & 2) && !(buttons & 2)) release |= 2;
-	if ((hold & 4) && !(buttons & 4)) release |= 4;
-	
-	press	= (~hold & buttons);
-	hold	= buttons;
-	
-	return buttons;
-}
-
-int MOUSE::ReadWheel()
-{
-	ResetSpeedSmooth();
-	int tmp; readmousebstatus(&tmp);
-	if (tmp & 16)		wheel = -1;
-	else if (tmp & 32)	wheel = 1;
-	else				wheel = 0;
-	
-	return wheel;
-}
-
-void MOUSE::ResetSpeedNow()
-{
-	speedX		= speedXInit;
-	speedY 		= speedYInit;
-	speedReset	= FALSE;
-}
-
-void MOUSE::ResetSpeedSmooth()
-{
-	// smooth mouse speed reset
-	if (speedReset && totalclock >= gTimers.mouseSpeedReset + 4)
-	{
-		if (speedX < gMouse.speedXInit) speedX = ClipHigh(speedX + 1, speedXInit);
-		else if (speedX > speedXInit) speedX = ClipLow(speedX - 1, speedXInit);
-		
-		if (speedY < speedYInit) speedY = ClipHigh(speedY + 1, speedYInit);
-		else if (speedY > gMouse.speedYInit) speedY = ClipLow(speedY - 1, speedYInit);
-		
-		if (speedX == speedXInit && speedY == speedYInit) speedReset = 0;
-		else gTimers.mouseSpeedReset = totalclock;
-	}
-}
-
-void MOUSE::ClampSpeed(int speedX, int speedY)
-{
-	ResetSpeedNow();
-	this->speedX = this->speedXInit = speedX;
-	this->speedY = this->speedYInit = speedY;
-}
-
-
-void MOUSE::Save(IniFile* pIni, char*)
-{
-	pIni->PutKeyInt("MouseLook", "Mode", look.mode);
-}
-
-void MOUSE::ChangeCursor(short id)
-{
-	cursor.type = id;
-	if (id > 0)
-	{
-		cursor.width	= pBitmaps[id]->width;
-		cursor.height	= pBitmaps[id]->height;
-		cursor.pad		= 0;
-	}
-	else
-	{
-		cursor.width	= mulscale16(10, 0x10000);
-		cursor.height	= mulscale16(10, 0x10000);
-		cursor.pad		= mulscale16(4,  0x10000);
-	}
-	
-	cursor.xoffs = 0;
-	cursor.yoffs = 0;
-}
-
-void MOUSE::Draw() {
-	
-	int i;
-	int nCur = cursor.type;
-	int xoffs = cursor.xoffs;
-	int yoffs = cursor.yoffs;
-	int wh = cursor.width;
-	int hg = cursor.height;
-	int pd = cursor.pad;
-
-	switch (nCur) {
-		default:
-			if (nCur > 0 && pBitmaps && pBitmaps[nCur])
-			{
-				gfxDrawBitmap(nCur, X - 1, Y - 1);
-				break;
-			}
-			fallthrough__;
-			// no break
-		case 0:
-			if (qsetmode == 200)
-			{
-				gfxSetColor(fade());
-				gfxHLine(Y, X-wh, X-pd);
-				gfxHLine(Y, X+pd, X+wh);
-				gfxVLine(X, Y-hg, Y-pd);
-				gfxVLine(X, Y+pd, Y+hg);
-				gfxPixel(X, Y);
-			}
-			else
-			{
-				pd>>=1;
-				gfxSetColor(gStdColor[gridlock ? kColorLightRed : kColorWhite]);
-				for (i = 0; i < 2; i++)
-				{
-					gfxHLine(Y+i, X-wh, X-pd);
-					gfxHLine(Y+i, X+pd, X+wh);
-					gfxVLine(X+i, Y-hg, Y-pd);
-					gfxVLine(X+i, Y+pd, Y+hg);
-				}
-
-			}
-			break;
-	}
 }
 
 void OBJECT_LOCK::Init()
@@ -631,10 +386,19 @@ void ROTATION::Init(IniFile* pIni, char* section)
 
 void SCREEN::Init(IniFile* pIni, char* section)
 {
+	gGamma 						= ClipRange(pIni->GetKeyInt(section, "Gamma", 0), 0, gGammaLevels - 1);
 	xdim2d = xdimgame			= ClipLow(pIni->GetKeyInt(section, "Width", xdimgame), 640);
 	ydim2d = ydimgame			= ClipLow(pIni->GetKeyInt(section, "Height", ydimgame), 480);
 	fullscreen					= pIni->GetKeyBool(section, "Fullscreen", 0);
 	bpp							= 8;
+}
+
+void SCREEN::Save(IniFile* pIni, char* section)
+{
+	pIni->PutKeyInt(section, "Width", xdimgame);
+	pIni->PutKeyInt(section, "Height", ydimgame);
+	pIni->PutKeyInt(section, "Fullscreen", fullscreen);
+	pIni->PutKeyInt(section, "Gamma", gGamma);
 }
 
 void SOUND::Init(IniFile* pIni, char* section)
@@ -650,13 +414,6 @@ void SOUND::Init(IniFile* pIni, char* section)
 	ReverseStereo				= 0;
 	
 	sndInit();
-}
-
-void SCREEN::Save(IniFile* pIni, char* section)
-{
-	pIni->PutKeyInt(section, "Width", xdimgame);
-	pIni->PutKeyInt(section, "Height", ydimgame);
-	pIni->PutKeyInt(section, "Fullscreen", fullscreen);
 }
 
 void TILE_VIEWER::Init(IniFile* pIni, char* section)

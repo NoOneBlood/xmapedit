@@ -25,11 +25,23 @@
 
 #ifndef __XMPROR
 #define __XMPROR
+#include "xmpmisc.h"
+#include "tile.h"
 
-#define kMaxROR 64
-extern short mirrorTextureWidth;
-extern short mirrorTextureHeight;
+#define kMaxROR 16
+#define kMirrorPic 504
+
 
 void InitMirrors(void);
-void DrawMirrors(int x, int y, int z, int a, int horiz);
+bool  _fastcall DrawMirrors(int x, int y, int z, int a, int horiz);
+char  _fastcall IsRorSector(int nSect, int stat);
+bool  _fastcall IsLinkCorrect(spritetype* pSpr);
+bool  _fastcall IsMirrorPic(int nPic);
+void RestoreMirrorPic();
+void ClearMirrorPic();
+//---------------------------------------------------
+void warpInit(void);
+int _fastcall CheckLink(spritetype *pSprite);
+int _fastcall CheckLink(int *x, int *y, int *z, int *nSector);
+int _fastcall CheckLinkCamera(int *x, int *y, int *z, int *nSector);
 #endif

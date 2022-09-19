@@ -48,7 +48,7 @@ void extVoxInit() {
 		}
 		
 		gExtVoxIni = new IniFile(gPaths.voxelEXT);
-
+		
 		char saved = '\0'; ININODE* prev = NULL;
 		char* key = NULL; char* value; char* end = NULL;
 		char tileTok[] = "tile"; int keylen = strlen(tileTok);

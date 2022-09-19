@@ -25,8 +25,8 @@
 #include "xmpstub.h"
 #include "editor.h"
 #include "gameutil.h"
-#include "trig.h"
 #include "screen.h"
+#include "edit2d.h"
 #include "edit3d.h"
 #include "hglt.h"
 #include "gui.h"
@@ -35,7 +35,6 @@
 #include "edit2d.h"
 #include "xmpconf.h"
 #include "xmpmisc.h"
-#include "misc.h"
 
 int hgltx1 = 0, hgltx2 = 0, hglty1 = 0, hglty2 = 0;
 
@@ -103,6 +102,7 @@ int hgltSprCallFunc(HSPRITEFUNC SpriteFunc, int nData) {
 
 	return retn;
 }
+
 
 int hgltSectCallFunc(HSECTORFUNC2 SectorFunc, int arg1, int arg2, int arg3, int arg4) {
 	
@@ -182,7 +182,7 @@ BOOL hgltRemove(int type, int idx) {
 			if (highlightsectorcnt > 0) {
 				
 				if ((i = hgltCheck(type, idx)) < 0) return FALSE;
-				else redRestore(idx);
+				else sectorAttach(idx);
 				while (i < highlightsectorcnt - 1) {
 					highlightsector[i] = highlightsector[i + 1];
 					i++;
@@ -314,7 +314,7 @@ short hglt2dAdd(int type, int idx) {
 		case OBJ_SECTOR:
 			if (hgltCheck(type, idx) >= 0) break;
 			hgltAdd(type, idx), cnt++;
-			whiteOut(idx);
+			sectorDetach(idx);
 			break;
 	}
 	
@@ -1265,16 +1265,6 @@ int hgltWallsCheckStat(int nStat, int which, int nMask)
 	return 0;
 }
 
-/* void hgltSectGetPolygon(int* x1, int* y1, int* x2, int* y2) {
-	
-	short nwalls[4];
-	hgltSectGetEdgeWalls(&nwalls[0], &nwalls[1], &nwalls[2], &nwalls[3]);
-	*x1 = wall[nwalls[0]].x;
-	*x2 = wall[nwalls[1]].x;
-	*y1 = wall[nwalls[2]].y;
-	*y2 = wall[nwalls[3]].y;
-} */
-
 void hgltSectGetEdgeWalls(short* lw, short* rw, short* tw, short* bw) {
 	
 	int i, j, swal, ewal; short dlw, drw, dtw, dbw;
@@ -1556,6 +1546,38 @@ void sprSetYRepeat(spritetype* pSprite, int val) {
 	
 }
 
+/* void sectFXChgFreq(int nSect, int nVal)
+{
+	int nXSect = sector[nSect].extra;
+	if (nXSect > 0)
+		xsector[nXSect].freq = ClipRange(xsector[nXSect].freq + nVal, 0, 255);
+}
+
+void sectFXChgPhase(int nSect, int nVal)
+{
+	int nXSect = GetXSector(nSect);
+	xsector[nXSect].phase = ClipRange(xsector[nXSect].phase + nVal, 0, 255);
+}
+
+void sectFXChgAmplitude(int nSect, int nVal)
+{
+	int nXSect = GetXSector(nSect);
+	xsector[nXSect].amplitude = ClipRange(xsector[nXSect].amplitude + nVal, -128, 127);
+} */
+
+void sectChgVisibility(int nSect, int nVis)
+{
+	sector[nSect].visibility = ClipRange(sector[nSect].visibility + nVis, 0, 239);
+}
+
+void sectChgShade(int nSect, int nOf, int nShade, int, int)
+{
+	if (nOf == OBJ_CEILING)
+		sector[nSect].ceilingshade = ClipRange(sector[nSect].ceilingshade + nShade, -128, 63);
+	else
+		sector[nSect].floorshade   = ClipRange(sector[nSect].floorshade   + nShade, -128, 63);
+}
+
 void sectDelete(int nSector, int arg1, int arg2, int arg3, int arg4) {
 	
 	int i, j; BOOL found = 0;
@@ -1578,7 +1600,7 @@ void sectDelete(int nSector, int arg1, int arg2, int arg3, int arg4) {
 		
 		if (!found)
 		{
-			for (j = 0; j < highlightsectorcnt; j++) redRestore(highlightsector[j]);
+			for (j = 0; j < highlightsectorcnt; j++) sectorAttach(highlightsector[j]);
 			deletesector(nSector);
 		}
 		

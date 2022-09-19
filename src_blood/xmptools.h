@@ -25,8 +25,9 @@
 #define __XMPTOOLS_H
 
 #include "gui.h"
-#include "trig.h"
 #include "iob.h"
+
+#define kChannelCleanerLog "RXTXCLN.LOG"
 
 enum {
 kFlgMapTypeBlood	= 0x0001,
@@ -152,6 +153,9 @@ int toolXWalls2XSprites();
 
 int updViewAngle(spritetype* pSprite);
 void chgSpriteZ(spritetype* pSprite, int zVal);
+
+
+int toolChannelCleaner(char* logfile = NULL);
 int toolMapArtGrabber(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int skyTiles, int flags, int grabFrom = kGrabAll);
 int toolOpenWith(char* filename, char flags = 0x0);
 //int toolGetPluDlg(int nTile, int nDefaultRetn = -1);

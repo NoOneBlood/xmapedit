@@ -23,16 +23,11 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include <string.h>
-#include <stdio.h>
-
 #include "common_game.h"
 #include "db.h"
 #include "eventq.h"
 #include "sectorfx.h"
-#include "misc.h"
 #include "gameutil.h"
-#include "trig.h"
 #include "screen.h"
 #include "xmpsnd.h"
 #include "xmpstub.h"
@@ -158,8 +153,11 @@ void AddBusy(int a1, BUSYID a2, int nDelta)
 	}
 	if (i == gBusyCount)
 	{
-		if (gBusyCount == kMaxBusyCount)
-			return;
+        if (gBusyCount >= kMaxBusyCount)
+        {
+            previewMessage("Failed to AddBusy for #%d! Max busy reached (%d)", a1, gBusyCount);
+            return;
+        }
 		gBusy[i].at0 = a1;
 		gBusy[i].atc = a2;
 		gBusy[i].at8 = nDelta > 0 ? 0 : 65536;

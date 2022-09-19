@@ -21,18 +21,14 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include <string.h>
 #include "common_game.h"
 #include "build.h"
 #include "xmpstub.h"
 #include "xmpview.h"
 #include "db.h"
-#include "misc.h"
 #include "gameutil.h"
-#include "trig.h"
 #include "screen.h"
 #include "tile.h"
-#include "keyboard.h"
 #include "aadjust.h"
 #include "preview.h"
 #include "nnexts.h"
@@ -40,12 +36,14 @@
 #include "xmpmisc.h"
 #include "xmpconf.h"
 #include "xmpevox.h"
+#include "editor.h"
 #include "seq.h"
 
-inline int QRandom2(int a1)
-{
-    return mulscale14(qrand(), a1)-a1;
-}
+/* BYTE gameModeLetterOfs[5] = {
+	
+	51, 34, 35, 52,
+	
+}; */
 
 void viewDoQuake(int strength, int* x, int* y, int* z, short* a, int* h) {
 	
@@ -112,7 +110,7 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 
 	switch (nViewEffect) {
 		case kViewEffectMiniCustomDude:
-			if (!isModernMap()) break;
+			if (gModernMap) break;
 			// no break
 		case kViewEffectMiniDude:
 		{
@@ -126,7 +124,7 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 			
 			switch (nViewEffect) {
 				case kViewEffectMiniDude:
-					z = zTop; f = (isModernMap()) ? 4 : 1;
+					z = zTop; f = (gModernMap) ? 4 : 1;
 					for (i = 0; i < f; i++)
 					{
 						ofs = 0;
@@ -191,6 +189,51 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 					break;
 			}
 		}
+		break;
+/* 		case kViewEffectGameMode:
+		{
+			#define kRepStep 4
+			signed char xofs = 0; BOOL modes[4];
+			spritetype* pSpr = &sprite[pTSprite->owner];
+			if (pSpr->extra <= 0)
+				break;
+			
+			XSPRITE* pXSpr = &xsprite[pSpr->extra];
+			GetSpriteExtents(pTSprite, &zTop, &zBot);
+
+			modes[0] = !pXSpr->lS;
+			modes[1] = !pXSpr->lB;
+			modes[2] = !pXSpr->lC;
+			modes[3] = !pXSpr->lT;
+			
+			for (i = 0; i < LENGTH(modes); i++) { if (modes[i]) xofs+=kRepStep; }
+			if (!xofs)
+				break;
+
+			xofs = (xofs >> 1);
+			if (xofs)
+				xofs-=(kRepStep >> 1);
+			
+			for (i = 0; i < LENGTH(modes); i++)
+			{
+				if (!modes[i])
+					continue;
+				
+				spritetype *pTEffect = viewInsertTSprite(pTSprite->sectnum, 0, pTSprite);
+				pTEffect->picnum 	= 4480 + gameModeLetterOfs[i];
+				pTEffect->xoffset 	+= xofs;
+				pTEffect->shade 	= -128;
+				pTEffect->pal 		= (pSpr->type == kMarkerMPStart) ? 5 : 7;
+				pTEffect->xrepeat 	= 48;
+				pTEffect->yrepeat 	= 48;
+				
+				GetSpriteExtents(pTEffect, &zTop2, &zBot2);
+				pTEffect->z 		= zTop+((zTop2-zBot2)>>1);
+				
+				xofs -= kRepStep;
+			}
+			
+		} */
 		break;
 		case kViewEffectAngle:
 		{
@@ -301,7 +344,7 @@ void viewProcessSprites(int x, int y, int z, int a) {
 	
 	static int i, dx, dy, nOctant, nSprite, nXSprite, nTile, nShade;
 	static int voxType, offset, nView, nTileNew;
-	
+		
 	for (i = spritesortcnt - 1; i >= 0; i--)
 	{
 		spritetype *pTSprite = &tsprite[i];
@@ -378,7 +421,7 @@ void viewProcessSprites(int x, int y, int z, int a) {
 		for (; offset > 0; offset-- )
 			pTSprite->picnum += 1 + panm[pTSprite->picnum].frames;
 
-		if (pTSprite->statnum != kStatFX)
+		if (pTSprite->statnum == 0)
 		{
 			switch (pTSprite->type) {
 				case kDecorationCandle:
@@ -403,6 +446,10 @@ void viewProcessSprites(int x, int y, int z, int a) {
 						viewAddEffect(i, kViewEffectSmokeHigh);
 					}
 					break;
+				//case kMarkerSPStart:
+				//case kMarkerMPStart:
+					//viewAddEffect(i, kViewEffectGameMode);
+					//break;
 				case kMarkerDudeSpawn:
 					viewAddEffect(i, kViewEffectMiniDude);
 					break;

@@ -23,13 +23,11 @@
 #ifndef __GUI_H
 #define __GUI_H
 
-#include <stdlib.h>
 #include "build.h"
 #include "baselayer.h"
 #include "resource.h"
 #include "gfx.h"
 #include "screen.h"
-#include "trig.h"
 
 
 #define kColorBackground	gStdColor[20]
@@ -44,12 +42,12 @@ extern QFONT* pFont;
 enum {
 	mrNone		= 0x00,
 	mrOk		= 0x01,
-	mrYes		= mrOk,
 	mrCancel	= 0x02,
 	mrAbort		= 0x03,
 	mrRetry		= 0x04,
 	mrIgnore	= 0x05,
 	mrNo		= 0x06,
+	mrYes		= 0x07,
 	mrUser		= 0x08,
 };
 
@@ -515,7 +513,5 @@ void GUIInit();
 int YesNoCancel(char *__format, ...);
 void Alert(char *__format, ...);
 BOOL Confirm(char *__format, ...);
-void gfxDrawBitmap(int id, int x, int y);
-void DrawMouseCursor( int x, int y );
 #endif
 

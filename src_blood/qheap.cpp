@@ -21,13 +21,7 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 #ifdef USE_QHEAP
-
-#include <stdio.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
 #include "common_game.h"
-
 #include "qheap.h"
 
 void InstallFenceposts(HEAPNODE *n)

@@ -306,13 +306,13 @@ static _inline void cpuid (int a, int *s)
 
 #elif defined(__GNUC__) && defined(__i386__) && USE_ASM
 
-static inline unsigned int bswap (unsigned int a)
+static _inline unsigned int bswap (unsigned int a)
 {
 	__asm__ __volatile__ ("bswap %0" : "+r" (a) : : "cc" );
 	return a;
 }
 
-static inline int bitrev (int b, int c)
+static _inline int bitrev (int b, int c)
 {
 	int a;
 	__asm__ __volatile__ (
@@ -327,7 +327,7 @@ static inline int bitrev (int b, int c)
 	return a;
 }
 
-static inline int testflag (int c)
+static _inline int testflag (int c)
 {
 	int a;
 	__asm__ __volatile__ (
@@ -350,7 +350,7 @@ static inline int testflag (int c)
 	return a;
 }
 
-static inline void cpuid (int a, int *s)
+static _inline void cpuid (int a, int *s)
 {
 	__asm__ __volatile__ (
 		"pushl %%ebx\n"
@@ -367,21 +367,21 @@ static inline void cpuid (int a, int *s)
 
 #else
 
-static inline unsigned int bswap (unsigned int a)
+static _inline unsigned int bswap (unsigned int a)
 {
 	return(((a&0xff0000)>>8) + ((a&0xff00)<<8) + (a<<24) + (a>>24));
 }
 
-static inline int bitrev (int b, int c)
+static _inline int bitrev (int b, int c)
 {
 	int i, j;
 	for(i=1,j=0,c=(1<<c);i<c;i+=i) { j += j; if (b&i) j++; }
 	return(j);
 }
 
-static inline int testflag (int c) { return(0); }
+static _inline int testflag (int c) { return(0); }
 
-static inline void cpuid (int a, int *s) {}
+static _inline void cpuid (int a, int *s) {}
 
 #endif
 
@@ -743,7 +743,7 @@ static _inline void pal8hlineasm (int c, int d, INT_PTR t, int b)
 
 #elif defined(__GNUC__) && defined(__i386__) && USE_ASM
 
-static inline int Paeth686 (int a, int b, int c)
+static _inline int Paeth686 (int a, int b, int c)
 {
 	__asm__ __volatile__ (
 		"movl %%ecx, %%edx\n"
@@ -765,7 +765,7 @@ static inline int Paeth686 (int a, int b, int c)
 }
 
 	//Note: "cmove eax,?" may be faster than "jne ?:and eax,?" but who cares
-static inline void rgbhlineasm (int c, int d, INT_PTR t, int b)
+static _inline void rgbhlineasm (int c, int d, INT_PTR t, int b)
 {
 	__asm__ __volatile__ (
 		"subl %%edx, %%ecx\n"
@@ -796,7 +796,7 @@ static inline void rgbhlineasm (int c, int d, INT_PTR t, int b)
 		);
 }
 
-static inline void pal8hlineasm (int c, int d, INT_PTR t, int b)
+static _inline void pal8hlineasm (int c, int d, INT_PTR t, int b)
 {
 	__asm__ __volatile__ (
 		"subl %%edx, %%ecx\n"
@@ -817,12 +817,12 @@ static inline void pal8hlineasm (int c, int d, INT_PTR t, int b)
 
 #else
 
-static inline int Paeth686 (int a, int b, int c)
+static _inline int Paeth686 (int a, int b, int c)
 {
 	return(Paeth(a,b,c));
 }
 
-static inline void rgbhlineasm (int x, int xr1, INT_PTR p, int ixstp)
+static _inline void rgbhlineasm (int x, int xr1, INT_PTR p, int ixstp)
 {
 	int i;
 	if (!trnsrgb)
@@ -838,7 +838,7 @@ static inline void rgbhlineasm (int x, int xr1, INT_PTR p, int ixstp)
 	}
 }
 
-static inline void pal8hlineasm (int x, int xr1, INT_PTR p, int ixstp)
+static _inline void pal8hlineasm (int x, int xr1, INT_PTR p, int ixstp)
 {
 	for(;x>xr1;p+=ixstp,x--) *(int *)p = palcol[olinbuf[x]];
 }
@@ -1333,12 +1333,12 @@ static _inline int mulshr32 (int a, int d)
 
 #else
 
-static inline int mulshr24 (int a, int b)
+static _inline int mulshr24 (int a, int b)
 {
 	return((int)((((__int64)a)*((__int64)b))>>24));
 }
 
-static inline int mulshr32 (int a, int b)
+static _inline int mulshr32 (int a, int b)
 {
 	return((int)((((__int64)a)*((__int64)b))>>32));
 }
@@ -2210,23 +2210,23 @@ static int ktgarend (const char *header, int fleng,
 //==============================  TARGA ends =================================
 //==============================  BMP begins =================================
 	//TODO: handle BI_RLE8 and BI_RLE4 (compression types 1&2 respectively)
-	//                        ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
-	//                        ³  0(2): "BM"   ³
-	// ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿³ 10(4): rastoff³ ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
-	// ³headsiz=12 (OS/2 1.x)³³ 14(4): headsiz³ ³ All new formats: ³
+	//                        ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ?
+	//                        ? 0(2): "BM"   ?
+	// ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿³ 10(4): rastoff?ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+	// ?eadsiz=12 (OS/2 1.x)³³ 14(4): headsiz??All new formats: ?
 	//ÚÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÁÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÁÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
-	//³ 18(2): xsiz                         ³ 18(4): xsiz                                  ³
-	//³ 20(2): ysiz                         ³ 22(4): ysiz                                  ³
-	//³ 22(2): planes (always 1)            ³ 26(2): planes (always 1)                     ³
-	//³ 24(2): cdim (1,4,8,24)              ³ 28(2): cdim (1,4,8,16,24,32)                 ³
-	//³ if (cdim < 16)                      ³ 30(4): compression (0,1,2,3!?,4)             ³
-	//³    26(rastoff-14-headsiz): pal(bgr) ³ 34(4): (bitmap data size+3)&3                ³
-	//³                                     ³ 46(4): N colors (0=2^cdim)                   ³
-	//³                                     ³ if (cdim < 16)                               ³
-	//³                                     ³    14+headsiz(rastoff-14-headsiz): pal(bgr0) ³
+	//?18(2): xsiz                         ?18(4): xsiz                                  ?
+	//?20(2): ysiz                         ?22(4): ysiz                                  ?
+	//?22(2): planes (always 1)            ?26(2): planes (always 1)                     ?
+	//?24(2): cdim (1,4,8,24)              ?28(2): cdim (1,4,8,16,24,32)                 ?
+	//?if (cdim < 16)                      ?30(4): compression (0,1,2,3!?,4)             ?
+	//?   26(rastoff-14-headsiz): pal(bgr) ?34(4): (bitmap data size+3)&3                ?
+	//?                                    ?46(4): N colors (0=2^cdim)                   ?
+	//?                                    ?if (cdim < 16)                               ?
+	//?                                    ?   14+headsiz(rastoff-14-headsiz): pal(bgr0) ?
 	//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
-	//                      ³ rastoff(?): bitmap data ³
-	//                      ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+	//                      ?rastoff(?): bitmap data ?
+	//                      ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ?
 static int kbmprend (const char *buf, int fleng,
 	INT_PTR daframeplace, int dabytesperline, int daxres, int dayres,
 	int daglobxoffs, int daglobyoffs)

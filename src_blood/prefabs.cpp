@@ -20,20 +20,12 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
-
-#include <stdio.h>
-#include <string.h>
-#include <io.h>
-
-
 #include "prefabs.h"
 #include "gui.h"
 #include "editor.h"
 #include "xmpstub.h"
 #include "aadjust.h"
 #include "inifile.h"
-#include "trig.h"
 #include "tile.h"
 #include "hglt.h"
 #include "enumstr.h"

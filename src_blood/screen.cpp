@@ -21,7 +21,7 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include <string.h>
+
 extern "C" {
 #include "a.h"
 }
@@ -49,7 +49,7 @@ RGB *palTable[5];
 static int curPalette;
 static int curGamma;
 int gGammaLevels;
-bool gFogMode = false;
+char gFogMode = 0;
 int32_t gBrightness;
 
 char scrFindClosestColor(int red, int green, int blue)
@@ -279,16 +279,14 @@ void scrInit(void)
     if (!pGamma)
         ThrowError("Gamma table not found");
 	
-	//buildprintf("Loaded\n");
     gGammaLevels = pGamma->size / 256;
     gammaTable = (char(*)[256])gSysRes.Lock(pGamma);
-	//buildprintf("Locked\n");
 }
 
 void scrUnInit(bool engineUninit)
 {
     memset(palookup, 0, sizeof(palookup));
-    transluc = nullptr;
+	transluc = NULL;
     if (engineUninit)
         uninitengine();
 }

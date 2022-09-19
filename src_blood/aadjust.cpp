@@ -28,7 +28,6 @@
 #include "aadjust.h"
 #include "xmpconf.h"
 #include "xmpmisc.h"
-#include "misc.h"
 #include "tile.h"
 #include "tilefav.h"
 #include "gameutil.h"
@@ -41,6 +40,18 @@
 #include "gui.h"
 #include "edit3d.h"
 #include "mapcmt.h"
+#include "xmpror.h"
+
+BYTE markerDB[6][3] = {
+	
+	{kSectorRotate 			- kSectorBase, 		kMarkerAxis,				0},
+	{kSectorRotateMarked 	- kSectorBase, 		kMarkerAxis,				0},
+	{kSectorRotateStep		- kSectorBase, 		kMarkerAxis,				0},
+	{kSectorTeleport 		- kSectorBase, 		kMarkerWarpDest,			0},
+	{kSectorSlide 			- kSectorBase, 		kMarkerOff, 		kMarkerOn},
+	{kSectorSlideMarked		- kSectorBase, 		kMarkerOff, 		kMarkerOn},
+	
+};
 
 AUTODATA autoData[] = {
 
@@ -57,13 +68,13 @@ AUTODATA autoData[] = {
 	{	kOGrpMarker,	FALSE,	TRUE,	kSoundAmbient,				-1,		2521,		32,	24,	-1,	kPlu0 },
 	{	kOGrpMarker,	FALSE,	TRUE,	kSoundPlayer,				-1,		2519,		32,	24,	-1,	kPlu5 },
 	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerUpWater,				-1,		2332,		64,	64,	0,	kPlu0 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerLowWater,			-1,		2331,		64,	64, 0,	kPlu0 },
+	{   kOGrpNone,		FALSE,	TRUE,	kMarkerLowWater,			-1,		2331,		64,	64, 0,	kPlu0 },
 	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerUpStack,				-1,		2332,		64,	64, 0,	kPlu2 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerLowStack,			-1,		2331,		64,	64, 0,	kPlu2 },
+	{   kOGrpNone,		FALSE,	TRUE,	kMarkerLowStack,			-1,		2331,		64,	64, 0,	kPlu2 },
 	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerUpLink,				-1,		2332,		64,	64, 0,	kPlu6 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerLowLink,				-1,		2331,		64,	64, 0,	kPlu6 },
+	{   kOGrpNone,		FALSE,	TRUE,	kMarkerLowLink,				-1,		2331,		64,	64, 0,	kPlu6 },
 	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerUpGoo,				-1,		2332,		64,	64, 0,	kPlu5 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerLowGoo,				-1,		2331,		64,	64, 0,	kPlu5 },
+	{   kOGrpNone,		FALSE,	TRUE,	kMarkerLowGoo,				-1,		2331,		64,	64, 0,	kPlu5 },
 	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerPath,				-1,		2319,		144, 144, 0, kPlu0 },
 
 	{   kOGrpMisc,		TRUE,	TRUE,	kSwitchToggle,				-1,		1072,		40,	40,	-1,	kPluAny },
@@ -158,6 +169,7 @@ AUTODATA autoData[] = {
 	{	kOGrpItem,		FALSE,	TRUE,	kItemBlackChest,			-1,		522,		40,	40,	0,	kPluAny },
 	{	kOGrpItem,		FALSE,	TRUE,	kItemWoodenChest,			-1,		523,		40,	40,	0,	kPluAny },
 	{	kOGrpItem,		FALSE,	TRUE,	40,							-1,		832,		40,	40,	0,	kPluAny },
+	{	kOGrpItem,		TRUE,	TRUE,	150,						-1,		833,		40,	40,	0,	kPluAny },
 
 	{	kOGrpDude,		FALSE,	TRUE,	kDudeCultistShotgun,		11520,	2825,		40,	40,	1,	kPluAny },
 	{	kOGrpDude,		FALSE,	TRUE, 	kDudeCultistShotgunProne,	11534,	3375,		40,	40,	1,	kPluAny },
@@ -235,6 +247,7 @@ const short autoDataLength = LENGTH(autoData);
 unsigned short markers[]  = { kMarkerOff, kMarkerOn, kMarkerAxis, kMarkerWarpDest };
 unsigned short misc[]     = { kMarkerSPStart, kMarkerMPStart, kMarkerDudeSpawn, kMarkerEarthquake, kGenSound, kSoundSector, kSoundPlayer };
 unsigned short cond[] 	  = { kModernCondition, kModernConditionFalse };
+
 SYS_STATNUM_GROUP sysStatData[] = {
 
 	{ 0x02,		kStatMarker,					0,							0, 					markers, LENGTH(markers) },
@@ -251,38 +264,6 @@ SYS_STATNUM_GROUP sysStatData[] = {
 	{ 0x03,		kStatModernCondition,			0,							0, 					cond, LENGTH(cond) },
 	
 };
-
-BOOL sysStatReserved(int nStat) {
-	
-	int i; 
-	for (i = 0; i < LENGTH(sysStatData); i++)
-	{
-		if (nStat == sysStatData[i].statnum) return TRUE;
-	}
-	
-	return FALSE;
-}
-
-BOOL sysStatCanChange(spritetype* pSpr) {
-	
-	int i, j;
-	for (i = 0; i < LENGTH(sysStatData); i++)
-	{
-		SYS_STATNUM_GROUP* data = &sysStatData[i];
-		if (data->enumArray)
-		{
-			for (j = 0; j < data->enumLen; j++)
-			{
-				if (pSpr->type == data->enumArray[j])
-					return FALSE;
-			}
-		}
-		else if (data->typeMax <= 0 && pSpr->type == data->typeMin) return FALSE;
-		else if (irngok(pSpr->type, data->typeMin, data->typeMax))  return FALSE;
-	}
-	
-	return TRUE;
-}
 
 void AutoAdjustSprites(void) {
 
@@ -377,6 +358,11 @@ void AutoAdjustSprites(void) {
 					case kMarkerMPStart:
 						pXSprite->data1 &= 8 - 1;
 						pSprite->picnum = (short)(2522 + pXSprite->data1);
+						if (!gModernMap || pSprite->type != kMarkerMPStart) break;
+						else if (pXSprite->data2 > 0)
+						{
+							pSprite->pal = (pXSprite->data2 == 1) ? kPlu10 : kPlu2;
+						}
 						break;
 					case kMarkerUpLink:
 					case kMarkerUpWater:
@@ -573,246 +559,138 @@ int adjFillTilesArray(int objectGroup) {
 	return tileIndexCount;
 }
 
-void CleanUp() {
-
-	int nSprite, nSector, i, j, x, y, sect, sect2;
+int FixMarker(int nSect, int nMrk, int nMrkType)
+{
+	register int t;
+	if (!rngok(nMrk, 0, kMaxSprites) || sprite[nMrk].statnum != kStatMarker || sprite[nMrk].type != nMrkType)
+		nMrk = -1;
 	
-	if (gPreviewMode)
-		return;
-
-	for(i = numwalls - 1; i >= 0; i--)     //delete points
+	if (nMrk >= 0)
 	{
-		x = wall[i].x, y = wall[i].y;
-		if (x != wall[wall[i].point2].x || y != wall[wall[i].point2].y)
-			continue;
-		
-		sect = sectorofwall(i);
-		if (sector[sect].wallnum <= 1)
+		if (sprite[nMrk].owner != nSect)
 		{
-			sectDelete(sect); // delete the sector
-		}
-		else
-		{
-			deletepoint((short)i);
-			for (j = 0; j < numsectors; j++)
-				redRestore(j);
+			t = InsertSprite(sprite[nMrk].sectnum, kStatMarker);
+			sprite[t] = sprite[nMrk];
+			sprite[t].index = t;
+			sprite[t].owner = nSect;
+			nMrk = t;
 		}
 	}
+	else if (nMrkType)
+	{
+		nMrk = InsertSprite(nSect, kStatMarker);
+		sprite[nMrk].x = wall[sector[nSect].wallptr].x;
+		sprite[nMrk].y = wall[sector[nSect].wallptr].y;
+		sprite[nMrk].owner = nSect;
+		sprite[nMrk].type = nMrkType;
+	}
 	
-	if (gMisc.pan)
-		AlignSlopes();
+	return nMrk;
+}
 
+void CleanUp() {
+
+	int x1, y1, x2, y2;
+	register int s, e, i, j;
+	XSECTOR* pXSect; sectortype* pSect;
+		
+	if (gPreviewMode)
+		return;
+	
 	dbXSectorClean();
 	dbXWallClean();
 	dbXSpriteClean();
-	InitSectorFX();
-	gCommentMgr.Cleanup();
-
-	for (nSector = 0; nSector < numsectors; nSector++)
+	
+	for (i = 0; i < numsectors; i++)
 	{
-		int nXSector = sector[nSector].extra;
-		if (nXSector <= 0)
-			continue;
-		
-		switch (sector[nSector].type) {
-			case kSectorTeleport:
-				if (xsector[nXSector].marker0 >= 0)
+		getSectorWalls(i, &s, &e);
+		pSect  =&sector[i];
+		while(s <= e)
+		{
+			getWallCoords(s, &x1, &y1, &x2, &y2);
+			if (x1 == x2 && y1 == y2)
+			{
+				if (sector[i].wallnum > 1)
 				{
-					int nSprite = xsector[nXSector].marker0;
-					if (nSprite < kMaxSprites && sprite[nSprite].statnum == kStatMarker && sprite[nSprite].type == kMarkerWarpDest)
-						sprite[nSprite].owner = (short)nSector;
-					else
-						xsector[nXSector].marker0 = -1;
+					deletepoint(s);
+					for (j = 0; j < numsectors; j++)
+						sectorAttach(j);
 				}
+				else
+				{
+					sectDelete(i); // delete the sector
+				}
+				
+				// restart the main loop
+				i = 0;
 				break;
-			case kSectorSlide:
-			case kSectorSlideMarked:
-				if (xsector[nXSector].marker0 >= 0)
-				{
-					int nSprite = xsector[nXSector].marker0;
-					if (nSprite < kMaxSprites && sprite[nSprite].statnum == kStatMarker && sprite[nSprite].type == kMarkerOff)
-						sprite[nSprite].owner = (short)nSector;
-					else
-						xsector[nXSector].marker0 = -1;
-				}
-
-				if (xsector[nXSector].marker1 >= 0)
-				{
-					int nSprite = xsector[nXSector].marker1;
-					if (nSprite < kMaxSprites && sprite[nSprite].statnum == kStatMarker && sprite[nSprite].type == kMarkerOn)
-						sprite[nSprite].owner = (short)nSector;
-					else
-						xsector[nXSector].marker1 = -1;
-				}
-				break;
-			case kSectorRotate:
-			case kSectorRotateMarked:
-			case kSectorRotateStep:
-				if (xsector[nXSector].marker0 >= 0)
-				{
-					int nSprite = xsector[nXSector].marker0;
-					if (nSprite < kMaxSprites && sprite[nSprite].statnum == kStatMarker && sprite[nSprite].type == kMarkerAxis)
-						sprite[nSprite].owner = (short)nSector;
-					else
-						xsector[nXSector].marker0 = -1;
-				}
-				break;
+			}
+			
+			s++;
 		}
-
-	}
-
-	for (nSector = 0; nSector < numsectors; nSector++)
-	{
-		int nXSector = sector[nSector].extra;
-		if (nXSector <= 0)
-			continue;
 		
-		switch (sector[nSector].type) {
-			case kSectorTeleport:
-				if (xsector[nXSector].marker0 >= 0)
+		if (pSect->extra > 0)
+		{
+			j = 0;
+			pXSect =&xsector[pSect->extra];
+			while(j < LENGTH(markerDB))
+			{
+				BYTE* pDB = markerDB[j];
+				if (pSect->type - kSectorBase == pDB[0])
 				{
-					int nSprite = xsector[nXSector].marker0;
-					if (sprite[nSprite].owner != (short)nSector)
-					{
-						int nSprite2 = InsertSprite(sprite[nSprite].sectnum, kStatMarker);
-						sprite[nSprite2] = sprite[nSprite];
-						sprite[nSprite2].owner = (short)nSector;
-						xsector[nXSector].marker0 = nSprite2;
-					}
+					pXSect->marker0 = (pDB[1]) ? FixMarker(i, pXSect->marker0, pDB[1]) : -1;
+					pXSect->marker1 = (pDB[2]) ? FixMarker(i, pXSect->marker1, pDB[2]) : -1;
+					break;
 				}
-
-				if (xsector[nXSector].marker0 < 0)
-				{
-					int nSprite = InsertSprite(nSector, kStatMarker);
-					sprite[nSprite].x = wall[sector[nSector].wallptr].x;
-					sprite[nSprite].y = wall[sector[nSector].wallptr].y;
-					sprite[nSprite].owner = (short)nSector;
-					sprite[nSprite].type = kMarkerWarpDest;
-					xsector[nXSector].marker0 = nSprite;
-				}
-				break;
-
-			case kSectorSlide:
-			case kSectorSlideMarked:
-				if (xsector[nXSector].marker0 >= 0)
-				{
-					int nSprite = xsector[nXSector].marker0;
-					if (sprite[nSprite].owner != (short)nSector)
-					{
-						int nSprite2 = InsertSprite(sprite[nSprite].sectnum, kStatMarker);
-						sprite[nSprite2] = sprite[nSprite];
-						sprite[nSprite2].owner = (short)nSector;
-						xsector[nXSector].marker0 = nSprite2;
-					}
-				}
-
-				if (xsector[nXSector].marker0 < 0)
-				{
-					int nSprite = InsertSprite(nSector, kStatMarker);
-					sprite[nSprite].x = wall[sector[nSector].wallptr].x;
-					sprite[nSprite].y = wall[sector[nSector].wallptr].y;
-					sprite[nSprite].owner = (short)nSector;
-					sprite[nSprite].type = kMarkerOff;
-					xsector[nXSector].marker0 = nSprite;
-				}
-
-				if (xsector[nXSector].marker1 >= 0)
-				{
-					int nSprite = xsector[nXSector].marker1;
-					if (sprite[nSprite].owner != (short)nSector)
-					{
-						int nSprite2 = InsertSprite(sprite[nSprite].sectnum, kStatMarker);
-						sprite[nSprite2] = sprite[nSprite];
-						sprite[nSprite2].owner = (short)nSector;
-						xsector[nXSector].marker1 = (short)nSprite2;
-					}
-				}
-
-				if (xsector[nXSector].marker1 < 0)
-				{
-					int nSprite = InsertSprite(nSector, kStatMarker);
-					sprite[nSprite].x = wall[sector[nSector].wallptr].x;
-					sprite[nSprite].y = wall[sector[nSector].wallptr].y;
-					sprite[nSprite].owner = (short)nSector;
-					sprite[nSprite].type = kMarkerOn;
-					xsector[nXSector].marker1 = nSprite;
-				}
-				break;
-			case kSectorRotate:
-			case kSectorRotateMarked:
-			case kSectorRotateStep:
-				if (xsector[nXSector].marker0 >= 0)
-				{
-					int nSprite = xsector[nXSector].marker0;
-					if (sprite[nSprite].owner != (short)nSector)
-					{
-						int nSprite2 = InsertSprite(sprite[nSprite].sectnum, kStatMarker);
-						sprite[nSprite2] = sprite[nSprite];
-						sprite[nSprite2].owner = (short)nSector;
-						xsector[nXSector].marker0 = nSprite2;
-					}
-				}
-
-				if (xsector[nXSector].marker0 < 0)
-				{
-					int nSprite = InsertSprite(nSector, kStatMarker);
-					sprite[nSprite].x = wall[sector[nSector].wallptr].x;
-					sprite[nSprite].y = wall[sector[nSector].wallptr].y;
-					sprite[nSprite].owner = (short)nSector;
-					sprite[nSprite].type = kMarkerAxis;
-					xsector[nXSector].marker0 = nSprite;
-				}
-				break;
-			default:
-				xsector[nXSector].marker0 = -1;
-				xsector[nXSector].marker1 = -1;
-				break;
+				
+				j++;
+			}
+			
+			if (j >= LENGTH(markerDB))
+				pXSect->marker0 = pXSect->marker1 = -1;
 		}
 	}
-
-	for (nSprite = headspritestat[kStatMarker]; nSprite != -1; nSprite = j)
+		
+	for (i = headspritestat[kStatMarker]; i != -1; i = j)
 	{
-		j = nextspritestat[nSprite];
-		sprite[nSprite].extra = -1;
-		sprite[nSprite].cstat |= kSprInvisible;
-		sprite[nSprite].cstat &= ~kSprBlock & ~kSprHitscan;
+		j = nextspritestat[i];
+		if (sprite[i].extra > 0)
+			dbDeleteXSprite(sprite[i].extra);
 
-		int nSector = sprite[nSprite].owner;
+		sprite[i].cstat |= kSprInvisible;
+		sprite[i].cstat &= ~kSprBlock & ~kSprHitscan;
+
+		int nSector = sprite[i].owner;
 		int nXSector = sector[nSector].extra;
 
 		if (nSector >= 0 && nSector < numsectors && nXSector > 0 && nXSector < kMaxXSectors)
 		{
-			switch (sprite[nSprite].type)
+			switch (sprite[i].type)
 			{
 				case kMarkerOff:
-					sprite[nSprite].picnum = 3997;
-					if (xsector[nXSector].marker0 == nSprite)
-						continue;
-					break;
-
-				case kMarkerOn:
-					sprite[nSprite].picnum = 3997;
-					if (xsector[nXSector].marker1 == nSprite)
-						continue;
-					break;
-
 				case kMarkerAxis:
-					sprite[nSprite].picnum = 3997;
-					if (xsector[nXSector].marker0 == nSprite)
+				case kMarkerWarpDest:
+					sprite[i].picnum = 3997;
+					if (xsector[nXSector].marker0 == i)
 						continue;
 					break;
-
-				case kMarkerWarpDest:
-					if (xsector[nXSector].marker0 == nSprite)
+				case kMarkerOn:
+					sprite[i].picnum = 3997;
+					if (xsector[nXSector].marker1 == i)
 						continue;
 					break;
 			}
 		}
 
-		DeleteSprite(nSprite);
+		DeleteSprite(i);
 	}
+	
+	warpInit();
+	InitSectorFX();
+	gCommentMgr.Cleanup();
 
-
+	if (gMisc.pan)
+		AlignSlopes();
 }
 
 void CleanUpStatnum(int nSpr) {
@@ -877,33 +755,23 @@ void CleanUpMisc() {
 	if (gPreviewMode)
 		return;
 	
-	int i, j;
-	for (i = 0; i < numwalls; i++)
-	{
-		// useless x-object check
-		if (wall[i].type == 0 && wall[i].extra > 0 && obsoleteXObject(OBJ_WALL, wall[i].extra))
-			dbDeleteXWall(wall[i].extra);
-
-		if (wall[i].nextwall >= 0)
-			continue;
-
-		// clear useless cstat for white walls...
-		if (wall[i].cstat & kWallMasked) wall[i].cstat &= ~kWallMasked;
-		if (wall[i].cstat & kWallBlock) wall[i].cstat &= ~kWallBlock;
-		if (wall[i].cstat & kWallHitscan) wall[i].cstat &= ~kWallHitscan;
-		if (wall[i].cstat & kWallOneWay) wall[i].cstat &= ~kWallOneWay;
-		if (wall[i].cstat & kWallSwap) wall[i].cstat &= ~kWallSwap;
-		if (wall[i].cstat & kWallTransluc) wall[i].cstat &= ~kWallTransluc;
-		if (wall[i].cstat & kWallTranslucR) wall[i].cstat &= ~kWallTranslucR;
-	}
-
+	int i, j, s, e;
 	for (i = 0; i < numsectors; i++)
 	{
 		sectortype* pSector = &sector[i];
 
 		// useless x-object check
-		if (pSector->type == 0 && pSector->extra > 0 && obsoleteXObject(OBJ_FLOOR, pSector->extra))
-			dbDeleteXSector(pSector->extra);
+		if (pSector->extra > 0)
+		{
+			if (pSector->type == 0 && obsoleteXObject(OBJ_FLOOR, pSector->extra))
+				dbDeleteXSector(pSector->extra);
+			else
+			{
+				XSECTOR* pXSect = &xsector[pSector->extra];
+				if(pXSect->txID && !pXSect->triggerOn && !pXSect->triggerOff)
+					pXSect->triggerOn = pXSect->triggerOff = 1;
+			}
+		}
 
 		// fix ceiling slopes
 		if (pSector->ceilingslope != 0)
@@ -926,17 +794,50 @@ void CleanUpMisc() {
 		{
 			pSector->floorstat &= ~kSectSloped;
 		}
+		
+		getSectorWalls(i, &s, &e);
+		for (j = s; j <= e; j++)
+		{
+			walltype* pWall = &wall[j];
+			
+			// useless x-object check
+			if (pWall->extra > 0)
+			{
+				if (pWall->type == 0 && obsoleteXObject(OBJ_WALL, pWall->extra))
+					dbDeleteXWall(pWall->extra);
+				else
+				{
+					XWALL* pXWall =& xwall[pWall->extra];
+					if(pXWall->txID && !pXWall->triggerOn && !pXWall->triggerOff)
+						pXWall->triggerOn = pXWall->triggerOff = 1;
+				}
+			}
+			
+			if (pWall->nextwall >= 0)
+				continue;
 
+			// clear useless cstat for white walls...
+			if (pWall->cstat & kWallMasked) pWall->cstat &= ~kWallMasked;
+			if (pWall->cstat & kWallBlock) pWall->cstat &= ~kWallBlock;
+			if (pWall->cstat & kWallHitscan) pWall->cstat &= ~kWallHitscan;
+			if (pWall->cstat & kWallOneWay) pWall->cstat &= ~kWallOneWay;
+			if (pWall->cstat & kWallSwap) pWall->cstat &= ~kWallSwap;
+			if (pWall->cstat & kWallTransluc) pWall->cstat &= ~kWallTransluc;
+			if (pWall->cstat & kWallTranslucR) pWall->cstat &= ~kWallTranslucR;
+		}
+		
+		
 		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
 		{
-			CleanUpStatnum(j);
 			spritetype* pSprite =& sprite[j];
 
 			// useless x-sprites check
 			if (pSprite->statnum == kMaxStatus) continue;
 			else if (!pSprite->type && pSprite->extra > 0 && obsoleteXObject(OBJ_SPRITE, pSprite->extra))
 				dbDeleteXSprite(pSprite->extra);
-
+			
+			CleanUpStatnum(j);
+			
 			if (pSprite->extra > 0)
 			{
 				XSPRITE* pXSpr =&xsprite[sprite[j].extra];
@@ -949,6 +850,9 @@ void CleanUpMisc() {
 				if (pXSpr->dropItem >= kItemMax)
 					pXSpr->dropItem = 0;
 				
+				if(pXSpr->txID && !pXSpr->triggerOn && !pXSpr->triggerOff)
+					pXSpr->triggerOn = pXSpr->triggerOff = 1;
+				
 				if (pSprite->statnum == kStatDude)
 				{
 					// use KEY instead of DROP field for key drop
@@ -959,3 +863,35 @@ void CleanUpMisc() {
 		}
 	}
 }
+
+/* BOOL sysStatReserved(int nStat) {
+	
+	int i; 
+	for (i = 0; i < LENGTH(sysStatData); i++)
+	{
+		if (nStat == sysStatData[i].statnum) return TRUE;
+	}
+	
+	return FALSE;
+}
+
+BOOL sysStatCanChange(spritetype* pSpr) {
+	
+	int i, j;
+	for (i = 0; i < LENGTH(sysStatData); i++)
+	{
+		SYS_STATNUM_GROUP* data = &sysStatData[i];
+		if (data->enumArray)
+		{
+			for (j = 0; j < data->enumLen; j++)
+			{
+				if (pSpr->type == data->enumArray[j])
+					return FALSE;
+			}
+		}
+		else if (data->typeMax <= 0 && pSpr->type == data->typeMin) return FALSE;
+		else if (irngok(pSpr->type, data->typeMin, data->typeMax))  return FALSE;
+	}
+	
+	return TRUE;
+} */

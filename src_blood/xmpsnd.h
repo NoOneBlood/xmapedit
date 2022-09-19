@@ -94,10 +94,6 @@ extern char *MusicParams;
 
 int sndGetRate(int format);
 void sndPlaySong(char *songName, bool bLoop);
-bool sndIsSongPlaying(void);
-void sndFadeSong(int nTime);
-void sndSetMusicVolume(int nVolume);
-void sndSetFXVolume(int nVolume);
 void sndStopSong(void);
 void sndStartSample(char *pzSound, int nVolume, int nChannel = -1);
 void sndStartSample(unsigned int nSound, int nVolume, int nChannel = -1, bool bLoop = false);

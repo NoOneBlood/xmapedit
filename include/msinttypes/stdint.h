@@ -1,7 +1,7 @@
 // ISO C9x  compliant stdint.h for Microsoft Visual Studio
 // Based on ISO/IEC 9899:TC2 Committee draft (May 6, 2005) WG14/N1124 
 // 
-//  Copyright (c) 2006-2008 Alexander Chemeris
+//  Copyright (c) 2006-2013 Alexander Chemeris
 // 
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -13,8 +13,9 @@
 //      notice, this list of conditions and the following disclaimer in the
 //      documentation and/or other materials provided with the distribution.
 // 
-//   3. The name of the author may be used to endorse or promote products
-//      derived from this software without specific prior written permission.
+//   3. Neither the name of the product nor the names of its contributors may
+//      be used to endorse or promote products derived from this software
+//      without specific prior written permission.
 // 
 // THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
 // WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
@@ -39,6 +40,10 @@
 #if _MSC_VER > 1000
 #pragma once
 #endif
+
+#if _MSC_VER >= 1600 // [
+#include <stdint.h>
+#else // ] _MSC_VER >= 1600 [
 
 #include <limits.h>
 
@@ -102,17 +107,11 @@ typedef uint64_t  uint_least64_t;
 
 // 7.18.1.3 Fastest minimum-width integer types
 typedef int8_t    int_fast8_t;
-
-//typedef int16_t   int_fast16_t;
-
-
+typedef int16_t   int_fast16_t;
 typedef int32_t   int_fast32_t;
 typedef int64_t   int_fast64_t;
 typedef uint8_t   uint_fast8_t;
-
-//typedef uint16_t  uint_fast16_t;
-
-
+typedef uint16_t  uint_fast16_t;
 typedef uint32_t  uint_fast32_t;
 typedef uint64_t  uint_fast64_t;
 
@@ -233,48 +232,28 @@ typedef uint64_t  uintmax_t;
 
 // 7.18.4.1 Macros for minimum-width integer constants
 
-#if !defined(INT8_C)
 #define INT8_C(val)  val##i8
-#endif
-
-#if !defined(INT16_C)
 #define INT16_C(val) val##i16
-#endif
-
-#if !defined(INT32_C)
 #define INT32_C(val) val##i32
-#endif
-
-#if !defined(INT64_C)
 #define INT64_C(val) val##i64
-#endif
 
-#if !defined(UINT8_C)
 #define UINT8_C(val)  val##ui8
-#endif
-
-#if !defined(UINT16_C)
 #define UINT16_C(val) val##ui16
-#endif
-
-#if !defined(UINT32_C)
 #define UINT32_C(val) val##ui32
-#endif
-
-#if !defined(UINT64_C)
 #define UINT64_C(val) val##ui64
-#endif
 
 // 7.18.4.2 Macros for greatest-width integer constants
-#if !defined(INTMAX_C)
-#define INTMAX_C   INT64_C
-#endif
-
-#if !defined(UINTMAX_C)
-#define UINTMAX_C  UINT64_C
-#endif
+// These #ifndef's are needed to prevent collisions with <boost/cstdint.hpp>.
+// Check out Issue 9 for the details.
+#ifndef INTMAX_C //   [
+#  define INTMAX_C   INT64_C
+#endif // INTMAX_C    ]
+#ifndef UINTMAX_C //  [
+#  define UINTMAX_C  UINT64_C
+#endif // UINTMAX_C   ]
 
 #endif // __STDC_CONSTANT_MACROS ]
 
+#endif // _MSC_VER >= 1600 ]
 
 #endif // _MSC_STDINT_H_ ]

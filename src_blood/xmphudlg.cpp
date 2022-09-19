@@ -1,6 +1,3 @@
-#include "stdint.h"
-
-#include "keyboard.h"
 #include "nnexts.h"
 #include "preview.h"
 #include "aadjust.h"
@@ -446,6 +443,7 @@ BYTE DoSectorFXDialog(DIALOG_ITEM*, DIALOG_ITEM*, BYTE key )
 }
 
 
+
 BYTE AuditSound( DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
 {
 	int i = 0;
@@ -493,6 +491,10 @@ BYTE AuditSound( DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
 			else if (dialog == dlgXSprite)
 			{
 				switch (dialog->value) {
+					case kMarkerDudeSpawn:
+						if (control->tabGroup < kSprDialogData1 || control->tabGroup > kSprDialogData4) break;
+						pickEnemyTile(dialog, control, key);
+						return 0;
 					case kMarkerUpLink:
 					case kMarkerUpWater:
 					case kMarkerUpStack:
@@ -543,26 +545,53 @@ BYTE AuditSound( DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
 	return key;
 }
 
-BYTE pickItemTile(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key) {
-
-	if (key == KEY_F10 && adjFillTilesArray(kOGrpWeapon | kOGrpAmmo | kOGrpAmmoMix | kOGrpItem))
+int pickTypeHelper(int nGroup, char* title)
+{
+	int retn = -1;
+	
+	if (adjFillTilesArray(nGroup))
 	{
 		int i, j;
 		BYTE* scrSave = (BYTE*)Resource::Alloc(xdim*ydim);
 		memcpy(scrSave, (void*)frameplace, xdim*ydim);
 		
-		if ((j = tilePick(-1, -1, OBJ_CUSTOM, "Select item")) >= 0)
+		if ((j = tilePick(-1, -1, OBJ_CUSTOM, title)) >= 0)
 		{
 			for (i = 0; i < autoDataLength; i++)
 			{
 				if (autoData[i].picnum != j) continue;
-				control->value = autoData[i].type;
+				retn = autoData[i].type;
 				break;
 			}
 		}
 		
 		memcpy((void*)frameplace, scrSave, xdim*ydim);
 		Resource::Free(scrSave);
+	}
+	
+	return retn;
+}
+
+BYTE pickEnemyTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key) {
+
+	int value;
+	if (key == KEY_F10)
+	{
+		if ((value = pickTypeHelper(kOGrpDude, "Select enemy to spawn")) >= 0)
+			control->value = value;
+	}
+	
+	return key;
+
+}
+
+BYTE pickItemTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key) {
+
+	int value;
+	if (key == KEY_F10)
+	{
+		if ((value = pickTypeHelper(kOGrpWeapon | kOGrpAmmo | kOGrpAmmoMix | kOGrpItem, "Select item")) >= 0)
+			control->value = value;
 	}
 	
 	return key;

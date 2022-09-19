@@ -26,7 +26,7 @@
 #include "gfx.h"
 #include "mapcmt.h"
 #include "xmphudlg.h"
-#include "xmpconf.h"
+#include "xmpinput.h"
 
 #define kHudPanelHeigh		32
 #define kHudLogoWidth		200

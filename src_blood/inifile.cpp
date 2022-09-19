@@ -22,14 +22,8 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <string.h>
 #include "common_game.h"
-
 #include "inifile.h"
-#include "misc.h"
 #include "xmpmisc.h"
 #include "gui.h"
 
@@ -44,11 +38,15 @@ IniFile::IniFile(char *fileName)
 IniFile::IniFile(void *res, char* saveName)
 {
     head.next = &head;
-	strcpy(this->fileName, saveName);
-    LoadRes(res, saveName);
+	memset(this->fileName, 0, sizeof(this->fileName));
+	
+	if (saveName)
+		strcpy(this->fileName, saveName);
+	
+    LoadRes(res);
 }
 
-void IniFile::LoadRes(void *res, char* saveName)
+void IniFile::LoadRes(void *res)
 {
 	char buffer[256];
 	char *ch, *start;
@@ -128,7 +126,7 @@ void IniFile::Load()
 		}
 		
 		close(hFile);
-		LoadRes(pFile, fileName);
+		LoadRes(pFile);
 		free(pAllocFile);
 	}
 	else
@@ -139,7 +137,10 @@ void IniFile::Load()
 
 void IniFile::Save(void)
 {
-    int hFile; char buffer[256];
+    if (!strlen(fileName))
+		return;
+	
+	int hFile; char buffer[256];
 	fileAttrSetWrite(fileName);
 	hFile = open(fileName, O_CREAT | O_WRONLY | O_TEXT | O_TRUNC, S_IREAD | S_IWRITE);
 	dassert(hFile >= 0);

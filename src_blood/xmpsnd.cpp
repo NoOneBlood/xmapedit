@@ -24,17 +24,14 @@
 ***********************************************************************************/
 
 
-#include <string.h>
 #include "build.h"
 #include "cache1d.h"
 #include "baselayer.h"
 #include "winlayer.h"
 #include "resource.h"
-#include "misc.h"
 #include "gameutil.h"
 #include "xmpsnd.h"
 #include "xmpconf.h"
-#include "trig.h"
 #include "db.h"
 
 
@@ -82,7 +79,82 @@ int soundRates[13] = {
     44100,
 };
 
+void SoundCallback(unsigned int val)
+{
+    int *phVoice = (int*)val;
+    *phVoice = 0;
+}
 
+void InitSoundDevice(void)
+{
+    int fxdevicetype;
+    // if they chose None lets return
+    if (FXDevice < 0) {
+        return;
+    } else if (FXDevice == 0) {
+        fxdevicetype = ASS_AutoDetect;
+    } else {
+        fxdevicetype = FXDevice - 1;
+    }
+#ifdef _WIN32
+    void *initdata = (void *)win_gethwnd(); // used for DirectSound
+#else
+    void *initdata = NULL;
+#endif
+    int nStatus;
+    nStatus = FX_Init(fxdevicetype, NumVoices, &NumChannels, &NumBits, &MixRate, initdata);
+    if (nStatus != FX_Ok)
+        ThrowError(FX_ErrorString(nStatus));
+    if (ReverseStereo == 1)
+        FX_SetReverseStereo(!FX_GetReverseStereo());
+    FX_SetVolume(FXVolume);
+    nStatus = FX_SetCallBack(SoundCallback);
+    if (nStatus != 0)
+        ThrowError(FX_ErrorString(nStatus));
+}
+
+void DeinitSoundDevice(void)
+{
+    if (FXDevice == -1)
+        return;
+    int nStatus = FX_Shutdown();
+    if (nStatus != 0)
+        ThrowError(FX_ErrorString(nStatus));
+}
+
+void InitMusicDevice(void)
+{
+    int musicdevicetype;
+
+    // if they chose None lets return
+    if (MusicDevice < 0) {
+       return;
+    } else if (MusicDevice == 0) {
+       musicdevicetype = ASS_AutoDetect;
+    } else {
+       musicdevicetype = MusicDevice - 1;
+    }
+
+    int nStatus = MUSIC_Init(musicdevicetype, MusicParams);
+    if (nStatus != 0)
+        ThrowError(MUSIC_ErrorString(nStatus));
+    // DICTNODE *hTmb = gSoundRes.Lookup("GMTIMBRE", "TMB");
+    // if (hTmb)
+    //     AL_RegisterTimbreBank((unsigned char*)gSoundRes.Load(hTmb));
+    MUSIC_SetVolume(MusicVolume);
+}
+
+void DeinitMusicDevice(void)
+{
+    if (MusicDevice == -1)
+        return;
+    // FX_StopAllSounds();
+    int nStatus = MUSIC_Shutdown();
+    if (nStatus != 0)
+        ThrowError(MUSIC_ErrorString(nStatus));
+}
+
+bool sndActive = false;
 
 int sndGetRate(int format)
 {
@@ -102,48 +174,20 @@ SAMPLE2D * FindChannel(void)
     return NULL;
 }
 
-DICTNODE *hSong;
-char *pSongPtr;
-int nSongSize;
-
+char *pSongPtr = NULL;
 void sndPlaySong(char *songName, bool bLoop)
-{
-    if (MusicDevice == -1)
-        return;
-    if (nSongSize)
-        sndStopSong();
-    if (!songName || strlen(songName) == 0)
-        return;
-    hSong = gSoundRes.Lookup(songName, "MID");
-    if (!hSong)
-        return;
-    int nNewSongSize = hSong->size;
-    char *pNewSongPtr = (char *)malloc(nNewSongSize);
-    gSoundRes.Load(hSong, pNewSongPtr);
-    MUSIC_SetVolume(MusicVolume);
-    MUSIC_PlaySong(pNewSongPtr, nNewSongSize, bLoop);
-}
-
-bool sndIsSongPlaying(void)
-{
-    if (MusicDevice == -1)
-        return 0;
-    return MUSIC_SongPlaying();
-}
-
-void sndFadeSong(int nTime)
-{
-    if (MusicDevice == -1)
-        return;
-    // UNREFERENCED_PARAMETER(nTime);
-    // NUKE-TODO:
-    //if (MusicDevice == -1)
-    //    return;
-    //if (gEightyTwoFifty && sndMultiPlayer)
-    //    return;
-    //MUSIC_FadeVolume(0, nTime);
-    // MUSIC_SetVolume(0);
-    MUSIC_StopSong();
+{  
+   DICTNODE *hSong;
+   if (MusicDevice == -1 || !songName || (hSong = gSoundRes.Lookup(songName, "MID")) == NULL) return;
+   else if (pSongPtr)
+	   sndStopSong();
+	
+   if ((pSongPtr = (char *)malloc(hSong->size)) != NULL)
+   {
+		gSoundRes.Load(hSong, pSongPtr);
+		MUSIC_SetVolume(MusicVolume);
+		MUSIC_PlaySong(pSongPtr, hSong->size, bLoop);
+   }
 }
 
 void sndSetMusicVolume(int nVolume)
@@ -164,19 +208,16 @@ void sndSetFXVolume(int nVolume)
 
 void sndStopSong(void)
 {
-    if (MusicDevice == -1)
-        return;
-    MUSIC_StopSong();
+	if (MusicDevice >= 0)
+		MUSIC_StopSong();
 
-    free(pSongPtr);
-    nSongSize = 0;
+	if (pSongPtr)
+	{
+		free(pSongPtr);
+		pSongPtr = NULL;
+	}
 }
 
-void SoundCallback(unsigned int val)
-{
-    int *phVoice = (int*)val;
-    *phVoice = 0;
-}
 
 void sndKillSound(SAMPLE2D *pChannel);
 
@@ -357,76 +398,7 @@ void sndProcess(void)
     }
 }
 
-void InitSoundDevice(void)
-{
-    int fxdevicetype;
-    // if they chose None lets return
-    if (FXDevice < 0) {
-        return;
-    } else if (FXDevice == 0) {
-        fxdevicetype = ASS_AutoDetect;
-    } else {
-        fxdevicetype = FXDevice - 1;
-    }
-#ifdef _WIN32
-    void *initdata = (void *)win_gethwnd(); // used for DirectSound
-#else
-    void *initdata = NULL;
-#endif
-    int nStatus;
-    nStatus = FX_Init(fxdevicetype, NumVoices, &NumChannels, &NumBits, &MixRate, initdata);
-    if (nStatus != FX_Ok)
-        ThrowError(FX_ErrorString(nStatus));
-    if (ReverseStereo == 1)
-        FX_SetReverseStereo(!FX_GetReverseStereo());
-    FX_SetVolume(FXVolume);
-    nStatus = FX_SetCallBack(SoundCallback);
-    if (nStatus != 0)
-        ThrowError(FX_ErrorString(nStatus));
-}
 
-void DeinitSoundDevice(void)
-{
-    if (FXDevice == -1)
-        return;
-    int nStatus = FX_Shutdown();
-    if (nStatus != 0)
-        ThrowError(FX_ErrorString(nStatus));
-}
-
-void InitMusicDevice(void)
-{
-    int musicdevicetype;
-
-    // if they chose None lets return
-    if (MusicDevice < 0) {
-       return;
-    } else if (MusicDevice == 0) {
-       musicdevicetype = ASS_AutoDetect;
-    } else {
-       musicdevicetype = MusicDevice - 1;
-    }
-
-    int nStatus = MUSIC_Init(musicdevicetype, MusicParams);
-    if (nStatus != 0)
-        ThrowError(MUSIC_ErrorString(nStatus));
-    // DICTNODE *hTmb = gSoundRes.Lookup("GMTIMBRE", "TMB");
-    // if (hTmb)
-    //     AL_RegisterTimbreBank((unsigned char*)gSoundRes.Load(hTmb));
-    MUSIC_SetVolume(MusicVolume);
-}
-
-void DeinitMusicDevice(void)
-{
-    if (MusicDevice == -1)
-        return;
-    // FX_StopAllSounds();
-    int nStatus = MUSIC_Shutdown();
-    if (nStatus != 0)
-        ThrowError(MUSIC_ErrorString(nStatus));
-}
-
-bool sndActive = false;
 
 void sndTerm(void)
 {
@@ -440,7 +412,7 @@ void sndTerm(void)
 
 void sndInit(void)
 {
-    pSongPtr = NULL; nSongSize = 0;
+    pSongPtr = NULL;
     memset(Channel, 0, sizeof(Channel));
 	if (!sndActive)
 	{

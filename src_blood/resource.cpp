@@ -20,15 +20,9 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
 #include "common_game.h"
 #include "crc32.h"
 #include "cache1d.h"
-
-#include "misc.h"
 #include "qheap.h"
 #include "xmpmisc.h"
 
@@ -36,7 +30,6 @@
 QHeap *Resource::heap;
 #endif
 CACHENODE Resource::purgeHead = { NULL, &purgeHead, &purgeHead, 0 };
-
 
 Resource::Resource(void)
 {
@@ -69,7 +62,7 @@ Resource::~Resource(void)
     }
     if (handle != -1)
     {
-        kclose(handle);
+        close(handle);
     }
 }
 
@@ -84,12 +77,12 @@ void Resource::Init(const char *filename)
 
     if (filename)
     {
-        handle = kopen4load(filename, 0);
+        handle = open(filename, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE);
         if (handle != -1)
         {
-            int nFileLength = kfilelength(handle);
+            int nFileLength = filelength(handle);
             dassert(nFileLength != -1);
-            if (kread(handle, &header, sizeof(RFFHeader)) != sizeof(RFFHeader)
+            if (read(handle, &header, sizeof(RFFHeader)) != sizeof(RFFHeader)
                 || memcmp(header.sign, "RFF\x1a", 4))
             {
                 ThrowError("RFF header corrupted");
@@ -122,9 +115,9 @@ void Resource::Init(const char *filename)
                 dict = (DICTNODE*)Alloc(buffSize * sizeof(DICTNODE));
                 memset(dict, 0, buffSize * sizeof(DICTNODE));
                 DICTNODE_FILE *tdict = (DICTNODE_FILE*)Alloc(count*sizeof(DICTNODE_FILE));
-                int r = klseek(handle, header.offset, SEEK_SET);
+                int r = lseek(handle, header.offset, SEEK_SET);
                 dassert(r != -1);
-                if ((uint32_t)kread(handle, tdict, count * sizeof(DICTNODE_FILE)) != count*sizeof(DICTNODE_FILE))
+                if ((uint32_t)read(handle, tdict, count * sizeof(DICTNODE_FILE)) != count*sizeof(DICTNODE_FILE))
                 {
                     ThrowError("RFF dictionary corrupted");
                 }
@@ -138,8 +131,8 @@ void Resource::Init(const char *filename)
                     dict[i].offset = B_LITTLE32(tdict[i].offset);
                     dict[i].size = B_LITTLE32(tdict[i].size);
                     dict[i].flags = tdict[i].flags;
-                    int nTypeLength = strnlen(tdict[i].type, 3);
-                    int nNameLength = strnlen(tdict[i].name, 8);
+                    int nTypeLength = ClipHigh(strlen(tdict[i].type), 3);
+                    int nNameLength = ClipHigh(strlen(tdict[i].name), 8); //strnlen(tdict[i].name, 8);
                     dict[i].type = (char*)Alloc(nTypeLength+1);
                     dict[i].name = (char*)Alloc(nNameLength+1);
                     strncpy(dict[i].type, tdict[i].type, min(3, nTypeLength));
@@ -373,11 +366,11 @@ void Resource::AddExternalResource(const char *name, const char *type, int id, i
     else
         Bstrncpy(path, filename, BMAX_PATH-1);
 
-    int fhandle = kopen4load(filename, 0);
+    int fhandle = open(filename, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE);
     if (fhandle == -1)
         return;
-    int size = kfilelength(fhandle);
-    kclose(fhandle);
+    int size = filelength(fhandle);
+    close(fhandle);
     strcpy(name2, name);
     strcpy(type2, type);
     Bstrupr(name2);
@@ -728,12 +721,12 @@ void Resource::Read(DICTNODE *n, void *p)
             Bstrncpy(filename, n->path, BMAX_PATH-1);
         else
             Bsnprintf(filename, BMAX_PATH-1, "%s.%s", n->name, n->type);
-        int fhandle = kopen4load(filename, 0);
-        if (fhandle == -1 || (uint32_t)kread(fhandle, p, n->size) != n->size)
+        int fhandle = open(filename, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE);
+        if (fhandle == -1 || (uint32_t)read(fhandle, p, n->size) != n->size)
         {
             ThrowError("Error reading external resource (%i)", errno);
         }
-        kclose(fhandle);
+        close(fhandle);
     }
     else if (n->flags & DICT_BUFFER)
     {
@@ -741,12 +734,12 @@ void Resource::Read(DICTNODE *n, void *p)
     }
     else
     {
-        int r = klseek(handle, n->offset, SEEK_SET);
+        int r = lseek(handle, n->offset, SEEK_SET);
         if (r == -1)
         {
             ThrowError("Error seeking to resource!");
         }
-        if ((uint32_t)kread(handle, p, n->size) != n->size)
+        if ((uint32_t)read(handle, p, n->size) != n->size)
         {
             ThrowError("Error loading resource!");
         }
@@ -1026,4 +1019,42 @@ void Resource::RemoveNode(DICTNODE* pNode)
         pNode->next->prev = pNode;
     }
     Reindex();
+}
+
+void *ResReadLine(char *buffer, unsigned int nBytes, void **pRes)
+{
+    unsigned int i;
+    char ch;
+    if (!pRes || !*pRes || *((char*)*pRes) == 0)
+        return NULL;
+    for (i = 0; i < nBytes; i++)
+    {
+        ch = *((char*)*pRes);
+        if(ch == 0 || ch == '\n')
+            break;
+        buffer[i] = ch;
+        *pRes = ((char*)*pRes)+1;
+    }
+    if (*((char*)*pRes) == '\n' && i < nBytes)
+    {
+        ch = *((char*)*pRes);
+        buffer[i] = ch;
+        *pRes = ((char*)*pRes)+1;
+        i++;
+    }
+    else
+    {
+        while (true)
+        {
+            ch = *((char*)*pRes);
+            if (ch == 0 || ch == '\n')
+                break;
+            *pRes = ((char*)*pRes)+1;
+        }
+        if (*((char*)*pRes) == '\n')
+            *pRes = ((char*)*pRes)+1;
+    }
+    if (i < nBytes)
+        buffer[i] = 0;
+    return *pRes;
 }

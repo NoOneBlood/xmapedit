@@ -24,13 +24,10 @@
 
 #include "build.h"
 #include "db.h"
-#include "misc.h"
 #include "callback.h"
 #include "eventq.h"
 #include "tile.h"
-#include "trig.h"
 #include "gameutil.h"
-
 #include "xmpact.h"
 #include "xmpfx.h"
 #include "xmpgib.h"

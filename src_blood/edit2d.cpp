@@ -25,12 +25,9 @@
 #include "pragmas.h"
 #include "common_game.h"
 #include "xmpstub.h"
-#include "misc.h"
-#include "trig.h"
 #include "tracker.h"
 #include "gameutil.h"
 #include "db.h"
-#include "keyboard.h"
 #include "edit2d.h"
 #include "xmpsnd.h"
 
@@ -53,6 +50,12 @@
 
 short sectorhighlight;		// which sector mouse is inside in 2d mode
 short sectorhighlightfill;
+
+void getpoint2(int* x, int* y)
+{
+	*x = posx + divscale14(*x-halfxdim16,zoom);
+	*y = posy + divscale14(*y-midydim16,zoom);
+}
 
 /* struct CIRCLEWALL
 {
@@ -115,42 +118,74 @@ void CIRCLEWALL::Draw()
 	}
 	
 } 
-
-
-
-typedef void FILLFUNC(int arg1, int arg2, int arg3, int arg4);
-struct FILLTRANSLUC
-{
-	unsigned int nTile		: 17;
-	unsigned int wh			: 10;
-	unsigned int hg			: 10;
-	void Set(int nTile, int wh, int hg);
-	void Cap(FILLFUNC fillFunc, int arg1 = 0, int arg2 = 0, int arg3 = 0, int arg4 = 0);
-	void Show();
-};
-
-
-void FILLTRANSLUC::Set(int nTile, int wh, int hg)
-{
-	this->wh = wh;
-	this->hg = hg;
-	this->nTile = nTile;
-	memset((void*)waloff[nTile], 255, wh*hg);
-	setviewtotile(nTile, hg, wh);
-}
-
-void FILLTRANSLUC::Cap(FILLFUNC fillFunc, int arg1 = 0, int arg2 = 0, int arg3 = 0, int arg4 = 0)
-{
-	fillFunc(arg1, arg2, arg3, arg4);
-}
-
-void FILLTRANSLUC::Show()
-{
-	setviewback();
-	rotatesprite((xdim>>1)<<16, (ydim>>1)<<16, 0x10000, 512, nTile, 0, 0, kRSNoMask | kRSNoClip | kRSYFlip | nTransluc, 0, 0, xdim, ydim16);
-}
-
 */
+
+void FASTCALL sectorDetach(int nSector)
+{
+	int x1, y1, x2, y2;
+	int sw, ew, sw2, ew2, i, j, k, sect;
+	getSectorWalls(nSector, &sw, &ew); i = sw;
+
+	 // first white out walls from the both sides
+	while(i <= ew)
+	{
+		if (wall[i].nextwall >= 0)
+		{
+			wallDetach(wall[i].nextwall);
+			wallDetach(i);
+		}
+		
+		i++;
+	}
+	
+	// restore red walls if sibling sectors stay highlight
+	if (highlightsectorcnt > 0)
+	{
+		while(--i >= sw)
+		{
+			getWallCoords(i, &x1, &y1, &x2, &y2);
+			
+			j = highlightsectorcnt;
+			while(j--)
+			{
+				sect = highlightsector[j];
+				getSectorWalls(sect, &sw2, &ew2);
+				for (k = sw2; k <= ew2; k++)
+				{
+					if (wall[wall[k].point2].x != x1 || wall[k].x != x2) continue;
+					if (wall[wall[k].point2].y != y1 || wall[k].y != y2) continue;
+					
+					wall[i].nextsector = sect;		wall[i].nextwall = k;
+					wall[k].nextsector = nSector;	wall[k].nextwall = i;
+				}
+			}
+		}
+	}
+	
+}
+
+void FASTCALL sectorAttach(int nSector) {
+	
+	register int i, j, sw, ew;
+	getSectorWalls(nSector, &sw, &ew); i = sw;
+	
+	while(i <= ew)
+	{
+		checksectorpointer(i++, nSector);
+	}
+
+	// if near sectors stay highlighted
+	while (--i >= sw)
+	{
+		if (wall[i].nextwall < 0) continue;
+		for (j = 0; j < highlightsectorcnt; j++)
+		{
+			if (highlightsector[j] != wall[i].nextsector) continue;
+			wall[wall[i].nextwall].nextwall = wall[wall[i].nextwall].nextsector = -1;
+			wall[i].nextwall = wall[i].nextsector = -1;
+		}
+	}
+}
 
 int countSpritesAt(int x, int y)
 {
@@ -451,7 +486,7 @@ void rotateSector(int nSector, int nAng, int ax, int ay, char flags = kFlagSprit
 		nAng = (nAng < 0) ? -512 : 512;
 
 	if (hglt)
-		redRestore(nSector);
+		sectorAttach(nSector);
 	
 	getSectorWalls(nSector, &swal, &ewal);
 	for (i = swal; i <= ewal; i++)
@@ -473,7 +508,7 @@ void rotateSector(int nSector, int nAng, int ax, int ay, char flags = kFlagSprit
 	}
 	
 	if (hglt)
-		whiteOut(nSector);
+		sectorDetach(nSector);
 	
 	if (flags & kFlagSprites)
 	{
@@ -489,25 +524,15 @@ void rotateSector(int nSector, int nAng, int ax, int ay, char flags = kFlagSprit
 	}
 }
 
-void scr2point(int *x, int* y) {
-	
-	int dx, dy;
-	dx = *x, dy = *y;
-	getpoint(dx, dy, &dx, &dy);
-	*x = dx;
-	*y = dy;
-}
-
 void drawHighlight(int x1, int y1, int x2, int y2, char color) {
 	
 	BYTE* pTile;
 	int t, wh, hg, nTile = gSysTiles.hglt2d;
 	char flags = kRSCorner | kRSNoMask | kRSNoClip | kRSTransluc;
 	
-	if (x1 > x2) t = x1, x1 = x2, x2 = t;
-	if (y1 > y2) t = y1, y1 = y2, y2 = t;
-	x1++, y1++;
-	
+	if (x1 > x2) swapValues(&x1, &x2);
+	if (y1 > y2) swapValues(&y1, &y2);
+
 	wh = x2-x1, hg = y2-y1;
 	if (tilesizx[nTile] == wh && tilesizy[nTile] == hg)
 	{
@@ -526,11 +551,13 @@ void drawHighlight(int x1, int y1, int x2, int y2, char color) {
 
 void Draw2dWallMidPoint(int nWall, char color, char which) {
 
-	int ang, size;
-	int x0 = halfxdim16 + mulscale14(wall[nWall].x - posx, zoom);
-	int y0 = midydim16  + mulscale14(wall[nWall].y - posy, zoom);
-	int x1 = halfxdim16 + mulscale14(wall[wall[nWall].point2].x - posx, zoom);
-	int y1 = midydim16  + mulscale14(wall[wall[nWall].point2].y - posy, zoom);
+	register int ang, size, x0, y0, x1, y1;
+	getWallCoords(nWall, &x0, &y0, &x1, &y1);
+	x0 = halfxdim16 + mulscale14(x0 - posx, zoom);
+	y0 = midydim16  + mulscale14(y0 - posy, zoom);
+	x1 = halfxdim16 + mulscale14(x1 - posx, zoom);
+	y1 = midydim16  + mulscale14(y1 - posy, zoom);
+	
 	int mx = (x0 + x1) >> 1; int my = (y0 + y1) >> 1;
 	if (mx > 4 && mx < xdim - 5 && my > 4 && my < ydim16 - 5)
 	{
@@ -556,7 +583,7 @@ void Draw2dWallMidPoint(int nWall, char color, char which) {
 
 }
 
-void Draw2dFloorSpriteFull(int x, int y, int xp1, int yp1, char color, int idx) {
+void Draw2dFloorSpriteFull(int x, int y, char color, int idx) {
 
 	begindrawing();
 	int odrawlinepat = drawlinepat;
@@ -566,9 +593,8 @@ void Draw2dFloorSpriteFull(int x, int y, int xp1, int yp1, char color, int idx) 
 	int sinang = sintable[(sprite[idx].ang+512+1024)&2047];
 	int cosang = sintable[(sprite[idx].ang+1024)&2047];
 	int r,s;
+	
 
-	
-	
 	fx = mulscale10(fx,zoom) >> 1;
 	fy = mulscale10(fy,zoom) >> 1;
 
@@ -589,26 +615,25 @@ void Draw2dFloorSpriteFull(int x, int y, int xp1, int yp1, char color, int idx) 
 		co[ii][1] = s;
 	}
 	
-	drawlinepat = 0xcccccccc;
-
+	drawlinepat = kPatDotted;
+	
 	for (ii=0;ii<4;ii++)
 	{
-		drawline16(halfxdim16 + xp1 + co[ii][0], midydim16 + yp1 - co[ii][1],
-			halfxdim16 + xp1 + co[(ii+1)&3][0], midydim16 + yp1 - co[(ii+1)&3][1],
-			color);
+		drawline16(x + co[ii][0], y - co[ii][1], x + co[(ii+1)&3][0], y - co[(ii+1)&3][1], color);
 	}
 	drawlinepat = odrawlinepat;
 	enddrawing();
 }
 
-void Draw2dFloorSprite( int x, int y, char color)
+void Draw2dFloorSprite(int x, int y, char color)
 {
-	begindrawing();
-	drawline16(x - 3, y - 3, x + 3, y - 3, color);
-	drawline16(x - 3, y + 3, x + 3, y + 3, color);
-	drawline16(x - 3, y - 3, x - 3, y + 3, color);
-	drawline16(x + 3, y - 3, x + 3, y + 3, color);
-	enddrawing();
+	gfxSetColor(color);
+	
+	gfxHLine(y - 3, x - 3, x + 3);
+	gfxHLine(y + 3, x - 3, x + 3);
+	
+	gfxVLine(x - 3, y - 3, y + 3);
+	gfxVLine(x + 3, y - 3, y + 3);
 }
 
 void DrawBuild2dFaceSprite(int x, int y, int color) {
@@ -643,9 +668,6 @@ void Draw2dCross(int x, int y, int color, int size) {
 	drawline16(x-size, y+size, x+size, y-size, color);
 }
 
-
-
-
 BOOL testXSectorForLighting(short nXSect) {
 
 	int sum = 0;
@@ -666,8 +688,8 @@ BOOL testXSectorForLighting(short nXSect) {
 int findUnusedChannel(DIALOG_ITEM* dialog) {
 
 	BOOL used[1024];
-	int i, j;
-
+	register int i;
+	
 	memset(used, FALSE, sizeof(used));
 
 	// search in dialog...
@@ -693,68 +715,22 @@ int findUnusedChannel(DIALOG_ITEM* dialog) {
 		}
 
 	}
-
-	// search in objects
-	for (i = 0; i < numsectors; i++) {
-		int nXSector = sector[i].extra;
-		if ( nXSector > 0 ) {
-			used[xsector[nXSector].txID] = TRUE;
-			used[xsector[nXSector].rxID] = TRUE;
-		}
+	
+	for(i = 100; i < LENGTH(used); i++)
+	{
+		if (used[i]) continue;
+		else if ((used[i] = (collectObjectsByChannel(i, FALSE) > 0)) != 0) continue;
+		else used[i] = (collectObjectsByChannel(i, TRUE) > 0);
 	}
-
-	for (i = 0; i < numwalls; i++) {
-		int nXWall = wall[i].extra;
-		if ( nXWall > 0 ) {
-			used[xwall[nXWall].txID] = TRUE;
-			used[xwall[nXWall].rxID] = TRUE;
-		}
-	}
-
-	for (i = 0; i < kMaxSprites; i++) {
-		if (sprite[i].statnum >= kMaxStatus) continue;
-		int nXSprite = sprite[i].extra;
-		if (nXSprite <= 0)
-			continue;
-
-		XSPRITE* pXSpr = &xsprite[nXSprite];
-		switch (sprite[i].type) {
-			default: break;
-			case kModernRandomTX:
-			case kModernSequentialTX:
-				// ranged TX
-				if (pXSpr->data1 <= 0 && pXSpr->data2 <= 0 && pXSpr->data3 <= 0 && pXSpr->data4 <= 0) continue;
-				else if (chlRangeIsFine(pXSpr->data1) && pXSpr->data2 == 0 && pXSpr->data3 == 0 && chlRangeIsFine(pXSpr->data4)) {
-					if (pXSpr->data1 > pXSpr->data4) {
-						int tmp = pXSpr->data4;
-						pXSpr->data4 = pXSpr->data1;
-						pXSpr->data1 = tmp;
-					}
-
-					for (j = pXSpr->data1; j <= pXSpr->data4; j++)
-						used[j] = TRUE;
-				} else {
-
-					if (chlRangeIsFine(pXSpr->data1)) used[pXSpr->data1] = TRUE;
-					if (chlRangeIsFine(pXSpr->data2)) used[pXSpr->data2] = TRUE;
-					if (chlRangeIsFine(pXSpr->data3)) used[pXSpr->data3] = TRUE;
-					if (chlRangeIsFine(pXSpr->data4)) used[pXSpr->data4] = TRUE;
-
-				}
-				continue;
-		}
-		used[xsprite[nXSprite].txID] = TRUE;
-		used[xsprite[nXSprite].rxID] = TRUE;
-
-	}
-
-
+	
 	// find the first unused id
-	for (i = 100; i < 1024; i++)
-		if ( !used[i] )
-			break;
-
-	return (i == 1024) ? -1 : i;
+	for (i = 100; i < LENGTH(used); i++)
+	{
+		if (!used[i])
+			return i;
+	}
+	
+	return -1;
 }
 
 int findUnusedPath(DIALOG_ITEM* dialog, DIALOG_ITEM *control) {
@@ -763,32 +739,6 @@ int findUnusedPath(DIALOG_ITEM* dialog, DIALOG_ITEM *control) {
 	BOOL FOUND;
 	int i = 0, id = -1, j = 0;
 	control = control;
-
-	// only search when F10 pressed in edit dialog
-/* 	if (dialog == dlgXSprite) {
-
-		switch (control->tabGroup) {
-			case kSprDialogData1:
-			//case kSprDialogData2:
-				// try to find marker that have no source or destination
-				for (i = headspritestat[kStatPathMarker]; i != -1; i = nextspritestat[i]) {
-					if (sprite[i].extra <= 0 || sprite[i].type != kMarkerPath)
-						continue;
-
-					id = (control->tabGroup == kSprDialogData1) ? xsprite[sprite[i].extra].data2 : xsprite[sprite[i].extra].data1;
-					for (j = headspritestat[kStatPathMarker]; j != -1; j = nextspritestat[j]) {
-						if (sprite[j].index == sprite[i].index || sprite[j].extra <= 0 || sprite[j].type != kMarkerPath) continue;
-						else if (control->tabGroup == kSprDialogData1 && xsprite[sprite[j].extra].data1 == id) break;
-						//else if (control->tabGroup == kSprDialogData2 && xsprite[sprite[j].extra].data2 == id) break;
-					}
-
-					if (j == -1)
-						return id;
-
-				}
-		}
-
-	} */
 
 	id = 0;
 	while(id < 32767) {
@@ -842,7 +792,7 @@ int findUnusedStack() {
 	memset(stacks, -1, sizeof(stacks));
 
 	// collect all the stack data
-	for (i = 0, k = 0; i < kMaxSectors; i++) {
+	for (i = 0, k = 0; i < numsectors; i++) {
 		for (j = headspritesect[i]; j != -1; j = nextspritesect[j]) {
 			if (sprite[j].extra > 0 && sprite[j].type >= kMarkerLowLink
 				&& sprite[j].type <= kMarkerLowGoo && sprite[j].type != kMarkerWarpDest) {
@@ -1113,40 +1063,44 @@ int GetControlValue(DIALOG_ITEM *dialog, int group )
 	return control->value;
 }
 
+int drawHint(int x, int y, int ox, int oy, char fr, short bg, char* text)
+{
+	return 0;
+}
+
 int EditDialog(DIALOG_ITEM *dialog)
 {
 	char tmp[16], *label;
 	BYTE key, ctrl, shift, alt;
 	DIALOG_ITEM *control, *item; RESHANDLE hFile;
 	int x1, x2, x3, x4, y1, y2, y3, y4, wh, hg, group = 1, maxGroup = 0, value, i;
-	static int wheelTimer = 0, recurLev = 0;
+	static int recurLev = 0;
 	BOOL upd = TRUE;
+	MOUSE mouse;
 	
 	keyClear();
-	MOUSE mouse;
-	mouse.Init(MapEditINI, "Mouse");
-	mouse.ChangeCursor(kBitmapMouseCursor);
-	wh = mouse.cursor.width; hg = mouse.cursor.height >> 1;
-	
+		
 	gMapedHud.GetWindowCoords(&gMapedHud.main, &x1, &y1, &x2, &y2);
-	if (recurLev++ <= 0)
+	if (recurLev++ < 1)
 	{
 		drawHighlight(0, 0, x2, y1+(gMapedHud.tw>>1), clr2std(kColorBlack));
 		gMapedHud.DrawLogo();
+
+		if (gHints == NULL) // load hints for edit dialog
+		{
+			if ((hFile = gGuiRes.Lookup(kIniEditDialogHints, "INI")) != NULL)
+				gHints = new IniFile(gGuiRes.Load(hFile));
+		}
 	}
 	
 	gMapedHud.GetWindowCoords(&gMapedHud.content, &x1, &y1, &x2, &y2);
-	mouse.SetRange(x1+wh, y1+hg, x2-wh, y2-ClipLow(hg, 9)); // in case mouse cursor is just too large
-	mouse.ClampSpeed(30, 30);
-	mouse.speedScale = 0;
 	
-	if (gHints == NULL) // load hints for edit dialog
-	{
-		if ((hFile = gGuiRes.Lookup(kIniEditDialogHints, "INI")) != NULL)
-			gHints = new IniFile(gGuiRes.Load(hFile), "HINTS.INI");
-	}
-	
-	
+	mouse.ChangeCursor(kBitmapMouseCursor);
+	wh = mouse.cursor.width; hg = mouse.cursor.height >> 1;
+	mouse.RangeSet(x1+wh, y1+hg, x2-wh, y2-ClipLow(hg, 9)); // in case mouse cursor is just too large
+	mouse.VelocitySet(40, 35, false);
+	mouse.wheelDelay = 14;
+
 	// find max group
 	for (control = dialog; control->type != CONTROL_END; control++)
 	{
@@ -1166,14 +1120,38 @@ int EditDialog(DIALOG_ITEM *dialog)
 		{
 			PaintDialog(dialog);
 			PaintDialogItem(dialog, control, true);
+			
+			if (control->fieldHelpProc)
+			{
+				label = (control->readyLabel) ? control->readyLabel : control->formatLabel;
+				
+				x3 = control->x << 3, y3 = control->y << 3;
+				x4 = x3 + (ClipLow(strlen(label), 1) << 3), y4 = y3 + 8;
+				
+				gfxSetColor(clr2std(kColorWhite));
+				
+				int l = (x4-x3)>>1;
+				int mx = x3 + l;
+				
+				gfxVLine(mx, y1-(y3-y1), y3);
+				
+				gfxSetColor(clr2std(kColorBlue));
+				gfxFillBox(mx-l-4, midydim16-4, mx+l+4, midydim16+8+4);
+				printextShadowL(x3, midydim16, clr2std(kColorWhite), label);
+				
+			}
+			
+			
 			mouse.Draw();
 			showframe();
 		}
 		
-		handleevents();
 		updateClocks();
-		mouse.Read(gFrameClock);
+		
+		mouse.Read();
 		keyGetHelper(&key, &ctrl, &shift, &alt);
+		handleevents();
+		
 		upd = (key || mouse.buttons || mouse.dX2 || mouse.dY2);
 		
 		if (!upd) continue;
@@ -1204,21 +1182,10 @@ int EditDialog(DIALOG_ITEM *dialog)
 		}
 		else if (mouse.buttons) // convert mouse buttons in keyboard scans
 		{
-			if (mouse.wheel != 0)
+			if (mouse.wheel && keystatus[KEY_Q])
 			{
-				if (totalclock < wheelTimer) mouse.wheel = 0;
-				else
-				{
-					wheelTimer = totalclock + 16;
-					if (keystatus[KEY_Q])
-					{
-						if (mouse.wheel == -1) key = KEY_LEFT;
-						else if (mouse.wheel == 1)
-							key = KEY_RIGHT;
-						
-						mouse.wheel = 0;
-					}
-				}
+				key = (mouse.wheel < 0) ? KEY_LEFT : KEY_RIGHT;
+				mouse.wheel = 0;
 			}
 
 			if ((mouse.press & 4) && control->fieldHelpProc)
@@ -1417,6 +1384,8 @@ int EditDialog(DIALOG_ITEM *dialog)
 				control->value = value;
 				break;
 		}
+		
+
 	}
 }
 
@@ -2386,10 +2355,11 @@ void ShowSpriteData(int nSprite, BOOL xFirst, BOOL dialog) {
 		PaintDialog(dlgSprite);
 	}
 	
-	if ((i = gCommentMgr.IsBind(OBJ_SPRITE, nSprite)) < 0) gMapedHud.SetComment();
-	else gMapedHud.SetComment(&gCommentMgr.comments[i]);
+	if ((i = gCommentMgr.IsBind(OBJ_SPRITE, nSprite)) < 0)
+		gMapedHud.SetComment();
+	else
+		gMapedHud.SetComment(&gCommentMgr.comments[i]);
 	
-	if ((i = gCommentMgr.IsBind(OBJ_SPRITE, nSprite)) >= 0) gMapedHud.SetComment(&gCommentMgr.comments[i]);
 	gMapedHud.SetTile(pSpr->picnum, pSpr->pal, pSpr->shade);
 	gMapedHud.SetMsg(buffer2);
 }
@@ -2484,12 +2454,7 @@ void EditSpriteData(int nSprite, BOOL xFirst) {
 
 void Draw2dWall(int x0, int y0, int x1, int y1, char color, char thick, int pat)
 {
-	//if ( x0 < 0 && x1 < 0 ) return;
-	//if ( x0 >= xdim && x1 >= xdim ) return;
-	//if ( y0 < 0 && y1 < 0 ) return;
-	//if ( y0 >= ydim16 && y1 >= ydim16 ) return;
-	
-	int odrawlinepat = drawlinepat;
+	register int odrawlinepat = drawlinepat;
 	drawlinepat = pat;
 
 	begindrawing();
@@ -2654,25 +2619,66 @@ void Draw2dMarker( int x, int y, int color)
 	enddrawing();
 }
 
-
 void DrawCircle( int x, int y, int radius, int nColor, BOOL dashed)
 {
-	BOOL skip = FALSE;
-	int x0 = x + radius;
-	int y0 = y;
-	
-	
+	register bool skip = false;
+	register int a, x0 = x + radius, y0 = y, x1, y1;
+
 	begindrawing();
-	for (int a = kAng5; a <= kAng360; a += kAng5, skip^=1)
+	for (a = kAng5; a <= kAng360; a += kAng5, skip^=1)
 	{
-		int x1 = x + mulscale30(Cos(a), radius);
-		int y1 = y + mulscale30(Sin(a), radius);
+		x1 = x + mulscale30(Cos(a), radius);
+		y1 = y + mulscale30(Sin(a), radius);
 		if (!dashed || !skip)
 			drawline16(x0, y0, x1, y1, nColor);
+		
 		x0 = x1;
 		y0 = y1;
 	}
 	enddrawing();
+}
+
+BOOL objectHaveCaption(int otype, int oidx)
+{
+	char* t = NULL;
+	switch (otype) {
+		case OBJ_WALL:
+		case OBJ_MASKED:
+			t = ExtGetWallCaption(oidx);
+			break;
+		case OBJ_SPRITE:
+			t = ExtGetSpriteCaption(oidx);
+			break;
+		case OBJ_FLOOR:
+		case OBJ_CEILING:
+			t = ExtGetWallCaption(oidx);
+			break;
+	}
+	
+	return (t && t[0]);
+}
+
+void draw2dText(char* str, int cx, int cy, int xp, int yp, int nZoom, char fColor, short bColor = -1, int xf = 0, int yf = 0, QFONT* pFont = qFonts[1])
+{	
+	register int wh  = gfxGetTextLen(str, pFont) >> 1;
+	register int hg  = pFont->height >> 1;
+	register int x1, y1, x2, y2;
+	
+	cx = halfxdim16 + mulscale14(cx - xp, nZoom);
+	cy = midydim16  + mulscale14(cy - yp, nZoom);
+	
+	x1 = cx - wh - 1;		x2 = cx + wh + 1;
+	y1 = cy - hg - 1;		y2 = cy + hg + 1;
+	if (x1 > 0 && x2 < xdim && y1 > 0 && y2 < ydim16)
+	{
+		if (bColor >= 0)
+		{
+			gColor = bColor;
+			gfxFillBox(x1 + xf, y1 + yf, x2 + xf, y2 + yf);
+		}
+		
+		gfxDrawText(cx + xf - wh, cy + yf - hg, fColor, str, pFont);
+	}
 }
 
 #define kPadOff 2
@@ -2680,21 +2686,23 @@ void DrawCircle( int x, int y, int radius, int nColor, BOOL dashed)
 #define kCaptFont 0
 void draw2dCaptionSect(int nSect, int xp, int yp, int nZoom, BOOL hover, QFONT* pFont = qFonts[kCaptFont]) {
 	
+	register int x1, y1, x2, y2;
+	register int dax, day, pd, wh, hg;
+	
 	char* caption = ExtGetSectorCaption(nSect);
 	if (!caption[0])
 		return;
 	
-	int dax, day;
 	avePointSector(nSect, &dax, &day);
 	dax = halfxdim16 + mulscale14(dax - xp, nZoom);
 	day = midydim16  + mulscale14(day - yp, nZoom);
 	
-	int pd = (hover) ? kPadOn : kPadOff;
-	int wh = gfxGetTextLen(caption, pFont) >> 1;
-	int hg = pFont->height >> 1;
+	pd = (hover) ? kPadOn : kPadOff;
+	wh = gfxGetTextLen(caption, pFont) >> 1;
+	hg = pFont->height >> 1;
 	
-	int x1 = dax - wh - pd,		x2 = dax + wh + pd;
-	int y1 = day - hg - pd,		y2 = day + hg + pd;
+	x1 = dax - wh - pd,		x2 = dax + wh + pd;
+	y1 = day - hg - pd,		y2 = day + hg + pd;
 	if (x1 > 0 && x2 < xdim && y1 > 0 && y2 < ydim16)
 	{
 		char nColor = kColorLightGray;
@@ -2709,21 +2717,23 @@ void draw2dCaptionSect(int nSect, int xp, int yp, int nZoom, BOOL hover, QFONT* 
 
 void draw2dCaptionWall(int nWall, int xp, int yp, int nZoom, BOOL hover, QFONT* pFont = qFonts[kCaptFont]) {
 	
+	register int x1, y1, x2, y2;
+	register int dax, day, pd, wh, hg;
+
 	char* caption = ExtGetWallCaption(nWall);
 	if (!caption[0])
 		return;
 	
-	int dax, day;
 	avePointWall(nWall, &dax, &day);	
 	dax = halfxdim16 + mulscale14(dax - xp, nZoom);
 	day = midydim16 +  mulscale14(day - yp, nZoom);
 	
-	int pd = (hover) ? kPadOn : kPadOff;
-	int wh = gfxGetTextLen(caption, pFont) >> 1;
-	int hg = pFont->height >> 1;
+	pd = (hover) ? kPadOn : kPadOff;
+	wh = gfxGetTextLen(caption, pFont) >> 1;
+	hg = pFont->height >> 1;
 	
-	int x1 = dax - wh - pd,		x2 = dax + wh + pd;
-	int y1 = day - hg - pd,		y2 = day + hg + pd;
+	x1 = dax - wh - pd,		x2 = dax + wh + pd;
+	y1 = day - hg - pd,		y2 = day + hg + pd;
 	if (x1 > 0 && x2 < xdim && y1 > 0 && y2 < ydim16)
 	{
 		char nColor = kColorRed;
@@ -2739,19 +2749,22 @@ void draw2dCaptionWall(int nWall, int xp, int yp, int nZoom, BOOL hover, QFONT* 
 
 void draw2dCaptionSpr(int nSpr, int xp, int yp, int nZoom, BOOL hover, QFONT* pFont = qFonts[kCaptFont]) {
 	
+	register int x1, y1, x2, y2;
+	register int dax, day, pd, wh, hg;
+	
 	char* caption = ExtGetSpriteCaption(nSpr);
 	if (!caption[0])
 		return;
 	
-	int dax = halfxdim16 + mulscale14(sprite[nSpr].x - xp, nZoom);
-	int day = midydim16  + mulscale14(sprite[nSpr].y - yp, nZoom);
+	dax = halfxdim16 + mulscale14(sprite[nSpr].x - xp, nZoom);
+	day = midydim16  + mulscale14(sprite[nSpr].y - yp, nZoom);
 	
-	int pd = (hover) ? kPadOn : kPadOff;
-	int wh = gfxGetTextLen(caption, pFont) >> 1;
-	int hg = pFont->height >> 1;
+	pd = (hover) ? kPadOn : kPadOff;
+	wh = gfxGetTextLen(caption, pFont) >> 1;
+	hg = pFont->height >> 1;
 	
-	int x1 = dax - wh - pd,		x2 = dax + wh + pd;
-	int y1 = day - hg - pd,		y2 = day + hg + pd;
+	x1 = dax - wh - pd,		x2 = dax + wh + pd;
+	y1 = day - hg - pd,		y2 = day + hg + pd;
 	if (x1 > 0 && x2 < xdim && y1 > 0 && y2 < ydim16)
 	{
 		char nTColor, nBColor;
@@ -2779,15 +2792,12 @@ void draw2dCaptionSpr(int nSpr, int xp, int yp, int nZoom, BOOL hover, QFONT* pF
 
 char wallCstat2Color(int nWall) {
 	
-	char nColor;
-	short flags = wall[nWall].cstat;
-	if (flags & kWallMoveForward)		nColor = kColorLightBlue;
-	else if (flags & kWallMoveReverse)	nColor = kColorLightGreen;
-	else if (wall[nWall].nextwall < 0)	nColor = kColorWhite;
-	else if (flags & kWallHitscan)		nColor = kColorMagenta;
-	else								nColor = kColorRed;
-	
-	return nColor;
+	register short flags = wall[nWall].cstat;
+	if (flags & kWallMoveForward)		return kColorLightBlue;
+	else if (flags & kWallMoveReverse)	return kColorLightGreen;
+	else if (wall[nWall].nextwall < 0)	return kColorWhite;
+	else if (flags & kWallHitscan)		return kColorMagenta;
+	else								return kColorRed;
 }
 
 void draw2dArrow(int x1, int y1, int nAng, int nSiz, int nZoom, int nColor, char thick = FALSE) {
@@ -2799,7 +2809,6 @@ void draw2dArrow(int x1, int y1, int nAng, int nSiz, int nZoom, int nColor, char
 		Draw2dWall(x1 + x0, y1 + y0, x1 - x0, y1 - y0, nColor, thick);
 		Draw2dWall(x1 + x0, y1 + y0, x1 + y0, y1 - x0, nColor, thick);
 		Draw2dWall(x1 + x0, y1 + y0, x1 - y0, y1 + x0, nColor, thick);
-		
 	}
 
 }
@@ -2825,12 +2834,12 @@ void draw2dArrowMarker(int xS, int yS, int xD, int yD, int nColor, int nZoom, in
 	}
 }
 
-BOOL inHgltRange(int x, int y) {
-	
+BOOL inHgltRange(int x, int y)
+{	
 	int hx1 = hgltx1, hx2 = hgltx2, hy1 = hglty1, hy2 = hglty2;
-	if (hx1 > hx2) swapValues(&hx1, &hx2);
-	if (hy1 > hy2) swapValues(&hy1, &hy2);
 	
+	if (hx1 > hx2) swapValues(&hx1, &hx2);
+	if (hy1 > hy2) swapValues(&hy1, &hy2);	
 	return (x > hx1 && x < hx2 && y > hy1 && y < hy2);
 }
 
@@ -2871,32 +2880,35 @@ void qdraw2dgrid(int posxe, int posye, short ange, int zoome, short gride)
 void fillsector(int nSect, char nColor, int nStep = 2)
 {
 	static int fillist[640];
-	int swal, ewal, x1, x2, y1, y2, y, dax;
-	int miny = ydim16, maxy = 0, fillcnt;
+	int swal, ewal, x1, x2, y1, y2, y, dax, miny, maxy, fillcnt;
 	register int i, j, sy;
 	
 	gfxSetColor(nColor);
 	getSectorWalls(nSect, &swal, &ewal);
+	
+	miny = maxy = wall[swal].y;
 	for(i = swal; i <= ewal; i++)
 	{
-		y1 = midydim16 + mulscale14(wall[i].y - posy, zoom);
-		y2 = midydim16 + mulscale14(wall[wall[i].point2].y - posy, zoom);
+		y1 = wall[i].y;
+		y2 = wall[wall[i].point2].y;
 		if (y1 < miny) miny = y1;
 		if (y2 < miny) miny = y2;
 		if (y1 > maxy) maxy = y1;
 		if (y2 > maxy) maxy = y2;
 	}
 	
-	miny = ClipLow(miny, 0); maxy = ClipHigh(maxy, ydim16);
-	for(sy = miny + ((totalclock>>2) & nStep); sy <= maxy; sy += nStep)
+	
+	miny = ClipLow(midydim16 + mulscale14(miny  - posy, zoom), 0);
+	maxy = ClipHigh(midydim16 + mulscale14(maxy - posy, zoom), ydim16);
+	
+	for(sy = miny & nStep; sy <= maxy; sy += nStep)
 	{
 		fillist[0] = 0; fillcnt = 1;
 		y = posy + divscale14(sy - midydim16, zoom);
 		
 		for(i = swal; i <= ewal; i++)
 		{
-			x1 = wall[i].x; x2 = wall[wall[i].point2].x;
-			y1 = wall[i].y; y2 = wall[wall[i].point2].y;
+			getWallCoords(i, &x1, &y1, &x2, &y2);
 			if (y1 > y2)
 			{
 				swapValues(&x1, &x2);
@@ -2932,10 +2944,9 @@ void fillsector(int nSect, char nColor, int nStep = 2)
 
 void fillSectorTransluc(int nSect, char color, int nTransluc = kRSTransluc, int nStep = 1)
 {
-	int wh = xdim, hg = ydim;
 	int nTile = gSysTiles.sectfil;
-	memset((void*)waloff[nTile], 255, wh*hg);
-	setviewtotile(nTile, hg, wh);
+	memset((void*)waloff[nTile], 255, xdim*ydim);
+	setviewtotile(nTile, ydim, xdim);
 	
 	fillsector(nSect, color, nStep);
 	
@@ -2943,18 +2954,26 @@ void fillSectorTransluc(int nSect, char color, int nTransluc = kRSTransluc, int 
 	rotatesprite((xdim>>1)<<16, (ydim>>1)<<16, 0x10000, 512, nTile, 0, 0, kRSNoMask | kRSNoClip | kRSYFlip | nTransluc, 0, 0, xdim, ydim16);
 }
 
-void hgltSectFillTransluc()
+void hgltSectFill(char nColor, char nStep = 1, BOOL transluc = TRUE)
 {
-	int wh = xdim, hg = ydim;
-	int i, nTile = gSysTiles.sectfil;
-	memset((void*)waloff[nTile], 255, wh*hg);
-	setviewtotile(nTile, hg, wh);
-	
-	for(i = 0; i < highlightsectorcnt; i++)
-		fillsector(highlightsector[i], gStdColor[kColorGreen], 1);
-	
-	setviewback();
-	rotatesprite((xdim>>1)<<16, (ydim>>1)<<16, 0x10000, 512, nTile, 0, 0, kRSNoMask | kRSNoClip | kRSYFlip | kRSTransluc2, 0, 0, xdim, ydim16);
+	register int i;
+	if (transluc)
+	{
+		int nTile = gSysTiles.sectfil;
+		memset((void*)waloff[nTile], 255, xdim*ydim);
+		setviewtotile(nTile, ydim, xdim);
+		
+		for(i = 0; i < highlightsectorcnt; i++)
+			fillsector(highlightsector[i], nColor, nStep);
+		
+		setviewback();
+		rotatesprite((xdim>>1)<<16, (ydim>>1)<<16, 0x10000, 512, nTile, 0, 0, kRSNoMask | kRSNoClip | kRSYFlip | kRSTransluc2, 0, 0, xdim, ydim16);
+	}
+	else
+	{
+		for(i = 0; i < highlightsectorcnt; i++)
+			fillsector(highlightsector[i], nColor, nStep);
+	}
 }
 
 void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
@@ -2968,41 +2987,37 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 	register int i, j, k, f;
 	BOOL hglt; BYTE tags = 0;
 
-	//ang = (getangle(posx-mousxplc, posy-mousyplc) + kAng180);
-	//CleanUp();
-	//processDrawRooms();
-
 	if (showtags)
 	{
 		if (zoom >= 1024) tags |= 0x01;
 		if (zoom >= 512 && (linehighlight >= 0 || pointhighlight >= 0))
 			tags |= 0x02;
 	}
-	
-	
-	
+
 	if (grid)
 		qdraw2dgrid(x, y, nAngle, nZoom, grid);
-	
-			
-	// paint current sector using translucency
+		
+	// flood sectors using translucent rotatesprite
 	////////////////////////
-	if (sectorhighlightfill >= 0)
-		fillSectorTransluc(sectorhighlightfill, clr2std(28));
+	if (gMisc.useTranslucency)
+	{
+		// flood current sector
+		if (sectorhighlightfill >= 0)
+			fillSectorTransluc(sectorhighlightfill, clr2std(28));
+		
+		
+		// flood sectors in a highlight
+		if (highlightsectorcnt > 0)
+			hgltSectFill(gStdColor[kColorGreen], 1, TRUE);
+	}
+	else if (highlightsectorcnt > 0)
+		hgltSectFill(gStdColor[kColorGreen], 3, FALSE);
 	
-	
-	// paint sector waiting for merging
+	// flood sector waiting for merging
 	////////////////////////
 	if (joinsector[0] >= 0)
 		fillsector(joinsector[0], clr2std(kColorBrown));
-	
-	
-	// paint sectors in a highlight using translucency
-	////////////////////////
-	if (highlightsectorcnt > 0)
-		hgltSectFillTransluc();
-	
-	
+
 	// draw start arrow
 	///////////////////////
 	x0 = halfxdim16 + mulscale14(startposx - x, zoom);
@@ -3054,12 +3069,13 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 			nColor = kColorLightGray;
 		}
 
-		x0 = halfxdim16 + mulscale14(wall[i].x - x, zoom);
-		y0 = midydim16  + mulscale14(wall[i].y - y, zoom);
-		x1 = halfxdim16 + mulscale14(wall[wall[i].point2].x - x, zoom);
-		y1 = midydim16  + mulscale14(wall[wall[i].point2].y - y, zoom);
+		getWallCoords(i, &x0, &y0, &x1, &y1);
+		x0 = halfxdim16 + mulscale14(x0 - x, zoom);
+		y0 = midydim16  + mulscale14(y0 - y, zoom);
+		x1 = halfxdim16 + mulscale14(x1 - x, zoom);
+		y1 = midydim16  + mulscale14(y1 - y, zoom);
+		
 		Draw2dWall(x0, y0, x1, y1, clr2std(nColor), thick);
-
 		if (zoom >= 300 && x0 > 4 && x0 < xd && y0 > 4 && y0 < yd)
 		{
 			nColor  = clr2std(kColorBrown); nColor2 = clr2std(28);
@@ -3080,7 +3096,7 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 		nColor  = clr2std(wallCstat2Color(linehighlight) ^ h);
 		Draw2dCross(x0, y0, nColor, 1);
 	}
-
+	
 	// redraw highlighted wall points
 	////////////////////////////
 	if (zoom >= 256)
@@ -3105,9 +3121,9 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 		scrSetMessage("??");
 	} */
 	
-
+	
 	for (i = 0; i < numsectors; i++)
-	{
+	{		
 		// draw busy / motion progress of the sector
 		////////////////////////////
 		if (gPreviewMode && sector[i].extra > 0)
@@ -3123,7 +3139,7 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 				fillsector(i, clr2std(kColorDarkGray));
 			}
 		}
-
+		
 		if (zoom <= 128)
 			continue;
 		
@@ -3252,7 +3268,7 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 			{
 				if (onscreen)
 				{
-					nColor = (nXSprite && xsprite[nXSprite].state) ? kColorYellow : kColorDarkGray;
+					nColor = (nXSprite && xsprite[nXSprite].state) ? kColorYellow : kColorBrown;
 					if (hglt)
 						nColor ^= h;
 					
@@ -3350,18 +3366,23 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 				}
 				else if ((flags & kSprRelMask) == kSprWall)
 				{
-					nColor2 = clr2std(nColor ^ 8); nColor = clr2std(nColor);
+					nColor = clr2std(nColor);
 					if (!thick)
 						DrawBuild2dFaceSprite(x0, y0, nColor);
 
-					k = mulscale6(tilesizx[sprite[j].picnum], sprite[j].xrepeat);
-					x1 = mulscale13(sintable[(nAng + kAng180) & kAngMask], zoom) * k / 0x1000;
-					y1 = mulscale13(sintable[(nAng + kAng90)  & kAngMask], zoom) * k / 0x1000;
-					Draw2dWall(x0 - x1, y0 - y1, x0 + x1, y0 + y1, nColor, thick, kPatDotted);
+					if (tilesizx[sprite[j].picnum])
+					{
+						k = mulscale6(tilesizx[sprite[j].picnum], sprite[j].xrepeat);
+						x1 = mulscale13(sintable[(nAng + kAng180) & kAngMask], zoom) * k / 0x1000;
+						y1 = mulscale13(sintable[(nAng + kAng90)  & kAngMask], zoom) * k / 0x1000;
+						Draw2dWall(x0 - x1, y0 - y1, x0 + x1, y0 + y1, nColor, thick, kPatDotted);
+					}
+					else
+					{
+						scaleAngLine2d(164, (nAng + kAng90) & kAngMask, &x1, &y1);
+						Draw2dWall(x0 - x1, y0 - y1, x0 + x1, y0 + y1, nColor, thick);
+					}
 					
-					
-					//scaleAngLine2d(100, nAng + kAng90, &x1, &y1);
-					//Draw2dWall(x0 - x1, y0 - y1, x0 + x1, y0 + y1, nColor, thick);
 					if (flags & kSprOneSided)
 					{
 						scaleAngLine2d(128, nAng, &x1, &y1);
@@ -3376,8 +3397,6 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 						// face side longer than back one
 						scaleAngLine2d(128, nAng, &x1, &y1);
 						Draw2dWall(x0, y0, x0 + x1, y0 + y1, nColor, thick);
-						if (!hglt)
-							Draw2dWall(((x0<<1)+x1)>>1, ((y0<<1)+y1)>>1, x0 + x1, y0 + y1, nColor2, 0);
 					}
 				}
 				else if ((flags & kSprRelMask) >= kSprFloor)
@@ -3393,7 +3412,7 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 					scaleAngLine2d(200, nAng, &x1, &y1);
 					Draw2dWall(x0, y0, x0 + x1, y0 + y1, nColor, thick);
 					if (hglt || zoom >= 1024)
-						Draw2dFloorSpriteFull(x0, y0, x0 - halfxdim16, y0 - midydim16, nColor, j);
+						Draw2dFloorSpriteFull(x0, y0, nColor, j);
 				}
 			}
 		}
@@ -3407,11 +3426,15 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 		nColor = clr2std(kColorLightGray);
 		for (i = numwalls - 1; i >= 0; i--)
 		{
-			if (wall[i].point2 != newwall2) continue;
-			x0 = halfxdim16 + mulscale14(wall[i].x - x, zoom);
-			y0 = midydim16  + mulscale14(wall[i].y - y, zoom);
-			x1 = halfxdim16 + mulscale14(wall[wall[i].point2].x - x, zoom);
-			y1 = midydim16  + mulscale14(wall[wall[i].point2].y - y, zoom);
+			if (wall[i].point2 != newwall2)
+				continue;
+			
+			getWallCoords(i, &x0, &y0, &x1, &y1);
+			
+			x0 = halfxdim16 + mulscale14(x0 - x, zoom);
+			y0 = midydim16  + mulscale14(y0 - y, zoom);
+			x1 = halfxdim16 + mulscale14(x1 - x, zoom);
+			y1 = midydim16  + mulscale14(y1 - y, zoom);
 
 			Draw2dWall(x0, y0, x1, y1, nColor, 0);
 			Draw2dWallMidPoint(i, nColor, 0x03);
@@ -3452,7 +3475,7 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 			
 			// draw wall captions
 			getSectorWalls(i, &j, &endwall);
-			while(j < endwall)
+			while(j <= endwall)
 				draw2dCaptionWall(j++, x, y, zoom, TestBitString(show2dwall, j));
 			
 			// draw sprite captions
@@ -3484,7 +3507,36 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 			draw2dCaptionWall(linehighlight, x, y, zoom, TRUE);
 		}
 	}
+	
+	// indicate first and alignto walls
+	////////////////////////////
+	if (sectorhighlightfill >= 0 && zoom > 100)
+	{
+		i = sector[sectorhighlightfill].wallptr;
+		if (zoom > 512 || (gFrameClock & (kHClock<<1)))
+		{
+			avePointWall(i, &x0, &y0);
+			
+			k = 0; // caption y-offset
+			if ((tags & 0x01) && objectHaveCaption(OBJ_WALL, i))
+				k = (qFonts[kCaptFont]->height + 4);
+			
+			draw2dText("F", x0, y0, x, y, zoom, clr2std(kColorYellow), kColorBlack, 0, k);
+		}
 		
+		if (sector[sectorhighlightfill].alignto && (zoom > 512 || !(gFrameClock & (kHClock<<1))))
+		{
+			i += sector[sectorhighlightfill].alignto;
+			avePointWall(i, &x0, &y0);
+			
+			k = 0; // caption y-offset
+			if ((tags & 0x01) && objectHaveCaption(OBJ_WALL, i))
+				k = (qFonts[kCaptFont]->height + 4);
+			
+			draw2dText("A", x0, y0, x, y, zoom, clr2std(kColorWhite), kColorBlack, 0, k);
+		}
+	}
+	
 	// draw RX/TX tracker
 	////////////////////////
 	gXTracker.Draw(x, y, zoom);
@@ -3494,6 +3546,7 @@ void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid )
 	if (gCmtPrefs.enabled)
 		gCommentMgr.Draw(x, y, zoom);
 	
+
 	// draw white arrow
 	////////////////////////	
 	scaleAngLine2d(128, ang, &x0, &y0); nColor = clr2std(kColorWhite);
@@ -3560,9 +3613,9 @@ void ProcessKeys2D( void )
 	char bdclr, bgclr, keyhold = 0;
 
 	processMove();
-	gMouse.Read(gFrameTicks);
-	searchx = ClipRange(searchx + gMouse.dX2, gMouse.rangeX1, gMouse.rangeX2);
-	searchy = ClipRange(searchy + gMouse.dY2, gMouse.rangeY1, gMouse.rangeY2);
+	gMouse.Read();
+	searchx = ClipRange(searchx + gMouse.dX2, gMouse.left, gMouse.right);
+	searchy = ClipRange(searchy + gMouse.dY2, gMouse.top,  gMouse.bottom);
 	
 	getpoint(searchx, searchy, &x, &y);
 	updatesector(x, y, &sectorhighlight);
@@ -3571,6 +3624,34 @@ void ProcessKeys2D( void )
 	if (!i || (i && (pointhighlight & 0xC000) != 0))
 		sectorhighlightfill = sectorhighlight;
 	
+/* 	static int test = 0;
+	static int test2 = 0;
+	int t1 = perc2val(90, xdim);
+	int t2 = perc2val(90, ydim16);
+	if (appactive)
+	{
+		if (gMouse.Moved())
+		{
+			test = totalclock + 128;
+			test2 = test;
+		}
+		if (totalclock < test)
+		{
+			if (searchx < t1 || searchx > xdim - t1)	posx += (gFrameTicks * mulscale16(x-posx, test-totalclock));
+			else
+				test = 0;
+			
+		}
+		
+		if (totalclock < test2)
+		{
+			if (searchy < t2 || searchy > ydim16 - t2)	posy += (gFrameTicks * mulscale16(y-posy, test2-totalclock));
+			else
+				test2 = 0;
+		}
+	} */
+	
+
 	// !!! for build.c
 	mousxplc = x; mousyplc = y;
 	
@@ -3791,6 +3872,7 @@ void ProcessKeys2D( void )
 						if (FindSector(pSpr->x, pSpr->y, pSpr->z, &sect) && sect != pSpr->sectnum)
 							ChangeSpriteSect(pSpr->index, sect);
 					}
+					
 					clampsprite_TEMP(searchwall);
 				}
 				else if (shift & 0x01)
@@ -3903,7 +3985,7 @@ void ProcessKeys2D( void )
 			for (i = 0; i < numsectors; i++)
 			{
 				if (hgltCheck(OBJ_SECTOR, i) < 0)
-					redRestore(i);
+					sectorAttach(i);
 			}
 			
 			// fix repeats for walls
@@ -3956,7 +4038,8 @@ void ProcessKeys2D( void )
 				{
 					hgltx2 = searchx, hglty2 = searchy;
 					drawsq(hgltx1, hglty1, hgltx2, hglty2, clr2std(bdclr ^ h));
-					drawHighlight(hgltx1, hglty1, hgltx2, hglty2, clr2std(bgclr));
+					if (gMisc.useTranslucency)
+						drawHighlight(hgltx1, hglty1, hgltx2, hglty2, clr2std(bgclr));
 				}
 				else
 				{
@@ -3968,7 +4051,8 @@ void ProcessKeys2D( void )
 			}
 			else if (*hgltcntptr == 0)
 			{
-				scr2point(&hgltx1, &hglty1); scr2point(&hgltx2, &hglty2);
+				getpoint2(&hgltx1, &hglty1);
+				getpoint2(&hgltx2, &hglty2);
 				if (hgltx1 > hgltx2) swapValues(&hgltx1, &hgltx2);
 				if (hglty1 > hglty2) swapValues(&hglty1, &hglty2);
 				
@@ -4216,7 +4300,11 @@ void ProcessKeys2D( void )
 						if (key == KEY_H)
 						{
 							if (ctrl) sprite[i].flags = ClipRange(GetNumberBox(buffer, sprite[i].flags, sprite[i].flags), 0, 32767);
-							else scrSetMessage("Sprite[%d] %s hitscan sensitive", i, isNot((sprite[i].cstat ^= kSprHitscan)));
+							else
+							{
+								sprite[i].cstat ^= kSprHitscan;
+								scrSetMessage("Sprite[%d] %s hitscan sensitive", i, isNot((sprite[i].cstat & kSprHitscan)));
+							}
 						}
 						else sprite[i].type = ClipRange(GetNumberBox(buffer, sprite[i].type, sprite[i].type), 0, 32767);
 						break;
@@ -4541,7 +4629,7 @@ void ProcessKeys2D( void )
 }
 
 
-void scaleAngLine2d(int scale, int ang, int* x, int* y) {
+void _fastcall scaleAngLine2d(int scale, int ang, int* x, int* y) {
 
 	int szoom = zoom / scale;
 	*x = mulscale30(szoom, Cos(ang));

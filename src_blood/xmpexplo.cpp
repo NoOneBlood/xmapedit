@@ -26,7 +26,6 @@
 #include "gfx.h"
 #include "screen.h"
 #include "xmpstub.h"
-#include "misc.h"
 #include "xmpexplo.h"
 #include "xmpmisc.h"
 #include "enumstr.h"

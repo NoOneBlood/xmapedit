@@ -23,7 +23,6 @@
 
 
 #include "gui.h"
-#include "misc.h"
 #include "xmptools.h"
 #include "xmpqaved.h"
 #include "xmpstub.h"
@@ -31,7 +30,6 @@
 #include "preview.h"
 #include "editor.h"
 #include "build.h"
-#include "keyboard.h"
 #include "crc32.h"
 
 QAVEDIT gQaved;
@@ -112,8 +110,10 @@ void QAVEDIT::Start(char* filename)
 	
 	toolGetResTableValues();
 	toolSetOrigin(&origin, xdim >> 1, ydim >> 1);
-	mouse.Init(MapEditINI, "Mouse");
-	mouse.ClampSpeed(5, 5);
+	
+	mouse.Init(&gMousePrefs); mouse.wheelDelay = 12;
+	mouse.VelocitySet(5, 5, false);
+	
 	edit3d = (gMapLoaded && cursectnum >= 0 && screenMode == 200);
 	messageTime = 0;
 	horiz = 100; // there is no mouse look because mouse is busy
@@ -135,7 +135,7 @@ void QAVEDIT::ProcessLoop()
 	#define kMar 10
 	QFONT* pFont;
 	int x = kMar, y = kMar, dx, dy;
-	int i, j, len, wheelTimer = 0, keytimer = 0;
+	int i, j, len, keytimer = 0;
 
 	layer = 0;
 	frame = 0;
@@ -308,7 +308,7 @@ void QAVEDIT::ProcessLoop()
 		
 		handleevents();
 		keyGetHelper(&key, &ctrl, &shift, &alt);
-		mouse.Read(gFrameTicks);
+		mouse.Read();
 		
 		// GLOBAL keys
 		//////////////////
@@ -349,53 +349,49 @@ void QAVEDIT::ProcessLoop()
 		
 		//// GLOBAL editing
 		////////////////////////////
-		if (totalclock >= wheelTimer)
+		if (mouse.wheel)
 		{
-			wheelTimer = totalclock + 12;
-			if (mouse.wheel)
+			if (mouse.wheel > 0)
 			{
-				if (mouse.wheel > 0)
+				if (!alt)
 				{
-					if (!alt)
-					{
-						if (layer > 0) key = KEY_PAGEDN;
-						else
-						{
-							key = KEY_PAGEUP;
-							layer = kMaxLayers - 1;
-						}
-					}
-					else if (frame > 0) key = KEY_1;
+					if (layer > 0) key = KEY_PAGEDN;
 					else
 					{
-						key = KEY_2;
-						frame = pQav->nFrames - 1;
+						key = KEY_PAGEUP;
+						layer = kMaxLayers - 1;
 					}
 				}
-				else if (mouse.wheel < 0)
+				else if (frame > 0) key = KEY_1;
+				else
 				{
-					if (!alt)
-					{
-						if (layer < kMaxLayers-1) key = KEY_PAGEUP;
-						else
-						{
-							key = KEY_PAGEDN;
-							layer = 0;
-							
-						}
-					}
-					else if (frame < pQav->nFrames-1) key = KEY_2;
-					else
-					{
-						key = KEY_1;
-						frame = 0;
-					}
+					key = KEY_2;
+					frame = pQav->nFrames - 1;
 				}
-				
-				pLayer = LayerGet();
-				pFrame = FrameGet();
-				pSound = SoundGet();
 			}
+			else
+			{
+				if (!alt)
+				{
+					if (layer < kMaxLayers-1) key = KEY_PAGEUP;
+					else
+					{
+						key = KEY_PAGEDN;
+						layer = 0;
+						
+					}
+				}
+				else if (frame < pQav->nFrames-1) key = KEY_2;
+				else
+				{
+					key = KEY_1;
+					frame = 0;
+				}
+			}
+			
+			pLayer = LayerGet();
+			pFrame = FrameGet();
+			pSound = SoundGet();
 		}
 		
 		switch (key) {

@@ -26,7 +26,6 @@
 #include "gui.h"
 #include "db.h"
 #include "tile.h"
-#include "keyboard.h"
 #include "xmpconf.h"
 #include "xmpstub.h"
 #include "xmphud.h"
@@ -433,8 +432,11 @@ void MAPEDIT_HUD::DrawEditDialogHints(DIALOG_ITEM* dialog, DIALOG_ITEM* control)
 	gfxSetColor(colors.hintbg);
 	gfxFillBox(x1+1, y1+1, x2-1, y2-1);
 	
-	i = wh>>3;
-	if ((len = sprintf(buf1, "%0.255s", tmp)) >= i)
+	i = wh>>3; len = 0;
+	//if (control->fieldHelpProc)
+		//len = sprintf(buf1, "(Press F10 to call helper) ");
+	
+	if ((len += sprintf(&buf1[len], "%0.255s", tmp)) >= i)
 		buf1[i] = 0, len = i;
 	
 	len<<=3;
@@ -554,8 +556,8 @@ void MAPEDIT_HUD::PrintGrid2d() {
 		gfxFillBox(x1+1, y1+1, x2-1, y2-1);
 	}
 	
-	if (qsetmode == 200 && gMouse.fixedGrid)
-		nGrid = gMouse.fixedGrid;
+	if (qsetmode == 200 && gMousePrefs.fixedGrid)
+		nGrid = gMousePrefs.fixedGrid;
 	
 	wh = x2 - x1, hg = y2 - y1;
 	len = sprintf(tmp, "grid:%d", nGrid) << 3;
@@ -764,8 +766,8 @@ void hudSetLayout(MAPEDIT_HUD* pHud, int layoutType, MOUSE* pMouse)
 	
 	if (pMouse)
 	{
-		if (!pHud->draw) pMouse->SetRange(0, 0, xdim, ydim);
-		else pMouse->SetRange(0, 0, xdim, pHud->main.y1);
+		if (!pHud->draw) pMouse->RangeSet(0, 0, xdim, ydim);
+		else pMouse->RangeSet(0, 0, xdim, pHud->main.y1);
 	}
 	
 }

@@ -29,6 +29,7 @@
 #include "resource.h"
 #include "gameutil.h"
 #include "gfx.h"
+#include "db.h"
 
 #define kSEQSig				"SEQ\x1A"
 #define kQavSig				"QAV\x1A"
@@ -62,14 +63,112 @@ struct FUNCT_LIST
 	int funcType;
 	void* pFunc;
 };
+
+struct OBJECT
+{
+	unsigned int type			: 8;
+	unsigned int index			: 16;
+};
 #pragma pack(pop)
+
+class OBJECT_LIST
+{
+	#define kMaxType 255
+	
+	private:
+		OBJECT *db;
+		unsigned int externalCount;
+		unsigned int internalCount;
+		void MarkEnd()
+		{
+			db[externalCount].type  = kMaxType;
+			db[externalCount].index = 0;
+		}
+		
+		void Init()
+		{
+			db = (OBJECT*)malloc(sizeof(OBJECT));
+			externalCount = 0, internalCount = 1;
+			MarkEnd();
+		}
+		
+		void Free()
+		{
+			if (db)
+				free(db);
+			
+			externalCount = 0;
+			internalCount = 0;
+			db = NULL;
+		}
+	public:
+		OBJECT_LIST()   { Init(); }
+		~OBJECT_LIST()  { Free(); }
+		OBJECT* Ptr()	{ return &db[0]; }
+		int Length()	{ return externalCount; }
+		
+		int Add(int nType, int nIndex, BOOL check = FALSE)
+		{
+			int retn = -1;
+			if (check && (retn = Find(nType, nIndex)) >= 0)
+				return retn;
+			
+			
+			OBJECT* pDb = (OBJECT*)realloc(db, sizeof(OBJECT) * (internalCount + 1));
+			if (pDb)
+			{
+				db = pDb;
+				db[externalCount].type  = nType;
+				db[externalCount].index = nIndex;
+				retn = externalCount;
+				externalCount++;
+				internalCount++;
+			}
+			
+			MarkEnd();
+			return retn;
+		}
+		
+/* 		int Remove(int nType, int nIndex)
+		{
+			int t = Find(nType, nIndex);
+			if (t < 0)
+				return externalCount;
+			
+			int i;
+			for (i = t; i < externalCount; t++)
+			{
+				db[i].type = db[i + 1].type;
+				db[i].index = db[i + 1].index;
+			}
+			
+			externalCount--;
+			internalCount--;
+			
+			OBJECT* pDb = (OBJECT*)realloc(db, sizeof(OBJECT) * (internalCount + 1));
+			MarkEnd();
+		} */
+		
+		int Find(int nType, int nIndex)
+		{
+			register int i;
+			for (i = 0; i < externalCount; i++)
+			{
+				if (db[i].type == nType && db[i].index == nIndex)
+					return i;
+			}
+			
+			return -1;
+		}
+};
 
 void Delay(int time);
 BOOL Beep(BOOL cond);
 void BeepOk( void );
 void BeepFail( void );
 int scanBakFile(char* file);
-inline BOOL rngok(int val, int rngA, int rngB) { return (val >= rngA && val < rngB); }
+BOOL rngok(int val, int rngA, int rngB);
+BOOL irngok(int val, int rngA, int rngB);
 BYTE fileExists(char* filename, RESHANDLE* rffItem = NULL);
 int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom = NULL);
 void updateClocks();
@@ -119,7 +218,7 @@ void printextShadowS(int xpos, int ypos, short col, char* text);
 void findSectorMarker(int nSect, int *nIdx1, int *nIdx2);
 BYTE mostUsedColor(BYTE* pixels, int len, short noColor);
 void doAutoGrid();
-void setupSecrets();
+int setupSecrets();
 char* array2str(NAMED_TYPE* in, int inLen, char* out, int outLen);
 void removeExtension (char *str);
 void pathSplit2(char *pzPath, char* buff, char** dsk, char** dir, char** fil, char** ext);
@@ -139,15 +238,22 @@ BOOL fileAttrSet(char* file, int attr);
 BOOL fileAttrSetRead(char* file);
 BOOL fileAttrSetWrite(char* file);
 BOOL fileDelete(char* file);
-BOOL irngok(int val, int rngA, int rngB);
+
 void getSectorWalls(int nSect, int* swal, int *ewal);
 void avePointWall(int nWall, int* x, int* y);
 BOOL isMultiTx(short nSpr);
+BOOL multiTxGetRange(int nSpr, int out[4]);
 BOOL multiTxPointsRx(int rx, short nSpr);
 void setCstat(BOOL enable, short* pStat, int nStat);
 short wallCstatAdd(int nWall, short cstat, BOOL nextWall = TRUE);
 short wallCstatRem(int nWall, short cstat, BOOL nextWall = TRUE);
 short wallCstatToggle(int nWall, short cstat, BOOL nextWall = TRUE);
+short sectCstatAdd(int nSect, short cstat, int objType = OBJ_FLOOR);
+short sectCstatRem(int nSect, short cstat, int objType = OBJ_FLOOR);
+short sectCstatToggle(int nSect, short cstat, int objType = OBJ_FLOOR);
+short sectCstatGet(int nSect, int objType = OBJ_FLOOR);
+short sectCstatSet(int nSect, short cstat, int objType = OBJ_FLOOR);
+void wallDetach(int nWall);
 int perc2val(int reqPerc, int val);
 void swapValues(int *nSrc, int *nDest);
 void toggleResolution(int fs, int xres, int yres, int bpp = 8);
@@ -163,6 +269,14 @@ BOOL isSkySector(int nSect, int nFor);
 BOOL ceilPicMatch(int nSect, int nPic);
 BOOL floorPicMatch(int nSect, int nPic);
 BOOL makeBackup(char* filename);
+void getWallCoords(int nWall, int* x1 = NULL, int* y1 = NULL, int* x2 = NULL, int* y2 = NULL);
+BOOL isUnderwaterSector(XSECTOR* pXSect);
+BOOL isUnderwaterSector(sectortype* pSect);
+BOOL isUnderwaterSector(int nSector);
+int formatMapInfo(char* str);
+
+int collectObjectsByChannel(int nChannel, BOOL rx, OBJECT_LIST* pOut = NULL, char flags = 0x0);
+
 //void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1);
 //BOOL ss2obj(int* objType, int* objIdx, BOOL asIs = FALSE);
 //BOOL dosboxRescan();

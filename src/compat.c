@@ -14,8 +14,18 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
-#define _WIN32_IE 0x0501
-#define _WIN32_WINNT 0x0501
+#if SUBSYS == 400 || SUBSYS == 401
+	#define WINVER 0x0400
+	#define _WIN32_IE 0x0400
+#elif SUBSYS == 501
+	#define WINVER 0x0501
+	#define _WIN32_IE 0x0501
+	#define _WIN32_WINNT 0x0501
+#else
+	#define WINVER 0x0600
+	#define _WIN32_IE 0x0600
+	#define _WIN32_WINNT 0x0600
+#endif
 #include <windows.h>
 #include <shlobj.h>
 #endif
@@ -347,22 +357,21 @@ char *Bgethomedir(void)
     char *dir = NULL;
 
 #ifdef _WIN32
-	TCHAR appdata[MAX_PATH];
-
-	if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, appdata))) {
-		dir = strdup(appdata);
-    }
-
+	#ifdef _WIN32_WINNT
+		TCHAR appdata[MAX_PATH];
+		if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, appdata)))
+			dir = strdup(appdata);
+	#else
+		dir = Bgetappdir();
+	#endif
 #elif defined __APPLE__
     dir = osx_gethomedir();
-    
 #else
 	char *e = getenv("HOME");
 	if (e) {
         dir = strdup(e);
     }
 #endif
-
 	return dir;
 }
 

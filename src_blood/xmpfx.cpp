@@ -26,7 +26,6 @@
 #include "db.h"
 #include "eventq.h"
 #include "gameutil.h"
-#include "misc.h"
 #include "seq.h"
 #include "preview.h"
 #include "xmpstub.h"
@@ -157,7 +156,7 @@ spritetype * CFX::fxSpawn(FX_ID nFx, int nSector, int x, int y, int z, unsigned 
     
     if (a6 == 0) a6 = pFX->ate;
     if (a6) evPost(pSprite->index, 3, ClipLow(a6+BiRandom(a6>>1), 0), kCallbackRemoveSpecial);
-    return pSprite;
+	return pSprite;
 }
 
 void CFX::fxProcess(void)

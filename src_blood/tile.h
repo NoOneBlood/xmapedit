@@ -29,8 +29,6 @@
 struct STATUS_BIT1 { int ok : 1; };
 struct SYSTEM_TILES {
 	unsigned int tileViewBg			: 17;
-	unsigned int editorMirrorStart	: 17;
-	unsigned int editorMirrorEnd	: 17;
 	unsigned int gameMirrorStart	: 17;
 	unsigned int gameMirrorEnd		: 17;
 	unsigned int grdshdBg			: 17;
@@ -93,14 +91,16 @@ int tileGetPic(int nTile);
 
 BYTE tileGetSurfType( int nHit );
 void tileShowInfoWindow(int nTile);
-int tileSearchFreeRange(int range);
+short tileSearchFreeRange(int range);
+short tileGetBlank();
+
 BYTE tileGetMostUsedColor(int nTile, short noColor = 255);
 int tileReplaceColor(int nTile, char colorA, char colorB = 255);
 BOOL tileHasColor(int nTile, char color);
 int tileCountColors(int nTile);
 int tileExists(BYTE* image, int wh, int hg);
 
-short tileGetBlank();
+
 BOOL tileAllocSysTile(short* dest, int w, int h);
 void tileInitSystemTiles();
 void tileUninitSystemTiles();

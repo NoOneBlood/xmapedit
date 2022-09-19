@@ -990,7 +990,7 @@ void polymost_nextpage(void)
 		if (rendmode == 3) {
 			polymost_printext256(0, 8, 31, -1, buf, 0);
 		} else {
-			printext256(0, 8, 31, -1, buf, 0);
+			//printext256(0, 8, 31, -1, buf, 0);
 		}
 	}
 	memset(&polymostcallcounts, 0, sizeof(polymostcallcounts));

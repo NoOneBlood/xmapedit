@@ -9,7 +9,7 @@
 
 
 
-
+#ifdef HAVE_START_WINDOW
 //
 // Bitmap resources
 //
@@ -58,7 +58,7 @@ FONT 8, "MS Shell Dlg", 0, 0, 1
 {
     EDITTEXT        IDC_MESSAGES, 0, 0, 252, 164, WS_VSCROLL | NOT WS_BORDER | NOT WS_TABSTOP | ES_MULTILINE | ES_READONLY, WS_EX_LEFT
 }
-
+#endif
 
 
 //
@@ -67,16 +67,17 @@ FONT 8, "MS Shell Dlg", 0, 0, 1
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 IDI_ICON          ICON           "rsrc/xmapedit.ico"
 
-
+#ifndef NO_MANIFEST
 #ifdef _M_AMD64
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "rsrc/build.manifest"
 #else
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "rsrc/build-x86.manifest"
 #endif
+#endif
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 0,0,0,0
-PRODUCTVERSION 0,0,0,0
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
 FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 FILEFLAGS 0
 FILEOS VOS__WINDOWS32
@@ -88,7 +89,7 @@ FILESUBTYPE VFT2_UNKNOWN
         BLOCK "080904e4"
         {
             VALUE "CompanyName", "http://cruo.bloodgame.ru"
-            VALUE "FileDescription", "Blood game editor."
+            VALUE "FileDescription", "The Ultimate Blood game editor"
             VALUE "FileVersion", __DATE__ " " __TIME__
             VALUE "InternalName", "xmapedit.exe"
             VALUE "OriginalFilename", "xmapedit.exe"
@@ -99,6 +100,6 @@ FILESUBTYPE VFT2_UNKNOWN
     }
     BLOCK "VarFileInfo"
     {
-        VALUE "Translation", 0x809, 1252
+        VALUE "Translation", 0x0000, 0
     }
 }

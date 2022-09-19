@@ -26,7 +26,6 @@
 #include "gui.h"
 #include "xmpstub.h"
 #include "screen.h"
-#include "keyboard.h"
 #include "tile.h"
 #include "xmpsnd.h"
 #include "edit3d.h"
@@ -37,7 +36,6 @@
 #include "xmparted.h"
 #include "xmpevox.h"
 #include "xmpmisc.h"
-#include "misc.h"
 
 #define kMar 4
 #define kSurfSoundBase 800

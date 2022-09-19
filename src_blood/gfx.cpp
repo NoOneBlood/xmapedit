@@ -40,72 +40,18 @@ QBITMAP* pBitmaps[kMaxBitmaps];
 Rect clipRect(clipX0, clipY0, clipX1, clipY1);
 
 // cyrillic symbols makes text printing crash
-BOOL charOk(char ch) { return (ch >= 32 && ch <= 126); }
+inline BOOL charOk(char ch) { return (ch >= 32 && ch <= 126); }
 
-void Video_SetPixel(int page, int x, int y)
+void FASTCALL gfxBlitM2V(char* src, int bpl, int width, int height, int x, int y)
 {
-	// UNREFERENCED_PARAMETER(page);
-#if USE_POLYMOST
-	if (getrendermode() >= 3)
-		return;
-#endif
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
+	
 	begindrawing();
 	char* dest = (char*)frameplace+ylookup[y]+x;
-	*dest = (char)gColor;
-	enddrawing();
-}
-
-void Video_HLine(int page, int y, int x0, int x1)
-{
-	// UNREFERENCED_PARAMETER(page);
-#if USE_POLYMOST
-	if (getrendermode() >= 3)
-		return;
-#endif
-	begindrawing();
-	char* dest = (char*)frameplace+ylookup[y]+x0;
-	memset(dest, gColor, x1-x0+1);
-	enddrawing();
-}
-
-void Video_VLine(int page, int x, int y0, int y1)
-{
-	// UNREFERENCED_PARAMETER(page);
-#if USE_POLYMOST
-	if (getrendermode() >= 3)
-		return;
-#endif
-	begindrawing();
-	char* dest = (char*)frameplace+ylookup[y0]+x;
-	for (int i = 0; i < y1-y0+1; i++, dest += ylookup[1])
-		*dest = (char)gColor;
-	enddrawing();
-}
-
-void Video_FillBox(int page, int x0, int y0, int x1, int y1)
-{
-	// UNREFERENCED_PARAMETER(page);
-#if USE_POLYMOST
-	if (getrendermode() >= 3)
-		return;
-#endif
-	begindrawing();
-	char* dest = (char*)frameplace+ylookup[y0]+x0;
-	for (int i = 0; i < y1-y0; i++, dest += ylookup[1])
-		memset(dest, gColor, x1-x0);
-	enddrawing();
-}
-
-void Video_BlitM2V(char* src, int bpl, int width, int height, int page, int x, int y)
-{
-	// UNREFERENCED_PARAMETER(page);
-#if USE_POLYMOST
-	if (getrendermode() >= 3)
-		return;
-#endif
-	begindrawing();
-	char* dest = (char*)frameplace+ylookup[y]+x;
-	int i = height;
+	register int i = height;
 	do
 	{
 		memcpy(dest, src, width);
@@ -115,19 +61,19 @@ void Video_BlitM2V(char* src, int bpl, int width, int height, int page, int x, i
 	enddrawing();
 }
 
-void Video_BlitMT2V(char* src, char tc, int bpl, int width, int height, int page, int x, int y)
+void FASTCALL gfxBlitMT2V(char* src, char tc, int bpl, int width, int height, int x, int y)
 {
-	// UNREFERENCED_PARAMETER(page);
-#if USE_POLYMOST
-	if (getrendermode() >= 3)
-		return;
-#endif
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
+	
 	begindrawing();
 	char* dest = (char*)frameplace+ylookup[y]+x;
-	int i = height;
+	register int i = height;
 	do
 	{
-		int j = width;
+		register int j = width;
 		do
 		{
 			if (*src != tc)
@@ -141,19 +87,19 @@ void Video_BlitMT2V(char* src, char tc, int bpl, int width, int height, int page
 	enddrawing();
 }
 
-void Video_BlitMono(char *src, char mask, int bpl, int width, int height, int page, int x, int y)
+void FASTCALL gfxBlitMono(char *src, char mask, int bpl, int width, int height, int x, int y)
 {
-	// UNREFERENCED_PARAMETER(page);
-#if USE_POLYMOST
-	if (getrendermode() >= 3)
-		return;
-#endif
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
+	
 	begindrawing();
 	char* dest = (char*)frameplace+ylookup[y]+x;
-	int i = height;
+	register int i = height;
 	do
 	{
-		int j = width;
+		register int j = width;
 		do
 		{
 			if (*src&mask)
@@ -174,12 +120,10 @@ void Video_BlitMono(char *src, char mask, int bpl, int width, int height, int pa
 	enddrawing();
 }
 
-void gfxDrawBitmap(QBITMAP *qbm, int x, int y)
+void FASTCALL gfxDrawBitmap(QBITMAP *qbm, int x, int y)
 {
 	dassert(qbm != NULL);
-
 	Rect bitmap(x, y, x+qbm->width, y+qbm->height);
-
 	bitmap &= clipRect;
 
 	if (!bitmap)
@@ -189,68 +133,108 @@ void gfxDrawBitmap(QBITMAP *qbm, int x, int y)
 
 	bitmap2.offset(-x, -y);
 
-	int height = bitmap.height();
-	int width = bitmap.width();
+	register int height = bitmap.height();
+	register int width = bitmap.width();
 
 	char* p = qbm->data;
-
+	
 	switch (qbm->type)
 	{
 	case 0:
-		Video_BlitM2V(p+bitmap2.y0*qbm->bpl+bitmap2.x0, qbm->bpl, width, height, 0, bitmap.x0, bitmap.y0);
+		gfxBlitM2V(p+bitmap2.y0*qbm->bpl+bitmap2.x0, qbm->bpl, width, height, bitmap.x0, bitmap.y0);
 		break;
 	case 1:
-		Video_BlitMT2V(p+bitmap2.y0*qbm->bpl+bitmap2.x0, qbm->tcolor, qbm->bpl, width, height, 0, bitmap.x0, bitmap.y0);
+		gfxBlitMT2V(p+bitmap2.y0*qbm->bpl+bitmap2.x0, qbm->tcolor, qbm->bpl, width, height, bitmap.x0, bitmap.y0);
 		break;
 	}
 }
 
-void gfxPixel(int x, int y)
-{
-	if (clipRect.inside(x, y))
-		Video_SetPixel(0, x, y);
+void FASTCALL gfxDrawBitmap(int id, int x, int y) {
+	
+	gfxDrawBitmap(pBitmaps[id],x ,y);
+	
 }
 
-void gfxHLine(int y, int x0, int x1)
+void FASTCALL gfxPixel(int x, int y)
 {
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
+	
+	if (clipRect.inside(x, y))
+	{
+		begindrawing();
+		char* dest = (char*)frameplace+ylookup[y]+x;
+		*dest = (char)gColor;
+		enddrawing();
+	}
+}
+
+void FASTCALL gfxHLine(int y, int x0, int x1)
+{
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
+	
 	if (y < clipRect.y0 || y >= clipRect.y1)
 		return;
 
 	x0 = ClipLow(x0, clipRect.x0);
 	x1 = ClipHigh(x1, clipRect.x1-1);
 	if (x0 <= x1)
-		Video_HLine(0, y, x0, x1);
+	{
+		begindrawing();
+		char* dest = (char*)frameplace+ylookup[y]+x0;
+		memset(dest, gColor, x1-x0+1);
+		enddrawing();
+	}
 }
 
-void gfxVLine(int x, int y0, int y1)
+void FASTCALL gfxVLine(int x, int y0, int y1)
 {
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
+	
 	if (x < clipRect.x0 || x >= clipRect.x1)
 		return;
 
 	y0 = ClipLow(y0, clipRect.y0);
 	y1 = ClipHigh(y1, clipRect.y1-1);
 	if (y0 <= y1)
-		Video_VLine(0, x, y0, y1);
+	{
+		begindrawing();
+		char* dest = (char*)frameplace+ylookup[y0]+x;
+		for (register int i = 0; i < y1-y0+1; i++, dest += ylookup[1])
+			*dest = (char)gColor;
+		enddrawing();
+	}
 }
 
-
-void gfxLine(int x1, int y1, int x2, int y2) {
-	
-
-	
-}
-
-void gfxFillBox(int x0, int y0, int x1, int y1)
+void FASTCALL gfxFillBox(int x0, int y0, int x1, int y1)
 {
-	Rect box(x0, y0, x1, y1);
-
-	box &= clipRect;
-
-	if (!box.isEmpty())
-		Video_FillBox(0, box.x0, box.y0, box.x1, box.y1);
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
+	
+	Rect box(x0, y0, x1, y1); box &= clipRect;
+	if (box.isEmpty())
+		return;
+	
+	
+	begindrawing();
+	char* dest = (char*)frameplace+ylookup[y0]+x0;
+	for (register int i = 0; i < box.y1-box.y0; i++, dest += ylookup[1])
+		memset(dest, gColor, box.x1-box.x0);
+	enddrawing();
+	
 }
 
-void gfxSetClip(int x0, int y0, int x1, int y1)
+void FASTCALL gfxSetClip(int x0, int y0, int x1, int y1)
 {
 	clipRect.x0 = x0;
 	clipRect.y0 = y0;
@@ -263,11 +247,11 @@ void gfxSetClip(int x0, int y0, int x1, int y1)
 	clipY1 = (y1 << 8)-1;
 }
 
-void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags)
+void FASTCALL printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags)
 {
-	int i = 0, j, k, m, c, l, s;
-	int w = pFont->wh; s = pFont->ls;
-	int h = pFont->hg;
+	register int i = 0, j, k, m, c, l, s;
+	register int w = pFont->wh; s = pFont->ls;
+	register int h = pFont->hg;
 	BOOL shadow = (flags & 0x01);
 	
 	if (!pFont->data)
@@ -301,13 +285,13 @@ void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags)
 	}
 }
 
-int gfxGetTextLen(char * pzText, QFONT *pFont, int a3)
+int FASTCALL gfxGetTextLen(char * pzText, QFONT *pFont, int a3)
 {
 	if (!pFont)
 		return strlen(pzText)*8;
 	
 	char c;
-	int nLength = -pFont->charSpace;
+	register int nLength = -pFont->charSpace;
 	if (a3 <= 0)
 		a3 = strlen(pzText);
 	
@@ -325,10 +309,10 @@ int gfxGetTextLen(char * pzText, QFONT *pFont, int a3)
 	return nLength;
 }
 
-int gfxGetLabelLen(char *pzLabel, QFONT *pFont)
+int FASTCALL gfxGetLabelLen(char *pzLabel, QFONT *pFont)
 {
 	char c;
-	int nLength = 0;
+	register int nLength = 0;
 	if (pFont)
 		nLength = -pFont->charSpace;
 
@@ -348,15 +332,15 @@ int gfxGetLabelLen(char *pzLabel, QFONT *pFont)
 	return nLength;
 }
 
-int gfxFindTextPos(char *pzText, QFONT *pFont, int a3)
+int FASTCALL gfxFindTextPos(char *pzText, QFONT *pFont, int a3)
 {
 	if (!pFont)
 	{
 		return a3 / 8;
 	}
 	char c;
-	int nLength = -pFont->charSpace;
-	int pos = 0;
+	register int nLength = -pFont->charSpace;
+	register int pos = 0;
 
 	for (char* s = pzText; *s != 0; s++, pos++)
 	{
@@ -375,8 +359,13 @@ int gfxFindTextPos(char *pzText, QFONT *pFont, int a3)
 	return pos;
 }
 
-void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label)
+void FASTCALL gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label)
 {
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
+
 	if (!pzText)
 		return;
 	
@@ -431,12 +420,12 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
 
 			switch (pFont->type) {
 				case kFontTypeMono:
-					Video_BlitMono(&pFont->data[pChar->offset + (rect2.y0/8) * pChar->w+ rect2.x0], 1<<(rect2.y0&7), pChar->w,
-						rect1.x1-rect1.x0, rect1.y1-rect1.y0, 0, rect1.x0, rect1.y0);
+					gfxBlitMono(&pFont->data[pChar->offset + (rect2.y0/8) * pChar->w+ rect2.x0], 1<<(rect2.y0&7), pChar->w,
+						rect1.x1-rect1.x0, rect1.y1-rect1.y0, rect1.x0, rect1.y0);
 					break;
 				case kFontTypeRasterHoriz:
-					Video_BlitMT2V(&pFont->data[pChar->offset+rect2.y0*pChar->w+rect2.x0], pFont->charLast, pChar->w,
-						rect1.x1-rect1.x0, rect1.y1-rect1.y0, 0, rect1.x0, rect1.y0);
+					gfxBlitMT2V(&pFont->data[pChar->offset+rect2.y0*pChar->w+rect2.x0], pFont->charLast, pChar->w,
+						rect1.x1-rect1.x0, rect1.y1-rect1.y0, rect1.x0, rect1.y0);
 					break;
 			}
 			
@@ -452,29 +441,34 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
 	}
 }
 
-void gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont, bool label)
+void FASTCALL gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont, bool label)
 {
-	int len = gfxGetTextLen(txt, pFont);
-	int heigh = (pFont) ? pFont->height-2 : 8;
+	register int len = gfxGetTextLen(txt, pFont);
+	register int heigh = (pFont) ? pFont->height-2 : 8;
 	gfxSetColor(bg);
 	gfxFillBox(x-1, y-1, x+len+1, y+heigh+1);
 	gfxDrawText(x, y, fr, txt, pFont, label);
 }
 
-void gfxDrawLabel(int x, int y, int color, char* pzLabel, QFONT* pFont)
+void FASTCALL gfxDrawLabel(int x, int y, int color, char* pzLabel, QFONT* pFont)
 {
 	gfxDrawText(x, y, color, pzLabel, pFont, true);
 }
 
-void gfxSetColor(char color) { gColor = color; }
+void FASTCALL gfxSetColor(char color) { gColor = color; }
 
 
 
 
-void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup ) {
+void FASTCALL viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup ) {
+	
+#if USE_POLYMOST
+	if (getrendermode() >= 3)
+		return;
+#endif
 	dassert(pFont != NULL);
 
-	int i, cx, cy, sizeX, sizeY;
+	register int i, cx, cy, sizeX, sizeY;
 	QFONTCHAR *pInfo = &pFont->info[c];
 	if (!pInfo || !pInfo->w || !pInfo->h)
 		return;
@@ -509,7 +503,7 @@ void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup ) {
 	BYTE *p = (BYTE*)(frameplace + ylookup[dest.y0] + dest.x0);
 
 	x = dest.x0;
-	int u = 0;
+	register int u = 0;
 
 	while (x < dest.x1 && (x & 3) )
 	{
@@ -543,8 +537,13 @@ void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup ) {
 	}
 }
 
-void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade, int nPLU, int nAlign) {
+void FASTCALL viewDrawText(int x, int y, QFONT* pFont, char *string, int shade, int nPLU, int nAlign) {
 
+#if USE_POLYMOST
+	if (getrendermode() >= 3)
+		return;
+#endif
+	
 	char *s, c;
 	dassert(string != NULL);
 	BYTE *pPalookup = (BYTE*)(palookup[nPLU] + (qgetpalookup(nPLU, shade) << 8));
@@ -552,7 +551,7 @@ void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade, int nPLU,
 
 	if ( nAlign != 0 )
 	{
-		int nWidth = -pFont->charSpace;
+		register int nWidth = -pFont->charSpace;
 		for ( s = string; *s; s++ )
 			nWidth += pFont->info[*s].ox + pFont->charSpace;
 

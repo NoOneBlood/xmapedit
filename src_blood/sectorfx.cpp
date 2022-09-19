@@ -26,7 +26,6 @@
 #include "pragmas.h"
 #include "common_game.h"
 #include "db.h"
-#include "trig.h"
 #include "sectorfx.h"
 
 unsigned char flicker1[] = {

@@ -29,9 +29,7 @@
 #include "gameutil.h"
 #include "xmpsnd.h"
 #include "tile.h"
-#include "trig.h"
 #include "seq.h"
-#include "misc.h"
 #include "preview.h"
 
 static void Remove( int nSprite ) {

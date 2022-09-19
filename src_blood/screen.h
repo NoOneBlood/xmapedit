@@ -40,7 +40,7 @@ extern bool DacInvalid;
 extern RGB curDAC[256];
 extern RGB baseDAC[256];
 extern int gGammaLevels;
-extern bool gFogMode;
+extern char gFogMode;
 extern int32_t gBrightness;
 void scrCreateStdColors(void);
 void scrResetPalette(void);

@@ -22,13 +22,9 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "build.h"
 #include "common_game.h"
 #include "fire.h"
-#include "misc.h"
 #include "tile.h"
 
 char CoolTable[1024], FrameBuffer[17280], SeedBuffer[16][128];

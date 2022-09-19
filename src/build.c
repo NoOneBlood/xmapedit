@@ -64,7 +64,6 @@ void (*customtimerhandler)(void);
 
 
 unsigned char changechar(unsigned char dachar, int dadir, unsigned char smooshyalign, unsigned char boundcheck);
-void keytimerstuff(void);
 void flipwalls(short numwalls, short newnumwalls);
 void insertpoint(short linehighlight, int dax, int day);
 void deletepoint(short point);
@@ -144,7 +143,7 @@ static int osdcmd_vidmode(const osdfuncparm_t *parm)
 extern char *defsfilename;	// set in bstub.c
 int app_main(int argc, char const * const argv[])
 {
-	char ch, quitflag, cmdsetup = 0;
+	char ch, cmdsetup = 0;
     struct startwin_settings settings;
 	int i, j, k, dark, light;
 
@@ -161,10 +160,9 @@ int app_main(int argc, char const * const argv[])
 
 	editstatus = 1;
 	totalclock = 0;
-	quitflag = 0;
    
 	inittimer(TIMERINTSPERSECOND);
-	installusertimercallback((customtimerhandler) ? customtimerhandler : keytimerstuff);
+	//installusertimercallback((customtimerhandler) ? customtimerhandler : keytimerstuff);
 
 #ifdef HAVE_START_WINDOW
 		int startretval = STARTWIN_RUN;
@@ -209,19 +207,11 @@ int app_main(int argc, char const * const argv[])
 		keystatus[0x9c] = 0;
 	}
 	
-	while (quitflag == 0)
+	while (!quitevent)
 	{
-		if (handleevents())
-		{
-			if (quitevent)
-			{
-				keystatus[1] = 1;
-				quitevent = 0;
-			}
-		}
-
+		handleevents();
 		OSD_DispatchQueued();
-
+		
 		ExtPreCheckKeys();
 
 		drawrooms(posx,posy,posz,ang,horiz,cursectnum);
@@ -238,50 +228,6 @@ int app_main(int argc, char const * const argv[])
 	ExtUnInit();
 	uninitengine();
 	return(0);
-}
-
-void whiteOut(int nSector) {
-	
-	short i = 0;
-	short startwall = sector[nSector].wallptr;
-	short endwall = startwall + sector[nSector].wallnum;
-	
-	for(i = startwall; i < endwall; i++) {
-		if (wall[i].nextwall < 0 || wall[wall[i].nextwall].nextsector != nSector)
-			continue;
-
-		wall[wall[i].nextwall].nextwall = wall[wall[i].nextwall].nextsector = -1;
-		wall[i].nextwall = wall[i].nextsector = -1;
-		//fixrepeats(i);
-	}
-	
-}
-
-void redRestore(int nSector) {
-	
-	short i = 0, j = 0;
-	short startwall = sector[nSector].wallptr;
-	short endwall = startwall + sector[nSector].wallnum;
-	
-	for(i = startwall; i < endwall; i++) {
-		if (wall[i].nextwall >= 0)
-			checksectorpointer(wall[i].nextwall,wall[i].nextsector);
-		checksectorpointer(i, nSector);
-	}
-	
-	startwall = sector[nSector].wallptr;
-	endwall = startwall + sector[nSector].wallnum;
-	
-	// if near sectors stay highlighted
-	for(i = startwall; i < endwall; i++) {
-		if (wall[i].nextwall < 0) continue;
-		for (j = 0; j < highlightsectorcnt; j++) {
-			if (highlightsector[j] != wall[i].nextsector) continue;
-			wall[wall[i].nextwall].nextwall = wall[wall[i].nextwall].nextsector = -1;
-			wall[i].nextwall = wall[i].nextsector = -1;
-		}
-	}
-
 }
 
 unsigned char changechar(unsigned char dachar, int dadir, unsigned char smooshyalign, unsigned char boundcheck)
@@ -370,15 +316,9 @@ void overheadeditor(void)
 	circlepoints = 7;
 	keystatus[0x9c] = 0;
 	
-	while ((keystatus[0x9c]>>1) == 0 && qsetmode != 200)
+	while ((keystatus[0x9c]>>1) == 0 && qsetmode != 200 && !quitevent)
 	{
-		if (handleevents()) {
-			if (quitevent) {
-				keystatus[1] = 1;
-				quitevent = 0;
-			}
-		}
-
+		handleevents();
 		OSD_DispatchQueued();
 
 
@@ -1635,40 +1575,6 @@ void copysector(short soursector, short destsector, short deststartwall, unsigne
 
 	}
 }
-
-void keytimerstuff(void)
-{
-	static int ltotalclock=0;
-	if (totalclock == ltotalclock) return;
-	ltotalclock=totalclock;
-
-	if (keystatus[0x9d] == 0)
-	{
-		if (keystatus[0xcb] > 0) angvel = max(angvel-16,-128);
-		else if (keystatus[0xcd] > 0) angvel = min(angvel+16,127);
-	}
-	else if (keystatus[0xcb] > 0) svel = min(svel+8,127);
-	else if (keystatus[0xcd] > 0) svel = max(svel-8,-128);
-	
-	
-	if (keystatus[0xC8] > 0) vel = min(vel+8,127);
-	else if (keystatus[0xd0] > 0) vel = max(vel-8,-128);
-	//if (keystatus[0x33] > 0) svel = min(svel+8,127);
-	//if (keystatus[0x34] > 0) svel = max(svel-8,-128);
-
-	if (angvel < 0) angvel = min(angvel+12,0);
-	else if (angvel > 0)
-		angvel = max(angvel-12,0);
-	
-	if (svel < 0) svel = min(svel+2,0);
-	else if (svel > 0)
-		svel = max(svel-2,0);
-	
-	if (vel < 0) vel = min(vel+2,0);
-	else if (vel > 0)
-		vel = max(vel-2,0);
-}
-
 
 void printmessage16(char name[82])
 {

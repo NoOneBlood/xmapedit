@@ -27,14 +27,11 @@
 #include "common_game.h"
 #include "editor.h"
 #include "xmpstub.h"
-#include "keyboard.h"
 #include "sectorfx.h"
 #include "tracker.h"
 #include "edit2d.h"
 #include "replace.h"
 #include "screen.h"
-#include "misc.h"
-
 #include "mapcmt.h"
 #include "img2tile.h"
 #include "tilefav.h"
@@ -63,6 +60,8 @@ char h = 0;
 BYTE key, ctrl, alt, shift;
 int gHighSpr = -1, gHovSpr = -1;
 int bpsx, bpsy, bpsz, bang, bhorz;
+int bsrcwall, bsrcsector, bsrcstat, bsrchit;
+
 short temptype = 0, tempslope = 0, tempidx = -1, spriteNamesLength = 0;
 char tempvisibility = 0;
 short tempang = 0;
@@ -199,6 +198,7 @@ NAMED_XOBJECT spriteNames[] = {
 	MO, kModernRandomTX,			NULL,				"RandomTX",						{sharedTxt[31], sharedTxt[32], sharedTxt[33], sharedTxt[34]},
 	MO, kModernSequentialTX,		"Seq TX",			"SequentialTX",					{sharedTxt[31], sharedTxt[32], sharedTxt[33], sharedTxt[34]},
 	MO, 504,						"CHG Slope",		"Slope Changer",				{"Where", "Slope", NULL, NULL},
+	MO, 506,						"CHG Velocity",		"Velocity Changer",				{"XVelocity", "YVelocity", "ZVelocity", "Range"},
 	MO, 16,							"Stealth",			"Stealth region",				{"Radius", "%% To Hear",	"%% To See", NULL},
 	MO, 4,							NULL,				"Marker",						{NULL, NULL, NULL, NULL},
 	MO, kModernSeqSpawner,			"Spawn SEQ",		"SEQ Spawner",					{sharedTxt[9],  sharedTxt[35], sharedTxt[36], sharedTxt[8]},
@@ -207,6 +207,7 @@ NAMED_XOBJECT spriteNames[] = {
 	MO,	kItemShroomGrow,        	NULL,				"Grow shroom",					{NULL, NULL, NULL, NULL},
 	MO,	kItemShroomShrink,      	NULL,				"Shrink shroom",				{NULL, NULL, NULL, NULL},
 	MO, 40,							NULL,				"Random Item",					{sharedTxt[26], sharedTxt[26], sharedTxt[26], sharedTxt[26]},
+	MO, 150,						NULL,				"Map",							{NULL, NULL, NULL, NULL},
 	VC,	kDecorationTorch,			NULL,				"Torch", 						{NULL, NULL, NULL, NULL},
 	VC,	kDecorationCandle,			NULL,				"Candle", 						{NULL, NULL, NULL, NULL},
 	VC,	kItemWeaponFlarePistol,		NULL,				"Flare Pistol",					{sharedTxt[30], NULL, NULL, NULL},
@@ -400,7 +401,7 @@ char* gBoolNames[2] = {
 
 };
 
-char* onOff(int var) {
+char* _fastcall onOff(int var) {
 
 	return gBoolNames[(var) ? 1 : 0];
 
@@ -414,7 +415,7 @@ char* gIsNotNames[2] = {
 
 };
 
-char* isNot(int var) {
+char* _fastcall isNot(int var) {
 
 	return gIsNotNames[(var) ? 1 : 0];
 
@@ -427,7 +428,7 @@ char* gYesNoNames[2] = {
 
 };
 
-char* yesNo(int var) {
+char* _fastcall yesNo(int var) {
 
 	return gYesNoNames[(var) ? 1 : 0];
 
@@ -494,6 +495,7 @@ NAMED_TYPE gInitCommandNames[] = {
 	{13, 				"Sector Pause"},
 	{14, 				"Sector Continue"},
 	{15, 				"Set dude flags"},
+	{16,				"Kill events (full)"},
 	// ... numberic commands up to length?
 
 };
@@ -599,52 +601,6 @@ void HookReplaceFunctions(void);
 void ProcessKeys3D();
 void ProcessKeys2D();
 
-int formatMapInfo(char* str)
-{
-	int i = 0; char* tmp;
-	IniFile* pIni = gPreview.pEpisode;
-	
-	getFilename(gPaths.maps, buffer, FALSE);
-	
-	i = sprintf(str, strupr(buffer));
-	if (pIni && pIni->SectionExists(buffer) && (tmp = pIni->GetKeyString(buffer, "Title", "")) != "")
-		i += sprintf(&str[i], " - \"%s\"", tmp);
-	
-	if (gMapRev)
-		i+=sprintf(&str[i], " rev.%d", gMapRev);
-		
-	if (pIni && pIni->SectionExists(buffer) && (tmp = pIni->GetKeyString(buffer, "Author", "")) != "")
-		i+=sprintf(&str[i]," by %s", tmp);
-	
-	i+=sprintf(&str[i], ", format: v%d", mapversion);
-	if (gModernMap)
-		i+=sprintf(&str[i], " with modern features");
-	
-	return i;
-}
-
-int getPrevWall(int nWall) {
-	
-	int swal, ewal;
-	getSectorWalls(sectorofwall(nWall), &swal, &ewal);
-	for (int i = swal; i <= ewal; i++)
-	{
-		if (wall[i].point2 == nWall)
-			return i;
-	}
-	
-	return -1;
-}
-
-/* void mapInfoToDialog()
-{
-	gTest.pathptr[0] = gPaths.maps;
-	gTest.authptr[0] = gMapAuthor;
-
-	SetControlValue(dlgMapInfo, 1, 0);
-	SetControlValue(dlgMapInfo, 2, 0);
-	SetControlValue(dlgMapInfo, 3, gMapRev);
-} */
 
 void InitializeNames( void ) {
 
@@ -1025,7 +981,6 @@ void ExtAnalyzeSprites(void)
 		
 		// makes no sense...
 		// ...but this is how we can get proper searchstat
-		viewProcessSprites(posx, posy, posz, ang);
 		DrawMirrors(posx, posy, posz, ang, horiz);
 		drawrooms(posx, posy, posz, ang, horiz, cursectnum);
 		viewProcessSprites(posx, posy, posz, ang);
@@ -1101,13 +1056,13 @@ void process3DMode() {
 			scrSetMessage("Out of sector!");
 			BeepFail();
 		}
+		
 		overheadeditor();
 		keyClear();
 		return;
 	}
 
 	gHovSpr = (searchstat == OBJ_SPRITE) ? searchwall : -1;
-	FireProcess();
 }
 
 /***********************************************************************
@@ -1116,6 +1071,8 @@ void process3DMode() {
  * Called just before nextpage in both 2D and 3D modes.
  *
  **********************************************************************/
+ 
+
 void ExtCheckKeys( void )
 {
 	int i, x, y, len, lay = 1;
@@ -1147,7 +1104,7 @@ void ExtCheckKeys( void )
 		omode = qsetmode; oxdim = xdim; oydim = ydim;
 	}
 		
-	h = (gFrameClock & 32) ? 8 : 0;
+	h = (gFrameClock & kHClock) ? 8 : 0;
 	updateClocks();
 	
 	if (gMapedHud.draw)
@@ -1353,7 +1310,7 @@ int ExtInit(int argc, char const * const argv[])
 	buildsetlogfile(kLogFile);
 	buildprintf("XMAPEDIT BUILD %s\n", __DATE__);
 	buildprintf(buffer);
-	
+
 	// ---------------------------------------------------------------------------
 	// setup timers
 	gTimers.Init(0);
@@ -1361,7 +1318,9 @@ int ExtInit(int argc, char const * const argv[])
 	// ---------------------------------------------------------------------------
 	gPaths.InitBase();
 	// ---------------------------------------------------------------------------
-	Resource::heap = new QHeap(256*1024*1024);	
+	#ifdef USE_QHEAP
+		Resource::heap = new QHeap(256*1024*1024);
+	#endif
 	// ---------------------------------------------------------------------------
 	// load core file
 	buildprintf("Loading file: \"%s\".\n", kCoreRffName);
@@ -1400,6 +1359,8 @@ int ExtInit(int argc, char const * const argv[])
 		continue;
 	}
 	
+	
+	
 	// ---------------------------------------------------------------------------
 	// initialize game resource archive
 	gPaths.InitResourceRFF(MapEditINI,	"Resources.RFF"); // paths to game resource archive
@@ -1417,30 +1378,28 @@ int ExtInit(int argc, char const * const argv[])
 	// ---------------------------------------------------------------------------
 	// initialize engine
 	buildprintf("Initializing engine...\n");
-    initengine();
-	// ---------------------------------------------------------------------------
-	// override build.cfg screen settings
-	gScreen.Init(MapEditINI, "Screen");
+	initengine();
 	// ---------------------------------------------------------------------------
 	// initialize screen
 	buildprintf("Initializing screen and GUI interface...\n");
 	scrInit();
+	gScreen.Init(MapEditINI, "Screen"); // get screen settings
 	scrCreateStdColors();
 	scrSetGameMode(fullscreen, xdimgame, ydimgame, bpp);
+	searchx = xdim >> 1, searchy = ydim >> 1;
 	GUIInit();
+	// ---------------------------------------------------------------------------
+	// show splash screen
+	splashScreen("LOADING THE XMAPEDIT NOW");
 	// ---------------------------------------------------------------------------
 	// initialize keyboard & mouse
 	initinput();
 	initmouse();
 	// ---------------------------------------------------------------------------
 	// setup mouse
-	gMouse.Init(MapEditINI,	"Mouse");
-	gMouse.SetRange(0, 0, xdim, ydim);
-	searchx = xdim >> 1, searchy = ydim >> 1;
-	gMouse.ChangeCursor(0);
-	// ---------------------------------------------------------------------------
-	// show splash screen
-	splashScreen("LOADING THE XMAPEDIT NOW");
+	gMousePrefs.Init(MapEditINI, 			"Mouse");
+	gMouseLook.Init(MapEditINI, 			"MouseLook");
+	gMouse.Init(&gMousePrefs);
 	// ---------------------------------------------------------------------------
 	// read the rest of options
 	buildprintf("Loading preferences...\n");
@@ -1493,7 +1452,6 @@ int ExtInit(int argc, char const * const argv[])
 	hudSetLayout(&gMapedHud, (qsetmode == 200) ? gHudPrefs.layout3D : gHudPrefs.layout2D, &gMouse);
 	// ---------------------------------------------------------------------------
 	// initialize sound
-	// it's probably worth to read from BLOOD.CFG?
 	buildprintf("Initialising sound system...\n");
 	gSound.Init(MapEditINI, "Sound");
 	// ---------------------------------------------------------------------------
@@ -1617,16 +1575,16 @@ void ExtUnInit(void)
 	favoriteTileSave();
 	if (MapEditINI)
 	{	
-		gMisc.Save(MapEditINI, 		"General");
-		gTileView.Save(MapEditINI,	"TileViewer");
-		gAutoGrid.Save(MapEditINI, 	"AutoGrid");
-		gMouse.Save(MapEditINI, 	"Mouse");
-		gPreview.Save(MapEditINI, 	"PreviewMode");
-		gPaths.Save(MapEditINI, 	"Visited");
-		gScreen.Save(MapEditINI, 	"Screen");
-		gHudPrefs.Save(MapEditINI,  "HUD");
-		gCmtPrefs.Save(MapEditINI,  "Comments");
-		gImportPrefs.Save(MapEditINI, "ImportWizard");
+		gMisc.Save(MapEditINI, 			"General");
+		gTileView.Save(MapEditINI,		"TileViewer");
+		gAutoGrid.Save(MapEditINI, 		"AutoGrid");
+		gMouseLook.Save(MapEditINI, 	"MouseLook");
+		gPreview.Save(MapEditINI, 		"PreviewMode");
+		gPaths.Save(MapEditINI, 		"Visited");
+		gScreen.Save(MapEditINI, 		"Screen");
+		gHudPrefs.Save(MapEditINI,  	"HUD");
+		gCmtPrefs.Save(MapEditINI,  	"Comments");
+		gImportPrefs.Save(MapEditINI, 	"ImportWizard");
 		MapEditINI->Save();
 	}
 }
@@ -1651,40 +1609,6 @@ void assignXObject(int nType, int nIdx, XSPRITE** pXSpr, XSECTOR** pXSect, XWALL
 	}
 
 }
-
-/* void autoArc() {
-
-	int slope = 4096, i, j, sect, prevsect, swal, ewal;
-
-	int slope2 = slope / highlightsectorcnt;
-	int half = highlightsectorcnt / 2;
-	int finalsect = highlightsector[half];
-
-
-	for (i = 0; i < highlightsectorcnt; i++)
-	{
-		sect = highlightsector[i];
-		//redRestore(sect);
-		getSectorWalls(sect, &swal, &ewal);
-		for (j = swal; j <= ewal; j++)
-		{
-			if (wall[j].nextsector >= 0)
-			{
-
-				if (hgltCheck(OBJ_SECTOR, wall[j].nextsector) >= 0)
-				{
-					Alert("%d", wall[j].nextsector);
-					SetFirstWall(sect, j);
-					//sector[sect].wallptr = j;
-				}
-			}
-		}
-
-		//whiteOut(sect);
-	}
-
-	BeepOk();
-} */
 
 int xsysConnect(int nTypeA, int nIdxA, int nTypeB, int nIdxB) {
 
@@ -1765,7 +1689,6 @@ int xsysConnect2(int nTypeA, int nIdxA, int nTypeB, int nIdxB) {
 
 	return 0;
 }
-
 
 
 BOOL processKeysShared() {
@@ -1915,7 +1838,6 @@ BOOL processKeysShared() {
 			if (i) hudSetLayout(&gMapedHud, (in2d) ? gHudPrefs.layout2D : gHudPrefs.layout3D);
 			break;
 		case KEY_Q: // connect one object with the one from clipboard via RX/TX
-			//autoArc();
 			if (somethingintab == 255)
 			{
 				scrSetMessage("Clipboard is empty!");
@@ -2509,29 +2431,8 @@ BOOL processKeysShared() {
 			}
 			break;
 		case KEY_M:
-			if (type != 100 && type != 300) break;
-			else if (alt)
-			{
-				switch (searchstat) {
-					case OBJ_CEILING:
-						if ((sector[searchsector].ceilingstat & 0x0100)) sector[searchsector].ceilingstat &= ~ 0x0100;
-						else sector[searchsector].ceilingstat |= 0x0100;
-						scrSetMessage("sector[%d] ceiling %s masked", searchsector, isNot(sector[searchsector].ceilingstat & 0x0100));
-						BeepOk();
-						break;
-					case OBJ_FLOOR:
-						if ((sector[searchsector].floorstat & 0x0100)) sector[searchsector].floorstat &= ~ 0x0100;
-						else sector[searchsector].floorstat |= 0x0100;
-						scrSetMessage("sector[%d] floor %s masked", searchsector, isNot(sector[searchsector].floorstat & 0x0100));
-						BeepOk();
-						break;
-					default:
-						BeepFail();
-						break;
-				}
-				break;
-			}
-			else if (searchwall < 0 || (i = wall[searchwall].nextwall) < 0)
+			if (type != 100) break;
+			if (searchwall < 0 || (i = wall[searchwall].nextwall) < 0)
 			{
 				BeepFail();
 				break;
@@ -2731,7 +2632,9 @@ void xmpOptions(void) {
 					
 					bw = xdim, bh = ydim;
 					toggleResolution(pFullscreen->checked, w, h); splashScreen();
-					gMouse.look.Init(MapEditINI, "MouseLook");
+					gMouseLook.Init(MapEditINI, "MouseLook");
+					gMouse.Init(&gMousePrefs);
+					
 					xdimgame = xdim, ydimgame = ydim;
 					gTileView.InitWindow();
 					
@@ -2741,7 +2644,9 @@ void xmpOptions(void) {
 					if (!Confirm("Keep %dx%d resolution?", xdim, ydim))
 					{
 						toggleResolution(pFullscreen->checked, bw, bh); splashScreen();
-						gMouse.look.Init(MapEditINI, "MouseLook");
+						gMouseLook.Init(MapEditINI, "MouseLook");
+						gMouse.Init(&gMousePrefs);
+						
 						xdimgame = bw, ydimgame = bh;
 						gTileView.InitWindow();
 						continue;
@@ -2933,10 +2838,11 @@ int xmpMenuCreate(char* name) {
 	}
 
 	dialog.Insert(new Label(8, y, ">TOOLS", kColorBlue)); y+=(pFont->height+pd);
-	TextButton* pPreviewMode   = new TextButton(x, y, 124,  bh, "&Preview mode", mrToolPreviewMode);	y+=bh;
-	TextButton* pExplodeSeq    = new TextButton(x, y, 124,  bh, "&Exploder sequence", mrToolExpSeq);	y+=bh;
-	TextButton* pImportWizard  = new TextButton(x, y, 124,  bh, "&Import wizard", mrToolImportWizard);	y+=bh;
-
+	TextButton* pPreviewMode   = new TextButton(x, y, 124,  bh, "&Preview mode", mrToolPreviewMode);		y+=bh;
+	TextButton* pExplodeSeq    = new TextButton(x, y, 124,  bh, "&Exploder sequence", mrToolExpSeq);		y+=bh;
+	TextButton* pCleanChannel  = new TextButton(x, y, 124,  bh, "&Channel cleaner", mrToolCleanChannel);	y+=bh;
+	TextButton* pImportWizard  = new TextButton(x, y, 124,  bh, "&Import wizard", mrToolImportWizard);		y+=bh;
+	
 	i = 124/3;
 	TextButton* pButtonQavedit = new TextButton(x, y, i,  bh, editors[0], mrToolQavEdit); 	x+=i;
 	TextButton* pButtonSeqedit = new TextButton(x, y, i,  bh, editors[1], mrToolSeqEdit); 	x+=i;
@@ -2945,14 +2851,15 @@ int xmpMenuCreate(char* name) {
 	
 	if (!gMapLoaded)
 	{
-		pPreviewMode->fontColor = pExplodeSeq->fontColor = 8;
-		pPreviewMode->disabled = pExplodeSeq->disabled = TRUE;
-		pPreviewMode->canFocus = pExplodeSeq->canFocus = FALSE;
+		pCleanChannel->fontColor = pPreviewMode->fontColor = pExplodeSeq->fontColor = 8;
+		pCleanChannel->disabled  = pPreviewMode->disabled  = pExplodeSeq->disabled = TRUE;
+		pCleanChannel->canFocus  = pPreviewMode->canFocus  = pExplodeSeq->canFocus = FALSE;
 	}
 	
 	dialog.height = y + (pd*6);
 	dialog.Insert(pPreviewMode);
 	dialog.Insert(pExplodeSeq);
+	dialog.Insert(pCleanChannel);
 	dialog.Insert(pImportWizard);
 	dialog.Insert(pButtonQavedit);
 	dialog.Insert(pButtonSeqedit);
@@ -3004,6 +2911,38 @@ int xmpMenuProcess() {
 				}
 				else if (gPreviewMode) previewStop();
 				previewStart();
+				return result;
+			case mrToolCleanChannel:
+				if
+				(
+					Confirm
+					(
+					"This tool will search and reset unlinked RX and TX\n"
+					"channels for all objects in current map. Note\n"
+					"that other object properties remains\n"
+					"unchanged!\n"
+					"\n"
+					"Do you wish to continue now?"
+					)
+				)
+				{
+					getPath(gPaths.maps, buffer, TRUE);
+					strcat(buffer, kChannelCleanerLog);
+					if ((i = toolChannelCleaner(buffer)) > 0)
+					{
+						Alert
+						(
+							"There is %d channels were freed in total! See\n"
+							"the \"%s\" file created in the map\n"
+							"directory for detailed information\n"
+							"if manual editing required.", i, kChannelCleanerLog
+						);
+					}
+					else
+					{
+						Alert("No unlinked channels found.");
+					}
+				}
 				return result;
 			case mrToolExpSeq:
 				if (toolExploderSeq() == mrOk) return result;
@@ -3146,8 +3085,6 @@ BOOL getDataNameOf(short otype, short idx, short didx, char* out) {
 	return FALSE;
 }
 
-
-
 void processMove() {
 	
 	#define kMoveVal1 1024 // 4<<8
@@ -3155,46 +3092,88 @@ void processMove() {
 	#define kMoveVal3 4096 // 16<<8
 	#define kMoveVal4 6144 // 24<<8
 	#define kMoveVal5 3072 // 12<<8
+	#define kVelStep1 8
+	#define kVelStep2 2
+	#define kVelStep3 16
+	#define kVelStep4 12
 	
 	BOOL block = FALSE;
 	BYTE ctrl, shift, alt; BOOL in2d = (qsetmode != 200);
-	int goalz, hiz = 0x80000000, loz = 0x7FFFFFFF, hihit, lohit, nSector;
+	BOOL strafe = (!in2d && gMouseLook.strafe && gMouseLook.mode);
+	int goalz, hiz = 0x80000000, loz = 0x7FFFFFFF, hihit = 0, lohit = 0, nSector;
 	int i, hit, px = posx, py = posy, pz = posz, xvect = 0, yvect = 0;
 	keyGetHelper(NULL, &ctrl, &shift, &alt);
-
-
-	// don't allow to rotate with keyboard, but do strafing instead
-	if (!in2d && gMouse.look.mode && gMouse.look.strafe)
+	
+	if (keystatus[KEY_UP])
+		vel = min(vel + kVelStep1 * gFrameTicks, 127);
+	else if (keystatus[KEY_DOWN])
+		vel = max(vel - kVelStep1 * gFrameTicks, -128);
+	
+	
+	if (keystatus[KEY_LEFT])
 	{
-		if (keystatus[KEY_LEFT]) svel = svel + 16 * gFrameTicks;
-		else if (keystatus[KEY_RIGHT]) svel = svel - 16 * gFrameTicks;
-		svel = ClipRange(svel, -127, 127);
+		if (strafe)
+		{
+			svel   = min(svel   + kVelStep3 * gFrameTicks, 127);
+			angvel = 0;
+		}
+		else
+			angvel = max(angvel - kVelStep3 * gFrameTicks, -128);
 	}
-	else if (angvel)
+	else if (keystatus[KEY_RIGHT])
 	{
-		doubvel = gFrameTicks;
+		if (strafe)
+		{
+			svel 	= max(svel   - kVelStep3 * gFrameTicks, -128);
+			angvel  = 0;
+		}
+		else
+			angvel = min(angvel + kVelStep3 * gFrameTicks, 127);
+	}
+	
+	
+	if (angvel)
+	{
+		i = 14;
 		if (shift)
-			doubvel += gFrameTicks >> 1;
-		ang = (short)((ang + ((angvel+perc2val(angvel, 35)) * doubvel >> 4)) & kAngMask);
+			i = 10;
+		
+		ang = (short)((ang + (angvel * gFrameTicks) / i) & kAngMask);
+		
+		if (angvel > 0)
+			angvel = max(angvel - kVelStep4 * gFrameTicks, 0);
+		else
+			angvel = min(angvel + kVelStep4 * gFrameTicks, 0);
 	}
 
-	if (vel | svel)
+	if (vel || svel)
 	{
 		doubvel = gFrameTicks;
 		if (shift)
 			doubvel += gFrameTicks;
 		
 		doubvel += perc2val(doubvel, 40);
+		
 		if (vel)
 		{
 			xvect += mulscale30(vel * doubvel >> 2, Cos(ang));
 			yvect += mulscale30(vel * doubvel >> 2, Sin(ang));
+			
+			if (vel > 0) 
+				vel = max(vel - kVelStep2 * gFrameTicks, 0);
+			else
+				vel = min(vel + kVelStep2 * gFrameTicks, 0);
 		}
 		
 		if (svel)
 		{
 			xvect += mulscale30(svel * doubvel >> 2, Sin(ang));
 			yvect -= mulscale30(svel * doubvel >> 2, Cos(ang));
+			
+			if (svel > 0) 
+				svel = max(svel - kVelStep1 * gFrameTicks, 0);
+			else
+				svel = min(svel + kVelStep1 * gFrameTicks, 0);
 		}
 		
 
@@ -3313,7 +3292,7 @@ void processMove() {
 		{
 			if (keystatus[KEY_A])
 			{
-				if (ctrl && !gMouse.look.mode)
+				if (ctrl && !gMouseLook.mode)
 				{
 					if (horiz > 0) horiz -= 4;
 				}
@@ -3327,7 +3306,7 @@ void processMove() {
 			
 			if (keystatus[KEY_Z])                            //Z (stand low)
 			{
-				if (ctrl && !gMouse.look.mode)
+				if (ctrl && !gMouseLook.mode)
 				{
 					if (horiz < 200) horiz += 4;
 				}
@@ -3357,7 +3336,7 @@ void processMove() {
 		{
 			if (keystatus[KEY_A])
 			{
-				if (ctrl && !gMouse.look.mode)
+				if (ctrl && !gMouseLook.mode)
 				{
 					if (horiz > 0) horiz -= 4;
 				}
@@ -3367,7 +3346,7 @@ void processMove() {
 			
 			if (keystatus[KEY_Z])
 			{
-				if (ctrl && !gMouse.look.mode)
+				if (ctrl && !gMouseLook.mode)
 				{
 					if (horiz < 200) horiz += 4;
 				}
@@ -3400,59 +3379,67 @@ void processMove() {
 		else
 			hvel = 0;
 	}
-
-	if (!in2d && gPreviewMode && cursectnum >= 0)
+	
+	if (!in2d && cursectnum >= 0)
 	{
 		int omedium = gMisc.palette;
-		int val = (zmode == 0) ? kensplayerheight : 2048;
-		int legs = posz + val;
-		int nUpper = cursectnum, nLower = cursectnum, nLink = 0;
 		
-		if ((nLink = CheckLink(&posx, &posy, &legs, &nUpper)) == 0)
+		if (gUpperLink[cursectnum] >= 0 || gLowerLink[cursectnum] >= 0)
 		{
-			legs = posz - val;
-			if ((zmode == 0 && keystatus[KEY_A]) || zmode != 0)
-				nLink = CheckLink(&posx, &posy, &legs, &nLower);
-		}
+			int val = (zmode == 0) ? kensplayerheight : 2048;
+			int legs = posz + val;
+			int nSect = cursectnum, nLink = 0;
 			
-		if (nLink > 0)
-		{
-			previewMessage("Moving through stack!");	
-			switch (nLink) {
-				case 6:
-				case 10:
-				case 12:
-				case 14:
-					cursectnum = nLower;
-					gMisc.palette = kPal0;
-					posz = getflorzofslope(nLower, posx, posy) - val - 1024;
-					break;
-				default:
-					cursectnum = nUpper;
-					posz = getceilzofslope(nUpper, posx, posy) + val + 1024;
-					if (cursectnum >= 0 && sector[cursectnum].extra > 0 && xsector[sector[cursectnum].extra].underwater)
-					{
-						if (nLink == 9) gMisc.palette = kPal1;
-						else if (nLink == 13) gMisc.palette = kPal3;
-						if (zmode == 0)
-							zmode = (gMouse.look.mode) ? 3 : 2;
-					}
-					break;
+			if ((zmode || gPreviewMode) || (!zmode && (keystatus[KEY_A]|keystatus[KEY_Z])))
+			{
+				if ((nLink = CheckLinkCamera(&posx, &posy, &legs, &nSect)) == 0)
+				{
+					legs = posz - val;
+					if ((zmode == 0 && keystatus[KEY_A]) || zmode != 0)
+						nLink = CheckLinkCamera(&posx, &posy, &legs, &nSect);
+				}
+			}
+
+			if (nLink > 0)
+			{
+				scrSetMessage("Moving through stack!");
+				
+				switch (nLink) {
+					case kMarkerLowLink:
+					case kMarkerLowWater:
+					case kMarkerLowStack:
+					case kMarkerLowGoo:
+						cursectnum = nSect;
+						if (gPreviewMode)
+							gMisc.palette = kPal0;
+						posz = getflorzofslope(nSect, posx, posy) - val - 1024;
+						break;
+					default:
+						cursectnum = nSect;
+						posz = getceilzofslope(nSect, posx, posy) + val + 1024;
+						if (gPreviewMode && cursectnum >= 0 && isUnderwaterSector(cursectnum))
+						{
+							if (nLink == kMarkerUpWater) 	gMisc.palette = kPal1;
+							else if (nLink == kMarkerUpGoo) gMisc.palette = kPal3;
+							
+							if (zmode == 0)
+								zmode = (gMouseLook.mode) ? 3 : 2;
+						}
+						break;
+				}
 			}
 		}
-		else if (sector[cursectnum].extra > 0)
-		{
-			if (!xsector[sector[cursectnum].extra].underwater) gMisc.palette = kPal0;
-			else if (gMisc.palette == kPal0)
-					gMisc.palette = kPal1;
-		}
-		else
-		{
-			gMisc.palette = kPal0;
-		}
 		
-		if (omedium != gMisc.palette)
-			scrSetPalette(gMisc.palette);
+		if (gPreviewMode)
+		{
+			BOOL water = isUnderwaterSector(cursectnum);
+			if (!water && gMisc.palette != kPal0) gMisc.palette = kPal0;
+			else if (water)
+				gMisc.palette = kPal1;
+			
+			if (omedium != gMisc.palette)
+				scrSetPalette(gMisc.palette);
+		}
 	}
 	
 	switch (key) {
@@ -3460,9 +3447,9 @@ void processMove() {
 			if (alt)
 			{
 				gNoclip = (gNoclip) ? 0 : 1;				
-				scrSetMessage("noclip mode is %s", onOff(gNoclip));
+				scrSetMessage("Noclip %s", onOff(gNoclip));
 				if (Beep(gNoclip))
-					zmode = (gMouse.look.mode) ? 3 : 2;
+					zmode = (gMouseLook.mode) ? 3 : 2;
 			}
 			else if (!in2d && !shift)
 			{
@@ -3477,7 +3464,7 @@ void processMove() {
 							else zlock = (loz-posz) & ~0x3FF;
 							break;
 						case 4:
-							if (gMouse.look.mode) continue;
+							if (gMouseLook.mode) continue;
 							break;
 					}
 					break;
@@ -3751,7 +3738,8 @@ int boardLoad(char *filename)
 			}
 		}
 	}
-
+	
+	scrLoadPLUs();
 	if (gModernMap && gMisc.showTypes != 2)
 	{
 		gMisc.showTypes = 2;
@@ -3759,7 +3747,6 @@ int boardLoad(char *filename)
 	}
 	
 	formatMapInfo(gMapInfoStr);
-	
 	gMapLoaded = TRUE;
 	boardPreloadTiles();
 	AutoAdjustSprites();
@@ -3773,6 +3760,7 @@ int boardLoad(char *filename)
 
 int boardSave(char* filename, BOOL autosave)
 {
+	int i;
 	keyClear();
 	UndoSectorLighting(); // fix up floor and ceiling shade values for sectors that have dynamic lighting
 	grshUnhgltObjects(-1, FALSE); // restore shade and picnum for objects that was highlighted for gradient shading
@@ -3784,11 +3772,19 @@ int boardSave(char* filename, BOOL autosave)
 	
 	CleanUp();
 	setStartPos(startposx, startposy, startposz, startang); // this updates startsectnum as well
-	dbSaveMap(filename, (mapversion == 7 || gCompat.modernMap));
+	if ((i = dbSaveMap(filename, (mapversion == 7 || gCompat.modernMap))) != 0)
+	{
+		if (!autosave)
+			Alert("Failed to save %s (code: %d)", filename, i);
+	}
+	else
+	{
+		asksave = 0;
+	}
+	
 	if (!gResetHighlight) grshHgltObjects(-1); // change picnum and shade back to highlighted for highlighted objects
 	formatMapInfo(gMapInfoStr);
-	asksave = 0;
-	return 0;
+	return i;
 }
 
 void boardReset(int hgltreset)

@@ -20,12 +20,9 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include <stdlib.h>
-#include <string.h>
 #include "compat.h"
 #include "common_game.h"
 #include "iob.h"
-#include "gui.h"
 
 IOBuffer::IOBuffer(int _nRemain, unsigned char *_pBuffer)
 {

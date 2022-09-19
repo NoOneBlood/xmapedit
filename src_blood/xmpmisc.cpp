@@ -20,7 +20,6 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include <direct.h>
 #include "xmpstub.h"
 #include "seq.h"
 #include "editor.h"
@@ -34,9 +33,8 @@
 #include "edit2d.h"
 #include "xmpsnd.h"
 #include "mapcmt.h"
-#include "keyboard.h"
 #include "xmparted.h"
-#include "misc.h"
+#include "preview.h"
 #include "db.h"
 
 
@@ -47,6 +45,7 @@ NAMED_TYPE gSuppBakFiles[] = {
 	{kQav, kQavSig},		// see if this file is the BLOOD QAV.	
 	
 };
+
 
 struct PREVIEW_PLU {
 	
@@ -89,8 +88,6 @@ struct PREVIEW_PLU {
 	}
 	
 };
-
-PREVIEW_PLU gTestPLU;
 
 BYTE fileExists(char* filename, RESHANDLE* rffItem) {
 
@@ -711,20 +708,17 @@ void doGridCorrection(int* x, int* y, int nGrid) {
 	
 }
 
-void doWallCorrection(int nWall, int* x, int* y, int shift) {
-	
+void doWallCorrection(int nWall, int* x, int* y, int shift)
+{
 	int nx, ny;
 	GetWallNormal(nWall, &nx, &ny);
 	*x = *x + (nx >> shift);
 	*y = *y + (ny >> shift);
-	
 }
 
-void dozCorrection(int* z, int zStep) {
-	
+void dozCorrection(int* z, int zStep)
+{
 	*z = *z & ~zStep;
-	//*z = (*z+(1024 >> zStep)) & (0xffffffff<<(11-zStep));
-	
 }
 
 void hit2pos(int* rtx, int* rty, int* rtz, int32_t clipmask) {
@@ -854,18 +848,16 @@ void avePointSector(int nSector, int *x, int *y) {
 
 }
 
-void avePointWall(int nWall, int* x, int* y) {
-	
+void avePointWall(int nWall, int* x, int* y)
+{
 	*x = ((wall[nWall].x + wall[wall[nWall].point2].x) >> 1);
 	*y = ((wall[nWall].y + wall[wall[nWall].point2].y) >> 1);
-	
 }
 
 void getSectorWalls(int nSect, int* swal, int *ewal)
 {
-	int start = sector[nSect].wallptr;
-	int end = start + sector[nSect].wallnum - 1;
-	*swal = start; *ewal = end;
+	*swal = sector[nSect].wallptr;
+	*ewal = *swal + sector[nSect].wallnum - 1;
 }
 
 BOOL isModernMap() {
@@ -880,8 +872,9 @@ BOOL isModernMap() {
 
 BOOL isMultiTx(short nSpr) {
 	
-	BYTE j = 0;
-	if (sprite[nSpr].statnum < kStatFree && (sprite[nSpr].type == 25 || sprite[nSpr].type == 26)) {
+	register int j = 0;
+	if (sprite[nSpr].statnum < kStatFree && (sprite[nSpr].type == 25 || sprite[nSpr].type == 26))
+	{
 		for (BYTE i = 0; i < 4; i++)
 			if (chlRangeIsFine(getDataOf(i, OBJ_SPRITE, nSpr))) j++;
 	}
@@ -889,40 +882,54 @@ BOOL isMultiTx(short nSpr) {
 	return (j > 0);
 }
 
-BOOL multiTxPointsRx(int rx, short nSpr) {
-	
-	BYTE j;
+BOOL multiTxGetRange(int nSpr, int out[4])
+{
+	register int j;
 	XSPRITE* pXSpr = &xsprite[sprite[nSpr].extra];
+	memset(out, 0, sizeof(out));
 	
-	
-	// ranged tx
-	if (chlRangeIsFine(pXSpr->data1) && pXSpr->data2 == 0 && pXSpr->data3 == 0 && chlRangeIsFine(pXSpr->data4)) {
-		
-		if (pXSpr->data1 > pXSpr->data4) {
-			
-			int tmp = pXSpr->data4;
+	if (chlRangeIsFine(pXSpr->data1) && pXSpr->data2 == 0 && pXSpr->data3 == 0 && chlRangeIsFine(pXSpr->data4))
+	{
+		if (pXSpr->data1 > pXSpr->data4)
+		{
+			j = pXSpr->data4;
 			pXSpr->data4 = pXSpr->data1;
-			pXSpr->data1 = tmp;
-			
+			pXSpr->data1 = j;
 		}
 		
-		return (rx >= pXSpr->data1 && rx <= pXSpr->data4);
-		
+		out[0] = pXSpr->data1;
+		out[1] = pXSpr->data4;
+		return TRUE; // ranged
 	}
 	
-	// normal tx
-	for (j = 0; j < 4; j++)
-		if (rx == getDataOf(j, OBJ_SPRITE, nSpr))
-			break;
+	for (j = 0; j < 4; j++) out[j] = getDataOf(j, OBJ_SPRITE, nSpr);
+	return FALSE; // normal
+}
 
-	return (j < 4);
+BOOL multiTxPointsRx(int rx, short nSpr) {
+	
+	register BYTE j; int txrng[4];
+
+	// ranged
+	if (multiTxGetRange(nSpr, txrng))
+		return (irngok(rx, txrng[0], txrng[1]));
+		
+	
+	// normal
+	for (j = 0; j < 4; j++)
+	{
+		if (rx == txrng[j])
+			return TRUE;
+	}
+	
+	return FALSE;
 	
 }
 
+
+
 void printextShadow(int xpos, int ypos, short col, char* text, int font) {
 	printext2(xpos, ypos, col, text, &vFonts[font], 0x01);
-	//printext(xpos+1, ypos+1, gStdColor[31], -1, text, font); // shadow
-	//printext(xpos, ypos, col, -1, text, font); // text
 }
 
 void printextShadowL(int xpos, int ypos, short col, char* text) {
@@ -938,7 +945,9 @@ void findSectorMarker(int nSect, int *nIdx1, int *nIdx2) {
 	dassert(nSect >= 0 && nSect < kMaxSectors);
 	
 	*nIdx1 = *nIdx2 = -1;
-	if (sector[nSect].extra <= 0) return;
+	if (sector[nSect].extra <= 0)
+		return;
+	
 	switch (sector[nSect].type) {
 		default: return;
 		case kSectorTeleport:
@@ -950,27 +959,30 @@ void findSectorMarker(int nSect, int *nIdx1, int *nIdx2) {
 			break;
 	}
 	
-	int k = 0, z = 0; int sum1 = 0;
+	int i, j; int sum = 0;
+	
 	// search for duplicated markers in the same coords
-	for (k = 0; k < kMaxSprites; k++) {
-		if (sprite[k].statnum != kStatMarker)
+	for (i = 0; i < kMaxSprites; i++)
+	{
+		if (sprite[i].statnum != kStatMarker)
 			continue;
 		
-		// first found
-		sum1 = sprite[k].x + sprite[k].y + sprite[k].type;
-		
-		// search for others
-		for (z = 0; z < kMaxSprites; z++) {
-			if (z == k || sprite[z].statnum != kStatMarker || sprite[z].owner != nSect) continue;
-			else if (sum1 != sprite[z].x + sprite[z].y + sprite[z].type) continue;
-			else if (*nIdx1 == -1) *nIdx1 = z;
-			else if (*nIdx2 == -1) *nIdx2 = z;
-			
-			if (*nIdx1 >= 0 && sector[nSect].type != kSectorSlide && sector[nSect].type != kSectorSlideMarked) return;
+		sum = sprite[i].x + sprite[i].y + sprite[i].type;
+		for (j = 0; j < kMaxSprites; j++)
+		{			
+			if (sprite[j].statnum != kStatMarker) continue;
+			else if (i == j || sprite[j].owner != nSect) continue;
+			else if (sum != sprite[j].x + sprite[j].y + sprite[j].type) continue;
+			else if (*nIdx1 == -1)
+			{
+				*nIdx1 = j;
+				if (sector[nSect].type != kSectorSlide && sector[nSect].type != kSectorSlideMarked)
+					return;
+			}
+			else if (*nIdx2 == -1) *nIdx2 = j;
 			else if (*nIdx1 >= 0 && *nIdx2 >= 0) return;
 			else break;
 		}
-
 	}
 }
 
@@ -982,7 +994,8 @@ BYTE mostUsedColor(BYTE* pixels, int len, short noColor) {
 	int colors[256], i = 0, j = 0, most = 0;
 	memset(colors, 0, sizeof(colors));
 	
-	for (i = 0; i < len; i++) {
+	for (i = 0; i < len; i++)
+	{
 		if (noColor >= 0 && pixels[i] == noColor)
 			continue;
 		
@@ -990,7 +1003,8 @@ BYTE mostUsedColor(BYTE* pixels, int len, short noColor) {
 	}
 	
 	
-	for (i = 0; i < 256; i++) {
+	for (i = 0; i < 256; i++)
+	{
 		if (colors[i] < most)
 			continue;
 		most = colors[i];
@@ -1029,73 +1043,79 @@ BOOL markerIsNode(int idx, int goal) {
 	return FALSE;
 }
 
-void setupSecrets() {
+int setupSecrets() {
 	
-	int i = 0, j = 0, nSprite = -1, secrets = 0;
+	register int secrets = 0, nSprite = -1;
+	register int i, j, s, e;
 	
 	for (i = 0; i < numsectors; i++)
 	{
 		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
 		{
-			if (sprite[j].extra <= 0 || sprite[j].statnum >= kMaxStatus) continue; 
+			if (sprite[j].extra <= 0)
+				continue;
+			
 			switch (xsprite[sprite[j].extra].txID) {
 				case 1:
-					if (nSprite == -1) nSprite = sprite[j].index;
+					if (nSprite < 0 && sprite[nSprite].statnum < kMaxStatus) nSprite = j;
 					xsprite[sprite[j].extra].txID = xsprite[sprite[j].extra].command = 0;
 					break;
 				case 2:
-					if (xsprite[sprite[j].extra].command != 64) break;
-					secrets++;
+					if (xsprite[sprite[j].extra].command == 64) secrets++;
 					break;
 			}
 		}
 		
-		if (sector[i].extra <= 0) continue;
+		getSectorWalls(i, &s, &e);
+		for (j = s; j <= e; j++)
+		{
+			if (wall[j].extra <= 0)
+				continue;
+			
+			switch (xwall[wall[j].extra].txID) {
+				case 1:
+					xwall[wall[j].extra].txID = xwall[wall[j].extra].command = 0;
+					break;
+				case 2:
+					if (xwall[wall[j].extra].command == 64) secrets++;
+					break;
+			}
+		}
+		
+		if (sector[i].extra <= 0)
+			continue;
+		
 		switch (xsector[sector[i].extra].txID) {
 			case 1:
 				xsector[sector[i].extra].txID = xsector[sector[i].extra].command = 0;
 				break;
 			case 2:
-				if (xsector[sector[i].extra].command != 64) break;
-				secrets++;
+				if (xsector[sector[i].extra].command == 64) secrets++;
 				break;
 		}
 	}
-	
-	for (i = 0; i < numwalls; i++)
+		
+	// must keep user sprite because it can be real decoration or something...?
+	if (secrets > 0 && numsectors > 0 && nSprite < 0 && (nSprite = InsertSprite(0, 0)) >= 0)
 	{
-		if (wall[i].extra <= 0) continue;
-		switch (xwall[wall[i].extra].txID) {
-			case 1:
-				xwall[wall[i].extra].txID = xwall[wall[i].extra].command = 0;
-				break;
-			case 2:
-				if (xwall[wall[i].extra].command != 64) break;
-				secrets++;
-				break;
-		}
-	}
-
-	if (nSprite == -1)
-	{
-		nSprite = InsertSprite(0, 0);
 		sprite[nSprite].x = wall[sector[0].wallptr].x;
 		sprite[nSprite].y = wall[sector[0].wallptr].y;
 		sprite[nSprite].xrepeat = sprite[nSprite].yrepeat = 0;
+		sprite[nSprite].cstat |= kSprMoveReverse;
+		sprite[nSprite].cstat |= kSprInvisible;
 	}
 	
+	if (nSprite >= 0)
+	{
+		j = GetXSprite(nSprite);
+		
+		xsprite[j].rxID 	= 7;
+		xsprite[j].command	= 64 + secrets;
+		xsprite[j].state 	= xsprite[j].triggerOff = xsprite[j].restState = 0;
+		xsprite[j].txID  	= xsprite[j].triggerOn = 1;
+	}
 	
-	sprite[nSprite].cstat |= kSprMoveReverse;
-	sprite[nSprite].cstat |= kSprInvisible;
-	if ((j = sprite[nSprite].extra) <= 0)
-		j = dbInsertXSprite(nSprite);
-
-	
-	xsprite[j].rxID = 7;
-	xsprite[j].command = 64 + secrets;
-	xsprite[j].state = xsprite[j].triggerOff = xsprite[j].restState = 0;
-	xsprite[j].txID = xsprite[j].triggerOn = 1;
-	
+	return secrets;
 }
 
 void cpyObjectClear() {
@@ -1366,10 +1386,13 @@ BOOL fileDelete(char* file)
 	
 	return (!fileExists(file));
 }
-
+BOOL rngok(int val, int rngA, int rngB)
+{
+	return (val >= rngA && val < rngB);
+}
 BOOL irngok(int val, int rngA, int rngB)
 {
-	return rngok(val, rngA, rngB+1);
+	return (val >= rngA && val <= rngB);
 }
 
 void setCstat(BOOL enable, short* pStat, int nStat)
@@ -1419,6 +1442,72 @@ short wallCstatToggle(int nWall, short cstat, BOOL nextWall) {
 	}
 	
 	return wall[nWall].cstat;
+}
+
+short sectCstatAdd(int nSect, short cstat, int objType)
+{
+	if (objType == OBJ_FLOOR)
+	{
+		setCstat(TRUE, &sector[nSect].floorstat, cstat);
+		return sector[nSect].floorstat;
+	}
+	else
+	{
+		setCstat(TRUE, &sector[nSect].ceilingstat, cstat);
+		return sector[nSect].ceilingstat;
+	}
+}
+
+short sectCstatRem(int nSect, short cstat, int objType)
+{
+	if (objType == OBJ_FLOOR)
+	{
+		setCstat(FALSE, &sector[nSect].floorstat, cstat);
+		return sector[nSect].floorstat;
+	}
+	else
+	{
+		setCstat(FALSE, &sector[nSect].ceilingstat, cstat);
+		return sector[nSect].ceilingstat;
+	}
+}
+
+short sectCstatToggle(int nSect, short cstat, int objType) {
+	
+	if (objType == OBJ_FLOOR)
+	{
+		sector[nSect].floorstat ^= cstat;
+		return sector[nSect].floorstat;
+	}
+	else
+	{
+		sector[nSect].ceilingstat ^= cstat;
+		return sector[nSect].ceilingstat;
+	}
+}
+
+short sectCstatGet(int nSect, int objType)
+{
+	if (objType == OBJ_FLOOR) 
+		return sector[nSect].floorstat;
+	
+	return sector[nSect].ceilingstat;
+	
+}
+
+short sectCstatSet(int nSect, short cstat, int objType)
+{
+	if (objType == OBJ_FLOOR)
+	{
+		sector[nSect].floorstat = cstat;
+		return sector[nSect].floorstat;
+	}
+	else
+	{
+		sector[nSect].ceilingstat = cstat;
+		return sector[nSect].ceilingstat;
+	}
+	
 }
 
 int perc2val(int reqPerc, int val) {
@@ -1476,12 +1565,12 @@ void toggleResolution(int fs, int xres, int yres, int bpp)
 	int mode = qsetmode;
 	scrSetGameMode(fs, xres, yres, bpp);
 	if (mode != 200)
-		qsetmodeany(xres, yres);
+		qsetmodeany(xdim, ydim);
 	
 	if (tileLoadTile(gSysTiles.sectfil))
 	{
 		tileFreeTile(gSysTiles.sectfil);
-		tileAllocTile(gSysTiles.sectfil, xres, yres);
+		tileAllocTile(gSysTiles.sectfil, xdim, ydim);
 	}
 	gfxSetClip(0, 0, xdim, ydim);
 }
@@ -1616,6 +1705,151 @@ BOOL makeBackup(char* filename)
 	
 	return (rename(filename, temp) == 0);
 }
+
+void getWallCoords(int nWall, int* x1, int* y1, int* x2, int* y2)
+{
+	if (x1)	*x1 = wall[nWall].x;
+	if (y1)	*y1 = wall[nWall].y;
+	if (x2)	*x2 = wall[wall[nWall].point2].x;
+	if (y2)	*y2 = wall[wall[nWall].point2].y;
+}
+
+int getPrevWall(int nWall)
+{	
+	register int swal, ewal;
+	getSectorWalls(sectorofwall(nWall), &swal, &ewal);
+	while(swal <= ewal)
+	{
+		if (wall[swal].point2 == nWall)
+			return swal;
+		
+		swal++;
+	}
+	
+	return -1;
+}
+
+void wallDetach(int nWall)
+{
+	wall[nWall].nextsector	= -1;
+	wall[nWall].nextwall 	= -1;
+}
+
+BOOL isUnderwaterSector(XSECTOR* pXSect) { return pXSect->underwater; }
+BOOL isUnderwaterSector(sectortype* pSect) { return (pSect->extra > 0 && isUnderwaterSector(&xsector[pSect->extra])); }
+BOOL isUnderwaterSector(int nSector) { return isUnderwaterSector(&sector[nSector]); }
+
+int formatMapInfo(char* str)
+{
+	int i = 0; char* tmp;
+	IniFile* pIni = gPreview.pEpisode;
+	
+	getFilename(gPaths.maps, buffer, FALSE);
+	
+	i = sprintf(str, strupr(buffer));
+	if (pIni && pIni->SectionExists(buffer) && (tmp = pIni->GetKeyString(buffer, "Title", "")) != "")
+		i += sprintf(&str[i], " - \"%s\"", tmp);
+	
+	if (gMapRev)
+		i += sprintf(&str[i], " rev.%d", gMapRev);
+		
+	if (pIni && pIni->SectionExists(buffer) && (tmp = pIni->GetKeyString(buffer, "Author", "")) != "")
+		i += sprintf(&str[i]," by %s", tmp);
+	
+	i += sprintf(&str[i], ", format: v%d", mapversion);
+	if (gModernMap)
+		i += sprintf(&str[i], " with modern features");
+	
+	return i;
+}
+
+
+
+int collectObjectsByChannel(int nChannel, BOOL rx, OBJECT_LIST* pOut, char flags)
+{
+	BOOL ok, link = FALSE, unlink = FALSE;
+	register int c = 0, j, s, e, f;
+	register int i = numsectors;
+		
+	//return 0;
+	
+	switch (flags & 0x30)
+	{
+		case 0x10:	link   = TRUE;    break;
+		case 0x20:	unlink = TRUE;    break;
+	}
+	
+	while (--i >= 0)
+	{
+		getSectorWalls(i, &s, &e);
+		for (j = s; j <= e; j++)
+		{
+			if (wall[j].extra > 0)
+			{
+				XWALL* pXObj = &xwall[wall[j].extra];
+				if ((rx && pXObj->rxID == nChannel) || (!rx && pXObj->txID == nChannel))
+				{
+					if (link || unlink)
+					{
+						ok = ((f = collectObjectsByChannel(nChannel, !rx)) > 0 && (f != 1 || pXObj->rxID != pXObj->txID));
+						if ((!ok && link) || (ok && unlink))
+							continue;
+					}
+					
+					if (pOut)
+						pOut->Add(OBJ_WALL, j);
+					
+					c++;
+				}
+			}
+		}
+		
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+		{
+			if (sprite[j].extra > 0)
+			{
+				XSPRITE* pXObj = &xsprite[sprite[j].extra];
+				if ((rx && pXObj->rxID == nChannel) || (!rx && ((isMultiTx(j) && multiTxPointsRx(nChannel, j)) || pXObj->txID == nChannel)))
+				{
+					if (link || unlink)
+					{
+						ok = ((f = collectObjectsByChannel(nChannel, !rx)) > 0 && (f != 1 || pXObj->rxID != pXObj->txID));
+						if ((!ok && link) || (ok && unlink))
+							continue;
+					}
+					
+					if (pOut)
+						pOut->Add(OBJ_SPRITE, j);
+					
+					c++;
+				}
+			}
+		}
+		
+		if (sector[i].extra > 0)
+		{
+			XSECTOR* pXObj = &xsector[sector[i].extra];
+			if ((rx && pXObj->rxID == nChannel) || (!rx && pXObj->txID == nChannel))
+			{
+				if (link || unlink)
+				{
+					ok = ((f = collectObjectsByChannel(nChannel, !rx)) > 0 && (f != 1 || pXObj->rxID != pXObj->txID));
+					if ((!ok && link) || (ok && unlink))
+						continue;
+				}
+
+				if (pOut)
+					pOut->Add(OBJ_SECTOR, i);
+				
+				c++;
+			}
+		}
+	}
+	
+	return c;
+}
+
+
 
 /* void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1)
 {

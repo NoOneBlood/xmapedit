@@ -21,26 +21,18 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include <string.h>
-#include <stdio.h>
-#include <io.h>
-#include <fcntl.h>
-
 #include "common_game.h"
 #include "editor.h"
 #include "tile.h"
 #include "aadjust.h"
 #include "xmpstub.h"
-#include "keyboard.h"
 #include "gui.h"
 #include "screen.h"
 #include "fire.h"
 #include "tilefav.h"
 #include "inifile.h"
-#include "trig.h"
 #include "edit3d.h"
 #include "replace.h"
-#include "misc.h"
 #include "osd.h"
 #include "crc32.h"
 #include "xmpror.h"
@@ -321,13 +313,10 @@ BOOL tileAllocSysTile(short* dest, int w, int h) {
 
 void tileInitSystemTiles() {
 
-	int i, len; short nTile; RESHANDLE hIco;
-	gSysTiles.editorMirrorStart = tileSearchFreeRange(kMaxROR);
-	gSysTiles.editorMirrorEnd = gSysTiles.editorMirrorStart + kMaxROR;
+	register int i, len;
+	register short nTile;
+	RESHANDLE hIco;
 	
-	for (i = gSysTiles.editorMirrorStart; i < gSysTiles.editorMirrorEnd; i++)
-		gSysTiles.add(i);
-
 	if (tileAllocSysTile(&nTile, 128, 128))
 	{
 		gSysTiles.tileViewBg = nTile;
@@ -750,19 +739,6 @@ int tileBuildHistogram( int type )
 	return tileIndex[0];
 }
 
-short tileGetBlank() {
-
-	short i = kMaxTiles - 1;
-	while (i-- > 0)
-	{
-		if (!isSysTile(i) && (!tilesizx[i] || !tilesizy[i]))
-			return i;
-	}
-
-	return -1;
-
-}
-
 #define kMar 4
 int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 
@@ -783,10 +759,10 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 
 	hgltTileReset();
 	sprintf(title, (titleArg) ? titleArg : "Tile viewer");
+	
 	MOUSE mouse;
-	mouse.Init(MapEditINI, "Mouse");
 	mouse.ChangeCursor(kBitmapMouseCursor);
-	mouse.SetRange(x1, y1, x2 - pBitmaps[kBitmapMouseCursor]->width, y2);
+	mouse.RangeSet(x1, y1, x2 - pBitmaps[kBitmapMouseCursor]->width, y2);
 	
 	if (type != OBJ_CUSTOM)
 	{
@@ -905,7 +881,7 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 		{
 			////////
 			if (!key)
-				mouse.Read(gFrameClock);
+				mouse.Read();
 			/////////
 
 			toolDrawWindow(x1-1, y1-14, x2+1, y2+15, title, gStdColor[15]);
@@ -1353,19 +1329,23 @@ BYTE tileGetSurfType( int nHit )
 	return 0;
 }
 
-int tileSearchFreeRange(int range) {
+short tileSearchFreeRange(int range) {
 
-	int i = 0, j = 0;
-	for (i = kMaxTiles - 1; i > 0; i--)
+	register short j = 0;
+	register short i = kMaxTiles;
+	
+	while(--i >= 0)
 	{
-		j = (tilesizx[i]) ? 0 : ++j;
-		if (j == range)
-			return i;
+		if (gSysTiles.isBusy(i) || tilesizx[i]) j = 0;
+		else if (j == range) return i;
+		else j++;
 	}
-
+	
 	return -1;
 
 }
+
+short tileGetBlank() { return tileSearchFreeRange(0); }
 
 int tileCountColors(int nTile) {
 
@@ -1452,6 +1432,11 @@ void tileDrawGetSize(short pic, int size, int* width, int* height) {
 
 void tileDrawTile(int x, int y, short pic, int size, short plu, char flags, schar shade) {
 
+#if USE_POLYMOST
+	if (getrendermode() >= 3)
+		return;
+#endif
+	
 	BOOL trans = (BOOL)(flags & 0x02);
 	intptr_t pTile = (intptr_t)tileLoadTile(pic);
 	intptr_t pScreen = (intptr_t)frameplace + ylookup[y] + x;

@@ -32,10 +32,27 @@
 #include "gui.h"
 #include "db.h"
 #include "preview.h"
-#include "misc.h"
 
 short cmthglt = -1;
 MAP_COMMENT_MGR gCommentMgr;
+
+MAP_COMMENT_MGR::MAP_COMMENT_MGR()
+{
+	deFonts[0] = kFontSmall;
+	deFonts[1] = kFontNormal;
+	deFonts[2] = kFontLarge;
+	
+	cuFonts[0] = 0;		cuFonts[1] = 2;
+	cuFonts[2] = 5;		cuFonts[3] = 4;
+	cuFonts[4] = 8;		cuFonts[5] = 9;
+	cuFonts[6] = 10;	cuFonts[7] = 11;
+	cuFonts[8] = 12;	cuFonts[9] = 6;
+	
+	commentsCount	= 0;
+	comments 		= NULL;
+	cmtins			= NULL;
+	CRC				= 0;
+}
 
 int MAP_COMMENT_MGR::LoadFromIni(IniFile* pFile)
 {
@@ -77,7 +94,7 @@ int MAP_COMMENT_MGR::LoadFromIni(IniFile* pFile)
 		comment.backColor 	= enumStrGetInt(1, NULL, ',', -1);
 		comment.thickTail	= enumStrGetInt(2, NULL, ',', 0);
 		comment.fontID		= enumStrGetInt(3, NULL, ',', kDefaultFont);
-		Add(&comment);
+		Format(&comments[Add(&comment)]);
 	}
 	
 	return commentsCount;
@@ -597,7 +614,7 @@ int MAP_COMMENT_MGR::ShowDialog(int xpos1, int ypos1, int xpos2, int ypos2, int 
 
 int MAP_COMMENT_MGR::Add(MAP_COMMENT* cmt)
 {
-	cmt->id  = commentsCount; Format(cmt);
+	cmt->id  = commentsCount;
 	comments = (MAP_COMMENT*)realloc(comments, sizeof(MAP_COMMENT)*(commentsCount+1));
 	memcpy(&comments[commentsCount++], cmt, sizeof(MAP_COMMENT));
 	return cmt->id;
@@ -1043,9 +1060,11 @@ void MAP_COMMENT_MGR::Draw(int x, int y, int zoom) {
 			x2 = halfxdim16 + mulscale14(cmt->tx - x, zoom);
 			y2 = midydim16  + mulscale14(cmt->ty - y, zoom);
 			if (y2 > y1)
-				y+=hg>>1;
-			
-			draw2dArrowMarker(x1, y1, x2, y2, foreColor, zoom, (objType < 0) ? 130 : 0, cmt->thickTail, kPatDotted);
+			{
+				y1+=hg>>1;
+				y2-=hg>>1;
+			}
+			draw2dArrowMarker(x1, y1, x2, y2, foreColor, zoom >> 3, (objType < 0) ? 130 : 0, cmt->thickTail, kPatDotted);
 		}
 		
 		DrawText(cmt->text, foreColor, backColor, qFonts[fontID], x1, y1, x, y, wh, hg, zoom, 1);

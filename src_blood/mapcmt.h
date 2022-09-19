@@ -66,12 +66,13 @@ class MAP_COMMENT_MGR {
 	
 	private:
 		int CRC;
-		int deFonts[3] = {kFontSmall, kFontNormal, kFontLarge};
-		int cuFonts[10] = {0, 2, 5, 4, 8, 9, 10, 11, 12, 6};
+		int deFonts[3], cuFonts[3];
 	public:
 		MAP_COMMENT* comments;
 		unsigned int commentsCount;
 		char* cmtins;
+		
+		MAP_COMMENT_MGR();
 		int  LoadFromIni(IniFile* pFile);
 		int  SaveToIni(IniFile* pFile);
 		int  LoadFromIni(char* filename);

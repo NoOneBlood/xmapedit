@@ -23,12 +23,10 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "pqueue.h"
 #include "common_game.h"
 #include "xmpstub.h"
 #include "eventq.h"
 #include "screen.h"
-#include "callback.h"
 #include "db.h"
 #include "nnexts.h"
 #include "preview.h"
@@ -36,38 +34,124 @@
 #include "xmpconf.h"
 #include "xmpmisc.h"
 
+
+#define kPQLength		1024
 class EventQueue
 {
-public:
-	PriorityQueue<EVENT>* PQueue;
+	private:
+	struct QUEUE
+	{
+		uint32_t time;
+		EVENT evn;
+	};
+	
+	QUEUE queue[kPQLength + 1];
+	int length;
+	
+	public:
 	EventQueue()
 	{
-		PQueue = NULL;
+		Flush();
 	}
-	bool IsNotEmpty(unsigned int nTime)
+	
+	BOOL Check(int32_t time)
 	{
-		return PQueue->Size() > 0 && nTime >= PQueue->LowestPriority();
+		return (length > 0 && queue[1].time <= time);
 	}
-	EVENT ERemove(void)
+	
+	void Flush(void)
 	{
-		return PQueue->Remove();
+		length = 0;
 	}
-	void Kill(int, int);
-	void Kill(int, int, CALLBACK_ID);
+	
+	void Upheap( void )
+	{
+		uint32_t k = length;
+		QUEUE v = queue[length];
+
+		queue[0].time = 0;
+		while (v.time < queue[k / 2].time)
+		{
+			queue[k] = queue[k / 2];
+			k /= 2;
+		}
+
+		queue[k] = v;
+	}
+
+	void Downheap(uint32_t k)
+	{
+		uint32_t j;
+		QUEUE v = queue[k];
+		
+		while ( k <= length / 2 )
+		{
+			j = k * 2;
+			if (j < length && queue[j].time > queue[j + 1].time)
+				j++;
+
+			if (v.time <= queue[j].time)
+				break;
+
+			queue[k] = queue[j];
+			k = j;
+		}
+
+		queue[k] = v;
+	}
+		
+	void Delete(uint32_t k)
+	{
+		dassert(k <= length);
+		queue[k] = queue[length--];
+		Downheap(k);
+	}
+	
+	void Insert(uint32_t time, EVENT evn)
+	{
+		dassert(length < kPQLength);
+		
+		++length;
+		queue[length].time 		= time;
+		queue[length].evn 		= evn;
+		Upheap();
+	}
+	
+	void Remove(EVENT* out)
+	{
+		memcpy(out, &queue[1].evn, sizeof(EVENT));
+		Delete(1);
+		return;
+	}
+	
+	void Kill(int index, int type)
+	{
+		EVENT* evn;
+		register int i = 1;
+		while(i <= length)
+		{
+			evn = &queue[i].evn;
+			if (evn->index == index && evn->type == type)
+				Delete(i);
+			else i++;
+		}
+	}
+	
+	void Kill(int index, int type, CALLBACK_ID funcID)
+	{
+		EVENT* evn;
+		register int i = 1;
+		while(i <= length)
+		{
+			evn = &queue[i].evn;
+			if (evn->index == index && evn->type == type && evn->cmd == kCmdCallback && evn->funcID == funcID)
+				Delete(i);
+			else i++;
+		}
+	}
 };
 
 EventQueue eventQ;
-void EventQueue::Kill(int a1, int a2)
-{
-	PQueue->Kill([=](EVENT nItem)->bool {return nItem.index == a1 && nItem.type == a2; });
-}
-
-void EventQueue::Kill(int a1, int a2, CALLBACK_ID a3)
-{
-	EVENT evn = { (unsigned int)a1, (unsigned int)a2, kCmdCallback, (unsigned int)a3 };
-	PQueue->Kill([=](EVENT nItem)->bool {return !memcmp(&nItem, &evn, sizeof(EVENT)); });
-}
-
 RXBUCKET rxBucket[kChannelMax+1];
 
 int GetBucketChannel(const RXBUCKET *pRX)
@@ -248,13 +332,9 @@ unsigned short bucketHead[1024+1];
 
 void evInit(void)
 {
-	if (eventQ.PQueue)
-		delete eventQ.PQueue;
-
-	eventQ.PQueue = new StdPriorityQueue<EVENT>();
-	eventQ.PQueue->Clear();
-	int nCount = 0;
-	for (int i = 0; i < numsectors; i++)
+	eventQ.Flush();
+	int nCount = 0, i, j = 0;
+	for (i = 0; i < numsectors; i++)
 	{
 		int nXSector = sector[i].extra;
 		if (nXSector >= kMaxXSectors)
@@ -267,7 +347,7 @@ void evInit(void)
 			nCount++;
 		}
 	}
-	for (int i = 0; i < numwalls; i++)
+	for (i = 0; i < numwalls; i++)
 	{
 		int nXWall = wall[i].extra;
 		if (nXWall >= kMaxXWalls)
@@ -280,7 +360,7 @@ void evInit(void)
 			nCount++;
 		}
 	}
-	for (int i = 0; i < kMaxSprites; i++)
+	for (i = 0; i < kMaxSprites; i++)
 	{
 		if (sprite[i].statnum < kMaxStatus)
 		{
@@ -297,7 +377,6 @@ void evInit(void)
 		}
 	}
 	SortRXBucket(nCount);
-	int i, j = 0;
 	for (i = 0; i < 1024; i++)
 	{
 		bucketHead[i] = j;
@@ -446,7 +525,7 @@ void evPost(int nIndex, int nType, unsigned int nDelta, COMMAND_ID command) {
 	evn.index = nIndex;
 	evn.type = nType;
 	evn.cmd = command;
-	eventQ.PQueue->Insert((int)gFrameClock+nDelta, evn);
+	eventQ.Insert((int)gFrameClock+nDelta, evn);
 }
 
 void evPost(int nIndex, int nType, unsigned int nDelta, CALLBACK_ID callback) {
@@ -455,26 +534,16 @@ void evPost(int nIndex, int nType, unsigned int nDelta, CALLBACK_ID callback) {
 	evn.type = nType;
 	evn.cmd = kCmdCallback;
 	evn.funcID = callback;
-	eventQ.PQueue->Insert((int)gFrameClock+nDelta, evn);
+	eventQ.Insert((int)gFrameClock+nDelta, evn);
 }
 
 void evProcess(unsigned int nTime)
 {
-#if 0
-	while (1)
+	while (eventQ.Check(nTime))
 	{
-		// Inlined?
-		char bDone;
-		if (eventQ.fNodeCount > 0 && nTime >= eventQ.queueItems[1])
-			bDone = 1;
-		else
-			bDone = 0;
-		if (!bDone)
-			break;
-#endif
-	while(eventQ.IsNotEmpty(nTime))
-	{
-		EVENT event = eventQ.ERemove();
+		EVENT event;
+		eventQ.Remove(&event);
+
 		if (event.cmd == kCmdCallback)
 		{
 			dassert(event.funcID < kCallbackMax);

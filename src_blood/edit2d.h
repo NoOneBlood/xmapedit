@@ -13,10 +13,6 @@
 
 extern short sectorhighlight;
 
-
-
-
-
 int EditDialog(DIALOG_ITEM *dialog);
 void PaintDialog(DIALOG_ITEM *dialog);
 void PaintDialogItem(DIALOG_ITEM *dialog, DIALOG_ITEM *control, int focus);
@@ -27,14 +23,14 @@ int findUnusedChannel(DIALOG_ITEM* dialog = NULL);
 int findUnusedStack();
 
 #define kVtxSize 2
-void scaleAngLine2d(int scale, int ang, int* x, int* y);
+void _fastcall scaleAngLine2d(int scale, int ang, int* x, int* y);
 void Draw2dWallMidPoint(int nWall, char color = 15, char which = 0x01);
 void Draw2dVertex(int x, int y, int color, int color2 = -1, int size = kVtxSize);
 void Draw2dCross(int x, int y, int color, int size);
 void Draw2dWall( int x0, int y0, int x1, int y1, char color, char thick, int pat = kPatNormal);
 void DrawBuild2dFaceSprite(int x, int y, int color);
 void Draw2dFaceSprite( int x, int y, int color);
-void Draw2dFloorSpriteFull(int x, int y, int xp1, int yp1, char color, int idx);
+void Draw2dFloorSpriteFull(int xp1, int yp1, char color, int idx);
 void DrawCircle( int x, int y, int radius, int nColor, BOOL dashed = FALSE);
 void drawHighlight(int x1, int y1, int x2, int y2, char color);
 
@@ -58,4 +54,8 @@ void controlSetReadyLabel(DIALOG_ITEM *control, char* str);
 int getlinehighlight(int nTresh, int x, int y, int nZoom);
 int getpointhighlight(int nTresh, int x, int y, int nZoom);
 void SetControlValue(DIALOG_ITEM *dialog, int group, int value );
+void loopGetWalls(int nStartWall, int* swal, int *ewal);
+
+void FASTCALL sectorDetach(int nSector);
+void FASTCALL sectorAttach(int nSector);
 #endif

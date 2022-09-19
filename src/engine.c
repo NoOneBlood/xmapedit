@@ -2165,7 +2165,18 @@ static void fgrouscan(int32_t dax1, int32_t dax2, int32_t sectnum, char dastat)
 
     const sectortype *const sec = &sector[sectnum];
     const walltype *wal;
-
+	
+	//----------------------------------------------------
+	float fdaz, bzinc, bz;
+	int32_t vis, shinc;
+	uint32_t u, v;
+	intptr_t fj, *nptr1, *nptr2, *slopalptr;
+	uint8_t *p, ch;
+	int x, cnt, cnt2, u0, v0, u1, v1;
+	
+	char* trans;
+	//----------------------------------------------------
+	
     if (dastat == 0)
     {
         if (globalposz <= getceilzofslope(sectnum,globalposx,globalposy))
@@ -2242,7 +2253,7 @@ static void fgrouscan(int32_t dax1, int32_t dax2, int32_t sectnum, char dastat)
     if (globalorientation&0x10) { globalx1 = -globalx1, globalx2 = -globalx2, globalx = -globalx; }
     if (globalorientation&0x20) { globaly1 = -globaly1, globaly2 = -globaly2, globaly = -globaly; }
 
-    float fdaz = (wx*(globalposy-wal->y)-wy*(globalposx-wal->x))*(1.f/512.f) + (daz-globalposz)*256.f;
+    fdaz = (wx*(globalposy-wal->y)-wy*(globalposx-wal->x))*(1.f/512.f) + (daz-globalposz)*256.f;
     globalx2 = (globalx2*fdaz)*(1.f/1048576.f); globalx = (globalx*fdaz)*(1.f/268435456.f);
     globaly2 = (globaly2*-fdaz)*(1.f/1048576.f); globaly = (globaly*-fdaz)*(1.f/268435456.f);
 
@@ -2283,19 +2294,19 @@ static void fgrouscan(int32_t dax1, int32_t dax2, int32_t sectnum, char dastat)
     globaly1 >>= 16;
 
     //asm1 = -(globalzd>>(16-BITSOFPRECISION));
-    float bzinc = -globalzd*(1.f/65536.f);
+    bzinc = -globalzd*(1.f/65536.f);
 
-    int32_t const vis = (sec->visibility != 0) ? mulscale4(globalvisibility, (uint8_t)(sec->visibility+16)) : globalvisibility;
+    vis = (sec->visibility != 0) ? mulscale4(globalvisibility, (uint8_t)(sec->visibility+16)) : globalvisibility;
     globvis = ((((int64_t)(vis*fdaz)) >> 13) * xdimscale) >> 16;
 
-    intptr_t fj = (intptr_t)palookup[globalpal];
+    fj = (intptr_t)palookup[globalpal];
 
     setupslopevlin_alsotrans((picsiz[globalpicnum]&15) + ((picsiz[globalpicnum]>>4)<<8),
                              (void*)waloff[globalpicnum],-ylookup[1]);
 
     l = (int)((globalzd)*(1.f/65536.f));
 
-    int32_t const shinc = (int)(globalz*xdimenscale*(1.f/65536.f));
+    shinc = (int)(globalz*xdimenscale*(1.f/65536.f));
 
     shoffs = (shinc > 0) ? (4 << 15) : ((16380 - ydimen) << 15);  // JBF: was 2044
     y1     = (dastat == 0) ? umost[dax1] : max(umost[dax1], dplc[dax1]);
@@ -2313,7 +2324,7 @@ static void fgrouscan(int32_t dax1, int32_t dax2, int32_t sectnum, char dastat)
 
     mptr1 = &slopalookup[shy1]; mptr2 = mptr1+1;
 
-    for (int x=dax1; x<=dax2; x++)
+    for (x=dax1; x<=dax2; x++)
     {
         if (dastat == 0) { y1 = umost[x]; y2 = min(dmost[x],uplc[x])-1; }
         else { y1 = max(umost[x],dplc[x]); y2 = dmost[x]-1; }
@@ -2334,8 +2345,8 @@ static void fgrouscan(int32_t dax1, int32_t dax2, int32_t sectnum, char dastat)
                 goto next_most;
             }
 
-            intptr_t *nptr1 = &slopalookup[shy1];
-            intptr_t *nptr2 = &slopalookup[shy2];
+            nptr1 = &slopalookup[shy1];
+            nptr2 = &slopalookup[shy2];
 
             while (nptr1 <= mptr1)
             {
@@ -2350,26 +2361,25 @@ static void fgrouscan(int32_t dax1, int32_t dax2, int32_t sectnum, char dastat)
 
             globalx3 = globalx2*(1.f/1024.f);
             globaly3 = globaly2*(1.f/1024.f);
-            float bz = (y2*globalzd)*(1.f/65536.f) + globalzx*(1.f/64.f);
-            uint8_t *p = (uint8_t*)(ylookup[y2]+x+frameoffset);
-            intptr_t* slopalptr = (intptr_t*)nptr2;
-            const char* const trans = transluc;
-            uint32_t u, v;
-            int cnt = y2-y1+1;
+            bz = (y2*globalzd)*(1.f/65536.f) + globalzx*(1.f/64.f);
+            p = (uint8_t*)(ylookup[y2]+x+frameoffset);
+            slopalptr = (intptr_t*)nptr2;
+            trans = transluc;
+            cnt = y2-y1+1;
 #define LINTERPSIZ 4
-            int u0 = (int)(1048576.f*globalx3/bz);
-            int v0 = (int)(1048576.f*globaly3/bz);
+            u0 = (int)(1048576.f*globalx3/bz);
+            v0 = (int)(1048576.f*globaly3/bz);
             switch (globalorientation&0x180)
             {
             case 0:
                 while (cnt > 0)
                 {
                     bz += bzinc*(1<<LINTERPSIZ);
-                    int u1 = (int)(1048576.f*globalx3/bz);
-                    int v1 = (int)(1048576.f*globaly3/bz);
+                    u1 = (int)(1048576.f*globalx3/bz);
+                    v1 = (int)(1048576.f*globaly3/bz);
                     u1 = (u1-u0)>>LINTERPSIZ;
                     v1 = (v1-v0)>>LINTERPSIZ;
-                    int cnt2 = min(cnt, 1<<LINTERPSIZ);
+                    cnt2 = min(cnt, 1<<LINTERPSIZ);
                     for (; cnt2>0; cnt2--)
                     {
                         u = (globalx1+u0)&0xffff;
@@ -2387,16 +2397,16 @@ static void fgrouscan(int32_t dax1, int32_t dax2, int32_t sectnum, char dastat)
                 while (cnt > 0)
                 {
                     bz += bzinc*(1<<LINTERPSIZ);
-                    int u1 = (int)(1048576.f*globalx3/bz);
-                    int v1 = (int)(1048576.f*globaly3/bz);
+                    u1 = (int)(1048576.f*globalx3/bz);
+                    v1 = (int)(1048576.f*globaly3/bz);
                     u1 = (u1-u0)>>LINTERPSIZ;
                     v1 = (v1-v0)>>LINTERPSIZ;
-                    int cnt2 = min(cnt, 1<<LINTERPSIZ);
+                    cnt2 = min(cnt, 1<<LINTERPSIZ);
                     for (; cnt2>0; cnt2--)
                     {
                         u = (globalx1+u0)&0xffff;
                         v = (globaly1+v0)&0xffff;
-                        uint8_t ch = ggbuf[((u>>(16-gglogx))<<gglogy)+(v>>(16-gglogy))];
+                        ch = ggbuf[((u>>(16-gglogx))<<gglogy)+(v>>(16-gglogy))];
                         if (ch != 255)
                             *p = *(uint8_t *)(((intptr_t)slopalptr[0])+ch);
                         slopalptr--;
@@ -2411,16 +2421,16 @@ static void fgrouscan(int32_t dax1, int32_t dax2, int32_t sectnum, char dastat)
                 while (cnt > 0)
                 {
                     bz += bzinc*(1<<LINTERPSIZ);
-                    int u1 = (int)(1048576.f*globalx3/bz);
-                    int v1 = (int)(1048576.f*globaly3/bz);
+                    u1 = (int)(1048576.f*globalx3/bz);
+                    v1 = (int)(1048576.f*globaly3/bz);
                     u1 = (u1-u0)>>LINTERPSIZ;
                     v1 = (v1-v0)>>LINTERPSIZ;
-                    int cnt2 = min(cnt, 1<<LINTERPSIZ);
+                    cnt2 = min(cnt, 1<<LINTERPSIZ);
                     for (; cnt2>0; cnt2--)
                     {
                         u = (globalx1+u0)&0xffff;
                         v = (globaly1+v0)&0xffff;
-                        uint8_t ch = ggbuf[((u>>(16-gglogx))<<gglogy)+(v>>(16-gglogy))];
+                        ch = ggbuf[((u>>(16-gglogx))<<gglogy)+(v>>(16-gglogy))];
                         if (ch != 255)
                         {
                             ch = *(uint8_t *)(((intptr_t)slopalptr[0])+ch);
@@ -2438,16 +2448,16 @@ static void fgrouscan(int32_t dax1, int32_t dax2, int32_t sectnum, char dastat)
                 while (cnt > 0)
                 {
                     bz += bzinc*(1<<LINTERPSIZ);
-                    int u1 = (int)(1048576.f*globalx3/bz);
-                    int v1 = (int)(1048576.f*globaly3/bz);
+                    u1 = (int)(1048576.f*globalx3/bz);
+                    v1 = (int)(1048576.f*globaly3/bz);
                     u1 = (u1-u0)>>LINTERPSIZ;
                     v1 = (v1-v0)>>LINTERPSIZ;
-                    int cnt2 = min(cnt, 1<<LINTERPSIZ);
+                    cnt2 = min(cnt, 1<<LINTERPSIZ);
                     for (; cnt2>0; cnt2--)
                     {
                         u = (globalx1+u0)&0xffff;
                         v = (globaly1+v0)&0xffff;
-                        uint8_t ch = ggbuf[((u>>(16-gglogx))<<gglogy)+(v>>(16-gglogy))];
+                        ch = ggbuf[((u>>(16-gglogx))<<gglogy)+(v>>(16-gglogy))];
                         if (ch != 255)
                         {
                             ch = *(uint8_t *)(((intptr_t)slopalptr[0])+ch);
@@ -2474,17 +2484,19 @@ next_most:
 }
 static void grouscan(int dax1, int dax2, int sectnum, unsigned char dastat)
 {
-	if (fpgrouscan)
-	{
-		fgrouscan(dax1, dax2, sectnum, dastat);
-		return;
-	}
 	int i, j, l, x, y, dx, dy, wx, wy, y1, y2, daz;
 	int daslope, dasqr;
 	int shoffs, shinc, m1, m2;
 	intptr_t *mptr1, *mptr2, *nptr1, *nptr2;
 	walltype *wal;
 	sectortype *sec;
+	
+	if (fpgrouscan)
+	{
+		fgrouscan(dax1, dax2, sectnum, dastat);
+		return;
+	}
+
 
 	sec = &sector[sectnum];
 
@@ -3174,7 +3186,27 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
     int32_t sinang = singlobalang;
     int32_t sprcosang = sintable[(dasprang+512)&2047];
     int32_t sprsinang = sintable[dasprang&2047];
-
+	
+	////////////////////////////////////////////////
+	int32_t daxsiz, daysiz, dazsiz, daxpivot, daypivot, dazpivot;
+	int32_t odayscale, daxscalerecip, *longptr, zoff, syoff, flooroff, ceilingoff;
+	int32_t yoff, xyvoxoffs, backx, backy, cbackx, cbacky;
+	int32_t xe, ye, x1, y1, z1, x2, y2, z2, dagxinc, dagyinc;
+	int32_t nxoff, xf, il, lx, ir, rx, l1, l2, cz1, cz2;
+	int32_t yplc, yinc, um, dm;
+	
+	int64_t gxstart, ggxstart, gystart, ggystart, gxinc, gyinc, nx, ny;
+	
+	intptr_t slabxoffs;
+	
+	int16_t *shortptr;
+	
+	int cnt;
+	char oand, oand16, oand32, *davoxptr;
+	unsigned char *voxptr, *voxend;
+	
+	///////////////////////////////////////////////
+	
     i = klabs(dmulscale6(dasprx-globalposx, cosang, daspry-globalposy, sinang));
     j = getpalookup(mulscale21(globvis,i), dashade)<<8;
     setupdrawslab(ylookup[1], palookup[dapal]+j);
@@ -3197,7 +3229,7 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
         i = 0;
     }
 
-    char *davoxptr = (char *)voxoff[daindex][i];
+    davoxptr = (char *)voxoff[daindex][i];
     if (!davoxptr && i > 0) { davoxptr = (char *)voxoff[daindex][0]; mip = i; i = 0;}
     if (!davoxptr)
         return;
@@ -3210,25 +3242,24 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
         dayscale = mulscale8(dayscale<<i,voxscale[daindex]);
     }
 
-    const int32_t odayscale = dayscale;
+    odayscale = dayscale;
     daxscale = mulscale16(daxscale,xyaspect);
     daxscale = scale(daxscale, xdimenscale, xdimen<<8);
     dayscale = scale(dayscale, mulscale16(xdimenscale,viewingrangerecip), xdimen<<8);
+    daxscalerecip = (1<<30) / daxscale;
 
-    const int32_t daxscalerecip = (1<<30) / daxscale;
-
-    int32_t *longptr = (int32_t *)davoxptr;
-    const int32_t daxsiz = B_LITTLE32(longptr[0]), daysiz = B_LITTLE32(longptr[1]), dazsiz = B_LITTLE32(longptr[2]);
-    int32_t daxpivot = B_LITTLE32(longptr[3]), daypivot = B_LITTLE32(longptr[4]), dazpivot = B_LITTLE32(longptr[5]);
+    longptr = (int32_t *)davoxptr;
+    daxsiz = B_LITTLE32(longptr[0]), daysiz = B_LITTLE32(longptr[1]), dazsiz = B_LITTLE32(longptr[2]);
+    daxpivot = B_LITTLE32(longptr[3]), daypivot = B_LITTLE32(longptr[4]), dazpivot = B_LITTLE32(longptr[5]);
     if (cstat & 4) daxpivot = (daxsiz<<8)-daxpivot;
     davoxptr += (6<<2);
 
     x = mulscale16(globalposx-dasprx, daxscalerecip);
     y = mulscale16(globalposy-daspry, daxscalerecip);
-    const int32_t backx = (dmulscale10(x,sprcosang, y,sprsinang)+daxpivot)>>8;
-    const int32_t backy = (dmulscale10(y,sprcosang, x,-sprsinang)+daypivot)>>8;
-    const int32_t cbackx = min(max(backx,0),daxsiz-1);
-    const int32_t cbacky = min(max(backy,0),daysiz-1);
+    backx = (dmulscale10(x,sprcosang, y,sprsinang)+daxpivot)>>8;
+    backy = (dmulscale10(y,sprcosang, x,-sprsinang)+daypivot)>>8;
+    cbackx = min(max(backx,0),daxsiz-1);
+    cbacky = min(max(backy,0),daysiz-1);
 
     sprcosang = mulscale14(daxscale, sprcosang);
     sprsinang = mulscale14(daxscale, sprsinang);
@@ -3242,10 +3273,10 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
     cosang >>= mip;
     sinang >>= mip;
 
-    const int64_t gxstart = (int64_t)y*cosang - (int64_t)x*sinang;
-    const int64_t gystart = (int64_t)x*cosang + (int64_t)y*sinang;
-    const int32_t gxinc = dmulscale10(sprsinang,cosang, sprcosang,-sinang);
-    const int32_t gyinc = dmulscale10(sprcosang,cosang, sprsinang,sinang);
+    gxstart = (int64_t)y*cosang - (int64_t)x*sinang;
+    gystart = (int64_t)x*cosang + (int64_t)y*sinang;
+    gxinc = dmulscale10(sprsinang,cosang, sprcosang,-sinang);
+    gyinc = dmulscale10(sprcosang,cosang, sprsinang,sinang);
 
     x = 0; y = 0; j = max(daxsiz,daysiz);
     for (i=0; i<=j; i++)
@@ -3257,7 +3288,7 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
     if ((klabs(globalposz-dasprz)>>10) >= klabs(odayscale))
         return;
 
-    int32_t zoff = dazsiz<<14;
+    zoff = dazsiz<<14;
     if (!(cstat & 128))
         zoff += dazpivot<<7;
     else if ((cstat&48) != 48)
@@ -3266,18 +3297,18 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
         zoff -= dazsiz<<14;
     }
 
-    const int32_t syoff = divscale21(globalposz-dasprz,odayscale)+zoff;
+    syoff = divscale21(globalposz-dasprz,odayscale)+zoff;
     floorz = min(floorz, dasprz+mulscale21(-zoff+(dazsiz<<15),odayscale));
     ceilingz = max(ceilingz, dasprz+mulscale21(-zoff, odayscale));
-    const int32_t flooroff = divscale21(floorz-globalposz,odayscale);
-    const int32_t ceilingoff = divscale21(ceilingz-globalposz,odayscale);
-    int32_t yoff = (klabs(gxinc)+klabs(gyinc))>>1;
+    flooroff = divscale21(floorz-globalposz,odayscale);
+    ceilingoff = divscale21(ceilingz-globalposz,odayscale);
+    yoff = (klabs(gxinc)+klabs(gyinc))>>1;
     longptr = (int32_t *)davoxptr;
-    int32_t xyvoxoffs = (daxsiz+1)<<2;
+    xyvoxoffs = (daxsiz+1)<<2;
 
     begindrawing(); //{{{
 
-    for (int cnt=0; cnt<8; cnt++)
+    for (cnt=0; cnt<8; cnt++)
     {
         int32_t xs=0, ys=0, xi=0, yi=0;
 
@@ -3301,7 +3332,7 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
             xs = cbackx;   ys = daysiz-1; xi = 2;  yi = -1; break;
         }
 
-        int32_t xe = cbackx, ye = cbacky;
+        xe = cbackx, ye = cbacky;
 
         if (cnt < 4)
         {
@@ -3319,7 +3350,7 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
             xe += xi; ye += yi;
         }
 
-        int32_t x1=0, y1=0, z1, x2=0, y2=0, z2;
+        x1=0, y1=0, z1, x2=0, y2=0, z2;
 
         i = ksgn(ys-backy) + ksgn(xs-backx)*3 + 4;
         switch (i)
@@ -3353,13 +3384,13 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
             x2 = gxinc+gyinc; y2 = gyinc-gxinc; break;
         }
 
-        char oand = pow2char[(xs<backx)+0] + pow2char[(ys<backy)+2];
+        oand = pow2char[(xs<backx)+0] + pow2char[(ys<backy)+2];
 
         if (cstat&4)
             oand ^= 3;
 
-        char oand16 = oand+16;
-        char oand32 = oand+32;
+        oand16 = oand+16;
+        oand32 = oand+32;
 
         if (cstat&8)
         {
@@ -3367,34 +3398,32 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
             oand32 = oand+16;
         }
 
-        int32_t dagxinc, dagyinc;
-
         if (yi > 0) { dagxinc = gxinc; dagyinc = mulscale16(gyinc,viewingrangerecip); }
         else { dagxinc = -gxinc; dagyinc = -mulscale16(gyinc,viewingrangerecip); }
 
         //Fix for non 90 degree viewing ranges
-        const int32_t nxoff = mulscale16(x2-x1,viewingrangerecip);
+        nxoff = mulscale16(x2-x1,viewingrangerecip);
         x1 = mulscale16(x1, viewingrangerecip);
 
-        const int64_t ggxstart = gxstart + ggyinc[ys];
-        const int64_t ggystart = gystart - ggxinc[ys];
+        ggxstart = gxstart + ggyinc[ys];
+        ggystart = gystart - ggxinc[ys];
 
         for (x=xs; x!=xe; x+=xi)
         {
-            const int32_t xf = (cstat & 4) ? daxsiz-1-x : x;
-            const intptr_t slabxoffs = (intptr_t)&davoxptr[B_LITTLE32(longptr[xf])];
-            int16_t *const shortptr = (int16_t *)&davoxptr[((xf*(daysiz+1))<<1) + xyvoxoffs];
+            xf = (cstat & 4) ? daxsiz-1-x : x;
+            slabxoffs = (intptr_t)&davoxptr[B_LITTLE32(longptr[xf])];
+            shortptr = (int16_t *)&davoxptr[((xf*(daysiz+1))<<1) + xyvoxoffs];
 
-			int64_t nx = (((int64_t)(ggxstart+ggxinc[x]) * viewingrangerecip) >> 16) + x1;
-			int64_t ny = ggystart + ggyinc[x];
+			nx = (((int64_t)(ggxstart+ggxinc[x]) * viewingrangerecip) >> 16) + x1;
+			ny = ggystart + ggyinc[x];
 
             for (y=ys; y!=ye; y+=yi,nx+=dagyinc,ny-=dagxinc)
             {
                 if (ny <= nytooclose || ny >= nytoofar)
                     continue;
 
-                unsigned char *voxptr = (unsigned char *)(B_LITTLE16(shortptr[y])+slabxoffs);
-                unsigned char *const voxend = (unsigned char *)(B_LITTLE16(shortptr[y+1])+slabxoffs);
+                voxptr = (unsigned char *)(B_LITTLE16(shortptr[y])+slabxoffs);
+                voxend = (unsigned char *)(B_LITTLE16(shortptr[y+1])+slabxoffs);
                 if (voxptr == voxend)
                     continue;
 
@@ -3402,13 +3431,13 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
                 // (after long corridor with the blinds)
                 //
                 // Also, OOB (<0?) in my amcvoxels_crash.map.
-                const int32_t il = clamp((ny+y1)>>14, 1, DISTRECIPSIZ-1);
-                int32_t lx = mulscale32(nx>>3, distrecip[il]) + halfxdimen;
+                il = clamp((ny+y1)>>14, 1, DISTRECIPSIZ-1);
+                lx = mulscale32(nx>>3, distrecip[il]) + halfxdimen;
                 if (lx < 0)
                     lx = 0;
 
-                const int32_t ir = clamp((ny+y2)>>14, 1, DISTRECIPSIZ-1);
-                int32_t rx = mulscale32((nx+nxoff)>>3, distrecip[ir]) + halfxdimen;
+                ir = clamp((ny+y2)>>14, 1, DISTRECIPSIZ-1);
+                rx = mulscale32((nx+nxoff)>>3, distrecip[ir]) + halfxdimen;
                 if (rx > xdimen)
                     rx = xdimen;
 
@@ -3417,11 +3446,11 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
 
                 rx -= lx;
 
-                const int32_t l1 = mulscale(distrecip[clamp((ny-yoff)>>14, 1, DISTRECIPSIZ-1)], dayscale, 12+mip);
+                l1 = mulscale(distrecip[clamp((ny-yoff)>>14, 1, DISTRECIPSIZ-1)], dayscale, 12+mip);
                 // FIXME! AMCTC RC2/beta shotgun voxel
                 // (e.g. training map right after M16 shooting):
-                const int32_t l2 = mulscale(distrecip[clamp((ny+yoff)>>14, 1, DISTRECIPSIZ-1)], dayscale, 12+mip);
-                int32_t cz1 = 0, cz2 = INT32_MAX;
+                l2 = mulscale(distrecip[clamp((ny+yoff)>>14, 1, DISTRECIPSIZ-1)], dayscale, 12+mip);
+                cz1 = 0, cz2 = INT32_MAX;
 
                 if (clipcf)
                 {
@@ -3459,10 +3488,10 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
                         z2 = mulscale32(l1,j+(voxptr[1]<<15)) + globalhoriz;
                     }
 
-                    int32_t yplc, yinc=0;
+                    yplc, yinc=0;
 
-                    const int32_t um = max(daumost[lx], cz1);
-                    const int32_t dm = min(dadmost[lx], cz2);
+                    um = max(daumost[lx], cz1);
+                    dm = min(dadmost[lx], cz2);
                     if (voxptr[1] == 1)
                     {
                         yplc = 0; yinc = 0;
@@ -7739,13 +7768,15 @@ int loadpics(char *filename, int askedsize)
 char cachedebug = 0;
 void loadtile(short tilenume)
 {
+	char *ptr;
+	int i, dasiz;
+	
 	if (loadtile_replace)
 	{
 		loadtile_replace(tilenume);
 		return;
 	}
-	char *ptr;
-	int i, dasiz;
+
 
 	if ((unsigned)tilenume >= (unsigned)MAXTILES) return;
 	dasiz = tilesizx[tilenume]*tilesizy[tilenume];
@@ -9708,14 +9739,14 @@ int makepalookup(int palnum, unsigned char *remapbuf, signed char r, signed char
 
 void setvgapalette(void)
 {
+	int i;
+	
 	if (setvgapalette_replace)
 	{
 		setvgapalette_replace();
 		return;
 	}
 	
-	
-	int i;
 	for (i=0;i<256;i++) {
 		curpalettefaded[i].b = curpalette[i].b = vgapal16[4*i] << 2;
 		curpalettefaded[i].g = curpalette[i].g = vgapal16[4*i+1] << 2;
@@ -10784,28 +10815,12 @@ void setpolymost2dview(void)
 
 void buildprintf(const char *fmt, ...)
 {
+	va_list va;
 	char tmpstr[1024];
-	va_list va, vac;
 
 	va_start(va, fmt);
-
-	va_copy(vac, va);
-	vfprintf(stdout, fmt, vac);
-	va_end(vac);
-
-	if (logfile) {
-		va_copy(vac, va);
-		vfprintf(logfile, fmt, vac);
-		va_end(vac);
-	}
-
-	va_copy(vac, va);
-	Bvsnprintf(tmpstr, sizeof(tmpstr)-1, fmt, vac);
-	tmpstr[sizeof(tmpstr)-1] = 0;
-	va_end(vac);
-
-	initputs(tmpstr);
-	OSD_Puts(tmpstr);
+	if (vsprintf(tmpstr, fmt, va) > 0)
+		buildputs(tmpstr);
 
 	va_end(va);
 }

@@ -83,15 +83,6 @@ unsigned int crc32once(unsigned char *blk, unsigned int len)
 	return crc32finish(&crc);
 }
 
-unsigned int crc32once2(unsigned char *blk, unsigned int len, unsigned int skipStart, unsigned int skipEnd)
-{
-	unsigned int crc;
-	
-	crc32init(&crc);
-	crc32block2(&crc, blk, len, skipStart, skipEnd);
-	return crc32finish(&crc);
-}
-
 void crc32init(unsigned int *crcvar)
 {
 	if (!crcvar) return;
@@ -102,18 +93,6 @@ void crc32block(unsigned int *crcvar, unsigned char *blk, unsigned int len)
 {
 	unsigned int crc = *crcvar;
 	while (len--) crc = crc32table[(crc ^ *(blk++)) & 0xffl] ^ (crc >> 8);
-	*crcvar = crc;
-}
-
-void crc32block2(unsigned int *crcvar, unsigned char *blk, unsigned int len, unsigned int skipStart, unsigned int skipEnd)
-{
-	unsigned int crc = *crcvar; int i;
-	for (i = 0; i < len; i++)
-	{
-		if (i >= skipStart && i <= skipEnd) blk++;
-		else crc = crc32table[(crc ^ *(blk++)) & 0xffl] ^ (crc >> 8);
-	}
-	
 	*crcvar = crc;
 }
 

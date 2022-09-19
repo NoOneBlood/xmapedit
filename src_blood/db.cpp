@@ -27,12 +27,13 @@
 #include "common_game.h"
 #include "crc32.h"
 #include "db.h"
-#include "misc.h"
 
 #include "mapcmt.h"
 #include "xmpconf.h"
 #include "xmpstub.h"
+#include "xmpror.h"
 #include "xmpmisc.h"
+
 #include "gui.h"
 
 int gSuppMapVersions[] = { 4, 6, 7, 8, 9, };
@@ -62,11 +63,11 @@ int qchangespritestat(short nSprite, short nStatus) { return ChangeSpriteStat(nS
 int qinsertsprite(short nSector, short nStat) { return InsertSprite(nSector, nStat); }
 void qinitspritelists(void) // Replace
 {
-	int i = kMaxSprites;
+	int i;
 	memset(headspritesect, -1, sizeof(headspritesect));
 	memset(headspritestat, -1, sizeof(headspritestat));
 	memset(gStatCount, 		0, sizeof(gStatCount));
-	while(i--)
+	for (i = 0; i < kMaxSprites; i++)
 	{
 		sprite[i].sectnum = sprite[i].index = -1;
 		InsertSpriteStat(i, kMaxStatus);
@@ -857,7 +858,8 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 	
 	gSkyCount       = ClipHigh(1 << pskybits, MAXPSKYTILES);
 	nSkySize        = gSkyCount*sizeof(tpskyoff[0]);
-
+	gFogMode &= ~0x02;
+	
 	if (ver7)
 	{
 		pIo->read(&extra, sizeof(extra));
@@ -865,7 +867,11 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 	
 		// XMAPEDIT specific info
 		if (memcmp(kXMPHeadSig, extra.xmpsign, sizeof(kXMPHeadSig)-1) == 0 && extra.xmpheadver == kXMPHeadVer)
+		{
 			gCustomSkyBits = (bool)(extra.xmpmapflags & 0x01);
+			if (extra.xmpmapflags & 0x02)
+				gFogMode |= 0x02;
+		}
 		
 		pIo->read(tpskyoff, nSkySize);
 		dbCrypt((char*)tpskyoff, nSkySize, nSkySize);
@@ -1059,15 +1065,16 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 
 		InsertSpriteSect(i, sprite[i].sectnum);
 		InsertSpriteStat(i, sprite[i].statnum);
-		pSpr->index = i;
+		
+		if (loadComments) // rebind from old sprite index to a newly created
+			gCommentMgr.RebindMatching(OBJ_SPRITE, pSpr->index, OBJ_SPRITE, i, TRUE);
 
+		pSpr->index = i; // set new sprite index after
+		
 		// remove spin (sloped) sprite cstat for older map versions
 		if (!ver7 && (pSpr->cstat & kSprRelMask) == kSprSloped)
 			pSpr->cstat &= ~kSprSloped;
-
-		if (loadComments) // rebind from old sprite index to a newly created
-			gCommentMgr.RebindMatching(OBJ_SPRITE, sprite[i].index, OBJ_SPRITE, i, TRUE);
-
+		
 		if (pSpr->extra <= 0)
 			continue;
 
@@ -1155,7 +1162,6 @@ int dbSaveMap(char *filename, BOOL ver7)
 	nSkyCount = ClipHigh(1 << skyBits, MAXPSKYTILES);
 	nSkySize  = sizeof(int16_t)*nSkyCount;
 
-	updatenumsprites();
 	memset(temp,    0, sizeof(temp));
 	memset(&magic,  0, sizeof(magic));
 	memset(&header, 0, sizeof(header));
@@ -1165,11 +1171,38 @@ int dbSaveMap(char *filename, BOOL ver7)
 	nBytes += sizeof(magic);
 	nBytes += sizeof(header);
 	nBytes += nSkySize;
-	nBytes += (numsectors*sizeof(sectortype)) + (numxsectors*kXSectorDiskSize);
-	nBytes += (numwalls*sizeof(walltype))     + (numxwalls*kXWallDiskSize);
-	nBytes += (numsprites*sizeof(spritetype)) + (numxsprites*kXSpriteDiskSize);
+	nBytes += (sizeof(sectortype)*numsectors);
+	nBytes += (sizeof(walltype)*numwalls);
 	if (ver7)
 		nBytes += sizeof(extra);
+	
+	// cannot rely on numxobjects until deal with Cleanup stuff damn it :(((
+	for (i = 0; i < numsectors; i++)
+	{
+		if (sector[i].extra > 0)
+			nBytes += kXSectorDiskSize;
+	}
+	
+	for (i = 0; i < numwalls; i++)
+	{
+		if (wall[i].extra > 0)
+			nBytes += kXWallDiskSize;
+	}
+	
+	numsprites = 0;
+	for (i = 0; i < kMaxSprites; i++)
+	{
+		if (sprite[i].statnum < kMaxStatus) numsprites++;
+		if (sprite[i].extra > 0)
+			nBytes += kXSpriteDiskSize;
+	}
+	
+	nBytes += (sizeof(spritetype)*numsprites);
+		
+	//nBytes += (numsectors*sizeof(sectortype)) + (numxsectors*kXSectorDiskSize);
+	//nBytes += (numwalls*sizeof(walltype))     + (numxwalls*kXWallDiskSize);
+	//nBytes += (numsprites*sizeof(spritetype)) + (numxsprites*kXSpriteDiskSize);
+
 	// -----------------------------------------------------------------------
 	if ((pBytes = (BYTE*)malloc(nBytes)) == NULL)
 		return -1;
@@ -1198,6 +1231,9 @@ int dbSaveMap(char *filename, BOOL ver7)
 	extra.xmpheadver    = kXMPHeadVer;
 	if (gCustomSkyBits)
 		extra.xmpmapflags |= 0x01;
+	if (gFogMode)
+		extra.xmpmapflags |= 0x02;
+	
 	// -----------------------------------------------------------------------
 	extra.xsprSiz       = kXSpriteDiskSize;
 	extra.xwalSiz       = kXWallDiskSize;
@@ -1283,7 +1319,7 @@ int dbSaveMap(char *filename, BOOL ver7)
 	nKey = gMapRev*sizeof(sectortype) | kMattID2;
 	for (i = 0; i < numwalls; i++)
 	{
-		twall = wall[i];
+		twall = wall[i];		
 		if (ver7)
 			dbCrypt((char*)&twall, sizeof(walltype), nKey);
 
@@ -1365,19 +1401,24 @@ int dbSaveMap(char *filename, BOOL ver7)
 
 	}
 	
-	nCRC = crc32once(pBytes, nBytes - 4);
-	pIo->write(&nCRC, 4);
-
-	makeBackup(filename);
-	i = (FileSave(filename, pBytes, nBytes)) ? 0 : -1;
-	free(pBytes);
-
-	// map saved
-	if (i == 0 && gCmtPrefs.enabled)
+	if (pIo->tell() == nBytes - 4)
 	{
-		gCommentMgr.SetCRC(nCRC); 		 // update CRC
-		gCommentMgr.SaveToIni(filename); // save comments
-	}
+		nCRC = crc32once(pBytes, nBytes - 4);
+		pIo->write(&nCRC, 4);
 
+		makeBackup(filename);
+		i = (FileSave(filename, pBytes, nBytes)) ? 0 : -1;
+		if (i == 0 && gCmtPrefs.enabled) // map saved
+		{
+			gCommentMgr.SetCRC(nCRC); 		 // update CRC
+			gCommentMgr.SaveToIni(filename); // save comments
+		}
+	}
+	else
+	{
+		i = -2;
+	}
+	
+	free(pBytes);
 	return i;
 }

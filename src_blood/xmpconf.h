@@ -137,6 +137,7 @@ class MISC_PREFS {
 	unsigned int forceSetup			: 1;
 	unsigned int zlockAvail			: 1;
 	unsigned int editMode			: 1;
+	unsigned int useTranslucency	: 1;
 	char tilesBaseName[5];
 	void Init(IniFile* pIni, char* section);
 	void Save(IniFile* pIni, char* section);
@@ -180,93 +181,29 @@ class MAPEDIT_HUD_SETTINGS {
 	void Save(IniFile* pIni, char* section);
 };
 
-/* class MOUSE_PREFS {
-
-	struct MOUSE_LOOK {
-		
-		
-		
-	};
-	
-	unsigned int speedX				: 10;
-	unsigned int speedY				: 10;
-	unsigned int controls			: 2;
-	unsigned int fixedGrid			: 5;
-	MOUSE_LOOK look;
-}; */
-
-
-struct MOUSE_CURSOR {
-	unsigned int type				: 7;
-	unsigned int width				: 7;
-	unsigned int height				: 7;
-	unsigned int pad				: 7;
-	unsigned int xoffs				: 7;
-	unsigned int yoffs				: 7;
-};
-
 class MOUSE_LOOK {
+	
 	public:
 	unsigned int mode				: 2;
-	unsigned int modeSaved			: 2;
 	unsigned int dir				: 2;
 	unsigned int invert				: 2;
 	unsigned int maxSlope			: 9;
 	unsigned int maxSlopeF			: 9;
 	unsigned int strafe				: 1;
 	void Init(IniFile* pIni, char* section);
+	void Save(IniFile* pIni, char* section);
 };
 
-struct MOUSE_RANGE
-{
-	int X1, X2;
-	int Y1, Y2;
-};
-
-
-
-class MOUSE {
+class MOUSE_PREFS {
+	
 	public:
 	unsigned int controls			: 2;
-	unsigned int speedReset			: 1;
-	unsigned int speedScale			: 1;
 	unsigned int fixedGrid			: 5;
 	unsigned int speedX				: 10;
 	unsigned int speedY				: 10;
-	unsigned int speedXInit			: 10;
-	unsigned int speedYInit			: 10;
-	unsigned int rangeX1			: 16;
-	unsigned int rangeX2			: 16;
-	unsigned int rangeY1			: 16;
-	unsigned int rangeY2			: 16;
-	unsigned int stackCount			: 4;
-	MOUSE_RANGE rangeStack[8];
-	int X;
-	int Y;
-	int dX;
-	int dY;
-	int dX2;
-	int dY2;
-	int dfX;
-	int dfY;
-	int buttons, press, hold, release, first, wheel;
-	double acceleration;
-	MOUSE_CURSOR cursor;
-	MOUSE_LOOK look;
 	void Init(IniFile* pIni, char* section);
-	void Save(IniFile* pIni, char*);
-	int  ReadButtons();
-	int  ReadWheel();
-	void Read(int nTicks);
-	void ResetSpeedNow();
-	void ResetSpeedSmooth();
-	void ClampSpeed(int speedX, int speedY);
-	void Draw();
-	void SetRange(int x1, int y1, int x2, int y2, bool scaleSpeed = true);
-	void PushRange();
-	void PopRange();
-	void ChangeCursor(short id);
 };
+
 
 class OBJECT_LOCK {
 	public:
@@ -276,7 +213,6 @@ class OBJECT_LOCK {
 	int time; 					    	 // -1 lock forever
 	void Init();
 };
-
 
 class PATHS {
 	public:
@@ -344,7 +280,6 @@ class TIMERS
 {
 	public:
 	uint32_t diskPic;
-	uint32_t mouseSpeedReset;
 	uint32_t mouseWheelTimer1;
 	uint32_t autosave;
 	uint32_t compatCheck;
@@ -366,7 +301,8 @@ extern LIGHT_BOMB gLightBomb;
 extern IMPORT_WIZARD_PREFS gImportPrefs;
 extern MAPEDIT_HUD_SETTINGS gHudPrefs;
 extern MISC_PREFS gMisc;
-extern MOUSE gMouse;
+extern MOUSE_PREFS gMousePrefs;
+extern MOUSE_LOOK  gMouseLook;
 extern OBJECT_LOCK gObjectLock;
 extern PATHS gPaths;
 extern ROTATION gRotateOpts;

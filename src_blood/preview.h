@@ -25,7 +25,6 @@
 #include "xmpsnd.h"
 #include "xmpact.h"
 #include "xmptrig.h"
-#include "xmpwarp.h"
 #include "xmpfx.h"
 #include "xmpgib.h"
 #include "xmpror.h"

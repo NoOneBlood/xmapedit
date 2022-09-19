@@ -51,8 +51,11 @@ void sprSetYRepeat(spritetype* pSprite, int val);
 int hgltSprCallFunc(HSPRITEFUNC SpriteFunc,  int nData = 0);
 int hgltSprCount();
 
-void sectDelete(int nSector, int arg1 = 0, int arg2 = 0, int arg3 = 0, int arg4 = 0);
-void sectChgXY(int nSector, int bx, int by, int, int);
+
+void sectChgVisibility(int nSect, int nVis);
+void sectChgShade(int nSect, int nOf, int nShade, int a3=0, int a4=0);
+void sectDelete(int nSector, int a1=0, int a2=0, int a3=0, int a4=0);
+void sectChgXY(int nSector, int bx, int by, int a3=0, int a4=0);
 int hgltSectCallFunc(HSECTORFUNC2 SectorFunc, int arg1 = 0, int arg2 = 0, int arg3 = 0, int arg4 = 0);
 
 

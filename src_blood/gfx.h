@@ -31,17 +31,17 @@
 // font types
 enum
 {
-	kFontTypeMono				= 0,
-	kFontTypeRasterHoriz		= 1,
-	kFontTypeRasterVert			= 2,
+kFontTypeMono					= 0,
+kFontTypeRasterHoriz			= 1,
+kFontTypeRasterVert				= 2,
 };
 
 // qbm types
 enum
 {
-	kQBitmapRAW 				= 0,
-	kQBitmapTRAW 				= 1,
-	kQBitmapRLE 				= 2,
+kQBitmapRAW 					= 0,
+kQBitmapTRAW 					= 1,
+kQBitmapRLE 					= 2,
 };
 
 
@@ -116,27 +116,21 @@ extern QBITMAP* pBitmaps[kMaxBitmaps];
 extern int xscale, xstep, yscale, ystep;
 extern int gColor;
 
-void Video_HLine(int page, int y, int x0, int x1);
-void Video_VLine(int page, int x, int y0, int y1);
-void Video_SetPixel(int page, int x, int y);
-void Video_FillBox(int page, int x0, int y0, int x1, int y1);
-void Video_BlitM2V(char* src, int bpl, int width, int height, int page, int x, int y);
-void Video_BlitMT2V(char* src, char tc, int bpl, int width, int height, int page, int x, int y);
 
-void gfxDrawBitmap(QBITMAP* qbm, int x, int y);
-void gfxPixel(int x, int y);
-void gfxHLine(int y, int x0, int x1);
-void gfxVLine(int x, int y0, int y1);
-void gfxLine(int x1, int y1, int x2, int y2);
-void gfxFillBox(int x0, int y0, int x1, int y1);
-void gfxSetClip(int x0, int y0, int x1, int y1);
-int gfxGetTextLen(char* pzText, QFONT* pFont, int a3 = 0);
-int gfxGetLabelLen(char* pzLabel, QFONT* pFont);
-int gfxFindTextPos(char* pzText, QFONT* pFont, int a3);
-void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont = NULL, bool label = false);
-void gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont = NULL, bool label = false);
-void gfxDrawLabel(int, int, int, char*, QFONT* pFont = NULL);
-void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade = 0, int nPLU = 0, int nAlign = 0);
-void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup );
-void gfxSetColor(char color);
-void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags = 0x0);
+void FASTCALL gfxDrawBitmap(QBITMAP* qbm, int x, int y);
+void FASTCALL gfxDrawBitmap(int id, int x, int y);
+void FASTCALL gfxPixel(int x, int y);
+void FASTCALL gfxHLine(int y, int x0, int x1);
+void FASTCALL gfxVLine(int x, int y0, int y1);
+void FASTCALL gfxFillBox(int x0, int y0, int x1, int y1);
+void FASTCALL gfxSetClip(int x0, int y0, int x1, int y1);
+int FASTCALL gfxGetTextLen(char* pzText, QFONT* pFont, int a3 = 0);
+int FASTCALL gfxGetLabelLen(char* pzLabel, QFONT* pFont);
+int FASTCALL gfxFindTextPos(char* pzText, QFONT* pFont, int a3);
+void FASTCALL gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont = NULL, bool label = false);
+void FASTCALL gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont = NULL, bool label = false);
+void FASTCALL gfxDrawLabel(int, int, int, char*, QFONT* pFont = NULL);
+void FASTCALL viewDrawText(int x, int y, QFONT* pFont, char *string, int shade = 0, int nPLU = 0, int nAlign = 0);
+void FASTCALL viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup );
+void FASTCALL gfxSetColor(char color);
+void FASTCALL printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags = 0x0);

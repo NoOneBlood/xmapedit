@@ -139,3 +139,4 @@ public:
 };
 
 typedef DICTNODE *RESHANDLE;
+void *ResReadLine(char *buffer, unsigned int nBytes, void **pRes);

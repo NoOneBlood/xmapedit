@@ -26,9 +26,7 @@
 #include "common_game.h"
 #include "editor.h"
 #include "edit2d.h"
-#include "misc.h"
 #include "tracker.h"
-#include "trig.h"
 #include "xmpstub.h"
 #include "xmpmisc.h"
 
@@ -42,7 +40,7 @@ CXTracker::CXTracker()
 
 void DrawVector(int x1, int y1, int x2, int y2, char c, int a5)
 {
-	draw2dArrowMarker(x1, y1, x2, y2, c, a5);
+	draw2dArrowMarker(x1, y1, x2, y2, c, a5 >> 1);
 }
 
 void CXTracker::TrackClear()
@@ -130,7 +128,6 @@ void CXTracker::Draw(int a1, int a2, int a3) {
 	
 	if (m_type)
     {
-	
 		if (m_pXSector)
         {
             
@@ -262,7 +259,7 @@ void CXTracker::Draw(int a1, int a2, int a3) {
 		if (rxId == 0)
             return;
         
-		for (short i = 0; i < kMaxSprites; i++) {
+		for (i = 0; i < kMaxSprites; i++) {
             
 			spritetype* pSprite = &sprite[i];
             if (pSprite->statnum >= kMaxStatus || pSprite->extra <= 0 || pSprite->index == m_nSprite)

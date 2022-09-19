@@ -23,15 +23,10 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include <string.h>
-#include <stdio.h>
-
 #include "build.h"
 #include "editor.h"
 #include "xmpstub.h"
-#include "trig.h"
 #include "gameutil.h"
-#include "misc.h"
 #include "preview.h"
 #include "screen.h"
 #include "gui.h"
@@ -686,7 +681,6 @@ void nnExtInitModernStuff() {
 	
 	int j;
 	nnExtResetGlobals();
-
 	for (j = 0; j < kMaxSprites; j++) {
 		
 		if (sprite[j].statnum == kStatFree || (sprite[j].flags & 32) || sprite[j].extra <= 0)
@@ -849,6 +843,65 @@ void nnExtProcessSuperSprites() {
 
 }
 
+/* void undoSectorLighting(int nSector)
+{
+	sectortype* pSect = &sector[nSector];
+	if (!xsectRangeIsFine(pSect->extra))
+		return;
+	
+	XSECTOR *pXSect = &xsector[pSect->extra];
+	if (!pXSect->shade)
+		return;
+	
+	int v4 = pXSect->shade;
+	if (pXSect->shadeFloor)
+	{
+		pSect->floorshade -= v4;
+		if (pXSect->coloredLights)
+		{
+			int nTemp = pXSect->floorpal2;
+			pXSect->floorpal2 = pSect->floorpal;
+			pSect->floorpal = nTemp;
+		}
+	}
+	if (pXSect->shadeCeiling)
+	{
+		pSect->ceilingshade -= v4;
+		if (pXSect->coloredLights)
+		{
+			int nTemp = pXSect->ceilpal2;
+			pXSect->ceilpal2 = pSect->ceilingpal;
+			pSect->ceilingpal = nTemp;
+		}
+	}
+	if (pXSect->shadeWalls)
+	{
+		int nStartWall = pSect->wallptr;
+		int nEndWall = nStartWall + pSect->wallnum;
+		for (int j = nStartWall; j < nEndWall; j++)
+		{
+			wall[j].shade -= v4;
+			if (pXSect->coloredLights)
+			{
+				wall[j].pal = pSect->floorpal;
+			}
+		}
+	}
+		
+	pXSect->shade = 0;
+	
+}
+
+void undoSectorLightingRX(int rx)
+{
+	int i;
+	for (i = bucketHead[rx]; i < bucketHead[rx + 1]; i++)
+	{
+        if (rxBucket[i].type == 6)
+			undoSectorLighting(rxBucket[i].index);
+    }
+} */
+
 void useSectorLigthChanger(spritetype* pSource, XSECTOR* pXSector) {
     
 	dassert(xspriRangeIsFine(pSource->extra));
@@ -880,7 +933,9 @@ void useSectorLigthChanger(spritetype* pSource, XSECTOR* pXSector) {
 
         }
     }
-
+	
+	//undoSectorLighting(pXSector->reference);
+	
     // add to shadeList if amplitude was set to 0 previously
     if (oldAmplitude != pXSector->amplitude && shadeCount < kMaxXSectors) {
 

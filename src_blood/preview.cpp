@@ -21,13 +21,6 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <direct.h>
-#include <io.h>
-#include <fcntl.h>
-
 #include "xmpconf.h"
 #include "xmpstub.h"
 #include "edit2d.h"
@@ -35,9 +28,7 @@
 #include "build.h"
 #include "gfx.h"
 #include "gui.h"
-#include "keyboard.h"
 #include "gameutil.h"
-#include "trig.h"
 #include "screen.h"
 #include "preview.h"
 #include "grdshd.h"
@@ -47,7 +38,6 @@
 #include "tile.h"
 #include "xmpmisc.h"
 #include "editor.h"
-#include "misc.h"
 
 PREVIEW_MODE gPreview;
 static PREVIEW_MODE_KEYS gPreviewKeys[] = {
@@ -443,7 +433,8 @@ void previewInitGameLite() {
 		}
 	}
 	
-	nnExtInitModernStuff();
+	if (gModernMap)
+		nnExtInitModernStuff();
 	
 	if (gPreview.forceStartPos && !found && startsectnum >= 0)
 	{
@@ -466,6 +457,9 @@ void previewInitGameLite() {
 void previewStart() {
 	
 	int i;
+	
+	gPreviewMode = TRUE;
+	
 	grshUnhgltObjects(-1, FALSE);
 	previewSaveState();
 	
@@ -496,8 +490,6 @@ void previewStart() {
 	//gFrameClock = 0;
 	trInit();
 
-	gMisc.hgltTreshold = 10;
-	gPreviewMode = TRUE;
 	asksave = FALSE;
 	gHighSpr = -1;
 
@@ -505,8 +497,9 @@ void previewStart() {
 	gPreview.scoreSpeed	= 64;
 	gPreview.score = 0;
 	
-	gMouse.speedReset = FALSE;
-
+	gMouse.VelocityReset();
+	gMapedHud.SetTile(-1, -1, -1);
+	
 	if (numsprites < kMaxSprites >> 1) gPreview.trackFree = TRUE;
 	if (gMisc.externalModels == 2) usevoxels = 1;
 	previewMessage("Preview mode enabled.");
@@ -580,12 +573,10 @@ void previewStop() {
 	
 	gPreviewMode = FALSE;
 	gTimers.autosave = gFrameClock;
-	gMisc.hgltTreshold = (BYTE)MapEditINI->GetKeyInt("General", "HighlightThreshold", 40);
 	if (!gResetHighlight)
 		grshHgltObjects(-1);
 	
-	tilesizx[504] = mirrorTextureWidth;
-	tilesizy[504] = mirrorTextureHeight;
+	RestoreMirrorPic();
 	
 	gPreview.palette = kPal0;
 	scrSetPalette(kPal0);
@@ -594,6 +585,7 @@ void previewStop() {
 	if (gMisc.externalModels == 2)
 		usevoxels = 0;
 	
+	gMapedHud.SetTile(-1, -1, -1);
 	previewMessage("Preview mode disabled.");
 	BeepFail();
 

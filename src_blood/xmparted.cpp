@@ -21,19 +21,11 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include <string.h>
-#include <stdio.h>
-#include <io.h>
-#include <fcntl.h>
-#include <ctype.h>
-
 #include "build.h"
 #include "editor.h"
 #include "screen.h"
-#include "keyboard.h"
 #include "common_game.h"
 #include "fire.h"
-#include "misc.h"
 #include "img2tile.h"
 #include "xmpstub.h"
 #include "xmpconf.h"
@@ -1722,7 +1714,6 @@ void artedCopyTile(int nTileSrc, int nTileDest, int what) {
 	if (nTileSrc == nTileDest)
 		return;
 
-	char dirty = 0x0;
 	if (!what || what >= kAll)
 		what = (kImage | kAnimation | kShade | kSurface | kVoxelID | kView | kOffsets);
 
@@ -1733,14 +1724,12 @@ void artedCopyTile(int nTileSrc, int nTileDest, int what) {
 		if (tilesizx[nTileDest] || tilesizy[nTileDest]) tileFreeTile(nTileDest);
 		tileAllocTile(nTileDest, tilesizx[nTileSrc], tilesizy[nTileSrc], 0, 0);
 		memcpy((void*)waloff[nTileDest], (void*)waloff[nTileSrc], tilesizx[nTileSrc]*tilesizy[nTileSrc]);
-		dirty |= kDirtyArt;
 	}
 
 	if (what & kOffsets)
 	{
 		panm[nTileDest].xcenter = panm[nTileSrc].xcenter;
 		panm[nTileDest].ycenter = panm[nTileSrc].ycenter;
-		dirty |= kDirtyPicanm;
 	}
 
 	if (what & kView)
@@ -1748,8 +1737,6 @@ void artedCopyTile(int nTileSrc, int nTileDest, int what) {
 		viewType[nTileDest] = viewType[nTileSrc];
 		if (!extVoxelPath[nTileDest])
 			panm[nTileDest].view = viewType[nTileDest];
-
-		dirty |= kDirtyPicanm;
 	}
 
 	if (what & kAnimation)
@@ -1757,26 +1744,16 @@ void artedCopyTile(int nTileSrc, int nTileDest, int what) {
 		panm[nTileDest].type 	= panm[nTileSrc].type;
 		panm[nTileDest].speed 	= panm[nTileSrc].speed;
 		panm[nTileDest].frames 	= panm[nTileSrc].frames;
-		dirty |= kDirtyPicanm;
 	}
 
 	if (what & kShade)
-	{
 		tileShade[nTileDest] = tileShade[nTileSrc];
-		dirty |= kDirtyDat;
-	}
 
 	if (what & kSurface)
-	{
 		surfType[nTileDest] = surfType[nTileSrc];
-		dirty |= kDirtyDat;
-	}
 
 	if (what & kVoxelID)
-	{
 		voxelIndex[nTileDest] = voxelIndex[nTileSrc];
-		dirty |= kDirtyDat;
-	}
 }
 
 int artedDlgCopyTiles(int nTile, int total) {

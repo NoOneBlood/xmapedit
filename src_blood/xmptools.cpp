@@ -21,16 +21,9 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <io.h>
-#include <fcntl.h>
-
 #include "common_game.h"
 #include "editor.h"
 #include "replace.h"
-#include "keyboard.h"
 #include "xmpstub.h"
 #include "gui.h"
 #include "tile.h"
@@ -44,9 +37,8 @@
 #include "xmpconf.h"
 #include "xmptools.h"
 #include "fire.h"
+#include "nnexts.h"
 #include "xmpexplo.h"
-
-#include "misc.h"
 #include "xmpmisc.h"
 #include "img2tile.h"
 
@@ -662,6 +654,7 @@ int toolExploderSeq() {
 	return dialog.endState;
 }
 
+
 int toolXWalls2XSprites() {
 	
 	int i, cnt = 0, nSpr;
@@ -750,6 +743,168 @@ void chgSpriteZ(spritetype* pSprite, int zVal) {
 
 	pSprite->z = zVal;
 	clampSprite(pSprite);
+}
+
+
+int toolChannelCleaner(char* logfile)
+{
+	BOOL freed[1024], tolog = FALSE;
+	register int i = 2, j, c = 0, txrng[4];
+	register int nChannel = 1024, hFile = -1;
+	char buf[256], fmt[64];
+	
+	memset(freed, 0, sizeof(freed));
+	sprintf(fmt, "%s", "%-6s\t#%05d\t\tRX=%-4d\t\tTX=%-4d\t\tEXTRA=%-5d\n");
+	OBJECT_LIST objects[2];
+	OBJECT* pDb;
+		
+	while(--nChannel >= 100)
+	{
+		c += collectObjectsByChannel(nChannel, TRUE,  &objects[0], 0x20);
+		c += collectObjectsByChannel(nChannel, FALSE, &objects[1], 0x20);
+	}
+	
+	if (c <= 0) return c;
+	else if (logfile && (hFile = open(logfile, O_CREAT|O_BINARY|O_WRONLY|O_TRUNC, S_IREAD|S_IWRITE)) >= 0)
+	{
+		sprintf(buf, "%s Rev.%d:\n\n", gPaths.maps, gMapRev);
+		write(hFile, strupr(buf), strlen(buf));
+		tolog = TRUE;
+	}
+
+	while(--i >= 0)
+	{
+		if (tolog)
+		{
+			sprintf(buf, "Objects with unlinked %cX channels found:\n", (i) ? 'T' : 'R');
+			write(hFile, strupr(buf), strlen(buf));
+		}
+		
+		for(pDb = objects[i].Ptr(); pDb->type < 255; pDb++)
+		{
+			if (pDb->type == OBJ_SECTOR)
+			{
+				sectortype* pObj = &sector[pDb->index]; XSECTOR* pXObj = &xsector[pObj->extra];
+				if (tolog)
+					sprintf(buf, fmt, gSearchStatNames[pDb->type], pDb->index, pXObj->rxID, pXObj->txID, pObj->extra);
+				
+				if (!i)
+				{
+					freed[pXObj->rxID] = 1;
+					pXObj->rxID = 0;
+				}
+				else
+				{
+					freed[pXObj->txID] = 1;
+					pXObj->txID = 0;
+				}
+			}
+			else if (pDb->type == OBJ_WALL)
+			{
+				walltype* pObj = &wall[pDb->index]; XWALL* pXObj = &xwall[pObj->extra];
+				if (tolog)
+					sprintf(buf, fmt, gSearchStatNames[pDb->type], pDb->index, pXObj->rxID, pXObj->txID, pObj->extra);
+				
+				if (!i)
+				{
+					freed[pXObj->rxID] = 1;
+					pXObj->rxID = 0;
+				}
+				else
+				{
+					freed[pXObj->txID] = 1;
+					pXObj->txID = 0;
+				}
+			}
+			else if (pDb->type == OBJ_SPRITE)
+			{
+				spritetype* pObj = &sprite[pDb->index]; XSPRITE* pXObj = &xsprite[pObj->extra];
+				if (tolog)
+					sprintf(buf, fmt, gSearchStatNames[pDb->type], pDb->index, pXObj->rxID, pXObj->txID, pObj->extra);
+				
+				if (!i)
+				{
+					freed[pXObj->rxID] = 1;
+					pXObj->rxID = 0;
+				}
+				else
+				{
+					if (gModernMap)
+					{
+						switch (pObj->type) {
+							case kModernSequentialTX:
+							case kModernRandomTX:
+								// ranged
+								if (multiTxGetRange(pDb->index, txrng))
+								{
+									for (j = pXObj->data1; j <= pXObj->data4; j++)
+									{
+										freed[j] = 1;
+									}
+									
+									pXObj->data1 = 0;
+									pXObj->data4 = 0;
+								}
+								// normal
+								else
+								{
+									for (j = 0; j < 4; j++)
+									{
+										if (txrng[j] >= 100 && !collectObjectsByChannel(txrng[j], TRUE))
+										{
+											freed[txrng[j]] = 1;
+											setDataValueOfObject(OBJ_SPRITE, pDb->index, j + 1, 0);
+										}
+									}
+								}
+								break;
+							case kModernPlayerControl:
+								if (pXObj->command == kCmdLink) continue; // the player inherits TX
+								break;
+							case kModernCustomDudeSpawn:
+							case kMarkerDudeSpawn:
+							case kModernRandom:
+								if (pObj->flags & kModernTypeFlag1) continue; // spawned sprite inherits TX
+								break;
+						}
+					}
+					
+					freed[pXObj->txID] = 1;
+					pXObj->txID = 0;
+				}
+			}
+			else
+			{
+				continue;
+			}
+			
+			if (tolog)
+				write(hFile, buf, strlen(buf));
+		}
+		
+		
+		if (tolog)
+		{
+			sprintf(buf, "\n");
+			write(hFile, buf, strlen(buf));
+		}
+	}
+	
+	c = 0;
+	while(++nChannel < 1024)
+	{
+		if (freed[nChannel])
+			c++;
+	}
+	
+	if (tolog)
+	{
+		sprintf(buf, "Channels freed in total: %d.", c);
+		write(hFile, strupr(buf), strlen(buf));
+		close(hFile);
+	}
+	
+	return c;
 }
 
 enum{
@@ -1258,7 +1413,7 @@ int IMPORT_WIZARD::ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg)
 	
 	pgx = dx+4, pgy = y1, pgw = x2-dx-8, pgh = y2-30;
 	
-	tileDrawGetSize(gSysTiles.xmpIco, perc2val(banw, 84), &tw, &th);
+	tileDrawGetSize(gSysTiles.xmpIco, perc2val(banw, 75), &tw, &th);
 	Tile* tLogo = new Tile((banw>>1)-(tw>>1), pd<<1, gSysTiles.xmpIco, tw, th, 0, 0x02);
 	
 	Panel* pButtons 		= new Panel(dx, dh-bth, x2-dx, bth);

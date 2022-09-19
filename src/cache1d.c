@@ -724,8 +724,8 @@ int kfilelength(int handle)
 
 	groupnum = filegrp[handle];
 	if (groupnum == 255) {
-		// return(filelength(filehan[handle]))
-		return Bfilelength(filehan[handle]);
+		return(filelength(filehan[handle]));
+		//return Bfilelength(filehan[handle]);
 	}
 #ifdef WITHKPLIB
 	else if (groupnum == 254)

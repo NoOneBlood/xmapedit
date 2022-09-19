@@ -23,7 +23,6 @@
 #ifndef __XMPSEQED
 #define __XMPSEQED
 #include "common_game.h"
-#include "trig.h"
 #include "gfx.h"
 #include "seq.h"
 

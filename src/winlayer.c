@@ -8,14 +8,33 @@
 #error winlayer.c is for Windows only.
 #endif
 
-#define WINVER 0x0501
-#define _WIN32_WINNT 0x0501
+#define WIN32_LEAN_AND_MEAN
+#if SUBSYS == 400 || SUBSYS == 401
+	#define WINVER 0x0400
+	#if SUBSYS == 401
+		// must define NT for mouse wheel support in Win98?
+		#if MOUSETYPE == 0
+			#define _WIN32_WINNT 0x0400
+		#endif
+	#endif
+#elif SUBSYS == 501
+	#define WINVER 0x0501
+	#define _WIN32_WINNT 0x0501
+#else
+	#define WINVER 0x0600
+	#define _WIN32_WINNT 0x0600
+#endif
+
 
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <xinput.h>
-#include <math.h>
 
+#include <windows.h>
+
+#if HAVE_JOYSTICK_SUPP == 1
+#include <xinput.h>
+#endif
+
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
@@ -29,11 +48,23 @@
 #include "wglext.h"
 #endif
 
+
 #include "winlayer.h"
 #include "pragmas.h"
 #include "a.h"
 #include "osd.h"
 
+#if MOUSETYPE == 1
+	#define DIRECTINPUT_VERSION 0x0700
+	#include "..\dxsdk\include\dinput.h"
+	
+	LPDIRECTINPUT  g_lpDI;
+	LPDIRECTINPUTDEVICE g_pMouse;
+	DIPROPDWORD dipdw;
+
+	#define iDirectInputCreate(a,b,c,d)	pDirectInputCreate(a,b,c,d)
+	HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion, LPDIRECTINPUT * lplpDirectInput, LPUNKNOWN punkOuter);
+#endif
 
 // undefine to restrict windowed resolutions to conventional sizes
 #define ANY_WINDOWED_SIZE
@@ -46,7 +77,7 @@ static char *argvbuf = NULL;
 static HINSTANCE hInstance = 0;
 static HWND hWindow = 0;
 static HDC hDCWindow = NULL;
-#define WINDOW_CLASS "buildapp"
+#define WINDOW_CLASS "xmapedit"
 static BOOL window_class_registered = FALSE;
 static HANDLE instanceflag = NULL;
 
@@ -106,22 +137,21 @@ static void UpdateAppWindowTitle(void);
 
 static void shutdownvideo(void);
 
+RECT  windowrct;
+POINT windowpos, windowcen;
+
 // video
 static int desktopxdim=0,desktopydim=0,desktopbpp=0, desktopmodeset=0;
 int xres=-1, yres=-1, fullscreen=0, bpp=0, bytesperline=0, imageSize=0;
 intptr_t frameplace=0;
-static int windowposx, windowposy;
-static unsigned modeschecked=0;
-unsigned maxrefreshfreq=60;
-char modechange=1;
-char offscreenrendering=0;
-int glswapinterval = 1;
-int glcolourdepth=32;
-char videomodereset = 0;
+
+static unsigned int modeschecked = 0, maxrefreshfreq = 60;
+char modechange = 1, offscreenrendering = 0, videomodereset = 0;
+int glswapinterval = 1, glcolourdepth=32;
 
 // input and events
 int inputdevices=0;
-char quitevent=0, appactive=1;
+char quitevent=0, appactive =1;
 int mousex=0, mousey=0, mouseb=0;
 static unsigned int mousewheel[2] = { 0,0 };
 #define MouseWheelFakePressTime (100)	// getticks() is a 1000Hz timer, and the button press is faked for 100ms
@@ -137,6 +167,14 @@ int keyfifoplc, keyfifoend;
 int keyasciififoplc, keyasciififoend;
 static char keynames[256][24];
 static const int wscantable[256], wxscantable[256];
+
+
+static unsigned int mouseclock = 0, grabtimer = 0;
+static int omouseparam[3], nmouseparam[3] = {1, 1, 0};
+static char moustat = 0, mousegrab = 0, mouserestoreparam = 0;
+static int joyblast=0;
+
+static int xinputusernum = -1;
 
 void (*keypresscallback)(int,int) = 0;
 void (*mousepresscallback)(int,int) = 0;
@@ -232,6 +270,7 @@ int wm_ynbox(const char *name, const char *fmt, ...)
 //
 int wm_filechooser(const char *initialdir, const char *initialfile, const char *type, int foropen, char **choice)
 {
+	#if 0
 	OPENFILENAME ofn;
 	char filter[100], *filterp = filter;
 	char filename[BMAX_PATH+1] = "";
@@ -265,6 +304,9 @@ int wm_filechooser(const char *initialdir, const char *initialfile, const char *
 	} else {
 		return 0;
 	}
+	#else
+		return 0;
+	#endif
 }
 
 //
@@ -313,6 +355,14 @@ static void SignalHandler(int signum)
 	}
 }
 
+char* osNames[] = {
+	
+	"95",
+	"98",
+	"XP",
+	"Vista",
+	
+};
 
 //
 // WinMain() -- main Windows entry point
@@ -323,24 +373,37 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
 	char *argp;
 	FILE *fp;
 	HDC hdc;
-
 	hInstance = hInst;
-
-/* 	if (CheckWinVersion() || hPrevInst) {
-		MessageBox(0, "This application must be run under Windows Vista or newer.",
-			apptitle, MB_OK|MB_ICONSTOP);
+	
+	if (CheckWinVersion() || hPrevInst)
+	{
+		char tmp[16];
+		#if SUBSYS <= 400
+			r = 0;
+		#elif SUBSYS <= 401
+			r = 1;
+		#elif SUBSYS <= 501
+			r = 2;
+		#else
+			r = 3;
+		#endif
+		
+		sprintf(tmp, "This application designed for Microsoft Windows %s or newer.", osNames[r]);
+		MessageBox(0, tmp, apptitle, MB_OK|MB_ICONSTOP);
 		return -1;
-	} */
+	}
+	
 
 	hdc = GetDC(NULL);
 	r = GetDeviceCaps(hdc, BITSPIXEL);
 	ReleaseDC(NULL, hdc);
-	if (r <= 8) {
-		MessageBox(0, "This application requires a desktop colour depth of 65536-colours or more.",
+	if (r < 8)
+	{
+		MessageBox(0, "This application requires a desktop colour depth of 256-colours or more.",
 			apptitle, MB_OK|MB_ICONSTOP);
 		return -1;
 	}
-
+	
 	// carve up the commandline into more recognizable pieces
 	argvbuf = strdup(GetCommandLine());
 	_buildargc = 0;
@@ -407,7 +470,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
 	// install signal handlers
 	signal(SIGSEGV, SignalHandler);
 
-	if (RegisterWindowClass()) return -1;
+	if (RegisterWindowClass())
+		return -1;
 
 	atexit(uninitsystem);
 
@@ -578,12 +642,19 @@ void debugprintf(const char *f, ...)
 	va_start(va,f);
 	Bvsnprintf(buf, 1024, f, va);
 	va_end(va);
-
-	if (IsDebuggerPresent()) {
-		OutputDebugString(buf);
-	} else {
+	
+	#if SUBSYS > 400
+		if (IsDebuggerPresent())
+		{
+			OutputDebugString(buf);
+		}
+		else
+		{
+			fputs(buf, stdout);
+		}
+	#else
 		fputs(buf, stdout);
-	}
+	#endif
 #endif
 }
 
@@ -598,7 +669,8 @@ int handleevents(void)
 	int rv=0;
 	MSG msg;
 
-	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+	{
 		if (msg.message == WM_QUIT)
 			quitevent = 1;
 
@@ -609,410 +681,24 @@ int handleevents(void)
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
-
-	eatosdinput = 0;
-	updatemouse();
-	updatejoystick();
-
-	if (!appactive || quitevent) rv = -1;
+	
+	if (quitevent)
+		rv = -1;
+	
+	if (appactive)
+	{
+		eatosdinput = 0;
+		updatemouse();
+		updatejoystick();
+	}
+	else
+	{
+		rv = -1;
+	}
 
 	sampletimer();
-
 	return rv;
 }
-
-
-
-
-//-------------------------------------------------------------------------------------------------
-//  INPUT (MOUSE/KEYBOARD)
-//=================================================================================================
-
-static char moustat = 0, mousegrab = 0;
-static int joyblast=0;
-
-static int xinputusernum = -1;
-
-// I don't see any pressing need to store the key-up events yet
-#define SetKey(key,state) { \
-	keystatus[key] = state; \
-		if (state) { \
-	keyfifo[keyfifoend] = key; \
-	keyfifo[(keyfifoend+1)&(KEYFIFOSIZ-1)] = state; \
-	keyfifoend = ((keyfifoend+2)&(KEYFIFOSIZ-1)); \
-		} \
-}
-
-
-//
-// initinput() -- init input system
-//
-int initinput(void)
-{
-	moustat=0;
-	memset(keystatus, 0, sizeof(keystatus));
-	keyfifoplc = keyfifoend = 0;
-	keyasciififoplc = keyasciififoend = 0;
-
-	inputdevices = 1;
-	joynumaxes=0;
-	joynumbuttons=0;
-
-	fetchkeynames();
-
-	{
-		DWORD usernum, result;
-		XINPUT_CAPABILITIES caps;
-
-		buildputs("Initialising game controllers\n");
-
-		for (usernum = 0; usernum < XUSER_MAX_COUNT; usernum++) {
-			result = XInputGetCapabilities(usernum, XINPUT_FLAG_GAMEPAD, &caps);
-			if (result == ERROR_SUCCESS && xinputusernum < 0) {
-				xinputusernum = (int)usernum;
-				inputdevices |= 4;
-
-				joynumbuttons = 15;
-				joynumaxes = 6;
-			}
-		}
-		if (xinputusernum >= 0) {
-			buildprintf("  - Using controller in port %d\n", xinputusernum);
-		} else {
-			buildputs("  - No usable controller found\n");
-		}
-	}
-
-	return 0;
-}
-
-
-//
-// uninitinput() -- uninit input system
-//
-void uninitinput(void)
-{
-	uninitmouse();
-
-	xinputusernum = -1;
-	inputdevices &= ~4;
-}
-
-
-//
-// bgetchar, bkbhit, bflushchars -- character-based input functions
-//
-unsigned char bgetchar(void)
-{
-	unsigned char c;
-	if (keyasciififoplc == keyasciififoend) return 0;
-	c = keyasciififo[keyasciififoplc];
-	keyasciififoplc = ((keyasciififoplc+1)&(KEYFIFOSIZ-1));
-	return c;
-}
-
-int bkbhit(void)
-{
-	return (keyasciififoplc != keyasciififoend);
-}
-
-void bflushchars(void)
-{
-	keyasciififoplc = keyasciififoend = 0;
-}
-
-
-//
-// set{key|mouse|joy}presscallback() -- sets a callback which gets notified when keys are pressed
-//
-void setkeypresscallback(void (*callback)(int, int)) { keypresscallback = callback; }
-void setmousepresscallback(void (*callback)(int, int)) { mousepresscallback = callback; }
-void setjoypresscallback(void (*callback)(int, int)) { joypresscallback = callback; }
-
-
-//
-// initmouse() -- init mouse input
-//
-int initmouse(void)
-{
-	RAWINPUTDEVICE rid;
-
-	if (moustat) return 0;
-
-	buildputs("Initialising mouse\n");
-
-	// Register for mouse raw input.
-	rid.usUsagePage = 0x01;
-	rid.usUsage = 0x02;
-	rid.dwFlags = 0;	// We want legacy events when the mouse is not grabbed, so no RIDEV_NOLEGACY.
-	rid.hwndTarget = NULL;
-	if (RegisterRawInputDevices(&rid, 1, sizeof(rid)) == FALSE) {
-		buildprintf("initinput: could not register for raw mouse input (%s)\n",
-			getwindowserrorstr(GetLastError()));
-		return -1;
-	}
-
-	// grab input
-	moustat=1;
-	inputdevices |= 2;
-	grabmouse(1);
-
-	return 0;
-}
-
-
-//
-// uninitmouse() -- uninit mouse input
-//
-void uninitmouse(void)
-{
-	RAWINPUTDEVICE rid;
-
-	if (!moustat) return;
-
-	grabmouse(0);
-	moustat=mousegrab=0;
-
-	// Unregister for mouse raw input.
-	rid.usUsagePage = 0x01;
-	rid.usUsage = 0x02;
-	rid.dwFlags = RIDEV_REMOVE;
-	rid.hwndTarget = NULL;
-	if (RegisterRawInputDevices(&rid, 1, sizeof(rid)) == FALSE) {
-		buildprintf("initinput: could not unregister for raw mouse input (%s)\n",
-			getwindowserrorstr(GetLastError()));
-	}
-}
-
-
-static void constrainmouse(int a)
-{
-	RECT rect;
-	LONG x, y;
-
-	if (!hWindow) return;
-	if (a) {
-		GetWindowRect(hWindow, &rect);
-
-		x = rect.left + (rect.right - rect.left) / 2;
-		y = rect.top + (rect.bottom - rect.top) / 2;
-		rect.left = x - 1;
-		rect.right = x + 1;
-		rect.top = y - 1;
-		rect.bottom = y + 1;
-
-		ClipCursor(&rect);
-		ShowCursor(FALSE);
-	} else {
-		ClipCursor(NULL);
-		ShowCursor(TRUE);
-	}
-}
-
-static void updatemouse(void)
-{
-	unsigned t = getticks();
-
-	if (!mousegrab) return;
-
-	// we only want the wheel to signal once, but hold the state for a moment
-	if (mousewheel[0] > 0 && t - mousewheel[0] > MouseWheelFakePressTime) {
-		if (mousepresscallback) mousepresscallback(5,0);
-		mousewheel[0] = 0; mouseb &= ~16;
-	}
-	if (mousewheel[1] > 0 && t - mousewheel[1] > MouseWheelFakePressTime) {
-		if (mousepresscallback) mousepresscallback(6,0);
-		mousewheel[1] = 0; mouseb &= ~32;
-	}
-}
-
-//
-// grabmouse() -- show/hide mouse cursor
-//
-void grabmouse(int a)
-{
-	if (!moustat) return;
-
-	mousegrab = a;
-
-	constrainmouse(a);
-	mousex = 0;
-	mousey = 0;
-	mouseb = 0;
-}
-
-
-//
-// readmousexy() -- return mouse motion information
-//
-void readmousexy(int *x, int *y)
-{
-	if (!moustat || !mousegrab) { *x = *y = 0; return; }
-	*x = mousex;
-	*y = mousey;
-	mousex = 0;
-	mousey = 0;
-}
-
-
-//
-// readmousebstatus() -- return mouse button information
-//
-void readmousebstatus(int *b)
-{
-	if (!moustat || !mousegrab) *b = 0;
-	else *b = mouseb;
-}
-
-
-static void updatejoystick(void)
-{
-	XINPUT_STATE state;
-
-	if (xinputusernum < 0) return;
-
-	ZeroMemory(&state, sizeof(state));
-	if (XInputGetState(xinputusernum, &state) != ERROR_SUCCESS) {
-		buildputs("Joystick error, disabling.\n");
-		joyb = 0;
-		memset(joyaxis, 0, sizeof(joyaxis));
-		xinputusernum = -1;
-		return;
-	}
-
-	// We use SDL's game controller button order for BUILD:
-	//   A, B, X, Y, Back, (Guide), Start, LThumb, RThumb,
-	//   LShoulder, RShoulder, DPUp, DPDown, DPLeft, DPRight
-	// So we must shuffle XInput around.
-	joyb = ((state.Gamepad.wButtons & 0xF000) >> 12) |		// A,B,X,Y
-	       ((state.Gamepad.wButtons & 0x0020) >> 1) |		// Back
-	       ((state.Gamepad.wButtons & 0x0010) << 2) |       // Start
-	       ((state.Gamepad.wButtons & 0x03C0) << 1) |       // LThumb,RThumb,LShoulder,RShoulder
-	       ((state.Gamepad.wButtons & 0x000F) << 8);		// DPadUp,Down,Left,Right
-
-	joyaxis[0] = state.Gamepad.sThumbLX;
-	joyaxis[1] = -state.Gamepad.sThumbLY;
-	joyaxis[2] = state.Gamepad.sThumbRX;
-	joyaxis[3] = -state.Gamepad.sThumbRY;
-	joyaxis[4] = (state.Gamepad.bLeftTrigger >> 1) | ((int)state.Gamepad.bLeftTrigger << 7);	// Extend to 0-32767
-	joyaxis[5] = (state.Gamepad.bRightTrigger >> 1) | ((int)state.Gamepad.bRightTrigger << 7);
-}
-
-
-void releaseallbuttons(void)
-{
-	int i;
-
-	if (mousepresscallback) {
-		if (mouseb & 1) mousepresscallback(1, 0);
-		if (mouseb & 2) mousepresscallback(2, 0);
-		if (mouseb & 4) mousepresscallback(3, 0);
-		if (mouseb & 8) mousepresscallback(4, 0);
-		if (mousewheel[0]>0) mousepresscallback(5,0);
-		if (mousewheel[1]>0) mousepresscallback(6,0);
-	}
-	mousewheel[0]=mousewheel[1]=0;
-	mouseb = 0;
-
-	if (joypresscallback) {
-		for (i=0;i<32;i++)
-			if (joyb & (1<<i)) joypresscallback(i+1, 0);
-	}
-	joyb = joyblast = 0;
-
-	for (i=0;i<256;i++) {
-		//if (!keystatus[i]) continue;
-		//if (OSD_HandleKey(i, 0) != 0) {
-			OSD_HandleKey(i, 0);
-			SetKey(i, 0);
-			if (keypresscallback) keypresscallback(i, 0);
-		//}
-	}
-}
-
-
-//
-// fetchkeynames() -- retrieves the names for all the keys on the keyboard
-//
-static void putkeyname(int vsc, int ex, int scan) {
-	TCHAR tbuf[24];
-
-	vsc <<= 16;
-	vsc |= ex << 24;
-	if (GetKeyNameText(vsc, tbuf, 24) == 0) return;
-	CharToOemBuff(tbuf, keynames[scan], 24-1);
-
-	//buildprintf("VSC %8x scan %-2x = %s\n", vsc, scan, keynames[scan]);
-}
-
-static void fetchkeynames(void)
-{
-	int scan, ex;
-	unsigned i;
-
-	memset(keynames,0,sizeof(keynames));
-	for (i=0; i < 256; i++) {
-		scan = wscantable[i];
-		if (scan != 0) {
-			putkeyname(i, 0, scan);
-		}
-		scan = wxscantable[i];
-		if (scan != 0) {
-			putkeyname(i, 1, scan);
-		}
-	}
-}
-
-const char *getkeyname(int num)
-{
-	if ((unsigned)num >= 256) return NULL;
-	return keynames[num];
-}
-
-const char *getjoyname(int what, int num)
-{
-	static const char * axisnames[6] = {
-		"Left Stick X",
-		"Left Stick Y",
-		"Right Stick X",
-		"Right Stick Y",
-		"Left Trigger",
-		"Right Trigger",
-	};
-	static const char * buttonnames[15] = {
-		"A",
-		"B",
-		"X",
-		"Y",
-		"Start",
-		"Guide",
-		"Back",
-		"Left Thumb",
-		"Right Thumb",
-		"Left Shoulder",
-		"Right Shoulder",
-		"DPad Up",
-		"DPad Down",
-		"DPad Left",
-		"DPad Right",
-	};
-	switch (what) {
-		case 0:	// axis
-			if ((unsigned)num > (unsigned)6) return NULL;
-			return axisnames[num];
-
-		case 1: // button
-			if ((unsigned)num > (unsigned)15) return NULL;
-			return buttonnames[num];
-
-		default:
-			return NULL;
-	}
-}
-
-
-
-
 
 //-------------------------------------------------------------------------------------------------
 //  TIMER
@@ -1132,6 +818,617 @@ int gettimerfreq(void)
 }
 
 
+//-------------------------------------------------------------------------------------------------
+//  INPUT (MOUSE/KEYBOARD)
+//=================================================================================================
+
+// I don't see any pressing need to store the key-up events yet
+#define SetKey(key,state) { \
+	keystatus[key] = state; \
+		if (state) { \
+	keyfifo[keyfifoend] = key; \
+	keyfifo[(keyfifoend+1)&(KEYFIFOSIZ-1)] = state; \
+	keyfifoend = ((keyfifoend+2)&(KEYFIFOSIZ-1)); \
+		} \
+}
+
+
+//
+// initinput() -- init input system
+//
+int initinput(void)
+{
+	moustat=0;
+	memset(keystatus, 0, sizeof(keystatus));
+	keyfifoplc = keyfifoend = 0;
+	keyasciififoplc = keyasciififoend = 0;
+	#if MOUSETYPE == 1
+	{
+		g_lpDI = NULL;
+		pDirectInputCreate = DirectInputCreateA;
+		if FAILED(iDirectInputCreate(hInstance, DIRECTINPUT_VERSION, &g_lpDI, NULL)) 
+		{ 
+			buildputs("Failed to initialize Direct Input.\n");
+			return -1;
+		}
+	}
+	#endif
+	
+	#if HAVE_JOYSTICK_SUPP == 1
+	{
+		DWORD usernum, result;
+		XINPUT_CAPABILITIES caps;
+		inputdevices = 1, joynumaxes = 0, joynumbuttons = 0;
+		
+		fetchkeynames();
+		buildputs("Initialising game controllers\n");
+		for (usernum = 0; usernum < XUSER_MAX_COUNT; usernum++)
+		{
+			result = XInputGetCapabilities(usernum, XINPUT_FLAG_GAMEPAD, &caps);
+			if (result == ERROR_SUCCESS && xinputusernum < 0)
+			{
+				xinputusernum = (int)usernum;
+				inputdevices |= 4;
+
+				joynumbuttons = 15;
+				joynumaxes = 6;
+			}
+		}
+		if (xinputusernum >= 0)
+		{
+			buildprintf("  - Using controller in port %d\n", xinputusernum);
+		}
+		else
+		{
+			buildputs("  - No usable controller found\n");
+		}
+	}
+	#endif
+	return 0;
+}
+
+
+//
+// uninitinput() -- uninit input system
+//
+void uninitinput(void)
+{
+	uninitmouse();
+
+	xinputusernum = -1;
+	inputdevices &= ~4;
+}
+
+
+//
+// bgetchar, bkbhit, bflushchars -- character-based input functions
+//
+unsigned char bgetchar(void)
+{
+	unsigned char c;
+	if (keyasciififoplc == keyasciififoend) return 0;
+	c = keyasciififo[keyasciififoplc];
+	keyasciififoplc = ((keyasciififoplc+1)&(KEYFIFOSIZ-1));
+	return c;
+}
+
+int bkbhit(void)
+{
+	return (keyasciififoplc != keyasciififoend);
+}
+
+void bflushchars(void)
+{
+	keyasciififoplc = keyasciififoend = 0;
+}
+
+
+//
+// set{key|mouse|joy}presscallback() -- sets a callback which gets notified when keys are pressed
+//
+void setkeypresscallback(void (*callback)(int, int)) { keypresscallback = callback; }
+void setmousepresscallback(void (*callback)(int, int)) { mousepresscallback = callback; }
+void setjoypresscallback(void (*callback)(int, int)) { joypresscallback = callback; }
+
+
+void UpdateWindowInfo(HWND hWnd)
+{
+	#define kWndPad 10
+	
+	if (!hWnd)
+	{
+		memset(&windowpos, 0, sizeof(windowpos));
+		memset(&windowcen, 0, sizeof(windowcen));
+		memset(&windowrct, 0, sizeof(windowrct));
+	}
+	else
+	{
+		GetWindowRect(hWnd, &windowrct);
+		
+		windowrct.top  += kWndPad; windowrct.bottom -= kWndPad;
+		windowrct.left += kWndPad; windowrct.right  -= kWndPad;
+		
+		windowcen.x = (windowrct.right  + windowrct.left) >> 1;
+		windowcen.y = (windowrct.bottom + windowrct.top)  >> 1;
+		
+		windowpos.x = windowrct.left;
+		windowpos.y = windowrct.top;
+	}
+}
+
+void CenterCursor(HWND hWnd)
+{
+	ClipCursor(NULL); // unclip so SetCursorPos works!
+	SetCursorPos(windowcen.x, windowcen.y);
+	ClipCursor(&windowrct);
+}
+
+//
+// initmouse() -- init mouse input
+//
+int initmouse(void)
+{
+	if (moustat)
+		return 0;
+	
+	buildputs("Initialising mouse\n");
+
+	#if MOUSETYPE == 1
+	{
+		LPVOID pvRef; HRESULT hr;
+		if FAILED(IDirectInput_CreateDevice(g_lpDI, &GUID_SysMouse, &g_pMouse, NULL)) 
+		{ 
+			buildputs("Could not create mouse device.\n");
+			return -1;
+		}
+		
+		if FAILED(IDirectInputDevice_SetDataFormat(g_pMouse, &c_dfDIMouse)) 
+		{ 
+			buildputs("Could not set data to mouse format.\n");
+			return -1;
+		}
+		
+		if FAILED(IDirectInputDevice_SetCooperativeLevel(g_pMouse, hWindow, DISCL_EXCLUSIVE | DISCL_FOREGROUND)) 
+		{ 
+			buildputs("Could not set mouse coop level.\n");
+			return -1;
+		}
+		
+		dipdw.diph.dwSize       = sizeof(DIPROPDWORD);
+		dipdw.diph.dwHeaderSize = sizeof(DIPROPHEADER);
+		dipdw.diph.dwObj        = 0;
+		dipdw.diph.dwHow        = DIPH_DEVICE;
+		dipdw.dwData            = 16;
+		
+		if (FAILED(IDirectInputDevice_SetProperty(g_pMouse, DIPROP_BUFFERSIZE, &dipdw.diph)))
+		{
+			buildputs("Could not set mouse buffer size.\n");
+			return -1;
+		}
+	}	
+	#elif MOUSETYPE == 2
+	{	
+		RAWINPUTDEVICE rid;
+
+		// Register for mouse raw input.
+		rid.usUsagePage = 0x01;
+		rid.usUsage = 0x02;
+		rid.dwFlags = 0;	// We want legacy events when the mouse is not grabbed, so no RIDEV_NOLEGACY.
+		rid.hwndTarget = NULL;
+		if (RegisterRawInputDevices(&rid, 1, sizeof(rid)) == FALSE)
+		{
+			buildprintf("initinput: could not register for raw mouse input (%s)\n",
+				getwindowserrorstr(GetLastError()));
+			return -1;
+		}
+	}
+	#endif
+	
+	
+	// grab input
+	moustat=1;
+	inputdevices |= 2;
+	if (appactive)
+	{
+		CenterCursor(hWindow);
+		grabmouse(1);
+		
+	}
+	return 0;
+}
+
+
+//
+// uninitmouse() -- uninit mouse input
+//
+void uninitmouse(void)
+{
+	if (!moustat)
+		return;
+	
+	grabmouse(0);
+	moustat = mousegrab = 0;
+	
+	#if MOUSETYPE == 1
+	{
+		if (g_pMouse)
+		{
+			IDirectInputDevice_Release(g_pMouse);
+			g_pMouse = NULL;
+		}
+
+		if (g_lpDI)
+		{
+			IDirectInput_Release(g_lpDI);
+			g_lpDI = NULL;
+		}
+	}	
+	#elif MOUSETYPE == 2
+	{
+		RAWINPUTDEVICE rid;
+		// Unregister for mouse raw input.
+		rid.usUsagePage = 0x01;
+		rid.usUsage = 0x02;
+		rid.dwFlags = RIDEV_REMOVE;
+		rid.hwndTarget = NULL;
+		if (RegisterRawInputDevices(&rid, 1, sizeof(rid)) == FALSE)
+		{
+			buildprintf("initinput: could not unregister for raw mouse input (%s)\n",
+				getwindowserrorstr(GetLastError()));
+		}
+	}
+	#endif
+}
+
+#if MOUSETYPE == 1
+void dinputReadMouse()
+{
+	HRESULT       		hr;
+	DIDEVICEOBJECTDATA	od;
+	DWORD              	dwElements;
+	int i;
+	
+	if (!moustat || !mousegrab)
+		return;
+	
+	while( 1 )
+	{
+		dwElements = 1;
+		hr = IDirectInputDevice_GetDeviceData(g_pMouse, sizeof(DIDEVICEOBJECTDATA), &od, &dwElements, 0);
+		if (hr == DIERR_INPUTLOST || hr == DIERR_NOTACQUIRED)
+		{
+			// let's try to re-grab mouse
+			grabmouse(0); grabmouse(1);
+			continue;
+		}
+		
+		if (dwElements == 0 || FAILED(hr))
+			break;
+
+		switch (od.dwOfs) {
+			case DIMOFS_X:
+				mousex = od.dwData;
+				break;
+			case DIMOFS_Y:
+				mousey = od.dwData;
+				break;
+			case DIMOFS_Z:
+				i = (signed int)od.dwData;
+				i = (i < 0) ? 1 : 0;
+				mousewheel[i] = getticks();
+				mouseb |= (16 << i);
+				break;
+			case DIMOFS_BUTTON0:
+				if (od.dwData & 0x80) mouseb |= 0x01;
+				else mouseb &= ~0x01;
+				break;
+			case DIMOFS_BUTTON1:
+				if (od.dwData & 0x80) mouseb |= 0x02;
+				else mouseb &= ~0x02;
+				break;
+			case DIMOFS_BUTTON2:
+				if (od.dwData & 0x80) mouseb |= 0x04;
+				else mouseb &= ~0x04;
+				break;
+		}
+	}
+}
+#endif
+
+static void updatemouse(void)
+{
+	if (!mousegrab)
+		return;
+	
+	mouseclock = getticks();
+	
+	#if MOUSETYPE == 1
+	if (grabtimer < mouseclock)
+		dinputReadMouse();
+	#endif
+	
+	if (mousex || mousey)
+		CenterCursor(hWindow);
+	
+	// we only want the wheel to signal once, but hold the state for a moment
+	if (mousewheel[0] > 0 && mouseclock - mousewheel[0] > MouseWheelFakePressTime)
+	{
+		if (mousepresscallback) mousepresscallback(5,0);
+		mousewheel[0] = 0; mouseb &= ~16;
+	}
+	
+	if (mousewheel[1] > 0 && mouseclock - mousewheel[1] > MouseWheelFakePressTime)
+	{
+		if (mousepresscallback) mousepresscallback(6,0);
+		mousewheel[1] = 0; mouseb &= ~32;
+	}
+}
+
+
+//
+// grabmouse() -- show/hide mouse cursor
+//
+void grabmouse(int a)
+{	
+	if (!moustat || a == mousegrab)
+		return;
+	
+	if (a)
+	{
+		if (SystemParametersInfo(SPI_GETMOUSE, 0, omouseparam, 0))
+		{
+			if (SystemParametersInfo(SPI_SETMOUSE, 0, nmouseparam, 0))
+				mouserestoreparam = 1;
+		}
+		
+		#if MOUSETYPE == 1
+		{
+			HRESULT       hr;
+			DIDEVICEOBJECTDATA	od;
+			DWORD              dwElements;
+			int nPriority = -1;
+			
+			if (FAILED(hr = IDirectInputDevice_Acquire(g_pMouse)))
+			{
+				if (hr == DIERR_OTHERAPPHASPRIO)
+				{
+					nPriority = GetPriorityClass(GetCurrentProcess());
+					SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
+				}
+				
+				while( 1 )
+				{
+					dwElements = 1;
+					hr = IDirectInputDevice_GetDeviceData(g_pMouse, sizeof(DIDEVICEOBJECTDATA), &od, &dwElements, 0);
+					if (hr == DIERR_INPUTLOST || hr == DIERR_NOTACQUIRED)
+					{
+						IDirectInputDevice_Acquire(g_pMouse);
+						break;
+					}
+				}
+				
+				if (nPriority != -1)
+					SetPriorityClass(GetCurrentProcess(), nPriority);
+			}
+		}
+		#elif MOUSETYPE == 0
+		{
+			SetCapture(hWindow);
+		}
+		#endif
+		
+		UpdateWindowInfo(hWindow);
+		CenterCursor(hWindow);
+		ShowCursor(FALSE);
+		
+		// a short delay to avoid weird mouse moving after grabbing
+		grabtimer = getticks() + 512;
+	}
+	else
+	{
+		#if MOUSETYPE == 1
+			IDirectInputDevice_Unacquire(g_pMouse);
+		#elif MOUSETYPE == 0
+			ReleaseCapture();
+		#endif
+		
+		if (mouserestoreparam)
+		{
+			SystemParametersInfo(SPI_SETMOUSE, 0, omouseparam, 0);
+			mouserestoreparam = 0;
+		}
+				
+		ShowCursor(TRUE);
+		ClipCursor(NULL);
+	}
+	
+	mousegrab = a;
+	mousex = 0;
+	mousey = 0;
+	mouseb = 0;
+}
+
+//
+// readmousexy() -- return mouse motion information
+//
+void readmousexy(int *x, int *y)
+{
+	if (!moustat || !mousegrab)
+	{
+		*x = *y = 0;
+		return;
+	}
+	
+	*x = mousex;
+	*y = mousey;
+	mousex = 0;
+	mousey = 0;
+}
+
+
+//
+// readmousebstatus() -- return mouse button information
+//
+void readmousebstatus(int *b)
+{
+	if (!moustat || !mousegrab)
+	{
+		*b = 0;
+		return;
+	}
+	
+	*b = mouseb;
+}
+
+
+static void updatejoystick(void)
+{
+	#if HAVE_JOYSTICK_SUPP == 1
+		XINPUT_STATE state;
+		if (xinputusernum < 0)
+			return;
+
+		ZeroMemory(&state, sizeof(state));
+		if (XInputGetState(xinputusernum, &state) != ERROR_SUCCESS) {
+			buildputs("Joystick error, disabling.\n");
+			joyb = 0;
+			memset(joyaxis, 0, sizeof(joyaxis));
+			xinputusernum = -1;
+			return;
+		}
+
+		// We use SDL's game controller button order for BUILD:
+		//   A, B, X, Y, Back, (Guide), Start, LThumb, RThumb,
+		//   LShoulder, RShoulder, DPUp, DPDown, DPLeft, DPRight
+		// So we must shuffle XInput around.
+		joyb = ((state.Gamepad.wButtons & 0xF000) >> 12) |		// A,B,X,Y
+			   ((state.Gamepad.wButtons & 0x0020) >> 1) |		// Back
+			   ((state.Gamepad.wButtons & 0x0010) << 2) |       // Start
+			   ((state.Gamepad.wButtons & 0x03C0) << 1) |       // LThumb,RThumb,LShoulder,RShoulder
+			   ((state.Gamepad.wButtons & 0x000F) << 8);		// DPadUp,Down,Left,Right
+
+		joyaxis[0] = state.Gamepad.sThumbLX;
+		joyaxis[1] = -state.Gamepad.sThumbLY;
+		joyaxis[2] = state.Gamepad.sThumbRX;
+		joyaxis[3] = -state.Gamepad.sThumbRY;
+		joyaxis[4] = (state.Gamepad.bLeftTrigger >> 1) | ((int)state.Gamepad.bLeftTrigger << 7);	// Extend to 0-32767
+		joyaxis[5] = (state.Gamepad.bRightTrigger >> 1) | ((int)state.Gamepad.bRightTrigger << 7);
+	#endif
+}
+
+
+void releaseallbuttons(void)
+{
+	int i;
+
+	if (mousepresscallback) {
+		if (mouseb & 1) mousepresscallback(1, 0);
+		if (mouseb & 2) mousepresscallback(2, 0);
+		if (mouseb & 4) mousepresscallback(3, 0);
+		if (mouseb & 8) mousepresscallback(4, 0);
+		if (mousewheel[0]>0) mousepresscallback(5,0);
+		if (mousewheel[1]>0) mousepresscallback(6,0);
+	}
+	mousewheel[0]=mousewheel[1]=0;
+	mouseb = 0;
+
+	if (joypresscallback)
+	{
+		for (i=0;i<32;i++)
+			if (joyb & (1<<i)) joypresscallback(i+1, 0);
+	}
+	
+	joyb = joyblast = 0;
+
+	for (i=0;i<256;i++) {
+		//if (!keystatus[i]) continue;
+		//if (OSD_HandleKey(i, 0) != 0) {
+			OSD_HandleKey(i, 0);
+			SetKey(i, 0);
+			if (keypresscallback) keypresscallback(i, 0);
+		//}
+	}
+}
+
+
+//
+// fetchkeynames() -- retrieves the names for all the keys on the keyboard
+//
+static void putkeyname(int vsc, int ex, int scan) {
+	TCHAR tbuf[24];
+
+	vsc <<= 16;
+	vsc |= ex << 24;
+	if (GetKeyNameText(vsc, tbuf, 24) == 0) return;
+	CharToOemBuff(tbuf, keynames[scan], 24-1);
+
+	//buildprintf("VSC %8x scan %-2x = %s\n", vsc, scan, keynames[scan]);
+}
+
+static void fetchkeynames(void)
+{
+	int scan, ex;
+	unsigned i;
+
+	memset(keynames,0,sizeof(keynames));
+	for (i=0; i < 256; i++)
+	{
+		scan = wscantable[i];
+		if (scan != 0)
+			putkeyname(i, 0, scan);
+		
+		scan = wxscantable[i];
+		if (scan != 0)
+			putkeyname(i, 1, scan);
+	}
+}
+
+const char *getkeyname(int num)
+{
+	if ((unsigned)num >= 256) return NULL;
+	return keynames[num];
+}
+
+const char *getjoyname(int what, int num)
+{
+	static const char * axisnames[6] = {
+		"Left Stick X",
+		"Left Stick Y",
+		"Right Stick X",
+		"Right Stick Y",
+		"Left Trigger",
+		"Right Trigger",
+	};
+	static const char * buttonnames[15] = {
+		"A",
+		"B",
+		"X",
+		"Y",
+		"Start",
+		"Guide",
+		"Back",
+		"Left Thumb",
+		"Right Thumb",
+		"Left Shoulder",
+		"Right Shoulder",
+		"DPad Up",
+		"DPad Down",
+		"DPad Left",
+		"DPad Right",
+	};
+	switch (what) {
+		case 0:	// axis
+			if ((unsigned)num > (unsigned)6) return NULL;
+			return axisnames[num];
+
+		case 1: // button
+			if ((unsigned)num > (unsigned)15) return NULL;
+			return buttonnames[num];
+
+		default:
+			return NULL;
+	}
+}
 
 
 //-------------------------------------------------------------------------------------------------
@@ -1252,7 +1549,7 @@ int setvideomode(int x, int y, int c, int fs)
 	buildprintf("Setting video mode %dx%d (%d-bit %s)\n",
 			x,y,c, ((fs&1) ? "fullscreen" : "windowed"));
 
-	if (CreateAppWindow(x, y, c, fs, refresh)) return -1;
+	if (!CreateAppWindow(x, y, c, fs, refresh)) return -1;
 
 	if (!gammabrightness) {
 		if (getgammaramp(sysgamma) >= 0) gammabrightness = 1;
@@ -2023,26 +2320,24 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 	int w, h, x, y, stylebits = 0, stylebitsex = 0;
 	HRESULT result;
 
-	if (width == xres && height == yres && fs == fullscreen && bitspp == bpp && !videomodereset) return FALSE;
-
-	if (hWindow) {
+	if (width == xres && height == yres && fs == fullscreen && bitspp == bpp && !videomodereset) return TRUE;
+	if (hWindow)
 		ShowWindow(hWindow, SW_HIDE);	// so Windows redraws what's behind if the window shrinks
-	}
 
-	if (fs) {
+	if (fs)
+	{
 		stylebitsex = WS_EX_TOPMOST;
 		stylebits = WS_POPUP;
-	} else {
+	}
+	else
+	{
 		stylebitsex = 0;
 		stylebits = (WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX);
 	}
 
-	if (!hWindow) {
-		hWindow = CreateWindowEx(
-			stylebitsex,
-			"buildapp",
-			apptitle,
-			stylebits,
+	if (!hWindow)
+	{
+		hWindow = CreateWindowEx(stylebitsex, WINDOW_CLASS, apptitle, stylebits,
 			CW_USEDEFAULT,
 			CW_USEDEFAULT,
 			320,
@@ -2051,26 +2346,33 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 			NULL,
 			hInstance,
 			0);
-		if (!hWindow) {
+			
+		if (!hWindow)
+		{
 			ShowErrorBox("Unable to create window");
-			return TRUE;
+			return FALSE;
 		}
 
 		hDCWindow = GetDC(hWindow);
-		if (!hDCWindow) {
+		if (!hDCWindow)
+		{
 			ShowErrorBox("Error getting device context");
-			return TRUE;
+			return FALSE;
 		}
+		
 		#ifdef HAVE_START_WINDOW
 		startwin_close();
 		#endif
-	} else {
+	}
+	else
+	{
 		SetWindowLong(hWindow,GWL_EXSTYLE,stylebitsex);
 		SetWindowLong(hWindow,GWL_STYLE,stylebits);
 	}
 
 	// resize the window
-	if (!fs) {
+	if (!fs)
+	{
 		rect.left = 0;
 		rect.top = 0;
 		rect.right = width-1;
@@ -2081,11 +2383,14 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 		h = (rect.bottom - rect.top);
 		x = (desktopxdim - w) / 2;
 		y = (desktopydim - h) / 2;
-	} else {
+	}
+	else
+	{
 		x=y=0;
 		w=desktopxdim;
 		h=desktopydim;
 	}
+	
 	SetWindowPos(hWindow, HWND_TOP, x, y, w, h, 0);
 
 	UpdateAppWindowTitle();
@@ -2097,19 +2402,24 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 		int i, j;
 
 #if USE_OPENGL
-		if (nogl) {
+		if (nogl)
+		{
 #endif
 			// 8-bit software with no GL shader uses classic Windows DIB blitting.
-			if (SetupDIB(width, height)) {
-				return TRUE;
+			if (SetupDIB(width, height))
+			{
+				return FALSE;
 			}
 
 			frameplace = (intptr_t)lpPixels;
 			bytesperline = (((width|1) + 4) & ~3);
 #if USE_OPENGL
-		} else {
+		}
+		else
+		{
 			// Prepare the GLSL shader for 8-bit blitting.
-			if (SetupOpenGL(width, height, bitspp, !fs)) {
+			if (SetupOpenGL(width, height, bitspp, !fs))
+			{
 				// No luck. Write off OpenGL and try DIB.
 				buildputs("OpenGL initialisation failed. Falling back to DIB mode.\n");
 				nogl = 1;
@@ -2118,15 +2428,17 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 
 			bytesperline = (((width|1) + 4) & ~3);
 
-			if (glbuild_prepare_8bit_shader(&gl8bit, width, height, bytesperline) < 0) {
+			if (glbuild_prepare_8bit_shader(&gl8bit, width, height, bytesperline) < 0)
+			{
 				shutdownvideo();
-				return -1;
+				nogl = 1;
+				return CreateAppWindow(width, height, bitspp, fs, refresh);
 			}
 
 			frame = (unsigned char *) malloc(bytesperline * height);
-			if (!frame) {
-				shutdownvideo();
-				buildputs("Unable to allocate framebuffer\n");
+			if (!frame)
+			{
+				ShowErrorBox("Unable to allocate framebuffer\n");
 				return FALSE;
 			}
 
@@ -2139,11 +2451,14 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 
 		for(i=j=0; i<=height; i++) ylookup[i] = j, j += bytesperline;
 		modechange=0;
-
 		numpages = 1;
-	} else {
+		
+	}
+	else
+	{
 #if USE_OPENGL
-		if (fs) {
+		if (fs)
+		{
 			DEVMODE dmScreenSettings;
 
 			ZeroMemory(&dmScreenSettings, sizeof(DEVMODE));
@@ -2152,14 +2467,16 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 			dmScreenSettings.dmPelsHeight = height;
 			dmScreenSettings.dmBitsPerPel = bitspp;
 			dmScreenSettings.dmFields = DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT;
-			if (refresh > 0) {
+			if (refresh > 0)
+			{
 				dmScreenSettings.dmDisplayFrequency = refresh;
 				dmScreenSettings.dmFields |= DM_DISPLAYFREQUENCY;
 			}
 
-			if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL) {
+			if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
+			{
 				ShowErrorBox("Video mode not supported");
-				return TRUE;
+				return FALSE;
 			}
 			desktopmodeset = 1;
 		}
@@ -2168,15 +2485,18 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 		SetForegroundWindow(hWindow);
 		SetFocus(hWindow);
 
-		if (SetupOpenGL(width, height, bitspp, !desktopmodeset)) {
-			return TRUE;
+		if (SetupOpenGL(width, height, bitspp, !desktopmodeset))
+		{
+			shutdownvideo();
+			nogl = 1;
+			return CreateAppWindow(width, height, bitspp, fs, refresh);
 		}
 
 		frameplace = 0;
 		bytesperline = 0;
 		imageSize = 0;
 #else
-		return FALSE;
+		return TRUE;
 #endif
 	}
 
@@ -2188,9 +2508,11 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 	modechange = 1;
 	OSD_ResizeDisplay(xres,yres);
 
+	
 	UpdateWindow(hWindow);
-
-	return FALSE;
+	UpdateWindowInfo(hWindow);
+	
+	return TRUE;
 }
 
 
@@ -2224,13 +2546,17 @@ static void UpdateAppWindowTitle(void)
 {
 	char tmp[256+3+256+1];		//sizeof(wintitle) + " - " + sizeof(apptitle) + '\0'
 
-	if (!hWindow) return;
+	if (!hWindow)
+		return;
 
-	if (wintitle[0]) {
-		snprintf(tmp, sizeof(tmp), "%s - %s", wintitle, apptitle);
+	if (wintitle[0])
+	{
+		sprintf(tmp, "%s - %s", wintitle, apptitle);
 		tmp[sizeof(tmp)-1] = 0;
 		SetWindowText(hWindow, tmp);
-	} else {
+	}
+	else
+	{
 		SetWindowText(hWindow, apptitle);
 	}
 }
@@ -2265,12 +2591,21 @@ static BOOL CheckWinVersion(void)
 
 	ZeroMemory(&osv, sizeof(osv));
 	osv.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-	if (!GetVersionEx(&osv)) return TRUE;
-
-	// At least Windows Vista
-	if (osv.dwPlatformId != VER_PLATFORM_WIN32_NT) return TRUE;
-	if (osv.dwMajorVersion < 6) return TRUE;
-
+	if (!GetVersionEx(&osv)) return TRUE;	
+	#if SUBSYS <= 401
+		// At least Windows 98/95
+		if (osv.dwPlatformId < VER_PLATFORM_WIN32_WINDOWS || osv.dwMajorVersion < 4)
+			return TRUE;
+	#elif SUBSYS <= 501
+		// At least Windows XP
+		if (osv.dwPlatformId != VER_PLATFORM_WIN32_NT || (osv.dwMajorVersion < 5 && osv.dwMinorVersion < 1))
+			return TRUE;
+	#else
+		// At least Windows Vista
+		if (osv.dwPlatformId != VER_PLATFORM_WIN32_NT || osv.dwMajorVersion < 6)
+			return TRUE;
+	#endif
+		
 	return FALSE;
 }
 
@@ -2329,35 +2664,31 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 	if (hGLWindow && hWnd == hGLWindow) return DefWindowProc(hWnd,uMsg,wParam,lParam);
 	if (dummyhGLwindow && hWnd == dummyhGLwindow) return DefWindowProc(hWnd,uMsg,wParam,lParam);
 #endif
-
+		
 	switch (uMsg) {
 		case WM_SYSCOMMAND:
-			// don't let the monitor fall asleep or let the screensaver activate
 			if (wParam == SC_SCREENSAVE || wParam == SC_MONITORPOWER) return 0;
-
-			// Since DirectInput won't let me set an exclusive-foreground
-			// keyboard for some unknown reason I just have to tell Windows to
-			// rack off with its keyboard accelerators.
 			if (wParam == SC_KEYMENU || wParam == SC_HOTKEY) return 0;
 			break;
-
+			
 		case WM_ACTIVATEAPP:
 			appactive = wParam;
 			if (backgroundidle)
 				SetPriorityClass( GetCurrentProcess(),
 					appactive ? NORMAL_PRIORITY_CLASS : IDLE_PRIORITY_CLASS );
-			break;
 
-		case WM_ACTIVATE:
-//			AcquireInputDevices(appactive);
-			constrainmouse(LOWORD(wParam) != WA_INACTIVE && HIWORD(wParam) == 0);
+			grabmouse(appactive);
 			break;
+			
+		case WM_ACTIVATE:
+			appactive = (LOWORD(wParam) != WA_INACTIVE && HIWORD(wParam) == 0);
+			grabmouse(appactive);
+			return 0;
 
 		case WM_SIZE:
-			if (wParam == SIZE_MAXHIDE || wParam == SIZE_MINIMIZED) appactive = 0;
-			else appactive = 1;
-//			AcquireInputDevices(appactive);
-			break;
+			appactive = (wParam != SIZE_MAXHIDE && wParam != SIZE_MINIMIZED);
+			grabmouse(appactive);
+			return 0;
 
 		case WM_DISPLAYCHANGE:
 			// desktop settings changed so adjust our world-view accordingly
@@ -2366,21 +2697,107 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 			desktopbpp  = wParam;
 			getvalidmodes();
 			break;
-
+			
 		case WM_PAINT:
+		case WM_ERASEBKGND:
 			break;
 
-			// don't draw the frame if fullscreen
-		//case WM_NCPAINT:
-			//if (!fullscreen) break;
-			//return 0;
+		#if MOUSETYPE == 0
+		case WM_LBUTTONDOWN:
+		case WM_LBUTTONUP:
+		case WM_RBUTTONDOWN:
+		case WM_RBUTTONUP:
+		case WM_MBUTTONDOWN:
+		case WM_MBUTTONUP:
+		case WM_MOUSEMOVE:
+		//#if SUBSYS >= 501
+			//case WM_XBUTTONDOWN:
+			//case WM_XBUTTONUP:
+		//#endif
+			if (mousegrab && grabtimer < mouseclock)
+			{
+				POINT c;
+				if (wParam & MK_LBUTTON) mouseb |= 0x01; else mouseb &= ~0x01;
+				if (wParam & MK_RBUTTON) mouseb |= 0x02; else mouseb &= ~0x02;
+				if (wParam & MK_MBUTTON) mouseb |= 0x04; else mouseb &= ~0x04;
+				
+				GetCursorPos(&c);
+				mousex += (c.x - windowcen.x);
+				mousey += (c.y - windowcen.y);
+			}
+			return 0;
+			#if SUBSYS > 400
+				case WM_MOUSEWHEEL:
+					if (mousegrab && grabtimer < mouseclock)
+					{
+						int i = (((short)HIWORD(wParam)) < 0) ? 1 : 0;
+						mousewheel[i] = getticks();
+						mouseb |= (16 << i);
+					}
+					return 0;
+			#endif
+		#elif MOUSETYPE == 2
+		case WM_INPUT:
+			if (mousegrab && grabtimer < mouseclock)
+			{
+				int but;
+				RAWINPUT raw; UINT dwSize = sizeof(RAWINPUT);
+				GetRawInputData((HRAWINPUT)lParam, RID_INPUT, (LPVOID)&raw, &dwSize, sizeof(RAWINPUTHEADER));
+				if (!mousegrab || raw.header.dwType != RIM_TYPEMOUSE)
+					return 0;
 
-		case WM_ERASEBKGND:
-			break;//return TRUE;
+				for (but = 0; but < 4; but++) // Sorry XBUTTON2, I didn't plan for you.
+				{
+					switch ((raw.data.mouse.usButtonFlags >> (but << 1)) & 3) {
+						case 1:		// press
+							mouseb |= (1 << but);
+							if (!mousepresscallback) break;
+							mousepresscallback(but, 1);
+							break;
+						case 2:		// release
+							mouseb &= ~(1 << but);
+							if (!mousepresscallback) break;
+							mousepresscallback(but, 0);
+							break;
+						default:
+							break;	// no change
+					}
+				}
 
+				if (raw.data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
+				{
+					int direction = (short)raw.data.mouse.usButtonData < 0;	// 1 = down (-ve values), 0 = up
+
+					// Repeated events before the fake button release timer
+					// expires need to trigger a release and a new press.
+					if (mousewheel[direction] > 0 && mousepresscallback)
+						mousepresscallback(5 + direction, 0);
+
+					mousewheel[direction] = getticks();
+					mouseb |= (16 << direction);
+					if (mousepresscallback)
+						mousepresscallback(5 + direction, 1);
+				}
+
+				if (raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
+				{
+					static LONG absx = 0, absy = 0;
+					mousex += raw.data.mouse.lLastX - absx;
+					mousey += raw.data.mouse.lLastY - absy;
+					
+					absx = raw.data.mouse.lLastX;
+					absy = raw.data.mouse.lLastY;
+				}
+				else
+				{
+					mousex += raw.data.mouse.lLastX;
+					mousey += raw.data.mouse.lLastY;
+				}
+			}
+			return 0;
+		#endif
 		case WM_MOVE:
-			windowposx = LOWORD(lParam);
-			windowposy = HIWORD(lParam);
+			UpdateWindowInfo(hWnd);
 			return 0;
 
 		case WM_CLOSE:
@@ -2396,132 +2813,75 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 				int wscan = (lParam >> 16) & 0xff;
 				int scan = 0;
 
-				if (lParam & (1<<24)) {
+				if (lParam & (1<<24))
+				{
 					scan = wxscantable[wscan];
-				} else {
+				}
+				else
+				{
 					scan = wscantable[wscan];
 				}
 
 				//buildprintf("VK %-2x VSC %8x scan %-2x = %s\n", wParam, (UINT)lParam, scan, keynames[scan]);
 
-				if (scan == 0) {
+				if (scan == 0)
+				{
 					// Not a key we want, so give it to the OS to handle.
 					break;
-				} else if (scan == OSD_CaptureKey(-1)) {
-					if (press) {
+				}
+				else if (scan == OSD_CaptureKey(-1))
+				{
+					if (press)
+					{
 						OSD_ShowDisplay(-1);
 						eatosdinput = 1;
 					}
-				} else if (OSD_HandleKey(scan, press) != 0) {
-					if (!keystatus[scan] || !press) {
-						if (keypresscallback) keypresscallback(scan, press);
+				}
+				else if (OSD_HandleKey(scan, press) != 0)
+				{
+					if (!keystatus[scan] || !press)
+					{
+						if (keypresscallback)
+							keypresscallback(scan, press);
 					}
+					
 					SetKey(scan, press);
 				}
 			}
 			return 0;
-
 		case WM_KILLFOCUS:
-			Bmemset(keystatus, 0, sizeof(keystatus));
-			break;
-
+			memset(keystatus, 0, sizeof(keystatus));
+			grabmouse(appactive);
+			return 0;
 		case WM_CHAR:
-			if (eatosdinput) {
-				eatosdinput = 0;
-			} else if (OSD_HandleChar((unsigned char)wParam)) {
-				if (((keyasciififoend+1)&(KEYFIFOSIZ-1)) != keyasciififoplc) {
-					keyasciififo[keyasciififoend] = (unsigned char)wParam;
-					keyasciififoend = ((keyasciififoend+1)&(KEYFIFOSIZ-1));
-					//buildprintf("Char %d, %d-%d\n",wParam,keyasciififoplc,keyasciififoend);
+			if (appactive)
+			{
+				if (eatosdinput)
+				{
+					eatosdinput = 0;
+				}
+				else if (OSD_HandleChar((unsigned char)wParam))
+				{
+					if (((keyasciififoend+1)&(KEYFIFOSIZ-1)) != keyasciififoplc)
+					{
+						keyasciififo[keyasciififoend] = (unsigned char)wParam;
+						keyasciififoend = ((keyasciififoend+1)&(KEYFIFOSIZ-1));
+						//buildprintf("Char %d, %d-%d\n",wParam,keyasciififoplc,keyasciififoend);
+					}
 				}
 			}
 			return 0;
-
 		case WM_HOTKEY:
 			return 0;
-
-		case WM_INPUT:
-			{
-				RAWINPUT raw;
-				UINT dwSize = sizeof(RAWINPUT);
-
-				GetRawInputData((HRAWINPUT)lParam, RID_INPUT, (LPVOID)&raw, &dwSize, sizeof(RAWINPUTHEADER));
-
-				if (raw.header.dwType == RIM_TYPEMOUSE) {
-					int but;
-
-					if (!mousegrab) {
-						return 0;
-					}
-
-					for (but = 0; but < 4; but++) {  // Sorry XBUTTON2, I didn't plan for you.
-						switch ((raw.data.mouse.usButtonFlags >> (but << 1)) & 3) {
-							case 1:		// press
-								mouseb |= (1 << but);
-								if (mousepresscallback) {
-									mousepresscallback(but, 1);
-								}
-								break;
-							case 2:		// release
-								mouseb &= ~(1 << but);
-								if (mousepresscallback) {
-									mousepresscallback(but, 0);
-								}
-								break;
-							default: break;	// no change
-						}
-					}
-
-					if (raw.data.mouse.usButtonFlags & RI_MOUSE_WHEEL) {
-						int direction = (short)raw.data.mouse.usButtonData < 0;	// 1 = down (-ve values), 0 = up
-
-						// Repeated events before the fake button release timer
-						// expires need to trigger a release and a new press.
-						if (mousewheel[direction] > 0 && mousepresscallback) {
-							mousepresscallback(5 + direction, 0);
-						}
-
-						mousewheel[direction] = getticks();
-						mouseb |= (16 << direction);
-						if (mousepresscallback) {
-							mousepresscallback(5 + direction, 1);
-						}
-					}
-
-					if (raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) {
-						static LONG absx = 0, absy = 0;
-						static char first = 1;
-
-						if (!first) {
-							mousex += raw.data.mouse.lLastX - absx;
-							mousey += raw.data.mouse.lLastY - absy;
-						} else {
-							first = 0;
-						}
-						absx = raw.data.mouse.lLastX;
-						absy = raw.data.mouse.lLastY;
-					} else {
-						mousex += raw.data.mouse.lLastX;
-						mousey += raw.data.mouse.lLastY;
-					}
-				}
-			}
-			return 0;
-
 		case WM_ENTERMENULOOP:
 		case WM_ENTERSIZEMOVE:
-//			AcquireInputDevices(0);
 			return 0;
 		case WM_EXITMENULOOP:
 		case WM_EXITSIZEMOVE:
-//			AcquireInputDevices(1);
 			return 0;
-
 		case WM_DESTROY:
 			hWindow = 0;
-			//PostQuitMessage(0);	// JBF 20040115: not anymore
 			return 0;
-
 		default:
 			break;
 	}
@@ -2541,27 +2901,27 @@ static BOOL RegisterWindowClass(void)
 
 	//buildputs("Registering window class\n");
 
-	wcx.cbSize	= sizeof(wcx);
-	wcx.style	= CS_OWNDC;
-	wcx.lpfnWndProc	= WndProcCallback;
-	wcx.cbClsExtra	= 0;
-	wcx.cbWndExtra	= 0;
-	wcx.hInstance	= hInstance;
-	wcx.hIcon	= LoadImage(hInstance, MAKEINTRESOURCE(100), IMAGE_ICON,
-				GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR);
-	wcx.hCursor	= LoadCursor(NULL, IDC_ARROW);
-	wcx.hbrBackground = CreateSolidBrush(RGB(0,0,0));
-	wcx.lpszMenuName = NULL;
-	wcx.lpszClassName = WINDOW_CLASS;
-	wcx.hIconSm	= LoadImage(hInstance, MAKEINTRESOURCE(100), IMAGE_ICON,
-				GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
-	if (!RegisterClassEx(&wcx)) {
+	wcx.cbSize			= sizeof(wcx);
+	wcx.style			= CS_OWNDC;
+	wcx.lpfnWndProc		= WndProcCallback;
+	wcx.cbClsExtra		= 0;
+	wcx.cbWndExtra		= 0;
+	wcx.hInstance		= hInstance;
+	wcx.hIcon			= LoadImage(hInstance, MAKEINTRESOURCE(100), IMAGE_ICON,
+							GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR);
+	wcx.hCursor			= LoadCursor(NULL, IDC_ARROW);
+	wcx.hbrBackground 	= CreateSolidBrush(RGB(0,0,0));
+	wcx.lpszMenuName 	= NULL;
+	wcx.lpszClassName 	= WINDOW_CLASS;
+	wcx.hIconSm			= LoadImage(hInstance, MAKEINTRESOURCE(100), IMAGE_ICON,
+							GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
+	if (!RegisterClassEx(&wcx))
+	{
 		ShowErrorBox("Failed to register window class");
 		return TRUE;
 	}
 
 	window_class_registered = TRUE;
-
 	return FALSE;
 }
 

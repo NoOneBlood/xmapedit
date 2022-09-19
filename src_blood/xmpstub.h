@@ -38,6 +38,8 @@
 #define kTabXSpr kMaxXSprites
 #define kTabSect  kMaxSectors
 #define kTabXSect kMaxXSectors
+#define kHClock 32
+
 
 extern IniFile* gHints; // editor hints
 
@@ -161,6 +163,7 @@ mrOptions						,
 mrAbout							,
 mrToolPreviewMode				,
 mrToolExpSeq					,
+mrToolCleanChannel				,
 mrToolImportWizard				,
 mrToolArtGrabber				,
 mrToolSeqEdit					,
@@ -208,9 +211,9 @@ int GetXSprite( int nSprite );
 
 BOOL processKeysShared();
 void processDrawRooms();
-char* onOff(int var);
-char* isNot(int var);
-char* yesNo(int var);
+char*  _fastcall onOff(int var);
+char*  _fastcall isNot(int var);
+char*  _fastcall yesNo(int var);
 BOOL getDataNameOf(short otype, short idx, short didx, char* out);
 int xmpMenuCreate(char* name);
 int xmpMenuProcess();

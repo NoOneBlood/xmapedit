@@ -24,8 +24,7 @@
 #ifndef __XMPQAVED
 #define __XMPQAVED
 #include "xmpqav.h"
-#include "xmpconf.h"
-#include "trig.h"
+#include "xmpinput.h"
 
 class QAVEDIT
 {

@@ -82,5 +82,6 @@ BYTE GetNextUnusedID(DIALOG_ITEM *dialog, DIALOG_ITEM *control, BYTE key );
 BYTE DoSectorFXDialog(DIALOG_ITEM *dialog, DIALOG_ITEM *control, BYTE key );
 BYTE AuditSound(DIALOG_ITEM *dialog, DIALOG_ITEM *control, BYTE key );
 BYTE pickItemTile(DIALOG_ITEM *dialog, DIALOG_ITEM *control, BYTE key);
+BYTE pickEnemyTile(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 BYTE pickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 #endif

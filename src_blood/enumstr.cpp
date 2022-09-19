@@ -20,11 +20,6 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
-#include <stdio.h>
-#include <string.h>
-#include <io.h>
-#include "misc.h"
 #include "common_game.h"
 
 int enumStrGetInt(int offset, char* astr, char expcr, int retn) {

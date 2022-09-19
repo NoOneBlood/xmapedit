@@ -24,7 +24,6 @@
 #include "common_game.h"
 #include "gui.h"
 #include "grdshd.h"
-#include "misc.h"
 #include "tile.h"
 #include "screen.h"
 #include "xmpstub.h"

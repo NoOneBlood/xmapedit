@@ -24,8 +24,6 @@
 #include "editor.h"
 #include "xmpstub.h"
 #include "gfx.h"
-#include "keyboard.h"
-#include "misc.h"
 #include "gameutil.h"
 #include "gui.h"
 #include "screen.h"
@@ -40,7 +38,6 @@
 #define kBlinkTicks		100
 #define kBlinkOnTicks	60
 
-static char modalmsg[128];
 static int blinkClock = 0;
 
 Resource gGuiRes;
@@ -51,6 +48,14 @@ int QFNScaleTable[][5] = {
 	{200, 0x10000,	0x10000, 0x10000, 0x10000},
 	{480, 0x10000,	0x10000, 0x10000, 0x10000},
 	
+};
+
+NAMED_TYPE gStdButtons[] = {
+	
+	{mrOk,		"&Ok"},
+	{mrYes,		"&Yes"},
+	{mrNo,		"&No"},
+	{mrCancel,	"&Cancel"},
 };
 
 BOOL cmpHotKey(char keyA, char keyB) {
@@ -135,14 +140,6 @@ void DrawButtonFace( int x0, int y0, int x1, int y1, BOOL pressed )
 	}
 }
 
-
-void DrawMouseCursor( int x, int y ) {
-	
-	gfxDrawBitmap(pBitmaps[kBitmapMouseCursor], x, y);
-	
-}
-
-
 char GetHotKey( char *string )
 {
 	for ( char *p = string; *p; p++ )
@@ -153,8 +150,6 @@ char GetHotKey( char *string )
 
 	return '\0';
 }
-
-
 
 Shape::Shape( int left, int top, int width, int height, int bgcol) : Widget(left, top, width, height) {
 	
@@ -1652,10 +1647,10 @@ GEVENT_TYPE GetEvent( GEVENT *event )
 		}
 	}
 
-	event->mouse.dx = gMouse.dX;
-	event->mouse.dy = gMouse.dY;
-	event->mouse.x = gMouse.X;
-	event->mouse.y = gMouse.Y;
+	event->mouse.dx = gMouse.dX1;
+	event->mouse.dy = gMouse.dY1;
+	event->mouse.x  = gMouse.X;
+	event->mouse.y  = gMouse.Y;
 
 	// which buttons just got pressed?
 	newbuttons = (BYTE)(~oldbuttons & gMouse.buttons);
@@ -1707,12 +1702,6 @@ GEVENT_TYPE GetEvent( GEVENT *event )
 		}
 	}
 	return evNone;
-}
-
-void gfxDrawBitmap(int id, int x, int y) {
-	
-	gfxDrawBitmap(pBitmaps[id],x ,y);
-	
 }
 
 char* fixFonts[] = {
@@ -1823,9 +1812,9 @@ void GUIInit() {
 int ShowModal(Container *dialog, int flags)
 {
 	GEVENT event;
-	gMouse.ResetSpeedNow();
-	gMouse.PushRange();
-	gMouse.SetRange(0, 0, xdim, ydim);
+	MOUSE mouse = gMouse;
+	gMouse.ChangeCursor(kBitmapMouseCursor);
+	gMouse.RangeSet(0, 0, xdim, ydim);
 	
 	Container desktop(0, 0, xdim, ydim);
 	desktop.Insert(dialog);
@@ -1865,7 +1854,7 @@ int ShowModal(Container *dialog, int flags)
 		
 		OSD_Draw();
 		
-		gMouse.Read(gFrameClock);
+		gMouse.Read();
 		handleevents();
 		GetEvent(&event);
 
@@ -1888,7 +1877,7 @@ int ShowModal(Container *dialog, int flags)
 
 		desktop.HandleEvent(&event);
 		desktop.Paint(0, 0, FALSE);
-		DrawMouseCursor(gMouse.X, gMouse.Y);
+		gMouse.Draw();
 		showframe(); // this instead of scrNextPage() makes GUI to show in 2d mode
 
 		// restore the save under after page flipping
@@ -1902,7 +1891,10 @@ int ShowModal(Container *dialog, int flags)
 		}
 	}
 	
-	gMouse.PopRange();
+	mouse.X = gMouse.X;
+	mouse.Y = gMouse.Y;
+	gMouse = mouse;
+
 	Resource::Free(saveUnder);
 	desktop.Remove(dialog);
 	return dialog->endState;
@@ -2101,76 +2093,132 @@ int createCheckboxList(CHECKBOX_LIST_P* array, int len, char* title, BOOL button
 }
 
 
+int showStandardWindow(char* text, char* buttons, char* caption = "")
+{
+	#define kDlgMinW		200
+	#define kDlgMinH		46
+	
+	#define kButW			60
+	#define kButH			20
+	#define kPadd			4
+	
+	QFONT* pTextFont = pFont;
+	BOOL newStyle = (strchr(text, '\n') || strchr(text, '\r'));
+	register int dialogWidth = kDlgMinW, dialogHeight = kDlgMinH;
+	register int i, t;
+	char* pTxt;
+
+	if (!newStyle)
+		caption = text;
+	
+	Text* pText = new Text(kPadd, kPadd, 0, 0, text, kTextACenter|kTextATop, kColorBlack, pTextFont, -1);
+	pTxt = pText->text; // the Text just formatted it as we need
+	
+	// get longest line
+	for (i = 0; i < pText->lines; i++)
+	{
+		if ((t = gfxGetTextLen(pTxt, pTextFont)) > dialogWidth)
+			dialogWidth = t;
+		
+		pTxt+=strlen(pTxt)+1;
+	}
+
+	pText->width  = dialogWidth;
+	pText->height = (pText->lines * pTextFont->height);
+	
+	dialogWidth  += (kPadd<<2);
+	if (newStyle)
+		dialogHeight += (pText->height+(kPad<<1));
+	
+	Window dialog(0, 0, dialogWidth, dialogHeight, caption); // create the dialog
+	Container* pButtons = new Container(0, 0, 0, 0);
+
+	i = 0;
+	while(buttons[i] != mrNone)
+	{
+		t = LENGTH(gStdButtons);
+		while(--t >= 0 && gStdButtons[t].id != buttons[i]);
+		
+		dassert(t >= 0);
+		pButtons->Insert(new TextButton(pButtons->width, 0, kButW, kButH, gStdButtons[t].name, buttons[i]));
+		pButtons->width+=(kButW+kPadd);
+		i++;
+	}
+	
+	pButtons->width -= kPadd;
+	pButtons->height = kButH;
+	
+	if (newStyle)
+	{
+		pButtons->left   = pText->left + abs((pText->width>>1)-(pButtons->width>>1));
+		pButtons->top 	 = pText->top  + pText->height + kPadd;
+		dialog.Insert(pText);
+	}
+	else
+	{
+		pButtons->left   = kPadd;
+		pButtons->top 	 = kPadd;
+	}
+	
+	dialog.Insert(pButtons);
+	
+	ShowModal(&dialog);
+	if (dialog.endState == mrOk && pButtons->focus)	// find a button we are focusing on
+	{
+		TextButton* pFocus = (TextButton*)pButtons->focus;
+		if (pFocus->result)
+			return pFocus->result;
+	}
+	
+	return dialog.endState;
+	
+}
+
 
 int YesNoCancel(char *__format, ...) {
 	
-	
+	int retn;
+	char buttons[] = { mrYes, mrNo, mrCancel, mrNone };
+	char buffer[1024];
+		
 	va_list argptr;
 	va_start(argptr, __format);
-	vsprintf(modalmsg, __format, argptr);
+	vsprintf(buffer, __format, argptr);
 	va_end(argptr);
 	
-	// create the dialog
-	int len = ClipRange(gfxGetTextLen(modalmsg, pFont) + 10, 202, xdim - 5);
-	Window dialog(59, 80, len, 46, modalmsg);
-
-	dialog.Insert(new TextButton(4, 4, 60,  20, "&Yes", mrOk));
-	dialog.Insert(new TextButton(68, 4, 60, 20, "&No", mrNo));
- 	dialog.Insert(new TextButton(132, 4, 60, 20, "&Cancel", mrCancel));
+	if ((retn = showStandardWindow(buffer, buttons, "Select action")) == mrYes)
+		retn = mrOk;
 	
-	ShowModal(&dialog);
-	if (dialog.endState == mrOk && dialog.focus)	// find a button we are focusing on
-	{
-		Container* pCont = (Container*)dialog.focus;
-		TextButton* pFocus = (TextButton*)pCont->focus;
-		if (pFocus)
-			return pFocus->result;
-	}
-	return dialog.endState;
-
+	return retn;
 }
 
 void Alert(char *__format, ...) {
 	
+	char buttons[] = { mrOk, mrNone };
+	char buffer[1024];
+	
 	va_list argptr;
 	va_start(argptr, __format);
-	vsprintf(modalmsg, __format, argptr);
+	vsprintf(buffer, __format, argptr);
 	va_end(argptr);
 	
-	// create the dialog
-	int len = ClipRange(gfxGetTextLen(modalmsg, pFont) + 10, 202, xdim - 5);
-	Window dialog(59, 80, len, 46, modalmsg);
-
-	dialog.Insert(new TextButton(4, 4, 60,  20, "&Ok", mrOk));
-	ShowModal(&dialog);
+	showStandardWindow(buffer, buttons, "Info");
 	return;
-
 }
 
 BOOL Confirm(char *__format, ...) {
+
+	int retn;
+	char buttons[] = { mrYes, mrNo, mrNone };
+	char buffer[1024];
 	
 	va_list argptr;
 	va_start(argptr, __format);
-	vsprintf(modalmsg, __format, argptr);
+	vsprintf(buffer, __format, argptr);
 	va_end(argptr);
 	
-	// create the dialog
-	int len = ClipRange(gfxGetTextLen(modalmsg, pFont) + 10, 202, xdim - 5);
-	Window dialog(59, 80, len, 46, modalmsg);
-
-	dialog.Insert(new TextButton(4, 4, 60,  20, "&Yes", mrOk));
-	dialog.Insert(new TextButton(68, 4, 60, 20, "&No", mrNo));
-	
-	ShowModal(&dialog);
-	if (dialog.endState == mrOk && dialog.focus)	// find a button we are focusing on
-	{
-		Container* pCont = (Container*)dialog.focus;
-		TextButton* pFocus = (TextButton*)pCont->focus;
-		if (pFocus)
-			return (pFocus->result == mrOk);
-	}
-	
-	return (dialog.endState == mrOk);
+	retn = showStandardWindow(buffer, buttons, "Confirm");
+	return (retn == mrYes || retn == mrOk);
 }
 
 char fade(int rate) {
