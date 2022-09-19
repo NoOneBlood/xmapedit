@@ -1,0 +1,474 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AB0A488F1E43574900CC2214 /* libogg.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AB0A488C1E43574900CC2214 /* libogg.a */; };
+		AB0A48901E43574900CC2214 /* libvorbis.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AB0A488D1E43574900CC2214 /* libvorbis.a */; };
+		AB0A48911E43574900CC2214 /* libvorbisfile.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AB0A488E1E43574900CC2214 /* libvorbisfile.a */; };
+		AB21362327531AA80033C569 /* assmisc.h in Headers */ = {isa = PBXBuildFile; fileRef = AB21362227531AA80033C569 /* assmisc.h */; };
+		AB21362B275378D90033C569 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB21362A275378D90033C569 /* Foundation.framework */; };
+		AB217B65172E645C00364868 /* driver_coreaudio.c in Sources */ = {isa = PBXBuildFile; fileRef = AB217B64172E645C00364868 /* driver_coreaudio.c */; };
+		AB217B67172E646A00364868 /* driver_coreaudio.h in Headers */ = {isa = PBXBuildFile; fileRef = AB217B66172E646A00364868 /* driver_coreaudio.h */; };
+		AB217B6D172E74BB00364868 /* AudioUnit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB217B6B172E669100364868 /* AudioUnit.framework */; };
+		AB2E9E5F1011E65900DD2F1F /* _multivc.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E4D1011E65900DD2F1F /* _multivc.h */; };
+		AB2E9E641011E65900DD2F1F /* driver_nosound.c in Sources */ = {isa = PBXBuildFile; fileRef = AB2E9E521011E65900DD2F1F /* driver_nosound.c */; };
+		AB2E9E651011E65900DD2F1F /* driver_nosound.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E531011E65900DD2F1F /* driver_nosound.h */; };
+		AB2E9E681011E65900DD2F1F /* drivers.c in Sources */ = {isa = PBXBuildFile; fileRef = AB2E9E561011E65900DD2F1F /* drivers.c */; };
+		AB2E9E691011E65900DD2F1F /* drivers.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E571011E65900DD2F1F /* drivers.h */; };
+		AB2E9E6A1011E65900DD2F1F /* fx_man.c in Sources */ = {isa = PBXBuildFile; fileRef = AB2E9E581011E65900DD2F1F /* fx_man.c */; };
+		AB2E9E6B1011E65900DD2F1F /* linklist.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E591011E65900DD2F1F /* linklist.h */; };
+		AB2E9E6C1011E65900DD2F1F /* ll_man.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E5A1011E65900DD2F1F /* ll_man.h */; };
+		AB2E9E6D1011E65900DD2F1F /* multivoc.c in Sources */ = {isa = PBXBuildFile; fileRef = AB2E9E5B1011E65900DD2F1F /* multivoc.c */; };
+		AB2E9E6E1011E65900DD2F1F /* multivoc.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E5C1011E65900DD2F1F /* multivoc.h */; };
+		AB2E9E6F1011E65900DD2F1F /* pitch.c in Sources */ = {isa = PBXBuildFile; fileRef = AB2E9E5D1011E65900DD2F1F /* pitch.c */; };
+		AB2E9E701011E65900DD2F1F /* pitch.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E5E1011E65900DD2F1F /* pitch.h */; };
+		AB2E9E741011E66100DD2F1F /* fx_man.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E711011E66100DD2F1F /* fx_man.h */; };
+		AB2E9E751011E66100DD2F1F /* music.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E721011E66100DD2F1F /* music.h */; };
+		AB2E9E761011E66100DD2F1F /* sndcards.h in Headers */ = {isa = PBXBuildFile; fileRef = AB2E9E731011E66100DD2F1F /* sndcards.h */; };
+		AB2EA17710121AA900DD2F1F /* mix.c in Sources */ = {isa = PBXBuildFile; fileRef = AB2EA17610121AA900DD2F1F /* mix.c */; };
+		AB32F97210762A7900A9BAFF /* asssys.c in Sources */ = {isa = PBXBuildFile; fileRef = AB32F97010762A7900A9BAFF /* asssys.c */; };
+		AB32F97310762A7900A9BAFF /* asssys.h in Headers */ = {isa = PBXBuildFile; fileRef = AB32F97110762A7900A9BAFF /* asssys.h */; };
+		AB32FA8F1077111D00A9BAFF /* test.c in Sources */ = {isa = PBXBuildFile; fileRef = AB32FA8E1077111D00A9BAFF /* test.c */; };
+		AB32FA9A107712B700A9BAFF /* libjfaudiolib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AB2E9E421011E61700DD2F1F /* libjfaudiolib.a */; };
+		AB8C5612101A077700B42306 /* mixst.c in Sources */ = {isa = PBXBuildFile; fileRef = AB8C5611101A077700B42306 /* mixst.c */; };
+		AB8C5868101B6D7500B42306 /* vorbis.c in Sources */ = {isa = PBXBuildFile; fileRef = AB8C5867101B6D7500B42306 /* vorbis.c */; };
+		ABBD3EF0101FFB1400F32F37 /* cd.h in Headers */ = {isa = PBXBuildFile; fileRef = ABBD3EEF101FFB1400F32F37 /* cd.h */; };
+		ABBD3F19101FFBD900F32F37 /* cd.c in Sources */ = {isa = PBXBuildFile; fileRef = ABBD3F17101FFBD900F32F37 /* cd.c */; };
+		ABE4C94C172EA55A00B18CE9 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABE4C94B172EA55A00B18CE9 /* AudioToolbox.framework */; };
+		ABFBB523102EBD4100D48B58 /* _midi.h in Headers */ = {isa = PBXBuildFile; fileRef = ABFBB51E102EBD4100D48B58 /* _midi.h */; };
+		ABFBB524102EBD4100D48B58 /* midi.c in Sources */ = {isa = PBXBuildFile; fileRef = ABFBB51F102EBD4100D48B58 /* midi.c */; };
+		ABFBB525102EBD4100D48B58 /* midi.h in Headers */ = {isa = PBXBuildFile; fileRef = ABFBB520102EBD4100D48B58 /* midi.h */; };
+		ABFBB526102EBD4100D48B58 /* midifuncs.h in Headers */ = {isa = PBXBuildFile; fileRef = ABFBB521102EBD4100D48B58 /* midifuncs.h */; };
+		ABFBB527102EBD4100D48B58 /* music.c in Sources */ = {isa = PBXBuildFile; fileRef = ABFBB522102EBD4100D48B58 /* music.c */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AB32FA911077122E00A9BAFF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB2E9E321011E60300DD2F1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AB2E9E411011E61600DD2F1F;
+			remoteInfo = jfaudiolib;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		AB0A488C1E43574900CC2214 /* libogg.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libogg.a; path = "third-party/osx/out/lib/libogg.a"; sourceTree = "<group>"; };
+		AB0A488D1E43574900CC2214 /* libvorbis.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvorbis.a; path = "third-party/osx/out/lib/libvorbis.a"; sourceTree = "<group>"; };
+		AB0A488E1E43574900CC2214 /* libvorbisfile.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvorbisfile.a; path = "third-party/osx/out/lib/libvorbisfile.a"; sourceTree = "<group>"; };
+		AB21362227531AA80033C569 /* assmisc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = assmisc.h; sourceTree = "<group>"; };
+		AB21362A275378D90033C569 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		AB217B64172E645C00364868 /* driver_coreaudio.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = driver_coreaudio.c; sourceTree = "<group>"; };
+		AB217B66172E646A00364868 /* driver_coreaudio.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = driver_coreaudio.h; sourceTree = "<group>"; };
+		AB217B6B172E669100364868 /* AudioUnit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioUnit.framework; path = System/Library/Frameworks/AudioUnit.framework; sourceTree = SDKROOT; };
+		AB2E9E421011E61700DD2F1F /* libjfaudiolib.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libjfaudiolib.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB2E9E4D1011E65900DD2F1F /* _multivc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = _multivc.h; sourceTree = "<group>"; };
+		AB2E9E521011E65900DD2F1F /* driver_nosound.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = driver_nosound.c; sourceTree = "<group>"; };
+		AB2E9E531011E65900DD2F1F /* driver_nosound.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = driver_nosound.h; sourceTree = "<group>"; };
+		AB2E9E561011E65900DD2F1F /* drivers.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = drivers.c; sourceTree = "<group>"; };
+		AB2E9E571011E65900DD2F1F /* drivers.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = drivers.h; sourceTree = "<group>"; };
+		AB2E9E581011E65900DD2F1F /* fx_man.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = fx_man.c; sourceTree = "<group>"; };
+		AB2E9E591011E65900DD2F1F /* linklist.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = linklist.h; sourceTree = "<group>"; };
+		AB2E9E5A1011E65900DD2F1F /* ll_man.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ll_man.h; sourceTree = "<group>"; };
+		AB2E9E5B1011E65900DD2F1F /* multivoc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = multivoc.c; sourceTree = "<group>"; };
+		AB2E9E5C1011E65900DD2F1F /* multivoc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = multivoc.h; sourceTree = "<group>"; };
+		AB2E9E5D1011E65900DD2F1F /* pitch.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pitch.c; sourceTree = "<group>"; };
+		AB2E9E5E1011E65900DD2F1F /* pitch.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pitch.h; sourceTree = "<group>"; };
+		AB2E9E711011E66100DD2F1F /* fx_man.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fx_man.h; sourceTree = "<group>"; };
+		AB2E9E721011E66100DD2F1F /* music.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = music.h; sourceTree = "<group>"; };
+		AB2E9E731011E66100DD2F1F /* sndcards.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sndcards.h; sourceTree = "<group>"; };
+		AB2EA17610121AA900DD2F1F /* mix.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mix.c; sourceTree = "<group>"; };
+		AB32F97010762A7900A9BAFF /* asssys.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = asssys.c; sourceTree = "<group>"; };
+		AB32F97110762A7900A9BAFF /* asssys.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = asssys.h; sourceTree = "<group>"; };
+		AB32FA7F1077102D00A9BAFF /* test */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = test; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB32FA8E1077111D00A9BAFF /* test.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = test.c; sourceTree = "<group>"; };
+		AB8C5611101A077700B42306 /* mixst.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mixst.c; sourceTree = "<group>"; };
+		AB8C5867101B6D7500B42306 /* vorbis.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = vorbis.c; sourceTree = "<group>"; };
+		ABBD3EEF101FFB1400F32F37 /* cd.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cd.h; sourceTree = "<group>"; };
+		ABBD3F17101FFBD900F32F37 /* cd.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cd.c; sourceTree = "<group>"; };
+		ABE4C94B172EA55A00B18CE9 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = /System/Library/Frameworks/AudioToolbox.framework; sourceTree = "<absolute>"; };
+		ABFBB51E102EBD4100D48B58 /* _midi.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = _midi.h; sourceTree = "<group>"; };
+		ABFBB51F102EBD4100D48B58 /* midi.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = midi.c; sourceTree = "<group>"; };
+		ABFBB520102EBD4100D48B58 /* midi.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = midi.h; sourceTree = "<group>"; };
+		ABFBB521102EBD4100D48B58 /* midifuncs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = midifuncs.h; sourceTree = "<group>"; };
+		ABFBB522102EBD4100D48B58 /* music.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = music.c; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AB2E9E401011E61600DD2F1F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB0A48901E43574900CC2214 /* libvorbis.a in Frameworks */,
+				AB0A48911E43574900CC2214 /* libvorbisfile.a in Frameworks */,
+				AB0A488F1E43574900CC2214 /* libogg.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB32FA7D1077102D00A9BAFF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB32FA9A107712B700A9BAFF /* libjfaudiolib.a in Frameworks */,
+				AB217B6D172E74BB00364868 /* AudioUnit.framework in Frameworks */,
+				ABE4C94C172EA55A00B18CE9 /* AudioToolbox.framework in Frameworks */,
+				AB21362B275378D90033C569 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AB2E9E301011E60300DD2F1F = {
+			isa = PBXGroup;
+			children = (
+				AB8C582E101B6B7900B42306 /* Frameworks */,
+				AB2E9E481011E63F00DD2F1F /* include */,
+				AB2E9E471011E63900DD2F1F /* src */,
+				AB2E9E431011E61700DD2F1F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AB2E9E431011E61700DD2F1F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AB2E9E421011E61700DD2F1F /* libjfaudiolib.a */,
+				AB32FA7F1077102D00A9BAFF /* test */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AB2E9E471011E63900DD2F1F /* src */ = {
+			isa = PBXGroup;
+			children = (
+				ABFBB51E102EBD4100D48B58 /* _midi.h */,
+				AB2E9E4D1011E65900DD2F1F /* _multivc.h */,
+				AB21362227531AA80033C569 /* assmisc.h */,
+				AB32F97010762A7900A9BAFF /* asssys.c */,
+				AB32F97110762A7900A9BAFF /* asssys.h */,
+				ABBD3F17101FFBD900F32F37 /* cd.c */,
+				AB217B64172E645C00364868 /* driver_coreaudio.c */,
+				AB217B66172E646A00364868 /* driver_coreaudio.h */,
+				AB2E9E521011E65900DD2F1F /* driver_nosound.c */,
+				AB2E9E531011E65900DD2F1F /* driver_nosound.h */,
+				AB2E9E561011E65900DD2F1F /* drivers.c */,
+				AB2E9E571011E65900DD2F1F /* drivers.h */,
+				AB2E9E581011E65900DD2F1F /* fx_man.c */,
+				AB2E9E591011E65900DD2F1F /* linklist.h */,
+				AB2E9E5A1011E65900DD2F1F /* ll_man.h */,
+				ABFBB51F102EBD4100D48B58 /* midi.c */,
+				ABFBB520102EBD4100D48B58 /* midi.h */,
+				ABFBB521102EBD4100D48B58 /* midifuncs.h */,
+				AB2EA17610121AA900DD2F1F /* mix.c */,
+				AB8C5611101A077700B42306 /* mixst.c */,
+				AB2E9E5B1011E65900DD2F1F /* multivoc.c */,
+				AB2E9E5C1011E65900DD2F1F /* multivoc.h */,
+				ABFBB522102EBD4100D48B58 /* music.c */,
+				AB2E9E5D1011E65900DD2F1F /* pitch.c */,
+				AB2E9E5E1011E65900DD2F1F /* pitch.h */,
+				AB8C5867101B6D7500B42306 /* vorbis.c */,
+				AB32FA8E1077111D00A9BAFF /* test.c */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		AB2E9E481011E63F00DD2F1F /* include */ = {
+			isa = PBXGroup;
+			children = (
+				ABBD3EEF101FFB1400F32F37 /* cd.h */,
+				AB2E9E711011E66100DD2F1F /* fx_man.h */,
+				AB2E9E721011E66100DD2F1F /* music.h */,
+				AB2E9E731011E66100DD2F1F /* sndcards.h */,
+			);
+			path = include;
+			sourceTree = "<group>";
+		};
+		AB8C582E101B6B7900B42306 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				AB21362A275378D90033C569 /* Foundation.framework */,
+				AB0A488C1E43574900CC2214 /* libogg.a */,
+				AB0A488D1E43574900CC2214 /* libvorbis.a */,
+				AB0A488E1E43574900CC2214 /* libvorbisfile.a */,
+				AB217B6B172E669100364868 /* AudioUnit.framework */,
+				ABE4C94B172EA55A00B18CE9 /* AudioToolbox.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		AB2E9E3E1011E61600DD2F1F /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB2E9E5F1011E65900DD2F1F /* _multivc.h in Headers */,
+				AB2E9E651011E65900DD2F1F /* driver_nosound.h in Headers */,
+				AB2E9E691011E65900DD2F1F /* drivers.h in Headers */,
+				AB2E9E6B1011E65900DD2F1F /* linklist.h in Headers */,
+				AB2E9E6C1011E65900DD2F1F /* ll_man.h in Headers */,
+				AB2E9E6E1011E65900DD2F1F /* multivoc.h in Headers */,
+				AB2E9E701011E65900DD2F1F /* pitch.h in Headers */,
+				AB2E9E741011E66100DD2F1F /* fx_man.h in Headers */,
+				AB2E9E751011E66100DD2F1F /* music.h in Headers */,
+				AB2E9E761011E66100DD2F1F /* sndcards.h in Headers */,
+				ABBD3EF0101FFB1400F32F37 /* cd.h in Headers */,
+				ABFBB523102EBD4100D48B58 /* _midi.h in Headers */,
+				ABFBB525102EBD4100D48B58 /* midi.h in Headers */,
+				ABFBB526102EBD4100D48B58 /* midifuncs.h in Headers */,
+				AB32F97310762A7900A9BAFF /* asssys.h in Headers */,
+				AB21362327531AA80033C569 /* assmisc.h in Headers */,
+				AB217B67172E646A00364868 /* driver_coreaudio.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		AB2E9E411011E61600DD2F1F /* jfaudiolib */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB2E9E441011E61900DD2F1F /* Build configuration list for PBXNativeTarget "jfaudiolib" */;
+			buildPhases = (
+				AB2E9E3E1011E61600DD2F1F /* Headers */,
+				AB0A488B1E43568E00CC2214 /* ShellScript */,
+				AB2E9E3F1011E61600DD2F1F /* Sources */,
+				AB2E9E401011E61600DD2F1F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = jfaudiolib;
+			productName = jfaudiolib;
+			productReference = AB2E9E421011E61700DD2F1F /* libjfaudiolib.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		AB32FA7E1077102D00A9BAFF /* test */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB32FA861077107900A9BAFF /* Build configuration list for PBXNativeTarget "test" */;
+			buildPhases = (
+				AB32FA7C1077102D00A9BAFF /* Sources */,
+				AB32FA7D1077102D00A9BAFF /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AB32FA921077122E00A9BAFF /* PBXTargetDependency */,
+			);
+			name = test;
+			productName = test;
+			productReference = AB32FA7F1077102D00A9BAFF /* test */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AB2E9E321011E60300DD2F1F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0610;
+			};
+			buildConfigurationList = AB2E9E331011E60300DD2F1F /* Build configuration list for PBXProject "jfaudiolib" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = AB2E9E301011E60300DD2F1F;
+			productRefGroup = AB2E9E431011E61700DD2F1F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AB2E9E411011E61600DD2F1F /* jfaudiolib */,
+				AB32FA7E1077102D00A9BAFF /* test */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AB0A488B1E43568E00CC2214 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "(cd \"$PROJECT_DIR/third-party/osx\" && ./build.sh)\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AB2E9E3F1011E61600DD2F1F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB2E9E641011E65900DD2F1F /* driver_nosound.c in Sources */,
+				AB2E9E681011E65900DD2F1F /* drivers.c in Sources */,
+				AB2E9E6A1011E65900DD2F1F /* fx_man.c in Sources */,
+				AB2E9E6D1011E65900DD2F1F /* multivoc.c in Sources */,
+				AB2E9E6F1011E65900DD2F1F /* pitch.c in Sources */,
+				AB2EA17710121AA900DD2F1F /* mix.c in Sources */,
+				AB8C5612101A077700B42306 /* mixst.c in Sources */,
+				AB8C5868101B6D7500B42306 /* vorbis.c in Sources */,
+				ABBD3F19101FFBD900F32F37 /* cd.c in Sources */,
+				ABFBB524102EBD4100D48B58 /* midi.c in Sources */,
+				ABFBB527102EBD4100D48B58 /* music.c in Sources */,
+				AB32F97210762A7900A9BAFF /* asssys.c in Sources */,
+				AB217B65172E645C00364868 /* driver_coreaudio.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB32FA7C1077102D00A9BAFF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB32FA8F1077111D00A9BAFF /* test.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AB32FA921077122E00A9BAFF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AB2E9E411011E61600DD2F1F /* jfaudiolib */;
+			targetProxy = AB32FA911077122E00A9BAFF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AB2E9E341011E60300DD2F1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				FRAMEWORK_SEARCH_PATHS = "$(HOME)/Library/Frameworks";
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					HAVE_VORBIS,
+					__MACOSX__,
+				);
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/third-party/osx/out/include/**";
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				ONLY_ACTIVE_ARCH = YES;
+				SKIP_INSTALL = YES;
+				WARNING_CFLAGS = (
+					"-W",
+					"-Wall",
+					"-Wno-unused-variable",
+				);
+			};
+			name = Debug;
+		};
+		AB2E9E351011E60300DD2F1F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				FRAMEWORK_SEARCH_PATHS = "$(HOME)/Library/Frameworks";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					HAVE_VORBIS,
+					__MACOSX__,
+				);
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/third-party/osx/out/include/**";
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				SKIP_INSTALL = YES;
+				WARNING_CFLAGS = (
+					"-W",
+					"-Wall",
+					"-Wno-unused-variable",
+				);
+			};
+			name = Release;
+		};
+		AB2E9E451011E61900DD2F1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/third-party/osx/out/lib",
+				);
+				PRODUCT_NAME = jfaudiolib;
+			};
+			name = Debug;
+		};
+		AB2E9E461011E61900DD2F1F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/third-party/osx/out/lib",
+				);
+				PRODUCT_NAME = jfaudiolib;
+			};
+			name = Release;
+		};
+		AB32FA841077102F00A9BAFF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				LD_RUNPATH_SEARCH_PATHS = "../../third-party $(PROJECT_DIR)/third-party";
+				PRODUCT_NAME = test;
+			};
+			name = Debug;
+		};
+		AB32FA851077102F00A9BAFF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				LD_RUNPATH_SEARCH_PATHS = "../../third-party";
+				PRODUCT_NAME = test;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AB2E9E331011E60300DD2F1F /* Build configuration list for PBXProject "jfaudiolib" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB2E9E341011E60300DD2F1F /* Debug */,
+				AB2E9E351011E60300DD2F1F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AB2E9E441011E61900DD2F1F /* Build configuration list for PBXNativeTarget "jfaudiolib" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB2E9E451011E61900DD2F1F /* Debug */,
+				AB2E9E461011E61900DD2F1F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AB32FA861077107900A9BAFF /* Build configuration list for PBXNativeTarget "test" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB32FA841077102F00A9BAFF /* Debug */,
+				AB32FA851077102F00A9BAFF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AB2E9E321011E60300DD2F1F /* Project object */;
+}

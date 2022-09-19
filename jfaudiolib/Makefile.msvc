@@ -1,0 +1,53 @@
+CC=cl
+CFLAGS=/MT /J /nologo /O2
+CPPFLAGS=/Iinclude /Isrc /Isrc\msvc
+o=obj
+
+SOURCES=src\drivers.c \
+        src\fx_man.c \
+        src\cd.c \
+        src\multivoc.c \
+        src\mix.c \
+        src\mixst.c \
+        src\pitch.c \
+        src\vorbis.c \
+        src\music.c \
+        src\midi.c \
+        src\driver_nosound.c \
+        src\driver_directsound.c \
+        src\driver_winmm.c \
+        src\asssys.c
+
+!include Makefile.msvcshared
+
+!if "$(PLATFORM)" == ""
+PLATFORM=x86
+!endif
+!if "$(PLATFORM)" == "X86" || "$(PLATFORM)" == "x86"
+CFLAGS=$(CFLAGS) /arch:IA32
+!endif
+
+JFAUDIOLIB_HAVE_VORBIS=0
+
+!if $(JFAUDIOLIB_HAVE_VORBIS)
+CPPFLAGS=$(CPPFLAGS) /DHAVE_VORBIS /Ithird-party\msvc\include
+JFAUDIOLIB_LINKFLAGS=$(JFAUDIOLIB_LINKFLAGS) /LIBPATH:$(MAKEDIR)\third-party\msvc\lib$(PLATFORM)
+!endif
+
+OBJECTS=$(SOURCES:.c=.obj)
+
+all: $(JFAUDIOLIB)
+
+!include Makefile.deps
+
+$(JFAUDIOLIB): $(OBJECTS)
+	lib /out:$@ /nologo $**
+
+test.exe: src\test.obj $(JFAUDIOLIB)
+    link /out:$@ /nologo $** $(JFAUDIOLIB_LINKFLAGS) user32.lib
+
+{src}.c{src}.obj:
+	$(CC) /c $(CPPFLAGS) $(CFLAGS) /Fo$@ $<
+
+clean:
+	-del /q $(OBJECTS) $(JFAUDIOLIB) src\test.obj test.exe

@@ -1,0 +1,35 @@
+JFAUDIOLIB_HAVE_SDL=0
+JFAUDIOLIB_HAVE_ALSA=0
+JFAUDIOLIB_HAVE_FLUIDSYNTH=0
+JFAUDIOLIB_HAVE_VORBIS=0
+JFAUDIOLIB_USE_SDLMIXER=0
+
+JFAUDIOLIB=libjfaudiolib.a
+JFAUDIOLIB_LDFLAGS=
+
+SDL2CONFIG?=$(shell which sdl2-config || which false)
+PKGCONFIG?=$(shell which pkg-config || which false)
+
+machine=$(strip $(shell $(CC) -dumpmachine))
+
+ifeq (mingw32,$(findstring mingw32,$(machine)))
+ JFAUDIOLIB_HAVE_VORBIS=1
+else
+ ifeq (yes,$(shell $(PKGCONFIG) --exists vorbisfile && echo yes))
+  JFAUDIOLIB_HAVE_VORBIS=1
+  JFAUDIOLIB_LDFLAGS+= $(shell $(PKGCONFIG) --libs vorbisfile)
+ endif
+ ifneq (,$(shell $(SDL2CONFIG) --version))
+  JFAUDIOLIB_HAVE_SDL=2
+  JFAUDIOLIB_LDFLAGS+= $(shell $(SDL2CONFIG) --libs)
+ endif
+ ifeq (yes,$(shell $(PKGCONFIG) --exists alsa && echo yes))
+  JFAUDIOLIB_HAVE_ALSA=1
+  JFAUDIOLIB_LDFLAGS+= $(shell $(PKGCONFIG) --libs alsa)
+  JFAUDIOLIB_LDFLAGS+=-lpthread
+ endif
+ ifeq (yes,$(shell $(PKGCONFIG) --exists fluidsynth && echo yes))
+  JFAUDIOLIB_HAVE_FLUIDSYNTH=1
+  JFAUDIOLIB_LDFLAGS+= $(shell $(PKGCONFIG) --libs fluidsynth)
+ endif
+endif

@@ -1,0 +1,19 @@
+src/asssys.$o: src/asssys.c src/asssys.h
+src/cd.$o: src/cd.c include/cd.h src/drivers.h include/sndcards.h src/midifuncs.h
+src/driver_alsa.$o: src/driver_alsa.c src/midifuncs.h src/driver_alsa.h
+src/driver_coreaudio.$o: src/driver_coreaudio.c src/asssys.h src/midifuncs.h src/driver_coreaudio.h
+src/driver_directsound.$o: src/driver_directsound.c src/asssys.h src/driver_directsound.h
+src/driver_fluidsynth.$o: src/driver_fluidsynth.c src/midifuncs.h src/driver_fluidsynth.h src/asssys.h
+src/driver_nosound.$o: src/driver_nosound.c src/midifuncs.h
+src/driver_sdl.$o: src/driver_sdl.c src/driver_sdl.h
+src/driver_winmm.$o: src/driver_winmm.c src/asssys.h src/assmisc.h src/midifuncs.h src/driver_winmm.h src/linklist.h
+src/drivers.$o: src/drivers.c src/drivers.h include/sndcards.h src/midifuncs.h src/driver_alsa.h src/driver_coreaudio.h src/driver_directsound.h src/driver_fluidsynth.h src/driver_nosound.h src/driver_sdl.h src/driver_winmm.h
+src/fx_man.$o: src/fx_man.c include/sndcards.h src/drivers.h src/midifuncs.h src/multivoc.h include/fx_man.h include/sndcards.h
+src/midi.$o: src/midi.c include/sndcards.h src/drivers.h src/midifuncs.h src/ll_man.h include/music.h include/sndcards.h src/_midi.h src/midi.h src/asssys.h
+src/mix.$o: src/mix.c src/_multivc.h
+src/mixst.$o: src/mixst.c src/_multivc.h
+src/multivoc.$o: src/multivoc.c src/linklist.h include/sndcards.h src/drivers.h src/midifuncs.h src/pitch.h src/multivoc.h src/_multivc.h
+src/music.$o: src/music.c include/sndcards.h src/drivers.h src/midifuncs.h include/music.h include/sndcards.h src/midi.h src/ll_man.h
+src/pitch.$o: src/pitch.c src/pitch.h
+src/vorbis.$o: src/vorbis.c
+src/test.$o: src/test.c include/fx_man.h include/music.h src/drivers.h src/asssys.h

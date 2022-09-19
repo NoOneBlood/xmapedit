@@ -1,0 +1,13 @@
+JFAUDIOLIB_HAVE_SDL=0
+JFAUDIOLIB_HAVE_ALSA=0
+JFAUDIOLIB_HAVE_FLUIDSYNTH=0
+JFAUDIOLIB_HAVE_VORBIS=0
+JFAUDIOLIB_USE_SDLMIXER=0
+
+JFAUDIOLIB=jfaudiolib.lib
+JFAUDIOLIB_LINKFLAGS=winmm.lib "dxsdk\lib\dsound.lib" "dxsdk\lib\dxguid.lib"
+
+!if $(JFAUDIOLIB_HAVE_VORBIS)
+JFAUDIOLIB_LINKFLAGS=$(JFAUDIOLIB_LINKFLAGS) \
+    libvorbisfile_static.lib libvorbis_static.lib libogg.lib
+!endif
