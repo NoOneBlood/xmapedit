@@ -391,7 +391,7 @@ void artedInit() {
 	{
 		i = getHighlightedObject();
 		gTool.objType  = (char)searchstat;
-		gTool.objIndex = (i == 300) ? searchsector : searchwall;
+		gTool.objIndex = searchindex;
 	}
 
 	memset(tilePluIndex, kPlu0, sizeof(tilePluIndex));

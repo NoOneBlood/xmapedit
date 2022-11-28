@@ -54,7 +54,7 @@ class QAVEDIT
 	SOUNDINFO  *pSound;
 	CLIPBOARD   cpbrd;
 	TIME time;
-	POINT origin;
+	POINT2D origin;
 	MOUSE mouse;
 	unsigned int newQav			:  1;
 	unsigned int edit3d			:  1;
@@ -77,7 +77,7 @@ class QAVEDIT
 	BOOL AnimSave(char* filename);
 	void AnimImportDlg();
 	void AnimDurationSet() { pQav->duration = pQav->nFrames * pQav->ticksPerFrame; }
-	void AnimOriginSet(POINT* pOrigin, BOOL adjust);
+	void AnimOriginSet(POINT2D* pOrigin, BOOL adjust);
 	int  AnimOriginSelect();
 	void AnimStopPlaying(BOOL reset = TRUE);
 	// -------------------------------------

@@ -38,15 +38,7 @@
 
 short mirrorcnt = 0, mirrorsector, mirrorwall[4];
 short mirrorPicWidth, mirrorPicHeight;
-
-struct MIRROR
-{
-	unsigned int type		: 3;
-	unsigned int id			: 16;
-	unsigned int basePic	: 16;
-	POINT3D point;
-}
-mirror[kMaxROR];
+MIRROR mirror[kMaxROR];
 
 int CreateMirrorPic(int nObjTile, BOOL copy = TRUE)
 {
@@ -228,7 +220,7 @@ void InitMirrors()
 	}
 }
 
-void _fastcall TranslateMirrorColors(int nShade, int nPalette)
+void TranslateMirrorColors(int nShade, int nPalette)
 {
 	register int i, nPixels;
 	
@@ -245,7 +237,7 @@ void _fastcall TranslateMirrorColors(int nShade, int nPalette)
 	enddrawing();
 }
 
-bool _fastcall DrawMirrors(int x, int y, int z, int a, int horiz)
+bool DrawMirrors(int x, int y, int z, int a, int horiz)
 {
 	MIRROR* pRor;
 	register int i = mirrorcnt, dx, dy, dz;
@@ -350,8 +342,8 @@ bool _fastcall DrawMirrors(int x, int y, int z, int a, int horiz)
 	return false;
 }
 
-bool  _fastcall IsMirrorPic(int nPic) { return (nPic == 504); }
-char  _fastcall IsRorSector(int nSect, int stat)
+bool IsMirrorPic(int nPic) { return (nPic == 504); }
+char IsRorSector(int nSect, int stat)
 {
 	if (stat == OBJ_FLOOR)
 	{
@@ -364,7 +356,7 @@ char  _fastcall IsRorSector(int nSect, int stat)
 	else return 0;
 }
 
-bool _fastcall IsLinkCorrect(spritetype* pSpr)
+bool IsLinkCorrect(spritetype* pSpr)
 {
 	if (!pSpr || pSpr->statnum >= kMaxStatus) return false;
 	else if (!rngok(pSpr->owner, 0, kMaxSprites)) return false;
@@ -453,7 +445,7 @@ void warpInit(void)
 	}
 }
 
-int _fastcall CheckLink(int *x, int *y, int *z, int *nSector)
+int CheckLink(int *x, int *y, int *z, int *nSector)
 {
     register int z1, z2;
 	register int nUpper = gUpperLink[*nSector];
@@ -518,7 +510,7 @@ int _fastcall CheckLink(int *x, int *y, int *z, int *nSector)
     return 0;
 }
 
-int _fastcall CheckLink(spritetype *pSprite)
+int CheckLink(spritetype *pSprite)
 {
 	register int nLink = 0;
 	register int nSector = pSprite->sectnum;
@@ -532,7 +524,7 @@ int _fastcall CheckLink(spritetype *pSprite)
 	return nLink;
 }
 
-int _fastcall CheckLinkCamera(int *x, int *y, int *z, int *nSector)
+int CheckLinkCamera(int *x, int *y, int *z, int *nSector)
 {
 	register int nSpr, nLink = 0;
 	register int px = *x, py = *y, pz = *z, nSect = *nSector;

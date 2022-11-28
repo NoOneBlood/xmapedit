@@ -75,6 +75,7 @@ resource "QBM\ARROWUP.QBM" as 13;
 ///////////////////////////////
 resource "TGA\XMPICO.TGA" as 0;
 resource "TGA\NOTILE.TGA" as 1;
+resource "TGA\WALHGLT.TGA" as 2;
 
 // inverse table for creating PLUs
 ///////////////////////////////////

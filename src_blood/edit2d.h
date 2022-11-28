@@ -23,7 +23,7 @@ int findUnusedChannel(DIALOG_ITEM* dialog = NULL);
 int findUnusedStack();
 
 #define kVtxSize 2
-void _fastcall scaleAngLine2d(int scale, int ang, int* x, int* y);
+void scaleAngLine2d(int scale, int ang, int* x, int* y);
 void Draw2dWallMidPoint(int nWall, char color = 15, char which = 0x01);
 void Draw2dVertex(int x, int y, int color, int color2 = -1, int size = kVtxSize);
 void Draw2dCross(int x, int y, int color, int size);
@@ -56,6 +56,6 @@ int getpointhighlight(int nTresh, int x, int y, int nZoom);
 void SetControlValue(DIALOG_ITEM *dialog, int group, int value );
 void loopGetWalls(int nStartWall, int* swal, int *ewal);
 
-void FASTCALL sectorDetach(int nSector);
-void FASTCALL sectorAttach(int nSector);
+void sectorDetach(int nSector);
+void sectorAttach(int nSector);
 #endif

@@ -104,8 +104,6 @@ typedef unsigned int	uint32;
 #define TRUE			1
 #define FALSE			0
 
-#define FASTCALL _fastcall
-
 #define kMaxPlayers 8
 
 #define kVanillaMaxXSprites 2048
@@ -162,6 +160,9 @@ typedef unsigned int	uint32;
 #define kPatDotted 0xCCCCCCCC
 #define kPatDashed 0xFFFF
 
+#define kTicRate 120
+#define kTicsPerFrame 4
+#define kTicsPerSec (kTicRate/kTicsPerFrame)
 
 // searchstat types /////////////////////////////////////////////////////
 enum {
@@ -838,6 +839,13 @@ inline int approxDist(int dx, int dy)
     return dx+dy;
 }
 
+inline int wrand(void)
+{
+	static int wrandomseed = 1;
+	wrandomseed = 1103515245 * wrandomseed + 12345;
+    return (wrandomseed >> 16) & 0x7FFF;
+}
+
 inline char Chance(int a1)
 {
     return rand() < (a1>>1);
@@ -851,6 +859,11 @@ inline unsigned int Random(int a1)
 inline int BiRandom(int a1)
 {
     return mulscale14(rand(), a1)-a1;
+}
+
+inline int BiRandom2(int a1)
+{
+    return mulscale15(wrand()+wrand(), a1) - a1;
 }
 
 template<typename T> void GetSpriteExtents(T const * const pSprite, int *top, int *bottom)

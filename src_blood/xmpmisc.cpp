@@ -282,17 +282,6 @@ BOOL Beep(BOOL cond) {
 	
 }
 
-char getPLU(int nTile, char* nPlu, BOOL dir, int minPerc) {
-	
-	while( 1 )
-	{
-		*nPlu = (char)getClosestId(*nPlu, kPluMax - 1, "PLU", dir);
-		if (*nPlu <= 1 || isEffectivePLU(nTile, palookup[*nPlu]) > minPerc)
-			return *nPlu;
-	}
-}
-
-
 int getClosestId(int nId, int nRange, char* nType, BOOL dir) {
 	
 	int id = nId; int cnt = nRange;
@@ -307,20 +296,18 @@ int getClosestId(int nId, int nRange, char* nType, BOOL dir) {
 	return nId;
 }
 
-void clampSprite(spritetype* pSprite) {
-	
-	int zTop, zBot;
-	if (pSprite->sectnum >= 0 && pSprite->sectnum < kMaxSectors) {
-		
-		// don't allow to put sprites in floors / ceilings.
-		GetSpriteExtents(pSprite, &zTop, &zBot);
-		if (!(sector[pSprite->sectnum].ceilingstat & kSectParallax))
-			pSprite->z += ClipLow(getceilzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zTop, 0);
-		if (!(sector[pSprite->sectnum].floorstat & kSectParallax))
+void clampSprite(spritetype* pSprite, int which) {
+
+    int zTop, zBot;
+    if (pSprite->sectnum >= 0 && pSprite->sectnum < kMaxSectors)
+	{
+        GetSpriteExtents(pSprite, &zTop, &zBot);
+        if (which & 0x01)
 			pSprite->z += ClipHigh(getflorzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zBot, 0);
-		
-	}
-	
+		if (which & 0x02)
+			pSprite->z += ClipLow(getceilzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zTop, 0);
+    }
+
 }
 
 
@@ -413,45 +400,46 @@ int getDataOf(BYTE idata, short objType, short objIndex) {
 	
 }
 
-// compare how many pixels was replaced in tile by given palookup
-int isEffectivePLU(int nTile, BYTE* plu, int* changed, int* total) {
-
-	PALETTE pal;
-	BYTE *pTileS, *pTileD;
-		
-	if (changed) *changed = 0;
-	if (total)   *total = 0;
-	if ((pTileS = tileLoadTile(nTile)) == NULL)
-		return 0;
-	
-	int i = 0, j = 0, cnt = 0; int perc = 0;
-	int len = tilesizx[nTile]*tilesizy[nTile];
-	pTileD = (BYTE*)Resource::Alloc(len);
-	memcpy(pTileD, pTileS, len);
-	
-	memcpy(pal, gamepal, sizeof(PALETTE));
-	while (i < 256) pal[i] = pal[plu[i++]];
-	remapColors((intptr_t)pTileD, len, pal);
-	
-	i = 0;
-	while (i < len)
+char nextEffectivePlu(int nTile, signed char nShade, unsigned char nPlu, BOOL dir, int minPerc)
+{
+	while( 1 )
 	{
-		if (pTileD[i] != 255)
-		{
-			if (pTileD[i] != pTileS[i]) j++;
-			cnt++;
-		}
-
-		i++;
+		nPlu = (unsigned char)getClosestId(nPlu, kPluMax - 1, "PLU", dir);
+		if (nPlu < 2 || isEffectivePLU(nTile, palookup[nPlu]) > minPerc)
+			return nPlu;
 	}
-
-	Resource::Free(pTileD);
-	perc = ((j * 100) / cnt);
-
-	if (changed) *changed = j;
-	if (total)   *total = cnt;
-	return perc;
 }
+
+// compare how many pixels was replaced in tile by given palookup
+int isEffectivePLU(int nTile, BYTE* pDestPlu, signed char nShade, BYTE* pNormPlu, int* changed, int* total)
+{
+	BYTE* pTile;
+	BYTE* pPluA = (BYTE*)(pNormPlu + (nShade << 8));
+	BYTE* pPluB = (BYTE*)(pDestPlu + (nShade << 8));
+	int l = tilesizx[nTile]*tilesizy[nTile];
+	int c = 0, t = 0;
+
+	if (total)		*total 		= 0;
+	if (changed)	*changed 	= 0;
+	if ((pTile = tileLoadTile(nTile)) == NULL)
+		return 0;
+		
+	while(--l >= 0)
+	{
+		if (*pTile != 255)
+		{
+			if (pPluA[*pTile] != pPluB[*pTile]) c++;
+			t++;
+		}
+		
+		pTile++;
+	}
+	
+	if (total)  	*total 		= t;
+	if (changed)	*changed 	= c;
+	return ((c * 100) / t);
+}
+
 
 short name2TypeId(char defName[256]) {
 
@@ -577,13 +565,15 @@ int getHighlightedObject() {
 	{
 		if ((pointhighlight & 0xc000) == 16384)
 		{
-			searchstat = OBJ_SPRITE;
-			searchwall = (short) (pointhighlight & 16383);
+			searchstat 		= OBJ_SPRITE;
+			searchwall 		= (short) (pointhighlight & 16383);
+			searchindex 	= searchwall;
 			return 200;
 		}
 
-		searchstat = OBJ_WALL;
-		searchwall = (linehighlight >= 0) ? linehighlight : pointhighlight;
+		searchstat 			= OBJ_WALL;
+		searchwall 			= (linehighlight >= 0) ? linehighlight : pointhighlight;
+		searchindex 		= searchwall;
 		return 100;
 	}
 	else if (linehighlight >= 0)
@@ -610,14 +600,16 @@ int getHighlightedObject() {
 
 		} */
 		
-		searchstat = OBJ_WALL;
-		searchwall = linehighlight;
+		searchstat 		= OBJ_WALL;
+		searchwall 		= linehighlight;
+		searchindex 	= searchwall;
 		return 100;
 	}
 	else if (sectorhighlight >= 0)
 	{
-		searchstat = OBJ_FLOOR;
-		searchsector = sectorhighlight;
+		searchstat 		= OBJ_FLOOR;
+		searchsector 	= sectorhighlight;
+		searchindex 	= searchsector;
 		return 300;
 	}
 	else
@@ -1572,7 +1564,6 @@ void toggleResolution(int fs, int xres, int yres, int bpp)
 		tileFreeTile(gSysTiles.sectfil);
 		tileAllocTile(gSysTiles.sectfil, xdim, ydim);
 	}
-	gfxSetClip(0, 0, xdim, ydim);
 }
 
 int DlgSaveChanges(char* text, BOOL askForArt) {
@@ -1849,7 +1840,315 @@ int collectObjectsByChannel(int nChannel, BOOL rx, OBJECT_LIST* pOut, char flags
 	return c;
 }
 
+int getPluOf(int oType, int oIdx)
+{
+	switch (oType)
+	{
+		case OBJ_WALL:
+		case OBJ_MASKED:	return wall[oIdx].pal;
+		case OBJ_FLOOR:		return sector[oIdx].floorpal;
+		case OBJ_CEILING:	return sector[oIdx].ceilingpal;
+		case OBJ_SPRITE:	return sprite[oIdx].pal;
+	}
+	
+	return -1;
+}
 
+int getPicOf(int oType, int oIdx) {
+	
+	switch (oType)
+	{
+		case OBJ_FLOOR:		return sector[oIdx].floorpicnum;
+		case OBJ_CEILING:	return sector[oIdx].ceilingpicnum;
+		case OBJ_WALL:		return wall[oIdx].picnum;
+		case OBJ_MASKED:	return wall[oIdx].overpicnum;
+		case OBJ_SPRITE:	return sprite[oIdx].picnum;
+	}
+	
+	return -1;
+}
+
+int getShadeOf(int oType, int oIdx) {
+	
+	switch (oType)
+	{
+		case OBJ_WALL:
+		case OBJ_MASKED:	return wall[oIdx].shade;
+		case OBJ_FLOOR:		return sector[oIdx].floorshade;
+		case OBJ_CEILING:	return sector[oIdx].ceilingshade;
+		case OBJ_SPRITE:	return sprite[oIdx].shade;
+	}
+	
+	return -1;
+}
+
+void setPluOf(int nPlu, int oType, int oIdx)
+{
+	switch (oType)
+	{
+		case OBJ_WALL:
+		case OBJ_MASKED:	wall[oIdx].pal			= nPlu;		break;
+		case OBJ_FLOOR:		sector[oIdx].floorpal	= nPlu;		break;
+		case OBJ_CEILING:	sector[oIdx].ceilingpal = nPlu;		break;
+		case OBJ_SPRITE:	sprite[oIdx].pal		= nPlu;		break;
+	}
+}
+
+int pluPick(int nTile, int nShade, int nPlu, char* titleArg)
+{
+	if (gPluPrefs.classicWindow)
+		return pluPickClassic(nTile, nShade, nPlu, titleArg);
+
+	return pluPickAdvanced(nTile, nShade, nPlu, titleArg);
+}
+
+int cmpPluEfficency(PLUINFO *ref1, PLUINFO *ref2)
+{
+	int t;
+	if ((t = ref2->efficency - ref1->efficency) == 0)
+		return ref1->id - ref2->id;
+		
+	return t;
+}
+
+int cmpPluId(PLUINFO *ref1, PLUINFO *ref2)
+{
+	return ref1->id - ref2->id;
+}
+
+int pluPickAdvanced(int nTile, int nShade, int nPlu, char* titleArg)
+{
+	#define kBotHeight			38
+	#define kTop2Height			16
+	#define kPad2 				4
+	#define kButH				28
+	#define kWindowSize			70
+	#define kMrBase				(mrUser + 1000)
+	
+	char tmp[64];
+	PLUINFO pluInfo[kPluMax]; PLUPICK_PREFS arg;
+	int nCode, i, j, wh, hg, totalPlus = 0, efficPlus = 0;
+	
+	Checkbox *pClassicCb, *pShadeCb, *pSortCb, *pShowAllCb;
+	Panel *pBot1, *pBot2, *pTop1, *pTop2, *pTop3;
+	TextButton *pFindB, *pQuitB;
+	EditNumber* pPluE;
+	Container* pFocus;
+	PluPick* pPicker;
+	Label* pResultL;
+	
+	Window dialog(0, 0, ClipLow(perc2val(kWindowSize, xdim), 320), ClipLow(perc2val(kWindowSize, ydim), 200), titleArg);
+	hg = dialog.client->height - kBotHeight - kTop2Height;
+	wh = dialog.client->width;
+	
+	arg.nTile		= nTile;
+	arg.nShade		= (gPluPrefs.reflectShade) ? nShade : 0;
+	arg.nPlu		= nPlu;
+	arg.pluInfo		= pluInfo;
+	arg.pluCnt		= 0;
+	
+	for (i = 0; i < kPluMax; i++)
+	{
+		if (i == 0 || (palookup[i] && palookup[i] != palookup[0]))
+		{
+			totalPlus++;
+			
+			int pixelsTotal, pixelsAlter;
+			if ((j = isEffectivePLU(nTile, palookup[i], 0, palookup[kPlu0], &pixelsAlter, &pixelsTotal)) != 0) efficPlus++;
+			else if (!gPluPrefs.showAll && i != nPlu && i > 2 && !j)
+				continue;
+			
+			arg.pluInfo[arg.pluCnt].id 				= i;
+			arg.pluInfo[arg.pluCnt].efficency 		= j;
+			arg.pluInfo[arg.pluCnt].pixelsTotal 	= pixelsTotal;
+			arg.pluInfo[arg.pluCnt].pixelsAltered 	= pixelsAlter;
+			arg.pluCnt++;
+		}
+	}
+	
+	if (gPluPrefs.mostEfficentInTop)
+		qsort(&arg.pluInfo[2], arg.pluCnt-2, sizeof(arg.pluInfo[0]), (int(*)(const void*,const void*))cmpPluEfficency);
+	
+	arg.nCols = (widescreen) ? 6 : 5;
+	arg.nRows = 3;
+	
+	pTop1				= new Panel(dialog.left, dialog.top, perc2val(28, dialog.client->width), kTop2Height, 1, 1, 0);
+	pTop3				= new Panel(pTop1->left+pTop1->width, dialog.top, perc2val(23, dialog.client->width), kTop2Height, 1, 1, 0);
+	pTop2				= new Panel(pTop3->left+pTop3->width, dialog.top, perc2val(49, dialog.client->width), kTop2Height, 1, 1, 0);
+	pPicker				= new PluPick(dialog.left, pTop1->top+pTop1->height, dialog.client->width, dialog.client->height-kBotHeight-(kTop2Height<<1), &arg);
+	pBot1				= new Panel(dialog.left, pPicker->top+pPicker->height, pPicker->width, kBotHeight, 1, 1, 0);
+	pBot2				= new Panel(dialog.left, pBot1->top+pBot1->height, dialog.client->width, kTop2Height, 1, 1, 0);
+
+	sprintf(tmp, 		"Shade: %+d", nShade);
+	pShadeCb			= new Checkbox(0, 0, gPluPrefs.reflectShade, tmp, kMrBase);
+	pShadeCb->left		= (pTop1->width>>1)-(pShadeCb->width>>1);
+	pShadeCb->top		= (pTop1->height>>1)-(pShadeCb->height>>1);
+	
+	pSortCb				= new Checkbox(0, 0, gPluPrefs.mostEfficentInTop, "Most efficient on top", kMrBase + 1);
+	pSortCb->left		= (pTop2->width>>1)-(pSortCb->width>>1);
+	pSortCb->top		= (pTop2->height>>1)-(pSortCb->height>>1);
+	
+	pShowAllCb			= new Checkbox(0, 0, gPluPrefs.showAll, "Show all", kMrBase + 2);
+	pShowAllCb->left	= (pTop3->width>>1)-(pShowAllCb->width>>1);
+	pShowAllCb->top		= (pTop3->height>>1)-(pShowAllCb->height>>1);
+	
+	wh = pBot1->width; hg = pBot1->height;
+	
+	pFindB				= new TextButton(0, 0, 100, kButH, "Search", mrOk);
+	pFindB->left		= kPad2;
+	pFindB->top			= (hg>>1)-(pFindB->height>>1);
+	pFindB->fontColor	= kColorBlue;
+	
+	pQuitB				= new TextButton(0, 0, 70, kButH, "Quit", mrCancel);
+	pQuitB->left		= pBot1->left+wh-pQuitB->width-kPad2;
+	pQuitB->top			= (hg>>1)-(pQuitB->height>>1);
+	pQuitB->fontColor	= kColorRed;
+	
+	pClassicCb			= new Checkbox(0, 0, gPluPrefs.classicWindow, "Classic view", kMrBase + 3);
+	pClassicCb->left	= pBot1->left+wh-pClassicCb->width-pQuitB->width-(kPad2<<1);
+	pClassicCb->top		= (hg>>1)-(pClassicCb->height>>1);
+	
+	pPluE				= new EditNumber(0, 0, ClipHigh(150, pClassicCb->left - (pFindB->left + pFindB->width) - (kPad2<<1)), 20, nPlu);
+	pPluE->left			= pFindB->left + pFindB->width + kPad2;
+	pPluE->top			= (hg>>1)-(pPluE->height>>1);
+		
+	sprintf(tmp, 		"%d of %d palookups are efficient for tile #%d", efficPlus, totalPlus, nTile);
+	pResultL			= new Label(0, 0, tmp, kColorBlack);
+	pResultL->left		= (pBot2->width>>1)-(pResultL->width>>1);
+	pResultL->top		= (pBot2->height>>1)-(pResultL->height>>1);
+	
+	pBot1->Insert(pFindB);
+	pBot1->Insert(pPluE);
+	pBot1->Insert(pClassicCb);
+	pBot1->Insert(pQuitB);
+	
+	pBot2->Insert(pResultL);
+	
+	pTop1->Insert(pShadeCb);
+	pTop2->Insert(pSortCb);
+	pTop3->Insert(pShowAllCb);
+	
+	dialog.Insert(pPicker);
+	dialog.Insert(pBot1);
+	dialog.Insert(pTop1);
+	dialog.Insert(pTop3);
+	dialog.Insert(pTop2);
+	dialog.Insert(pBot2);
+	
+	dialog.left = (xdim - dialog.width)  >> 1;
+	dialog.top  = (ydim - dialog.height) >> 1;
+
+	while( 1 )
+	{
+		dialog.ClearFocus();
+		if ((nCode = ShowModal(&dialog, kModalNoCenter)) == mrCancel)
+			break;
+		
+		if (nCode == kMrBase)
+		{
+			gPluPrefs.reflectShade = pShadeCb->checked;
+			arg.nShade = (gPluPrefs.reflectShade) ? nShade : 0;
+			continue;
+		}
+		else if (nCode == kMrBase + 1)
+		{
+			gPluPrefs.mostEfficentInTop	= pSortCb->checked;
+			qsort
+			(
+				&arg.pluInfo[2],
+				arg.pluCnt-2,
+				sizeof(arg.pluInfo[0]),
+				(int(*)(const void*,const void*))((gPluPrefs.mostEfficentInTop) ? cmpPluEfficency : cmpPluId)
+			);
+			
+			continue;
+		}
+		else if (nCode == kMrBase + 2)
+		{
+			gPluPrefs.showAll = pShowAllCb->checked;
+			return pluPick(nTile, nShade, nPlu, titleArg);
+		}
+		else if (nCode == kMrBase + 3)
+		{
+			gPluPrefs.classicWindow = pClassicCb->checked;
+			return pluPick(nTile, nShade, nPlu, titleArg);
+		}
+		else if (pBot1->focus != &pBot1->head)
+		{
+			pFocus = (Container*)pBot1->focus;
+			if ((pFindB == (TextButton*)pFocus) || (pPluE == (EditNumber*)pFocus))
+			{
+				i = arg.pluCnt;
+				while(--i >= 0)
+				{
+					if (arg.pluInfo[i].id != pPluE->value) continue;
+					nPlu = pPluE->value;
+					break;
+				}
+				
+				pFindB->pressed  = FALSE;
+				if (i >= 0)
+					break;
+				
+				Alert("Palookup ID %d not found!", pPluE->value);
+			}
+			
+			continue;
+		}
+		else if (dialog.focus != &dialog.head)
+		{
+			pFocus = (Container*)dialog.focus;
+			if (pPicker == (PluPick*)pFocus->focus)
+			{
+				if (nCode == mrOk)
+				{
+					if (pPicker->nCursor >= arg.pluCnt)
+						continue;
+					
+					nPlu = pluInfo[pPicker->nCursor].id;
+				}
+				else
+					nPlu = pPicker->value - mrUser;
+			}
+		}
+		
+		break;
+	}
+	
+	return nPlu;
+}
+
+int pluPickClassic(int nTile, int nShade, int nPlu, char* titleArg)
+{
+	int l = ClipLow(gfxGetTextLen(titleArg, pFont), 200);
+	int nCode;
+	
+	Window dialog(0, 0, l, 55, titleArg);
+	EditNumber* pEn = new EditNumber(4, 4, dialog.width-12, 16, nPlu);
+	Checkbox* pAdva = new Checkbox(4, 4, gPluPrefs.classicWindow, "Classic view", mrUser + 100); 
+	pAdva->left = pEn->left + pEn->width - pAdva->width - 4;
+	pAdva->top  = pEn->top + pAdva->height + 6;
+	
+	dialog.Insert(pEn);
+	dialog.Insert(pAdva);
+
+	nCode = ShowModal(&dialog);
+	if (nCode == mrUser + 100)
+	{
+		gPluPrefs.classicWindow = pAdva->checked;
+		return pluPick(nTile, nShade, nPlu, titleArg);
+	}
+	
+	if (nCode != mrOk)
+		return nPlu;
+
+	return pEn->value;
+}
+
+BOOL isSearchSector()
+{
+	return (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING);
+}
 
 /* void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1)
 {

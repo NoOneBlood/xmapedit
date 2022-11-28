@@ -296,13 +296,13 @@ void toolDrawWindow(int x1, int y1, int x2, int y2, char* title, char textColor)
 	
 }
 
-void toolSetOrigin(POINT* origin, int x, int y )
+void toolSetOrigin(POINT2D* origin, int x, int y )
 {
 	origin->x = ClipRange(x, 0, xdim - 1);
 	origin->y = ClipRange(y, 0, ydim - 1);
 }
 
-void toolDrawCenter(POINT* origin, int nColor, int xrng, int yrng, int skip) {
+void toolDrawCenter(POINT2D* origin, int nColor, int xrng, int yrng, int skip) {
 	
 	int i; 
 	gfxSetColor(nColor);
@@ -314,7 +314,7 @@ void toolDrawCenter(POINT* origin, int nColor, int xrng, int yrng, int skip) {
 	
 }
 
-void toolDrawCenterHUD(POINT* origin, int nTile, int nVTile, int scrYofs, int nOctant, int nColor) {
+void toolDrawCenterHUD(POINT2D* origin, int nTile, int nVTile, int scrYofs, int nOctant, int nColor) {
 	
 	
 	int y, i;
@@ -353,9 +353,10 @@ void toolDrawPixels(int dist, int color) {
 }
 
 
-void toolDisplayMessage(short nColor, int x, int y, QFONT* pFont) {
-	if (totalclock < messageTime + 120)
-		gfxPrinTextShadow(x, y, nColor, strupr(message), pFont);
+void toolDisplayMessage(short nColor, int x, int y, QFONT* pFont)
+{
+	if (totalclock < gScreen.msg[0].time)
+		gfxPrinTextShadow(x, y, nColor, strupr(gScreen.msg[0].text), pFont);
 }
 
 NAMED_TYPE gibNames[] = {

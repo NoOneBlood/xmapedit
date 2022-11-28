@@ -158,7 +158,7 @@ void seqeditStart(char* seqFile) {
 	pSeq = NULL;
 	
 	if (screenMode != 200) qsetmodeany(xdim, ydim);
-	ydim16 = yd16; messageTime = 0;
+	ydim16 = yd16; gScreen.msg[0].time = 0;
 	artedUninit();
 
 }
@@ -170,7 +170,7 @@ void seqeditProcess( void ) {
 	BYTE playing = 0, key, ctrl, shift, alt;
 	spritetype* pSprite = gTool.pSprite;
 	QFONT* pFont = gTool.pFont;
-	
+	char* message = gScreen.msg[0].text;
 	
 	while ( 1 ) {
 
@@ -238,8 +238,9 @@ void seqeditProcess( void ) {
 		}
 		
 		// title
-		if (totalclock >= messageTime + 120)
+		if (totalclock > gScreen.msg[0].time)
 		{
+			
 			j = gStdColor[15];
 			sprintf(message, "%s", (strlen(gSeqEd.filename) ? gSeqEd.filename : "Unnamed"));
 			if (gSeqEd.rffID >= 0)
@@ -279,7 +280,7 @@ void seqeditProcess( void ) {
 				if (++fidx == pSeq->nFrames)
 				{
 					if (playing & 0x02) fidx = 0;
-					else messageTime = fidx = playing = 0;
+					else gScreen.msg[0].time = fidx = playing = 0;
 					sndKillAllSounds();
 				}
 
@@ -395,7 +396,7 @@ void seqeditProcess( void ) {
 			case KEY_ESC:
 			case KEY_SPACE:
 				if (!playing) break;
-				fidx = messageTime = playing = 0;
+				fidx = gScreen.msg[0].time = playing = 0;
 				sndKillAllSounds();
 				continue;
 			case KEY_PADENTER:

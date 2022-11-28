@@ -2872,12 +2872,14 @@ static void drawalls(int bunch)
 		{
 			if (searchy <= uplc[searchx]) //ceiling
 			{
-				searchsector = sectnum; searchwall = wallnum;
+				searchsector = sectnum;
+				searchindex  = sectnum; searchwall = wallnum;
 				searchstat = 1; searchit = 1;
 			}
 			else if (searchy >= dplc[searchx]) //floor
 			{
-				searchsector = sectnum; searchwall = wallnum;
+				searchsector = sectnum;
+				searchindex  = sectnum; searchwall = wallnum;
 				searchstat = 2; searchit = 1;
 			}
 		}
@@ -2914,9 +2916,12 @@ static void drawalls(int bunch)
 					if ((searchit == 2) && (searchx >= x1) && (searchx <= x2))
 						if (searchy <= dwall[searchx]) //wall
 						{
-							searchsector = sectnum; searchwall2 = searchwall = wallnum;
-							searchwallcf = 0;
-							searchstat = 0; searchit = 1;
+							searchsector	= sectnum;
+							searchwall2		= wallnum;
+							searchwall		= wallnum;
+							searchindex		= wallnum;
+							searchwallcf 	= 0;
+							searchstat		= 0; searchit = 1;
 						}
 
 					globalorientation = (int)wal->cstat;
@@ -3004,8 +3009,17 @@ static void drawalls(int bunch)
 					if ((searchit == 2) && (searchx >= x1) && (searchx <= x2))
 						if (searchy >= uwall[searchx]) //wall
 						{
-							searchsector = sectnum; searchwall2 = searchwall = wallnum;
-							if ((wal->cstat&2) > 0) searchwall = wal->nextwall;
+							searchsector = sectnum;
+							searchwall2  = wallnum;
+							searchwall	 = wallnum;
+							searchindex  = wallnum;
+							
+							if ((wal->cstat&2) > 0)
+							{
+								searchwall 	 = wal->nextwall;
+								searchindex  = wal->nextwall;
+							}
+							
 							searchwallcf = 1;
 							searchstat = 0; searchit = 1;
 						}
@@ -3156,7 +3170,11 @@ static void drawalls(int bunch)
 
 			if ((searchit == 2) && (searchx >= x1) && (searchx <= x2))
 			{
-				searchit = 1; searchsector = sectnum; searchwall2 = searchwall = wallnum;
+				searchit		= 1;
+				searchsector	= sectnum;
+				searchwall2		= wallnum;
+				searchwall		= wallnum;
+				searchindex		= wallnum;
 				if (nextsectnum < 0) searchstat = 0; else searchstat = 4;
 			}
 		}
@@ -3607,7 +3625,7 @@ float tspriteGetZOfSlopeFloat(spritetype *tspr, float dax, float day)
 //
 // drawsprite (internal)
 //
-static void drawsprite(int snum)
+void drawsprite(int snum)
 {
 	spritetype *tspr;
 	sectortype *sec;
@@ -3794,12 +3812,15 @@ static void drawsprite(int snum)
 		}
 
 			//sprite
-		if ((searchit >= 1) && (searchx >= lx) && (searchx <= rx))
-			if ((searchy >= uwall[searchx]) && (searchy < dwall[searchx]))
-			{
-				searchsector = sectnum; searchwall = spritenum;
-				searchstat = 3; searchit = 1;
-			}
+		if (sprite[spritenum].statnum < MAXSTATUS)
+			if ((searchit >= 1) && (searchx >= lx) && (searchx <= rx))
+				if ((searchy >= uwall[searchx]) && (searchy < dwall[searchx]))
+				{
+					searchsector	= sectnum;
+					searchwall 		= spritenum;
+					searchindex 	= spritenum;
+					searchstat 		= 3; searchit = 1;
+				}
 
 		z2 = tspr->z - ((yoff*tspr->yrepeat)<<2);
 		if (cstat&128)
@@ -4073,12 +4094,15 @@ static void drawsprite(int snum)
 		}
 
 			//sprite
-		if ((searchit >= 1) && (searchx >= xb1[MAXWALLSB-1]) && (searchx <= xb2[MAXWALLSB-1]))
-			if ((searchy >= uwall[searchx]) && (searchy <= dwall[searchx]))
-			{
-				searchsector = sectnum; searchwall = spritenum;
-				searchstat = 3; searchit = 1;
-			}
+		if (sprite[spritenum].statnum < MAXSTATUS)
+			if ((searchit >= 1) && (searchx >= xb1[MAXWALLSB-1]) && (searchx <= xb2[MAXWALLSB-1]))
+				if ((searchy >= uwall[searchx]) && (searchy <= dwall[searchx]))
+				{
+					searchsector	= sectnum;
+					searchwall 		= spritenum;
+					searchindex 	= spritenum;
+					searchstat 		= 3; searchit = 1;
+				}
 
 		for (i = xb1[MAXWALLSB-1]; i <= xb2[MAXWALLSB-1]; i++)
 		{
@@ -4440,12 +4464,15 @@ static void drawsprite(int snum)
 		}
 
 			//sprite
-		if ((searchit >= 1) && (searchx >= lx) && (searchx <= rx))
-			if ((searchy >= uwall[searchx]) && (searchy <= dwall[searchx]))
-			{
-				searchsector = sectnum; searchwall = spritenum;
-				searchstat = 3; searchit = 1;
-			}
+		if (sprite[spritenum].statnum < MAXSTATUS)
+			if ((searchit >= 1) && (searchx >= lx) && (searchx <= rx))
+				if ((searchy >= uwall[searchx]) && (searchy <= dwall[searchx]))
+				{
+					searchsector	= sectnum;
+					searchwall		= spritenum;
+					searchindex 	= spritenum;
+					searchstat 		= 3; searchit = 1;
+				}
 
 		globalorientation = cstat;
 		globalpicnum = tilenum;
@@ -5032,11 +5059,14 @@ next_most:
 						startdm = 0x7fffffff;
 
 						//sprite
-					if ((searchy >= max(startum,(y1>>8))) && (searchy < min(startdm,(y2>>8))))
-					{
-						searchsector = sectnum; searchwall = spritenum;
-						searchstat = 3; searchit = 1;
-					}
+					if (sprite[spritenum].statnum < MAXSTATUS)
+						if ((searchy >= max(startum,(y1>>8))) && (searchy < min(startdm,(y2>>8))))
+						{
+							searchsector 	= sectnum;
+							searchwall 		= spritenum;
+							searchindex 	= spritenum;
+							searchstat 		= 3; searchit = 1;
+						}
 				}
 			}
 		}
@@ -5144,8 +5174,10 @@ static void drawmaskwall(short damaskwallcnt)
 	if ((searchit >= 1) && (searchx >= xb1[z]) && (searchx <= xb2[z]))
 		if ((searchy >= uwall[searchx]) && (searchy <= dwall[searchx]))
 		{
-			searchsector = sectnum; searchwall = thewall[z];
-			searchstat = 4; searchit = 1;
+			searchsector 	= sectnum;
+			searchwall 		= thewall[z];
+			searchindex 	= thewall[z];
+			searchstat 		= 4; searchit = 1;
 		}
 
 	if ((globalorientation&128) == 0)

@@ -75,7 +75,8 @@ extern SPECIAL_DATA_NAMES pCtrlDataNames[32];
 
 extern char h;
 extern BYTE key, ctrl, alt, shift;
-extern int gHighSpr, gHovSpr;
+extern short gHighSpr, gHovSpr;
+extern short gHovWall, gHovStat;
 extern short temptype, tempidx, spriteNamesLength;
 extern char tempvisibility;
 extern short tempang, tempslope;
@@ -211,9 +212,9 @@ int GetXSprite( int nSprite );
 
 BOOL processKeysShared();
 void processDrawRooms();
-char*  _fastcall onOff(int var);
-char*  _fastcall isNot(int var);
-char*  _fastcall yesNo(int var);
+char* onOff(int var);
+char* isNot(int var);
+char* yesNo(int var);
 BOOL getDataNameOf(short otype, short idx, short didx, char* out);
 int xmpMenuCreate(char* name);
 int xmpMenuProcess();

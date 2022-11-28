@@ -449,12 +449,10 @@ void evSend(int nIndex, int nType, int rxId, COMMAND_ID command)
 			switch (command - kCmdNumberic) {
 				case 0:
 					previewMessage("A secret is revealed.");
-					gPreview.score+=kPreviewScoreSecret;
 					BeepOk();
 					break;
 				case 1:
 					previewMessage("You found a SUPER secret.");
-					gPreview.score+=kPreviewScoreSuperSecret;
 					BeepOk();
 					break;
 				default:

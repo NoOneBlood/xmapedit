@@ -26,11 +26,15 @@
 #include "common_game.h"
 #include "eventq.h"
 #include "db.h"
-
+#include "gui.h"
 #pragma once
 
+#define kCauserGame (kMaxSprites - 1)
+#define kSlopeDist 0x20
+#define kPercFull 100
+
 #define kMaxRandomizeRetries 16
-#define kMaxSuperXSprites 128
+#define kMaxSuperXSprites 512
 
 // *modern types only hitag*
 #define kModernTypeFlag0 0x0000
@@ -38,13 +42,128 @@
 #define kModernTypeFlag2 0x0002
 #define kModernTypeFlag3 0x0003
 #define kModernTypeFlag4 0x0004
+#define kModernTypeFlag8 0x0008
+#define kModernTypeFlag16 0x0010
+#define kModernTypeFlag64 0x0040
+
+#define kTriggerSpriteScreen 0x0001
+#define kTriggerSpriteAim    0x0002
+
+// additional physics attributes for debris sprites
+#define kPhysDebrisFloat 0x0008 // *debris* slowly goes up and down from it's position
+#define kPhysDebrisFly 0x0010 // *debris* affected by negative gravity (fly instead of falling)
+#define kPhysDebrisSwim 0x0020 // *debris* can swim underwater (instead of drowning)
+#define kPhysDebrisTouch 0x0040 // *debris* can be moved via touch
+//#define kPhysDebrisPush 0x0080 // *debris* can be moved via push
+#define kPhysDebrisVector 0x0400 // *debris* can be affected by vector weapons
+#define kPhysDebrisExplode 0x0800 // *debris* can be affected by explosions
+
+#define kDudeFlagStealth    0x0001
+#define kDudeFlagCrouch     0x0002
 
 extern BOOL gEventRedirectsUsed;
-extern short gProxySpritesList[kMaxSuperXSprites];
-extern short gSightSpritesList[kMaxSuperXSprites];
-extern short gProxySpritesCount;
-extern short gSightSpritesCount;
+class IDLIST
+{
+	typedef void (*IDLIST_PROCESS_FUNC)(int32_t nId);
+	
+	private:
+        int32_t*  db;
+        uint32_t  length;
+    public:
+		IDLIST(bool spawnDb)
+		{
+			length = 0;
+			db = NULL;
+			if (spawnDb)
+				Init();
+		}
+        ~IDLIST() { Free(); }
+		
+        void Init()
+        {
+            Free();
+		    db = (int32_t*)Bmalloc(sizeof(int32_t));
+			dassert(db != NULL);
+            db[0] = -1;
+        }
 
+        void Free()
+        {
+            length = 0;
+            if (db)
+                Bfree(db), db = NULL;
+        }
+
+        int Add(int nID)
+        {
+            register int t = length;
+            db[length++] = nID;
+			db = (int32_t*)Brealloc(db, (length + 1)*sizeof(int32_t));
+			dassert(db != NULL);
+            db[length] = -1;
+			return t;
+        }
+		
+		int AddIfNot(int nID)
+		{
+            register int t;
+			if ((t = Find(nID)) >= 0)
+				return t;
+			
+			return Add(nID);
+		}
+
+        bool Remove(int nID, bool isListId = false)
+        {
+			if (!isListId && (nID = Find(nID)) < 0)
+				return false;
+			
+			if (nID < length)
+				memmove(&db[nID], &db[nID+1], (length-nID)*sizeof(int32_t));
+			
+			if (length > 0)
+			{
+				db = (int32_t*)Brealloc(db, length*sizeof(int32_t));
+				dassert(db != NULL);
+				db[--length] = -1;
+			}
+			else
+			{
+				Init();
+			}
+			
+			return true;
+        }
+
+        int Find(int nID)
+        {
+			register int i = length;
+			while(--i >= 0 && db[i] != nID);
+            return i;
+        }
+		
+		BOOL Exists(int nID)	{ return (Find(nID) >= 0); }
+        int32_t* GetPtr()		{ return (int32_t*)db; }
+		uint32_t GetLength()	{ return length; }
+		uint32_t SizeOf()		{ return (length+1)*sizeof(int32_t); }
+		
+		void Process(IDLIST_PROCESS_FUNC pFunc)
+		{
+			if (!length)
+				return;
+			
+			int32_t* pDb = db;
+			while(*pDb >= 0)
+				pFunc(*pDb++);
+		}
+        
+};
+
+
+extern IDLIST gProxySpritesList;
+extern IDLIST gSightSpritesList;
+extern IDLIST gImpactSpritesList;
+extern IDLIST gPhysSpritesList;
 
 // modern statnums
 enum {
@@ -63,30 +182,36 @@ kStatModernMax                      = 40,
 
 // modern sprite types
 enum {
-kModernStealthRegion				= 16,
+kModernStealthRegion                = 16,
 kModernCustomDudeSpawn              = 24,
 kModernRandomTX                     = 25,
 kModernSequentialTX                 = 26,
 kModernSeqSpawner                   = 27,
-kModernObjPropChanger         		= 28,
-kModernObjPicChanger             	= 29,
+kModernObjPropertiesChanger         = 28,
+kModernObjPicnumChanger             = 29,
 kModernObjSizeChanger               = 31,
 kModernDudeTargetChanger            = 33,
-kModernSectFXChg	             	= 34,
+kModernSectorFXChanger              = 34,
 kModernObjDataChanger               = 35,
 kModernSpriteDamager                = 36,
-kModernObjDataAccum          		= 37,
+kModernObjDataAccumulator           = 37,
 kModernEffectSpawner                = 38,
 kModernWindGenerator                = 39,
 kModernRandom                       = 40,
 kModernRandom2                      = 80,
-kDudeModernCustom                   = 254,
+kItemModernMapLevel                 = 150,  // once picked up, draws whole minimap
+kDudeModernCustom                   = kDudeVanillaMax,
 kDudeModernCustomBurning            = 255,
-kGenModernMissileUniversal          = 704,
+kModernThingTNTProx                 = 433, // detects only players
+kModernThingThrowableRock           = 434, // does small damage if hits target
+kModernThingEnemyLifeLeech          = 435, // the same as normal, except it aims in specified target only
 kModernPlayerControl                = 500, /// WIP
 kModernCondition                    = 501, /// WIP, sends command only if specified conditions == true
 kModernConditionFalse               = 502, /// WIP, sends command only if specified conditions != true
-kGenModernSound						= kGenSound,
+kModernSlopeChanger                 = 504,
+kModernVelocityChanger              = 506,
+kGenModernMissileUniversal          = 704,
+kGenModernSound                     = 708,
 };
 
 // type of object
@@ -102,6 +227,21 @@ kRandomizeItem                      = 0,
 kRandomizeDude                      = 1,
 kRandomizeTX                        = 2,
 };
+
+struct SPRITEMASS
+{
+    int seqId;
+    short picnum; // mainly needs for moving debris
+    short xrepeat;
+    short yrepeat;
+    short clipdist; // mass multiplier
+    int mass;
+    short airVel; // mainly needs for moving debris
+    int fraction; // mainly needs for moving debris
+};
+
+
+extern SPRITEMASS gSpriteMass[kMaxXSprites];
 
 inline BOOL xspriRangeIsFine(int nXindex) {
     return (nXindex > 0 && nXindex < kMaxXSprites);
@@ -131,7 +271,7 @@ inline BOOL wallRangeIsFine(int nIndex) {
     return (nIndex >= 0 && nIndex < kMaxWalls);
 }
 
-BOOL modernTypeOperateSprite(int nSprite, spritetype* pSprite, XSPRITE* pXSprite, EVENT event);
+bool modernTypeOperateSprite(int nSprite, spritetype* pSprite, XSPRITE* pXSprite, EVENT event);
 BOOL modernTypeOperateWall(int nWall, walltype* pWall, XWALL* pXWall, EVENT event);
 BOOL modernTypeSetSpriteState(int nSprite, XSPRITE* pXSprite, int nState);
 void modernTypeSendCommand(int nSprite, int destChannel, COMMAND_ID command);
@@ -140,40 +280,45 @@ void nnExtResetGlobals();
 void nnExtInitModernStuff();
 void nnExtProcessSuperSprites();
 
-void useRandomItemGen(spritetype* pSource, XSPRITE* pXSource);
-void useRandomTx(spritetype* pSource, COMMAND_ID cmd, BOOL setState);
+void useRandomTx(XSPRITE* pXSource, COMMAND_ID cmd, bool setState);
+void useSequentialTx(XSPRITE* pXSource, COMMAND_ID cmd, bool setState);
+void useSpriteDamager(XSPRITE* pXSource, int objType, int objIndex);
+void useVelocityChanger(XSPRITE* pXSource, int causerID, short objType, int objIndex);
+void useSectorWindGen(XSPRITE* pXSource, sectortype* pSector);
 void useSoundGen(XSPRITE* pXSource, spritetype* pSprite);
-void useSequentialTx(spritetype* pSource, COMMAND_ID cmd, BOOL setState);
-void useSectorWindGen(spritetype* pSource, sectortype* pSector);
-void useSectorLigthChanger(spritetype* pSource, XSECTOR* pXSector);
-void usePictureChanger(spritetype* pSource, int objType, int objIndex);
-void useDataChanger(spritetype* pSource, int objType, int objIndex);
-void useIncDecGen(spritetype* pSource, int objType, int objIndex);
-void useObjResizer(spritetype* pSource, int objType, int objIndex);
-void usePropertiesChanger(spritetype* pSource, int objType, int objIndex);
-void useTeleportTarget(spritetype* pSource, spritetype* pSprite);
-void useSeqSpawnerGen(spritetype* pSource, int objType, int index);
-void useEffectGen(spritetype* pSource, spritetype* pSprite);
-void useUniMissileGen(spritetype* pSprite);
-void useSpriteDamager(spritetype* pSource, int objType, int objIndex);
+void useUniMissileGen(XSPRITE* pXSource, spritetype* pSprite);
+void usePropertiesChanger(XSPRITE* pXSource, short objType, int objIndex);
+void usePictureChanger(XSPRITE* pXSource, int objType, int objIndex);
+void useSectorLigthChanger(XSPRITE* pXSource, XSECTOR* pXSector);
+void useDataChanger(XSPRITE* pXSource, int objType, int objIndex);
+void useIncDecGen(XSPRITE* pXSource, short objType, int objIndex);
+void useObjResizer(XSPRITE* pXSource, short objType, int objIndex);
+void useSlopeChanger(XSPRITE* pXSource, int objType, int objIndex);
+void useEffectGen(XSPRITE* pXSource, spritetype* pSprite);
+void useSeqSpawnerGen(XSPRITE* pXSource, int objType, int index);
+void useTeleportTarget(XSPRITE* pXSource, spritetype* pSprite);
+void useRandomItemGen(spritetype* pSource, XSPRITE* pXSource);
+void useCustomDudeSpawn(XSPRITE* pXSource, spritetype* pSprite);
+void useDudeSpawn(XSPRITE* pXSource, spritetype* pSprite);
+
+
+bool incDecGoalValueIsReached(XSPRITE* pXSprite);
+void seqTxSendCmdAll(XSPRITE* pXSource, int nIndex, COMMAND_ID cmd, bool modernSend);
+void windGenStopWindOnSectors(XSPRITE* pXSource);
+void seqSpawnerOffSameTx(XSPRITE* pXSource);
+spritetype* randomSpawnDude(XSPRITE* pXSource, spritetype* pSprite, int a3, int a4);
+spritetype* nnExtSpawnDude(XSPRITE* pXSource, spritetype* pSprite, short nType, int a3, int a4);
 
 
 int getDataFieldOfObject(int objType, int objIndex, int dataIndex);
 BOOL setDataValueOfObject(int objType, int objIndex, int dataIndex, int value);
-BOOL incDecGoalValueIsReached(spritetype* pSprite);
-void seqTxSendCmdAll(spritetype* pSource, int nIndex, COMMAND_ID cmd, BOOL modernSend);
 spritetype* cdGetNextIncarnation(spritetype* pSprite);
 void cdTransform(spritetype* pSprite);
-spritetype* cdSpawn(spritetype* pSprite, int nDist);
+spritetype* cdSpawn(XSPRITE* pXSource, spritetype* pSprite, int nDist);
 void cdGetSeq(spritetype* pSprite);
 void callbackUniMissileBurst(int nSprite);
 void callbackMakeMissileBlocking(int nSprite);
 int GetDataVal(spritetype* pSprite, int data);
-spritetype* evrIsRedirector(int nSprite);
-spritetype* evrListRedirectors(int objType, int objXIndex, spritetype* pRedir, int* tx);
-int listTx(spritetype* pRedir, int tx);
-void seqSpawnerOffSameTx(spritetype* pSource);
-void windGenStopWindOnSectors(spritetype* pSource);
 void damageSprites(spritetype* pSource, spritetype* pSprite);
 spritetype* randomSpawnDude(spritetype* pSource);
 int randomGetDataValue(XSPRITE* pXSprite, int randType);
@@ -186,3 +331,18 @@ void sectorContinueMotion(int nSector, EVENT event);
 void sectorPauseMotion(int nSector);
 spritetype* randomDropPickupObject(spritetype* pSource, short prevItem);
 
+
+
+void debrisConcuss(int nOwner, int nDebris, int x, int y, int z, int dmg);
+void debrisBubble(int nSprite);
+void debrisMove(int listIndex);
+
+bool xsprIsFine(spritetype* pSpr);
+int getVelocityAngle(spritetype* pSpr);
+void changeSpriteAngle(spritetype* pSpr, int nAng);
+
+XSPRITE* evrListRedirectors(int objType, int objXIndex, XSPRITE* pXRedir, int* tx);
+XSPRITE* evrIsRedirector(int nSprite);
+int listTx(XSPRITE* pXRedir, int tx);
+void nnExtTriggerObject(int objType, int objIndex, int command);
+int getSpriteMassBySize(spritetype* pSprite);

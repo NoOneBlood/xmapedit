@@ -48,6 +48,7 @@ MOUSE_PREFS gMousePrefs;
 MOUSE_LOOK  gMouseLook;
 OBJECT_LOCK gObjectLock;
 PATHS gPaths;
+PLUPICKER gPluPrefs;
 ROTATION gRotateOpts;
 SCREEN gScreen;
 SOUND gSound;
@@ -373,11 +374,25 @@ void PATHS::InitMisc(IniFile* pIni, char* section)
 void PATHS::Save(IniFile* pIni, char* section)
 {
 	pIni->PutKeyString(section, "Map", maps);
-	//pIni->PutKeyString(section, "Palettes", palImport);
-	//pIni->PutKeyString(section, "Palookups", palPaint);
-	//pIni->PutKeyString(section, "Images", images);
-	//pIni->PutKeyString(section, "Prefabs", prefabs);
 }
+
+void PLUPICKER::Init(IniFile* pIni, char* section)
+{
+	classicWindow		= pIni->GetKeyBool(section, "ClassicWindow", 		FALSE);
+	reflectShade		= pIni->GetKeyBool(section, "ReflectShade", 		TRUE);
+	showAll				= pIni->GetKeyBool(section, "ShowAllPalookups", 	FALSE);
+	mostEfficentInTop	= pIni->GetKeyBool(section, "MostEfficicentInTop", 	TRUE);
+	
+}
+
+void PLUPICKER::Save(IniFile* pIni, char* section)
+{
+	pIni->PutKeyInt(section, "ClassicWindow", 			classicWindow);
+	pIni->PutKeyInt(section, "ReflectShade", 			reflectShade);
+	pIni->PutKeyInt(section, "ShowAllPalookups", 		showAll);
+	pIni->PutKeyInt(section, "MostEfficicentInTop", 	mostEfficentInTop);
+}
+
 
 void ROTATION::Init(IniFile* pIni, char* section)
 {
@@ -386,6 +401,11 @@ void ROTATION::Init(IniFile* pIni, char* section)
 
 void SCREEN::Init(IniFile* pIni, char* section)
 {
+	msgShowTotal				= 1;
+	msgShowCur					= 0;
+	msgFont						= 0;
+	msgTime						= 160;
+	
 	gGamma 						= ClipRange(pIni->GetKeyInt(section, "Gamma", 0), 0, gGammaLevels - 1);
 	xdim2d = xdimgame			= ClipLow(pIni->GetKeyInt(section, "Width", xdimgame), 640);
 	ydim2d = ydimgame			= ClipLow(pIni->GetKeyInt(section, "Height", ydimgame), 480);

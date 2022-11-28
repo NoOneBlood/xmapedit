@@ -39,16 +39,9 @@
 #define kBlinkOnTicks	60
 
 static int blinkClock = 0;
-
+Container* pRoot = NULL;
 Resource gGuiRes;
 QFONT* pFont;
-
-int QFNScaleTable[][5] = {
-	// ydim, xscale, yscale, xstep, ystep
-	{200, 0x10000,	0x10000, 0x10000, 0x10000},
-	{480, 0x10000,	0x10000, 0x10000, 0x10000},
-	
-};
 
 NAMED_TYPE gStdButtons[] = {
 	
@@ -62,6 +55,22 @@ BOOL cmpHotKey(char keyA, char keyB) {
 	
 	return (keyA && keyAsciiSH[keyB] == keyA);
 	
+}
+
+Widget* GetRoot(Widget* w)
+{
+	Widget* pW = w;
+	while( 1 )
+	{
+		Widget* pOwn = pW->owner;
+		if (pOwn == NULL)
+			break;
+		
+		pW = pOwn;
+	}
+	
+	
+	return pW;
 }
 
 void SetBlinkOn( void )
@@ -101,11 +110,11 @@ static void CenterLabel(int x, int y, char *s, int foreColor, QFONT* pFont = qFo
 void DrawBevel( int x0, int y0, int x1, int y1, int color1, int color2 )
 {
 	gfxSetColor(color1);
-	gfxHLine(y0, x0, x1 - 2);
-	gfxVLine(x0, y0 + 1, y1 - 2);
+	gfxHLine(y0, x0, x1 - 1);
+	gfxVLine(x0, y0 + 1, y1 - 1);
 	gfxSetColor(color2);
 	gfxHLine(y1 - 1, x0 + 1, x1 - 1);
-	gfxVLine(x1 - 1, y0 + 1, y1 - 2);
+	gfxVLine(x1 - 1, y0 + 1, y1 - 1);
 }
 
 
@@ -114,8 +123,8 @@ void DrawRect( int x0, int y0, int x1, int y1, int color )
 	gfxSetColor(color);
 	gfxHLine(y0, x0, x1 - 1);
 	gfxHLine(y1 - 1, x0, x1 - 1);
-	gfxVLine(x0, y0 + 1, y1 - 2);
-	gfxVLine(x1 - 1, y0 + 1, y1 - 2);
+	gfxVLine(x0, y0 + 1, y1 - 1);
+	gfxVLine(x1 - 1, y0 + 1, y1 - 1);
 }
 
 
@@ -130,7 +139,7 @@ void DrawButtonFace( int x0, int y0, int x1, int y1, BOOL pressed )
 		gfxVLine(x0, y0 + 1, y1 - 1);
 		gfxSetColor(gStdColor[24]);
 		gfxHLine(y0 + 1, x0 + 1, x1 - 1);
-		gfxVLine(x0 + 1, y0 + 2, y1 - 1);
+		gfxVLine(x0 + 1, y0 + 1, y1 - 1);
 		DrawBevel(x0 + 2, y0 + 2, x1, y1, gStdColor[19], gStdColor[22]);
 	}
 	else
@@ -556,6 +565,7 @@ void Container::Insert( Widget *widget )
 	widget->prev->next = widget;
 	widget->next->prev = widget;
 	widget->owner = this;
+	this->drag = NULL;
 }
 
 
@@ -578,34 +588,41 @@ void Container::Paint( int x, int y, BOOL /* hasFocus */ )
 
 void Container::HandleEvent( GEVENT *event )
 {
-	
 	if ( event->type & evMouse )
 	{
 		// make event relative to this container
 		event->mouse.x -= left;
 		event->mouse.y -= top;
 		
-
 		// find child owning location
-		if ( event->type == evMouseDown )
+		if (event->type == evMouseDown || drag == NULL)
 		{
+			
+			if (event->type == evMouseDown)
+				pRoot->ClearFocus();
 			
 			drag = NULL;
 			// iterate in reverse order since widgets on top have priority
 			for ( Widget *w = head.prev; w != &head; w = w->prev)
 			{
-				if ( w->Contains(event->mouse.x, event->mouse.y) )
+				if (w->Contains(event->mouse.x, event->mouse.y))
 				{
 					drag = w;
-					if (drag->canFocus)
-						focus = w;
-					break;
+					if (event->type == evMouseDown && drag->canFocus)
+					{
+						while(focus != w)
+							pRoot->SetFocus(1);
+						
+						break;
+					}
 				}
 			}
 		}
-
-		if (drag != NULL)
+	
+		if (drag && (event->type == evMouseDrag || drag->Contains(event->mouse.x, event->mouse.y)))
+		{
 			drag->HandleEvent(event);
+		}
 	}
 	else if ( event->type == evKeyDown )
 	{
@@ -615,7 +632,9 @@ void Container::HandleEvent( GEVENT *event )
 			{
 				if (w->hotKey && keyAsciiSH[event->key.make] == w->hotKey && w->canFocus )
 				{
-					focus = w;
+					while(focus != w)
+						pRoot->SetFocus(1);
+					
 					focus->HandleEvent(event);
 					return;
 				}
@@ -632,7 +651,9 @@ void Container::HandleEvent( GEVENT *event )
 				// set focus to the widget with the matching hot key
 				if (w->hotKey && keyAsciiSH[event->key.make] == w->hotKey && w->canFocus )
 				{
-					focus = w;
+					while(focus != w)
+						pRoot->SetFocus(1);
+					
 					focus->HandleEvent(event);
 					return;
 				}
@@ -862,10 +883,10 @@ TextButton::TextButton( int left, int top, int width, int height, char *text, CL
 void TextButton::Paint( int x, int y, BOOL hasFocus )
 {
 	gfxSetColor(gStdColor[0]);
-	gfxHLine(y + 1, x + 2, x + width - 3);
-	gfxHLine(y + height - 2, x + 2, x + width - 3);
+	gfxHLine(y + 1, x + 2, x + width - 2);
+	gfxHLine(y + height - 2, x + 2, x + width - 2);
 	gfxVLine(x + 1, y + 2, y + height - 3);
-	gfxVLine(x + width - 2, y + 2, y + height - 3);
+	gfxVLine(x + width - 2, y + 2, y + height - 2);
 
 	if (hasFocus)
 	{
@@ -908,8 +929,8 @@ Checkbox::Checkbox(int left, int top, BOOL value, char* l) : Widget(left, top, 0
 	
 	if (l)
 	{
-		strcpy(label, l);
-		width+=gfxGetLabelLen(l, pFont);
+		if (strcpy(label, l) > 0)
+			width+=(kCBLabelPad+gfxGetLabelLen(l, pFont));
 	}
 	hotKey		= GetHotKey(label);
 }
@@ -926,8 +947,8 @@ Checkbox::Checkbox(int left, int top, BOOL value, char* l, int rslt) : Widget(le
 	
 	if (l)
 	{
-		strcpy(label, l);
-		width+=gfxGetLabelLen(l, pFont);
+		if (strcpy(label, l) > 0)
+			width+=(kCBLabelPad+gfxGetLabelLen(l, pFont));
 	}
 	
 	hotKey		= GetHotKey(label);
@@ -1272,7 +1293,7 @@ int TextArea::GetLineByPos(int pos)
 
 void TextArea::Paint( int x, int y, BOOL hasFocus )
 {
-	scrDisplayMessage(kColorWhite);
+	scrDisplayMessage();
 	char* txt;
 	int i, lst = 0, tx = x + 3, ty = y + 3, fh = pFont->height;
 	
@@ -1410,6 +1431,224 @@ void TextArea::HandleEvent( GEVENT *event )
 		}
 		SetBlinkOn();
 	}
+}
+
+PluPick::PluPick(int left, int top, int width, int height, PLUPICK_PREFS* pArg) : Widget(left, top, width, height)
+{
+	this->pPrefs 	= pArg;
+	
+	this->canFocus 	= TRUE;
+	this->nCursor 	= 0;
+	this->nStart	= 0;
+	this->nCols		= pPrefs->nCols;
+	this->nRows		= pPrefs->nRows;
+	this->value		= pPrefs->nPlu;
+	
+	this->colWh = width / pPrefs->nCols;
+	this->colHg = height / pPrefs->nRows;
+	
+	SetCursor(this->value);
+}
+
+char perc2clr(int nPerc)
+{
+	char nColor;
+	//if (nPerc >= 90)		nColor = kColorLightGreen;
+	if (nPerc >= 80)		nColor = kColorGreen;
+	//else if (nPerc >= 70)	nColor = kColorLightBlue;
+	else if (nPerc >= 60)	nColor = kColorBlue;
+	//else if (nPerc >= 50)	nColor = kColorLightCyan;
+	else if (nPerc >= 40)	nColor = kColorCyan;
+	//else if (nPerc >= 30)	nColor = kColorLightRed;
+	else if (nPerc >= 20)	nColor = kColorRed;
+	else if (nPerc >= 10)	nColor = 28;
+	else					nColor = kColorBlack;
+	
+	return nColor;
+}
+
+void PluPick::Paint( int x, int y, BOOL hasFocus )
+{
+	#define kTileSize			88
+	#define kPad1				4
+	
+	char nColor;
+	int colWhRem, 	colHgRem;
+	int i, j, k, t;
+	int curPlu, tx, ty;
+	int tsz, twh, thg;
+	
+	
+	int wh, hg;
+	int dx  = x;
+	int dy  = y;
+	wh = width;
+	hg = height;
+	
+	tsz = perc2val((colWh < colHg) ? colWh : colHg, kTileSize);
+	tileDrawGetSize(pPrefs->nTile, tsz, &twh, &thg);
+	
+	gfxSetColor(clr2std(26));
+	gfxFillBox(dx, dy, dx+wh, dy+hg);
+	
+	colHgRem = hg % nRows;
+	for (i = 0, k = 0; i < nRows; i++)
+	{
+		dx = x;
+		gfxSetColor(clr2std(kColorBlack));
+		gfxHLine(dy, dx, dx+wh-1);
+		
+		colWhRem = wh % nCols;
+		for (j = 0; j < nCols; j++, k++)
+		{
+			gfxSetColor(clr2std(kColorBlack));
+			gfxVLine(dx, dy, dy + colHg);
+			
+			if ((curPlu = nStart + k) < pPrefs->pluCnt)
+			{
+				int cs;
+				PLUINFO* pPlu = &pPrefs->pluInfo[curPlu];
+				QFONT* pFont = qFonts[1];
+
+				sprintf(buffer, "ID %d", pPlu->id);
+				tx = dx + ((colWh>>1)-(twh>>1));	ty = dy + ((colHg>>1)-(thg>>1));
+				tileDrawTile(tx, ty, pPrefs->nTile, tsz, pPlu->id, 0x02, pPrefs->nShade);
+				
+				tx = dx + perc2val(6, colWh);	ty = dy + perc2val(6, colHg);
+				gfxPrinTextShadow(tx, ty, clr2std((pPlu->id == pPrefs->nPlu) ? kColorLightMagenta : kColorYellow), buffer, pFont);
+				
+				switch (pPlu->id) {
+					case kPlu0:
+						sprintf(buffer, "normal");
+						nColor = kColorMagenta;
+						break;
+					case kPlu1:
+						sprintf(buffer, "fog");
+						nColor = kColorLightGray;
+						break;
+					default:
+						sprintf(buffer, "%d%% alt", pPlu->efficency);
+						nColor = perc2clr(pPlu->efficency);
+						break;
+				}
+							
+				pFont = qFonts[3];
+				cs = pFont->charSpace;
+				pFont->charSpace = 3;
+				
+				if ((t = gfxGetTextLen(strupr(buffer), pFont)) < colWh)
+				{
+					gfxSetColor(clr2std(nColor));
+					int x1 = dx + ((colWh>>1)-(tsz>>1)),					x2 = x1 + tsz;
+					int y1 = dy + colHg - pFont->height - (kPad1<<1),		y2 = y1 + pFont->height + kPad1;
+					
+					gfxFillBox(x1, y1, x2, y2);
+					tx = x1 + ((x2-x1)>>1)-(t>>1);		 ty = y1 + ((y2-y1)>>1) - (pFont->height>>1);
+					gfxPrinTextShadow(tx, ty, clr2std(kColorYellow), buffer, pFont);
+				}
+					
+				pFont->charSpace = cs;
+
+				if (curPlu == nCursor)
+					DrawRect(dx+1, dy+1, dx+colWh-1, dy+colHg-1, (hasFocus) ? fade() : clr2std(22));
+			}
+				
+			dx+=colWh;
+			if (--colWhRem >= 0)
+				dx++;
+		}
+		
+		dy+=colHg;
+		if (--colHgRem >= 0)
+			dy++;
+	}
+	
+	DrawRect(x, y, x+wh, y+hg, clr2std(kColorBlack));
+}
+
+void PluPick::HandleEvent( GEVENT *event )
+{
+	Container* pCont = (Container*)owner;
+	Widget* pFocus = pCont->focus;
+	if (pFocus != this)
+		return;
+	
+	
+	if (event->type & evMouse)
+	{
+		if ((event->type == evMouseMove) || (event->type == evMouseUp && event->mouse.button == 0))
+		{		
+			if (event->mouse.wheel > 0)
+				nStart = ClipHigh(nStart + nCols, pPrefs->pluCnt-1);
+			else if (event->mouse.wheel < 0)
+				nStart = ClipLow(nStart - nCols, 0);
+			
+			int t = ClipLow(nCols*nRows - 1, 0);
+			int nCol = ClipRange(event->mouse.x/colWh, 0, nCols-1);
+			int nRow = ClipRange(event->mouse.y/colHg, 0, nRows-1);
+			nCursor = ClipRange((nRow*nCols) + nStart + nCol, nStart, pPrefs->pluCnt);
+			if (event->type == evMouseUp && nCursor < pPrefs->pluCnt)
+			{
+				value = pPrefs->pluInfo[nCursor].id + mrUser;
+				EndModal(value);
+			}
+		}
+		
+		event->Clear();
+	}
+	else if (event->type == evKeyDown)
+	{
+		BYTE key = event->key.make;
+		
+		switch (key) {
+			case KEY_UP:
+				if (nCursor - nCols >= 0) nCursor -= nCols;
+				event->Clear();
+				break;
+			case KEY_DOWN:
+				if (nCursor + nCols < pPrefs->pluCnt) nCursor += nCols;
+				event->Clear();
+				break;
+			case KEY_LEFT:
+				if (nCols < 1) break;
+				else if (nCursor - 1 >= 0) nCursor--;
+				event->Clear();
+				break;
+			case KEY_RIGHT:
+				if (nCols < 1) break;
+				else if (nCursor + 1 < pPrefs->pluCnt) nCursor++;
+				event->Clear();
+				break;
+		}
+				
+		ClipStart();
+	
+	}
+}
+
+void PluPick::SetCursor(int nPlu)
+{
+	int i = pPrefs->pluCnt;
+	while(--i >= 0)
+	{
+		if (pPrefs->pluInfo[i].id == nPlu)
+		{
+			nCursor = i;
+			break;
+		}
+	}
+	
+	ClipStart();
+}
+
+void PluPick::ClipStart()
+{
+	if (nCursor < 0)
+		nCursor = ClipLow(nCols - abs(nCursor), 0);
+	
+	while (nCursor < nStart) nStart -= nCols;
+	while (nStart + nRows * nCols <= nCursor)
+		nStart += nCols;
 }
 
 EditText::EditText( int left, int top, int width, int height, char *s, int flags) : Widget(left, top, width, height)
@@ -1607,12 +1846,11 @@ GEVENT_TYPE GetEvent( GEVENT *event )
 
 	if ( (key = keyGet()) != 0 )
 	{
-		
 		if ( key == KEY_ESC )
 			keystatus[KEY_ESC] = 0;	// some of Ken's stuff still checks this!
 		
-		if (!gMouse.buttons) {
-
+		if (!gMouse.buttons)
+		{
 			if ( keystatus[KEY_LSHIFT] )
 				event->key.lshift = 1;
 			if ( keystatus[KEY_RSHIFT] )
@@ -1647,11 +1885,18 @@ GEVENT_TYPE GetEvent( GEVENT *event )
 		}
 	}
 
-	event->mouse.dx = gMouse.dX1;
-	event->mouse.dy = gMouse.dY1;
-	event->mouse.x  = gMouse.X;
-	event->mouse.y  = gMouse.Y;
+	event->mouse.dx		= gMouse.dX1;
+	event->mouse.dy		= gMouse.dY1;
+	event->mouse.x		= gMouse.X;
+	event->mouse.y		= gMouse.Y;
+	event->mouse.wheel	= gMouse.wheel;
 
+	if (gMouse.Moved())
+		event->type = evMouseMove;
+	
+	if (event->mouse.wheel)
+		event->type = evMouseMove;
+	
 	// which buttons just got pressed?
 	newbuttons = (BYTE)(~oldbuttons & gMouse.buttons);
 
@@ -1701,7 +1946,8 @@ GEVENT_TYPE GetEvent( GEVENT *event )
 			}
 		}
 	}
-	return evNone;
+	
+	return event->type;
 }
 
 char* fixFonts[] = {
@@ -1764,17 +2010,7 @@ void GUIInit() {
 	for (i = 0; i < LENGTH(qFonts); i++)
 		if (!qFonts[i]) qFonts[i] = pFont;
 	
-	// we need this table for VCOLOR fonts
-	for (i = LENGTH(QFNScaleTable) - 1; i >=0; i--)
-	{
-		if (ydim < QFNScaleTable[i][0]) continue;
-		xscale = QFNScaleTable[i][1];
-		yscale = QFNScaleTable[i][2];
-		xstep  = QFNScaleTable[i][3];
-		ystep  = QFNScaleTable[i][4];
-		break;
-	}
-	
+
 	// load various GUI images
 	for (i = 0; i < LENGTH(pBitmaps); i++)
 	{
@@ -1796,9 +2032,11 @@ void GUIInit() {
 		}
 		else if ((hRes = gGuiRes.Lookup(i, "RFN")) != NULL)
 		{
+			memset(temp, 0, sizeof(temp));
 			strncpy(temp, hRes->name, 5);
 			pRFont->wh = enumStrGetInt(0, temp, 'X'); // get width from name
 			pRFont->hg = enumStrGetInt(1, NULL, 'X'); // get height from name
+			
 			if (pRFont->wh && pRFont->hg)
 			{
 				pRFont->data = (BYTE*)gGuiRes.Lock(hRes);
@@ -1815,9 +2053,11 @@ int ShowModal(Container *dialog, int flags)
 	MOUSE mouse = gMouse;
 	gMouse.ChangeCursor(kBitmapMouseCursor);
 	gMouse.RangeSet(0, 0, xdim, ydim);
+	gMouse.wheelDelay = 16;
 	
 	Container desktop(0, 0, xdim, ydim);
 	desktop.Insert(dialog);
+	pRoot = &desktop;
 	
 	if (!(flags & kModalNoCenter))
 	{
@@ -1832,7 +2072,9 @@ int ShowModal(Container *dialog, int flags)
 
 	int saveSize = bytesperline * ydim;
 	BYTE *saveUnder = (BYTE *)Resource::Alloc(saveSize);
-
+	
+	if (flags & kModalFadeScreen)
+		drawHighlight(0, 0, xdim, ydim, gStdColor[0]);
 
 	// copy save under from last displayed page
 #if USE_POLYMOST
@@ -1849,9 +2091,6 @@ int ShowModal(Container *dialog, int flags)
 	{
 		updateClocks();
 		UpdateBlinkClock(gFrameTicks);
-		if (flags & kModalFadeScreen)
-			drawHighlight(0, 0, xdim, ydim, gStdColor[0]);
-		
 		OSD_Draw();
 		
 		gMouse.Read();
@@ -1874,7 +2113,7 @@ int ShowModal(Container *dialog, int flags)
 					continue;
 			}
 		}
-
+		
 		desktop.HandleEvent(&event);
 		desktop.Paint(0, 0, FALSE);
 		gMouse.Draw();

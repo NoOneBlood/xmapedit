@@ -58,9 +58,10 @@ IniFile* gHints = NULL;
 
 char h = 0;
 BYTE key, ctrl, alt, shift;
-int gHighSpr = -1, gHovSpr = -1;
+short gHighSpr = -1, gHovSpr = -1;
+short gHovWall = -1, gHovStat = -1;
 int bpsx, bpsy, bpsz, bang, bhorz;
-int bsrcwall, bsrcsector, bsrcstat, bsrchit;
+//int bsrcwall, bsrcsector, bsrcstat, bsrchit;
 
 short temptype = 0, tempslope = 0, tempidx = -1, spriteNamesLength = 0;
 char tempvisibility = 0;
@@ -186,15 +187,15 @@ NAMED_XOBJECT spriteNames[] = {
 	MO, kModernSpriteDamager,		NULL,				"Damager",						{"TargetID", "DamageType", "Damage", NULL},
 	MO,	kGenMissileEctoSkull,		NULL,				"Missile Gen", 					{"Missile", sharedTxt[24], "Slope", "Burst time"},
 	MO,	kModernPlayerControl,		"Player Ctrl",		"Player Control",				{sharedTxt[0],  sharedTxt[47], sharedTxt[47], sharedTxt[47]},
-	MO, kModernObjPropChanger,		"CHG Properties",	"Properties Changer",			{sharedTxt[37], sharedTxt[38], sharedTxt[39], sharedTxt[40]},
+	MO, kModernObjPropertiesChanger,"CHG Properties",	"Properties Changer",			{sharedTxt[37], sharedTxt[38], sharedTxt[39], sharedTxt[40]},
 	MO, kModernObjDataChanger,		"CHG Data",			"Data Changer",					{"New data1", "New data2", "New data3", "New data4"},
-	MO,	kModernObjDataAccum,		NULL,				"Inc - Dec",					{"For data", "Start", "End", "Step" },
-	MO, kModernObjPicChanger,		"CHG Picture",		"Picture Changer",				{sharedTxt[37], sharedTxt[38], sharedTxt[39], sharedTxt[40]},
-	MO, kModernSectFXChg,			"Sector Lighting",	"Sector Lighting Changer", 		{"FX Wave", "Amplitude", "Frequency", "Phase"},
+	MO,	kModernObjDataAccumulator,	NULL,				"Inc - Dec",					{"For data", "Start", "End", "Step" },
+	MO, kModernObjPicnumChanger,	"CHG Picture",		"Picture Changer",				{sharedTxt[37], sharedTxt[38], sharedTxt[39], sharedTxt[40]},
+	MO, kModernSectorFXChanger,		"Sector Lighting",	"Sector Lighting Changer", 		{"FX Wave", "Amplitude", "Frequency", "Phase"},
 	MO, kModernEffectSpawner,		NULL,				"Effect Gen",					{sharedTxt[9], "Effect", "Range", sharedTxt[36]},
 	MO,	kModernWindGenerator,		"Wind Gen",			"Sector Wind Gen",				{"Randomness",	sharedTxt[24], "Enable pan", NULL},
 	MO,	kModernCondition,			NULL,				"IF",							{sharedTxt[43], sharedTxt[44], sharedTxt[45], sharedTxt[46]},
-	MO,	kModernConditionFalse,		NULL,				"!IF",							{sharedTxt[43], sharedTxt[44], sharedTxt[45], sharedTxt[46]},
+	MO,	kModernConditionFalse,		NULL,				"IF NOT",						{sharedTxt[43], sharedTxt[44], sharedTxt[45], sharedTxt[46]},
 	MO, kModernRandomTX,			NULL,				"RandomTX",						{sharedTxt[31], sharedTxt[32], sharedTxt[33], sharedTxt[34]},
 	MO, kModernSequentialTX,		"Seq TX",			"SequentialTX",					{sharedTxt[31], sharedTxt[32], sharedTxt[33], sharedTxt[34]},
 	MO, 504,						"CHG Slope",		"Slope Changer",				{"Where", "Slope", NULL, NULL},
@@ -401,7 +402,7 @@ char* gBoolNames[2] = {
 
 };
 
-char* _fastcall onOff(int var) {
+char* onOff(int var) {
 
 	return gBoolNames[(var) ? 1 : 0];
 
@@ -415,7 +416,7 @@ char* gIsNotNames[2] = {
 
 };
 
-char* _fastcall isNot(int var) {
+char* isNot(int var) {
 
 	return gIsNotNames[(var) ? 1 : 0];
 
@@ -428,7 +429,7 @@ char* gYesNoNames[2] = {
 
 };
 
-char* _fastcall yesNo(int var) {
+char* yesNo(int var) {
 
 	return gYesNoNames[(var) ? 1 : 0];
 
@@ -836,12 +837,11 @@ char *ExtGetSpriteCaption( short nSprite ) {
 			break;
 		case kModernCondition:
 		case kModernConditionFalse:
-			if (pXSprite->busyTime > 0) {
-
+			if (pXSprite->busyTime > 0)
+			{
 				sprintf(name, "LOOP");
 				if (nType == kModernConditionFalse)
 					strcat(name, " NOT");
-
 			}
 /* 			if (pXSprite->data1 > 0) {
 
@@ -871,7 +871,7 @@ char *ExtGetSpriteCaption( short nSprite ) {
 
 			} */
 			break;
-		case kModernObjDataAccum:
+		case kModernObjDataAccumulator:
 			if (pXSprite->data2 < pXSprite->data3) sprintf(name, "INC");
 			else if (pXSprite->data2 > pXSprite->data3) sprintf(name, "DEC");
 			break;
@@ -928,11 +928,23 @@ char *ExtGetSpriteCaption( short nSprite ) {
 	}
 
 	sprintf(to, "%s%s%s", rx, (!midl[0]) ? name : midl, tx);
-	if (nType >= kSwitchBase && nType < kSwitchMax) {
+	if (rngok(nType, kSwitchBase, kSwitchMax))
+	{
 		strcat(to, " ");
 		strcat(to, gBoolNames[pXSprite->state]);
 	}
-
+	
+	if (gPreviewMode)
+	{
+		if (rngok(nType, kModernCondition, kModernConditionFalse))
+		{
+			if (!pXSprite->state)
+			{
+				strcat(to, " [!]");
+			}
+		}
+	}
+	
 	return to;
 
 }
@@ -1061,8 +1073,12 @@ void process3DMode() {
 		keyClear();
 		return;
 	}
-
-	gHovSpr = (searchstat == OBJ_SPRITE) ? searchwall : -1;
+	
+	gHovStat = searchstat;
+	gHovSpr = (gHovStat == OBJ_SPRITE) ? searchwall : -1;
+	if (gHovStat == OBJ_MASKED)		gHovWall = searchwall;
+	else if (gHovStat == OBJ_WALL)	gHovWall = searchwall2;
+	else							gHovWall = -1;
 }
 
 /***********************************************************************
@@ -1163,7 +1179,7 @@ void ExtCheckKeys( void )
 			CleanUp();
 		}
 
-		int dy = (totalclock < messageTime + 120) ? 14 : 4;
+		int dy = (totalclock < gScreen.msg[0].time) ? 14 : 4;
 		if (hgltShowStatus(4, dy))
 			dy+=14;
 
@@ -1200,7 +1216,7 @@ void ExtCheckKeys( void )
 	}
 	
 	CalcFrameRate();
-	scrDisplayMessage(kColorWhite);
+	scrDisplayMessage();
 
 	if (qsetmode == 200)
 	{
@@ -1423,6 +1439,7 @@ int ExtInit(int argc, char const * const argv[])
 	gPreview.Init(MapEditINI,				"PreviewMode");
 	gHudPrefs.Init(MapEditINI,				"HUD");
 	gCmtPrefs.Init(MapEditINI,				"Comments");
+	gPluPrefs.Init(MapEditINI,				"PalookupViewer");
 	// ---------------------------------------------------------------------------
 	// initialize ART related stuff
 	buildprintf("Initialising tiles...\n");
@@ -1577,6 +1594,7 @@ void ExtUnInit(void)
 	{	
 		gMisc.Save(MapEditINI, 			"General");
 		gTileView.Save(MapEditINI,		"TileViewer");
+		gPluPrefs.Save(MapEditINI,		"PalookupViewer");
 		gAutoGrid.Save(MapEditINI, 		"AutoGrid");
 		gMouseLook.Save(MapEditINI, 	"MouseLook");
 		gPreview.Save(MapEditINI, 		"PreviewMode");
@@ -1702,6 +1720,40 @@ BOOL processKeysShared() {
 	
 	switch (key) {
 		default: return FALSE;
+/* 		case KEY_3:
+		{
+			if (!isSearchSector())
+			{
+				BeepFail();
+				break;
+			}
+			
+			sectortype* pNeigh;
+			sectortype* pSect = &sector[searchindex];
+			XSECTOR* pXSect = &xsector[GetXSector(searchindex)];
+			pSect->type = kSectorZMotion;
+			
+			int nOffset = 0;
+			int nDoorType = 0;
+			int nVel = 10;
+			int nWait = 0;
+			
+			switch(nDoorType) {
+				case 0:
+					pXSect->offFloorZ = pSect->floorz;
+					pXSect->onFloorZ = pSect->floorz;
+					pXSect->offCeilZ = pSect->floorz;
+					pXSect->onCeilZ = pSect->ceilingz;
+					pXSect->busyTimeA = nVel;
+					pXSect->state = 0;
+					break;
+				
+			}
+			
+			BeepOk();
+			
+		}
+		break; */
 		case KEY_F11:
 			if (!alt) return FALSE;
 			while( 1 )
@@ -1844,20 +1896,9 @@ BOOL processKeysShared() {
 				BeepFail();
 				break;
 			}
-			switch(searchstat) {
-				case OBJ_SPRITE:
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					i = searchwall;
-					break;
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-				case OBJ_SECTOR:
-					i = searchsector;
-					break;
-			}
-			if (shift) i = xsysConnect2(somethingintab, tempidx, searchstat, i);
-			else i = xsysConnect(somethingintab, tempidx, searchstat, i);
+
+			if (shift) i = xsysConnect2(somethingintab, tempidx, searchstat, searchindex);
+			else i = xsysConnect(somethingintab, tempidx, searchstat, searchindex);
 			if (!Beep(i == 0)) break;
 			scrSetMessage("Objects connected.");
 			CleanUpMisc();
@@ -2431,7 +2472,7 @@ BOOL processKeysShared() {
 			}
 			break;
 		case KEY_M:
-			if (type != 100) break;
+			//if (type != 100) break;
 			if (searchwall < 0 || (i = wall[searchwall].nextwall) < 0)
 			{
 				BeepFail();
@@ -3104,7 +3145,22 @@ void processMove() {
 	int i, hit, px = posx, py = posy, pz = posz, xvect = 0, yvect = 0;
 	keyGetHelper(NULL, &ctrl, &shift, &alt);
 	
-	if (keystatus[KEY_UP])
+	if (!in2d && (gMouse.hold & 2) && gMouse.wheel)
+	{
+		if (zmode == 0)
+			zmode = 3;
+		
+		if (gMouse.wheel < 0)
+		{
+			posz = posz - (kVelStep1<<6) * gFrameTicks;
+		}
+		else if (gMouse.wheel > 0)
+		{
+			posz = posz + (kVelStep1<<6) * gFrameTicks;
+			
+		}
+	}
+	else if (keystatus[KEY_UP])
 		vel = min(vel + kVelStep1 * gFrameTicks, 127);
 	else if (keystatus[KEY_DOWN])
 		vel = max(vel - kVelStep1 * gFrameTicks, -128);
@@ -3434,7 +3490,7 @@ void processMove() {
 		{
 			BOOL water = isUnderwaterSector(cursectnum);
 			if (!water && gMisc.palette != kPal0) gMisc.palette = kPal0;
-			else if (water)
+			else if (water && gMisc.palette == kPal0)
 				gMisc.palette = kPal1;
 			
 			if (omedium != gMisc.palette)

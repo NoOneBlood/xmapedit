@@ -313,4 +313,5 @@ BOOL  MOUSE::Moved(char which)
 {
 	if (which & 0x01) return dX2;
 	if (which & 0x02) return dY2;
+	return FALSE;
 }

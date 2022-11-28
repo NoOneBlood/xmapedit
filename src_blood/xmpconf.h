@@ -237,14 +237,36 @@ class PATHS {
 	void Save(IniFile* pIni, char* section);
 };
 
+class PLUPICKER
+{
+	public:
+	unsigned int classicWindow		: 1;
+	unsigned int reflectShade		: 1;
+	unsigned int mostEfficentInTop	: 1;
+	unsigned int showAll			: 1;
+	void Init(IniFile* pIni, char* section);
+	void Save(IniFile* pIni, char* section);
+};
+
 class ROTATION {
 	public:
 	int chgMarkerAng		: 3; // allow: 1 path markers 2 sector markers
 	void Init(IniFile* pIni, char* section);
 };
 
+struct SCRMESSAGE
+{
+	uint32_t time;
+	char text[256];
+};
+
 class SCREEN {
 	public:
+	SCRMESSAGE msg[16];
+	unsigned int msgShowTotal	: 8;
+	unsigned int msgShowCur		: 8;
+	unsigned int msgFont		: 8;
+	unsigned int msgTime		: 32;
 	void Init(IniFile* pIni, char* section);
 	void Save(IniFile* pIni, char* section);
 };
@@ -305,6 +327,7 @@ extern MOUSE_PREFS gMousePrefs;
 extern MOUSE_LOOK  gMouseLook;
 extern OBJECT_LOCK gObjectLock;
 extern PATHS gPaths;
+extern PLUPICKER gPluPrefs;
 extern ROTATION gRotateOpts;
 extern SCREEN gScreen;
 extern SOUND gSound;

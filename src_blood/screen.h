@@ -24,16 +24,15 @@
 #pragma once
 
 #pragma pack(push, 1)
-struct RGB {
+struct RGB
+{
     unsigned char r, g, b;
 };
 
-#pragma pack(pop)
 
+#pragma pack(pop)
 typedef RGB PALETTE[256];
 extern PALETTE gamepal;
-extern char message[256];
-extern int messageTime;
 extern RGB *palTable[5];
 
 extern bool DacInvalid;
@@ -48,7 +47,7 @@ void gSetDacRange(int start, int end, RGB *pPal);
 void scrLoadPLUs(void);
 void scrLoadPalette(void);
 void scrSetMessage(char *__format, ...);
-void scrDisplayMessage(int a1);
+void scrDisplayMessage();
 void scrSetPalette(int palId, bool updDac = true);
 void scrSetGamma(int nGamma);
 void scrSetupFade(char red, char green, char blue);

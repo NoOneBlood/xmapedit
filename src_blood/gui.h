@@ -34,7 +34,6 @@
 #define kColorHighlight		gStdColor[16]
 #define kColorShadow		gStdColor[24]
 
-
 struct NAMED_TYPE;
 extern QFONT* pFont;
 
@@ -57,6 +56,8 @@ enum GEVENT_TYPE {
 	evMouseUp		= 0x02,
 	evMouseRepeat	= 0x04,
 	evMouseDrag		= 0x08,
+	evMouseMove		= 0x10,
+	evMouseWheel	= 0x20,
 	evMouse			= 0xFF,
 
 	evKeyDown		= 0x100,
@@ -75,6 +76,7 @@ struct MOUSE_GEVENT
 	int button;
 	int x, y;
 	int dx, dy;
+	signed int wheel	: 3;
 	BOOL doubleClick;
 };
 
@@ -138,7 +140,7 @@ class Widget
 		int type, left, top, width, height;
 		BOOL canFocus, canDefault, isContainer;
 		BOOL Contains(int x, int y)
-			{ return x >= left && y >= top && x < left + width && y < top + height; }
+			{ return x > left && y > top && x < left + width && y < top + height; }
 		Widget *prev, *next, *owner; char hotKey;
 		Widget( int left, int top, int width, int height ) :
 			left(left), top(top), width(width), height(height), canFocus(FALSE), canDefault(FALSE),
@@ -433,6 +435,43 @@ public:
 	BitButton(int left, int top, int width, int height, RESHANDLE hBitmap, CLICK_PROC clickProc) :
 	Button(left, top, width, height, clickProc), hBitmap(hBitmap) {};
 	virtual void Paint( int x, int y, BOOL hasFocus );
+};
+
+struct PLUINFO
+{
+	unsigned int id				: 8;
+	unsigned int efficency		: 7;
+	unsigned int pixelsAltered	: 16;
+	unsigned int pixelsTotal	: 16;
+};
+
+struct PLUPICK_PREFS
+{
+	unsigned int nTile			: 16;
+	signed   int nShade			: 10;
+	unsigned int nPlu			: 8;
+	PLUINFO* pluInfo;
+	unsigned int pluCnt			: 10;
+	unsigned int nCols			: 10;
+	unsigned int nRows			: 10;
+};
+
+class PluPick : public Widget
+{
+public:
+	unsigned int nRows			: 10;
+	unsigned int colHg			: 16;
+	unsigned int nCols			: 10;
+	unsigned int colWh			: 16;
+	signed   int nStart			: 10;
+	signed   int nCursor		: 10;
+	unsigned int value			: 10;
+	PLUPICK_PREFS* pPrefs;
+	PluPick(int left, int top, int width, int height, PLUPICK_PREFS* pPrefs);
+	virtual void Paint(int x, int y, BOOL hasFocus);
+	virtual void HandleEvent(GEVENT *event);
+	void SetCursor(int nValue);
+	void ClipStart();
 };
 
 class EditText : public Widget

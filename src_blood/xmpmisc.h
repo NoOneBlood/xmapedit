@@ -191,12 +191,12 @@ BOOL isModernMap();
 void avePointSector(int nSector, int *x, int *y);
 int getDataOf(BYTE idata, short objType, short objIndex);
 int getClosestId(int nId, int nMaxId, char* nType, BOOL dir);
-void clampSprite(spritetype* pSprite);
+void clampSprite(spritetype* pSprite, int which = 0x03);
 void clampSpriteZ(spritetype* pSprite, int z, int which);
 void clampCamera();
 BOOL obsoleteXObject(int otype, int oxindex);
-char getPLU(int nTile, char* nPlu, BOOL dir, int minPerc = 0);
-int isEffectivePLU(int nTile, BYTE* plu, int* changed = NULL, int* total = NULL);
+char nextEffectivePlu(int nTile, signed char nShade, unsigned char nPlu, BOOL dir, int minPerc = 0);
+int isEffectivePLU(int nTile, BYTE* pDestPlu, signed char nShade = 0, BYTE* pNormPlu = palookup[kPlu0], int* changed = NULL, int* total = NULL);
 short name2TypeId(char defName[256]);
 void eraseExtra();
 BOOL objectLockShowStatus(int x, int y);
@@ -276,6 +276,15 @@ BOOL isUnderwaterSector(int nSector);
 int formatMapInfo(char* str);
 
 int collectObjectsByChannel(int nChannel, BOOL rx, OBJECT_LIST* pOut = NULL, char flags = 0x0);
+int pluPick(int nTile, int nShade, int nPlu, char* titleArg);
+int pluPickAdvanced(int nTile, int nShade, int nPlu, char* titleArg);
+int pluPickClassic(int nTile, int nShade, int nPlu, char* titleArg);
+
+void setPluOf(int nPlu, int oType, int oIdx);
+int getPluOf(int oType, int oIdx);
+int getPicOf(int oType, int oIdx);
+int getShadeOf(int oType, int oIdx);
+BOOL isSearchSector();
 
 //void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1);
 //BOOL ss2obj(int* objType, int* objIdx, BOOL asIs = FALSE);

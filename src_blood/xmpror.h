@@ -31,17 +31,26 @@
 #define kMaxROR 16
 #define kMirrorPic 504
 
+struct MIRROR
+{
+	unsigned int type		: 3;
+	unsigned int id			: 16;
+	unsigned int basePic	: 16;
+	POINT3D point;
+};
+extern MIRROR mirror[kMaxROR];
+extern short mirrorcnt;
 
 void InitMirrors(void);
-bool  _fastcall DrawMirrors(int x, int y, int z, int a, int horiz);
-char  _fastcall IsRorSector(int nSect, int stat);
-bool  _fastcall IsLinkCorrect(spritetype* pSpr);
-bool  _fastcall IsMirrorPic(int nPic);
+bool DrawMirrors(int x, int y, int z, int a, int horiz);
+char IsRorSector(int nSect, int stat);
+bool IsLinkCorrect(spritetype* pSpr);
+bool IsMirrorPic(int nPic);
 void RestoreMirrorPic();
 void ClearMirrorPic();
 //---------------------------------------------------
 void warpInit(void);
-int _fastcall CheckLink(spritetype *pSprite);
-int _fastcall CheckLink(int *x, int *y, int *z, int *nSector);
-int _fastcall CheckLinkCamera(int *x, int *y, int *z, int *nSector);
+int CheckLink(spritetype *pSprite);
+int CheckLink(int *x, int *y, int *z, int *nSector);
+int CheckLinkCamera(int *x, int *y, int *z, int *nSector);
 #endif

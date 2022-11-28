@@ -21,8 +21,6 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-// NoOne: lite version adapted for level editor's Preview Mode
-
 #include "callback.h"
 #include "db.h"
 #include "eventq.h"

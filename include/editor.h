@@ -15,7 +15,7 @@ extern "C" {
 #define NUMBUILDKEYS 20
 
 extern int qsetmode;
-extern short searchsector, searchwall, searchstat;
+extern short searchsector, searchwall, searchindex, searchstat;
 extern short searchwall2, searchwallcf;
 extern int zmode, kensplayerheight;
 extern short defaultspritecstat;

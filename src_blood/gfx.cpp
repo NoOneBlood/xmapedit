@@ -31,18 +31,16 @@ extern "C" {
 }
 
 #define kCharReplace 0x3F
-int clipX0 = 0, clipY0 = 0, clipX1 = 320, clipY1 = 200;
-int gColor = 0, xscale = 0, xstep = 0, yscale = 320, ystep = 200;
+char gColor = 0;
+Rect clipRect(0, 0, 0, 0);
 ROMFONT vFonts[kMaxVFonts];
 QFONT* qFonts[kMaxQFonts];
 QBITMAP* pBitmaps[kMaxBitmaps];
 
-Rect clipRect(clipX0, clipY0, clipX1, clipY1);
-
 // cyrillic symbols makes text printing crash
 inline BOOL charOk(char ch) { return (ch >= 32 && ch <= 126); }
 
-void FASTCALL gfxBlitM2V(char* src, int bpl, int width, int height, int x, int y)
+void gfxBlitM2V(char* src, int bpl, int width, int height, int x, int y)
 {
 	#if USE_POLYMOST
 		if (getrendermode() >= 3)
@@ -61,7 +59,7 @@ void FASTCALL gfxBlitM2V(char* src, int bpl, int width, int height, int x, int y
 	enddrawing();
 }
 
-void FASTCALL gfxBlitMT2V(char* src, char tc, int bpl, int width, int height, int x, int y)
+void gfxBlitMT2V(char* src, char tc, int bpl, int width, int height, int x, int y)
 {
 	#if USE_POLYMOST
 		if (getrendermode() >= 3)
@@ -87,7 +85,7 @@ void FASTCALL gfxBlitMT2V(char* src, char tc, int bpl, int width, int height, in
 	enddrawing();
 }
 
-void FASTCALL gfxBlitMono(char *src, char mask, int bpl, int width, int height, int x, int y)
+void gfxBlitMono(char *src, char mask, int bpl, int width, int height, int x, int y)
 {
 	#if USE_POLYMOST
 		if (getrendermode() >= 3)
@@ -120,7 +118,7 @@ void FASTCALL gfxBlitMono(char *src, char mask, int bpl, int width, int height, 
 	enddrawing();
 }
 
-void FASTCALL gfxDrawBitmap(QBITMAP *qbm, int x, int y)
+void gfxDrawBitmap(QBITMAP *qbm, int x, int y)
 {
 	dassert(qbm != NULL);
 	Rect bitmap(x, y, x+qbm->width, y+qbm->height);
@@ -149,13 +147,13 @@ void FASTCALL gfxDrawBitmap(QBITMAP *qbm, int x, int y)
 	}
 }
 
-void FASTCALL gfxDrawBitmap(int id, int x, int y) {
+void gfxDrawBitmap(int id, int x, int y) {
 	
 	gfxDrawBitmap(pBitmaps[id],x ,y);
 	
 }
 
-void FASTCALL gfxPixel(int x, int y)
+void gfxPixel(int x, int y)
 {
 	#if USE_POLYMOST
 		if (getrendermode() >= 3)
@@ -171,83 +169,77 @@ void FASTCALL gfxPixel(int x, int y)
 	}
 }
 
-void FASTCALL gfxHLine(int y, int x0, int x1)
+void gfxHLine(int y, int x0, int x1)
 {
 	#if USE_POLYMOST
 		if (getrendermode() >= 3)
 			return;
 	#endif
 	
-	if (y < clipRect.y0 || y >= clipRect.y1)
-		return;
+	y  = ClipRange(y,		clipRect.y0, clipRect.y1);
+	x0 = ClipRange(x0,		clipRect.x0, clipRect.x1);
+	x1 = ClipRange(x1 + 1,	clipRect.x0, clipRect.x1);
 
-	x0 = ClipLow(x0, clipRect.x0);
-	x1 = ClipHigh(x1, clipRect.x1-1);
-	if (x0 <= x1)
-	{
-		begindrawing();
-		char* dest = (char*)frameplace+ylookup[y]+x0;
-		memset(dest, gColor, x1-x0+1);
-		enddrawing();
-	}
+	begindrawing();
+	char* dest = (char*)frameplace+ylookup[y]+x0;
+	memset(dest, gColor, x1-x0);
+	enddrawing();
 }
 
-void FASTCALL gfxVLine(int x, int y0, int y1)
+void gfxVLine(int x, int y0, int y1)
 {
 	#if USE_POLYMOST
 		if (getrendermode() >= 3)
 			return;
 	#endif
 	
-	if (x < clipRect.x0 || x >= clipRect.x1)
-		return;
-
-	y0 = ClipLow(y0, clipRect.y0);
-	y1 = ClipHigh(y1, clipRect.y1-1);
-	if (y0 <= y1)
-	{
-		begindrawing();
-		char* dest = (char*)frameplace+ylookup[y0]+x;
-		for (register int i = 0; i < y1-y0+1; i++, dest += ylookup[1])
-			*dest = (char)gColor;
-		enddrawing();
-	}
-}
-
-void FASTCALL gfxFillBox(int x0, int y0, int x1, int y1)
-{
-	#if USE_POLYMOST
-		if (getrendermode() >= 3)
-			return;
-	#endif
-	
-	Rect box(x0, y0, x1, y1); box &= clipRect;
-	if (box.isEmpty())
-		return;
-	
+	x  = ClipRange(x,		clipRect.x0, clipRect.x1);
+	y0 = ClipRange(y0,		clipRect.y0, clipRect.y1);
+	y1 = ClipRange(y1 + 1,	clipRect.y0, clipRect.y1);
 	
 	begindrawing();
-	char* dest = (char*)frameplace+ylookup[y0]+x0;
-	for (register int i = 0; i < box.y1-box.y0; i++, dest += ylookup[1])
-		memset(dest, gColor, box.x1-box.x0);
+	char* dest = (char*)frameplace+ylookup[y0]+x;
+	register int hg = y1 - y0;
+	while(--hg >= 0)
+		*dest = gColor, dest += ylookup[1];
+	
 	enddrawing();
 	
 }
 
-void FASTCALL gfxSetClip(int x0, int y0, int x1, int y1)
+void gfxFillBox(int x0, int y0, int x1, int y1)
+{
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
+	
+	x0 = ClipRange(x0, clipRect.x0, clipRect.x1);
+	x1 = ClipRange(x1, clipRect.x0, clipRect.x1);
+	y0 = ClipRange(y0, clipRect.y0, clipRect.y1);
+	y1 = ClipRange(y1, clipRect.y0, clipRect.y1);
+	
+	begindrawing();
+	char* dest = (char*)frameplace+ylookup[y0]+x0;
+	register int hg = y1 - y0, wh = x1 - x0;
+	while(--hg >= 0)
+	{
+		memset(dest, gColor, wh);
+		dest+=ylookup[1];
+	}
+	enddrawing();
+	
+}
+
+void gfxSetClip(int x0, int y0, int x1, int y1)
 {
 	clipRect.x0 = x0;
 	clipRect.y0 = y0;
 	clipRect.x1 = x1;
 	clipRect.y1 = y1;
-
-	clipX0 = x0 << 8;
-	clipY0 = y0 << 8;
-	clipX1 = (x1 << 8)-1;
-	clipY1 = (y1 << 8)-1;
 }
 
-void FASTCALL printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags)
+void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags)
 {
 	register int i = 0, j, k, m, c, l, s;
 	register int w = pFont->wh; s = pFont->ls;
@@ -285,7 +277,7 @@ void FASTCALL printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char 
 	}
 }
 
-int FASTCALL gfxGetTextLen(char * pzText, QFONT *pFont, int a3)
+int gfxGetTextLen(char * pzText, QFONT *pFont, int a3)
 {
 	if (!pFont)
 		return strlen(pzText)*8;
@@ -309,7 +301,7 @@ int FASTCALL gfxGetTextLen(char * pzText, QFONT *pFont, int a3)
 	return nLength;
 }
 
-int FASTCALL gfxGetLabelLen(char *pzLabel, QFONT *pFont)
+int gfxGetLabelLen(char *pzLabel, QFONT *pFont)
 {
 	char c;
 	register int nLength = 0;
@@ -332,7 +324,7 @@ int FASTCALL gfxGetLabelLen(char *pzLabel, QFONT *pFont)
 	return nLength;
 }
 
-int FASTCALL gfxFindTextPos(char *pzText, QFONT *pFont, int a3)
+int gfxFindTextPos(char *pzText, QFONT *pFont, int a3)
 {
 	if (!pFont)
 	{
@@ -359,7 +351,7 @@ int FASTCALL gfxFindTextPos(char *pzText, QFONT *pFont, int a3)
 	return pos;
 }
 
-void FASTCALL gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label)
+void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label)
 {
 	#if USE_POLYMOST
 		if (getrendermode() >= 3)
@@ -441,7 +433,7 @@ void FASTCALL gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, b
 	}
 }
 
-void FASTCALL gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont, bool label)
+void gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont, bool label)
 {
 	register int len = gfxGetTextLen(txt, pFont);
 	register int heigh = (pFont) ? pFont->height-2 : 8;
@@ -450,22 +442,23 @@ void FASTCALL gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont,
 	gfxDrawText(x, y, fr, txt, pFont, label);
 }
 
-void FASTCALL gfxDrawLabel(int x, int y, int color, char* pzLabel, QFONT* pFont)
+void gfxDrawLabel(int x, int y, int color, char* pzLabel, QFONT* pFont)
 {
 	gfxDrawText(x, y, color, pzLabel, pFont, true);
 }
 
-void FASTCALL gfxSetColor(char color) { gColor = color; }
+void gfxSetColor(char color) { gColor = color; }
 
 
 
 
-void FASTCALL viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup ) {
+void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup )
+{
+	#define kScaleX		0x10000
+	#define kScaleY		0x10000
+	#define kStepX		0x10000
+	#define kStepY		0x10000
 	
-#if USE_POLYMOST
-	if (getrendermode() >= 3)
-		return;
-#endif
 	dassert(pFont != NULL);
 
 	register int i, cx, cy, sizeX, sizeY;
@@ -475,10 +468,10 @@ void FASTCALL viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup 
 
 	
 	y += pFont->baseline + pInfo->oy;
-	x = mulscale16(x, xscale);
-	y = mulscale16(y, yscale);
-	sizeX = mulscale16(pInfo->w, xscale);
-	sizeY = mulscale16(pInfo->h, yscale);
+	x = mulscale16(x, kScaleX);
+	y = mulscale16(y, kScaleY);
+	sizeX = mulscale16(pInfo->w, kScaleX);
+	sizeY = mulscale16(pInfo->h, kScaleY);
 	cx = x + sizeX;
 	cy = y + sizeY;
 
@@ -497,7 +490,7 @@ void FASTCALL viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup 
 	for (i = 0; i < 4; i++)
 	{
 		palookupoffse[i] = (intptr_t)pPalookup;
-		vince[i] = ystep;
+		vince[i] = kStepY;
 	}
 
 	BYTE *p = (BYTE*)(frameplace + ylookup[dest.y0] + dest.x0);
@@ -508,10 +501,10 @@ void FASTCALL viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup 
 	while (x < dest.x1 && (x & 3) )
 	{
 		BYTE *bufplc = (BYTE *)(pSource + (u >> 16) * pInfo->h);
-		mvlineasm1(ystep, pPalookup, sizeY - 1, 0, bufplc, p);
+		mvlineasm1(kStepY, pPalookup, sizeY - 1, 0, bufplc, p);
 		p++;
 		x++;
-		u += xstep;
+		u += kStepX;
 	}
 
 	while ( x + 3 < dest.x1 )
@@ -520,7 +513,7 @@ void FASTCALL viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup 
 		{
 			vplce[i] = 0;
 			bufplce[i] = (intptr_t)(pSource + (u >> 16) * pInfo->h);
-			u += xstep;
+			u += kStepX;
 		}
 		mvlineasm4(sizeY, (char*)p);
 		p += 4;
@@ -530,14 +523,14 @@ void FASTCALL viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup 
 	while ( x < dest.x1 )
 	{
 		BYTE *bufplc = (BYTE *)(pSource + (u >> 16) * pInfo->h);
-		mvlineasm1(ystep, pPalookup, sizeY - 1, 0, bufplc, p);
+		mvlineasm1(kStepY, pPalookup, sizeY - 1, 0, bufplc, p);
 		p++;
 		x++;
-		u += xstep;
+		u += kStepX;
 	}
 }
 
-void FASTCALL viewDrawText(int x, int y, QFONT* pFont, char *string, int shade, int nPLU, int nAlign) {
+void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade, int nPLU, int nAlign) {
 
 #if USE_POLYMOST
 	if (getrendermode() >= 3)

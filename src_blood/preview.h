@@ -34,13 +34,6 @@
 
 
 #define kDeleteReally 333
-#define kPreviewScoreMiss 15
-#define kPreviewScoreDestroyThing 2
-#define kPreviewScorePickup 5
-#define kPreviewScoreKill 10
-#define kPreviewScoreSecret 100
-#define kPreviewScoreSuperSecret 1000
-#define kPreviewScoreTelefrag 10
 
 enum {
 kScrEffectQuake1			= 0,
@@ -48,7 +41,11 @@ kScrEffectQuake2			= 1, // for explosions
 kScrEffectMax			   	   ,
 };
 
-
+struct DONEOFTOTAL
+{
+	unsigned int done				: 32;
+	unsigned int total				: 32;
+};
 
 class PREVIEW_MODE {
 	public:
@@ -57,7 +54,6 @@ class PREVIEW_MODE {
 	unsigned int triggerStart		: 1;
 	unsigned int forceStartPos		: 1;
 	unsigned int enableSound		: 1;
-	unsigned int trackFree			: 1;
 	unsigned int modernMap			: 1;
 	unsigned int enableMusic		: 1;
 	unsigned int difficulty			: 3;
@@ -71,16 +67,11 @@ class PREVIEW_MODE {
 	unsigned int explosionType		: 8;
 	unsigned int sectnum			: 14;
 	unsigned int oVisibility		: 12;
+	unsigned int levelTime			: 32;
+	DONEOFTOTAL kills, secrets;
 	int scrEffects[kScrEffectMax];
 	uint32_t ticks;
 	IniFile* pEpisode;
-	// the following is for fun
-	unsigned int showScore			: 1;
-	unsigned int score				: 16;
-	unsigned int bestScore			: 16;
-	unsigned int scoreSpeed			: 7;
-	uint32_t scoreTicks;
-	/////////////////////////////////
 	void Init(IniFile* pIni, char* section);
 	void Save(IniFile* pIni, char* section);
 };

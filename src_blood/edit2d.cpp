@@ -120,7 +120,7 @@ void CIRCLEWALL::Draw()
 } 
 */
 
-void FASTCALL sectorDetach(int nSector)
+void sectorDetach(int nSector)
 {
 	int x1, y1, x2, y2;
 	int sw, ew, sw2, ew2, i, j, k, sect;
@@ -164,7 +164,7 @@ void FASTCALL sectorDetach(int nSector)
 	
 }
 
-void FASTCALL sectorAttach(int nSector) {
+void sectorAttach(int nSector) {
 	
 	register int i, j, sw, ew;
 	getSectorWalls(nSector, &sw, &ew); i = sw;
@@ -1120,28 +1120,6 @@ int EditDialog(DIALOG_ITEM *dialog)
 		{
 			PaintDialog(dialog);
 			PaintDialogItem(dialog, control, true);
-			
-			if (control->fieldHelpProc)
-			{
-				label = (control->readyLabel) ? control->readyLabel : control->formatLabel;
-				
-				x3 = control->x << 3, y3 = control->y << 3;
-				x4 = x3 + (ClipLow(strlen(label), 1) << 3), y4 = y3 + 8;
-				
-				gfxSetColor(clr2std(kColorWhite));
-				
-				int l = (x4-x3)>>1;
-				int mx = x3 + l;
-				
-				gfxVLine(mx, y1-(y3-y1), y3);
-				
-				gfxSetColor(clr2std(kColorBlue));
-				gfxFillBox(mx-l-4, midydim16-4, mx+l+4, midydim16+8+4);
-				printextShadowL(x3, midydim16, clr2std(kColorWhite), label);
-				
-			}
-			
-			
 			mouse.Draw();
 			showframe();
 		}
@@ -2853,13 +2831,16 @@ void qdraw2dgrid(int posxe, int posye, short ange, int zoome, short gride)
 	
 	gfxSetColor(gStdColor[29]);
 	yp1 = midydim16 - mulscale14(posye + siz, zoome);
-	yp2 = midydim16 - mulscale14(posye - siz, zoome);
+	yp2 = midydim16 - mulscale14(posye - siz, zoome);	
 	for(i = -siz; i <= siz && xp1 < xdim; i += dst)
 	{
 		xp2 = xp1;
 		xp1 = halfxdim16 - mulscale14(posxe - i, zoome);
-		if (xp2 == xp1) break;
-		else gfxVLine(xp1, yp1, yp2);
+		if (xp1 < 0) continue;
+		else if (xp2 >= xp1 || xp1 >= xdim)
+			break;
+
+		gfxVLine(xp1, yp1, yp2);
 	}
 
 	xp1 = halfxdim16 - mulscale14(posxe + siz, zoome);
@@ -4629,7 +4610,7 @@ void ProcessKeys2D( void )
 }
 
 
-void _fastcall scaleAngLine2d(int scale, int ang, int* x, int* y) {
+void scaleAngLine2d(int scale, int ang, int* x, int* y) {
 
 	int szoom = zoom / scale;
 	*x = mulscale30(szoom, Cos(ang));

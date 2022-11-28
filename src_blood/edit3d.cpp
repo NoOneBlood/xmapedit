@@ -41,6 +41,7 @@
 #include "xmpconf.h"
 #include "xmptools.h"
 #include "xmpsky.h"
+#include "xmpview.h"
 #include "xmpmisc.h"
 
 /*******************************************************************************
@@ -99,12 +100,22 @@ void sectGetEdgeZ(int nSector, int* fz, int* cz)
 
 void SetCeilingZ( int nSector, int z )
 {
+	dassert(nSector >= 0 && nSector < kMaxSectors);
+	int fs = sector[nSector].floorheinum;
+	int cs = sector[nSector].ceilingheinum;
 	int fz, cz;
-	sectGetEdgeZ(nSector, &fz, &cz);
-
+	
 	// don't allow to go through the floor
-	z = ClipHigh(z, fz + (sector[nSector].ceilingz - cz));
-
+	if ((fs >= 0 && cs < 0) || (fs < 0 && cs >= 0) || (((fs < 0 && cs < 0) || (fs > 0 && cs > 0)) && fs != cs))
+	{
+		sectGetEdgeZ(nSector, &fz, &cz); // get most bottom and top Z
+		z = ClipHigh(z, fz + (sector[nSector].ceilingz - cz));
+	}
+	else
+	{
+		z = ClipHigh(z, sector[nSector].floorz);
+	}
+	
 	for (int i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
 	{
 		int zTop, zBot;
@@ -119,14 +130,24 @@ void SetCeilingZ( int nSector, int z )
 
 void SetFloorZ( int nSector, int z )
 {
+	dassert(nSector >= 0 && nSector < kMaxSectors);
+	int fs = sector[nSector].floorheinum;
+	int cs = sector[nSector].ceilingheinum;
 	int fz, cz;
-	sectGetEdgeZ(nSector, &fz, &cz);
-
+	
 	// don't allow to go through the ceiling
-	z = ClipLow(z, cz + (sector[nSector].floorz-fz));
-
-	for (int i = headspritesect[nSector]; i != -1; i = nextspritesect[i]) {
-
+	if ((fs >= 0 && cs < 0) || (fs < 0 && cs >= 0) || (((fs < 0 && cs < 0) || (fs > 0 && cs > 0)) && fs != cs))
+	{
+		sectGetEdgeZ(nSector, &fz, &cz); // get most bottom and top Z
+		z = ClipLow(z, cz + (sector[nSector].floorz - fz));
+	}
+	else
+	{
+		z = ClipLow(z, sector[nSector].ceilingz);
+	}
+	
+	for (int i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
+	{
 		int zTop, zBot;
 		spritetype *pSprite = &sprite[i];
 		GetSpriteExtents(pSprite, &zTop, &zBot);
@@ -2883,137 +2904,77 @@ void ProcessKeys3D( void )
 				}
 			}
 			break;
-		case KEY_P: {
+		case KEY_P:
 			if (ctrl)
 			{
-				int nTile = -1;
-				switch (searchstat) {
-					case OBJ_FLOOR:
-						if (!isSkySector(searchsector, searchstat)) break;
-						else nTile = sector[searchsector].floorpicnum;
-						break;
-					case OBJ_CEILING:
-						if (!isSkySector(searchsector, searchstat)) break;
-						else nTile = sector[searchsector].ceilingpicnum;
-						break;
-				}
-
-				if (Beep(nTile >= 0))
-				{
-					if (alt)
-					{
-						Sky::ToggleBits(nTile);
-					}
-					else
-					{
-						parallaxtype = (char)IncRotate(parallaxtype, 3);
-						scrSetMessage("Parallax type: %i", parallaxtype);
-					}
-				}
-				else
+				if (!Beep((searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING) && isSkySector(searchsector, searchstat)))
 				{
 					scrSetMessage("Must aim in parallax sector.");
 				}
-				
-				break;
-			}
-			
-			if (alt || shift)
-			{
-				char nPlu;
-				short nPic, nIdx, nStat = searchstat;
-				
-				i = 1;
-				switch (searchstat) {
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						nPic = (searchstat == OBJ_MASKED) ? wall[searchwall].overpicnum : wall[searchwall].picnum;
-						nPlu = wall[searchwall].pal;
-						nIdx = searchwall;
-						if (shift) wall[searchwall].pal = getPLU(nPic, &nPlu, (BOOL)(shift & 0x01));
-						else wall[searchwall].pal = nPlu = (char)GetNumberBox("Wall palookup", nPlu, nPlu);
-						i = 0;
-						break;
-					case OBJ_CEILING:
-						nPic = sector[searchsector].ceilingpicnum;
-						nPlu = sector[searchsector].ceilingpal;
-						nIdx = searchsector;
-						nStat = OBJ_SECTOR;
-						if (shift) sector[searchsector].ceilingpal = getPLU(nPic, &nPlu, (BOOL)(shift & 0x01));
-						else sector[searchsector].ceilingpal = nPlu = (char)GetNumberBox("Ceiling palookup", nPlu, nPlu);
-						if (isSkySector(searchsector, searchstat))
-							i = Sky::SetPal(searchsector, searchstat, nPlu, FALSE);
-						else
-							i = 0;
-						break;
-					case OBJ_FLOOR:
-						nPic = sector[searchsector].floorpicnum;
-						nPlu = sector[searchsector].floorpal;
-						nIdx = searchsector;
-						nStat = OBJ_SECTOR;
-						if (shift) sector[searchsector].floorpal = getPLU(nPic, &nPlu, (BOOL)(shift & 0x01));
-						else sector[searchsector].floorpal = nPlu = (char)GetNumberBox("Floor palookup", nPlu, nPlu);
-						if (isSkySector(searchsector, searchstat))
-							i = Sky::SetPal(searchsector, searchstat, nPlu, FALSE);
-						else
-							i = 0;
-						break;
-					case OBJ_SPRITE:
-						nPic = sprite[searchwall].picnum;
-						nPlu = sprite[searchwall].pal;
-						nIdx = searchwall;
-						if (!shift && sprInHglt(searchwall))
-						{
-							sprintf(buffer, "Palookup for %d %s(s)", hgltSprCount(), gSearchStatNames[searchstat]);
-							if ((i = GetNumberBox(buffer, sprite[searchwall].pal, -1)) >= 0)
-							{
-								hgltSprCallFunc(sprPalSet, i);
-								scrSetMessage(buffer);
-								BeepOk();
-								i = 1;
-								break;
-							}
-						}
-						else if (shift) sprite[searchwall].pal = getPLU(nPic, &nPlu, (BOOL)(shift & 0x01));
-						else sprite[searchwall].pal = nPlu = (char)GetNumberBox("Sprite palookup", nPlu, nPlu);
-						i = 0;
-						break;
-				}
-				if (i == 0)
+				else if (!alt)
 				{
-					buffer2[0] = '\0';
-					i =  (int)isEffectivePLU(nPic, palookup[nPlu]);
-					j =  sprintf(buffer, gSearchStatNames[searchstat]);
-					if (nPlu > 1)
-						sprintf(buffer2, "(%d%% efficiency)", i);
-					
-					scrSetMessage("%s[%d] palookup: #%d %s", strlwr(buffer), nIdx, nPlu, buffer2);
-					Beep(nPlu <= 1 || i);
+					parallaxtype = (char)IncRotate(parallaxtype, 3);
+					scrSetMessage("Parallax type: %i", parallaxtype);
+				}
+				else
+				{
+					Sky::ToggleBits(getPicOf(searchstat, searchsector));
 				}
 				break;
 			}
 			
-			switch (searchstat) {
-				case OBJ_CEILING:
-				case OBJ_FLOOR:
-					i = sectCstatToggle(searchsector, kSectParallax, searchstat);
+			// allow fall to palookup selection if not floor or ceiling
+			if (alt && (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING))
+			{
+				i = sectCstatToggle(searchsector, kSectParallax, searchstat);
+				if (isSkySector(searchsector, searchstat))	Sky::MakeSimilar(searchsector, searchstat, 0);
+				else if (searchstat == OBJ_CEILING)			sectCstatRem(searchsector, kSectShadeFloor, searchstat);
+				scrSetMessage("%s[%d] %s parallaxed", gSearchStatNames[searchstat], searchsector, isNot(isSkySector(searchsector, searchstat)));
+				BeepOk();
+				break;
+			}
+			
+			{
+				char title[32];
+				char nPlu		= getPluOf(searchstat,		searchindex);
+				short nPic		= getPicOf(searchstat, 		searchindex);
+				short nShade	= getShadeOf(searchstat,	searchindex);
+				sprintf(title, "%s #%d palookup", gSearchStatNames[searchstat], searchindex);
+				
+				if (!shift)
+				{
+					i = nPlu;
+					if (searchstat == OBJ_SPRITE)
+						nShade = viewSpriteShade(nShade, nPic, sprite[searchindex].sectnum);
 					
-					if (isSkySector(searchsector, searchstat))
+					if ((nPlu = pluPick(nPic, nShade, nPlu, title)) == i)
+						break;
+				}
+				else
+				{
+					nPlu = nextEffectivePlu(nPic, 0, nPlu, (shift & 0x01));
+				}
+				
+				if (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING)
+				{
+					if (isSkySector(searchindex, searchstat))
 					{
-						Sky::MakeSimilar(searchsector, searchstat, 0);
+						Sky::SetPal(searchindex, searchstat, nPlu, FALSE);
+						break;
 					}
-					else if (searchstat == OBJ_CEILING)
-					{
-						sector[searchsector].floorstat &= ~kSectShadeFloor;	// clear forced floor shading bit
-					}
-					scrSetMessage("%s[%d] %s parallaxed", gSearchStatNames[searchstat], searchsector, isNot(isSkySector(searchsector, searchstat)));
-					BeepOk();
-					break;
-				default:
-					BeepFail();
+				}
+
+				
+				i = isEffectivePLU(nPic, palookup[nPlu]);
+				buffer[0] = '\0';
+				if (nPlu > 1)
+					sprintf(buffer, "(%d efficiency)", i);
+				
+				scrSetMessage("%s: #%d %s", strlwr(title), nPlu, buffer);
+				setPluOf(nPlu, searchstat, searchindex);
+				Beep(nPlu < 2 || i);
 			}
 			break;
-		}
 		case KEY_R:		// R (relative alignment, rotation)
 			switch (searchstat) {
 				case OBJ_CEILING:

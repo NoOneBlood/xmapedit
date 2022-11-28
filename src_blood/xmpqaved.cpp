@@ -40,7 +40,7 @@ kQavOriginScreen		= 1,
 kQavOriginCustom		= 2,
 };
 
-POINT gQavOriginTypes[] = {
+POINT2D gQavOriginTypes[] = {
 	
 	{160, 199},
 	{160, 100},
@@ -115,7 +115,7 @@ void QAVEDIT::Start(char* filename)
 	mouse.VelocitySet(5, 5, false);
 	
 	edit3d = (gMapLoaded && cursectnum >= 0 && screenMode == 200);
-	messageTime = 0;
+	gScreen.msg[0].time = 0;
 	horiz = 100; // there is no mouse look because mouse is busy
 	
 	ProcessLoop();
@@ -124,7 +124,7 @@ void QAVEDIT::Start(char* filename)
 	gTileView.bglayers--;
 	if (screenMode != 200) qsetmodeany(xdim, ydim);
 	if (gMapLoaded) previewStop();
-	ydim16 = yd16; messageTime = 0;
+	ydim16 = yd16; gScreen.msg[0].time = 0;
 	artedUninit();
 	
 }
@@ -1068,7 +1068,7 @@ void QAVEDIT::LayerClip(int nFrame, int nLayer)
 
 }
 
-void QAVEDIT::AnimOriginSet(POINT* pOrigin, BOOL adjust)
+void QAVEDIT::AnimOriginSet(POINT2D* pOrigin, BOOL adjust)
 {
 	
 	int i, j, dx, dy;

@@ -506,6 +506,7 @@ void   completemirror(void);
 
 void   drawrooms(int daposx, int daposy, int daposz, short daang, int dahoriz, short dacursectnum);
 void   drawmasks(void);
+void drawsprite(int snum);
 void   clearview(int dacol);
 void   clearallviews(int dacol);
 void   drawmapview(int dax, int day, int zoome, short ang);

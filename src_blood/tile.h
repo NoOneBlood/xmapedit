@@ -36,6 +36,8 @@ struct SYSTEM_TILES {
 	unsigned int hglt2d				: 17;
 	unsigned int xmpIco				: 17;
 	unsigned int noTileIco			: 17;
+	unsigned int wallHglt			: 17;
+	unsigned int pixel				: 17;
 	unsigned int sectfil			: 17;
 	unsigned int hgltQav			: 17;
 	STATUS_BIT1 busy[kMaxTiles];

@@ -261,7 +261,8 @@ void OperateSprite(int nSprite, XSPRITE *pXSprite, EVENT event)
 			break;
 		case kMarkerDudeSpawn: {
 			if (pXSprite->data1 < kDudeBase || pXSprite->data1 >= kDudeMax) break;
-			if (pXSprite->target > 0) {
+			if (pXSprite->target > 0)
+			{
 				if (spriRangeIsFine(pXSprite->target) && sprite[pXSprite->target].statnum == kStatDude)
 					actPostSprite((short)pXSprite->target, kStatFree);
 
@@ -1579,10 +1580,7 @@ void OperateTeleport(unsigned int nSector, XSECTOR *pXSector)
 		int cnt = TeleFrag(0, sprite[marker].sectnum);
 		int i = sprintf(buffer, "Teleport from sector %d to %d", cursectnum, sprite[marker].sectnum);
 		if (cnt)
-		{
 			sprintf(&buffer[i], " (telefragged %d dudes!)", cnt);
-			gPreview.score+=(kPreviewScoreTelefrag*cnt);
-		}
 		
 		previewMessage(buffer);
 		posx = sprite[marker].x; posy = sprite[marker].y; posz = sprite[marker].z;
@@ -1933,23 +1931,25 @@ void trMessageWall(unsigned int nWall, EVENT event) {
 }
 
 void trMessageSprite(unsigned int nSprite, EVENT event) {
-	if (sprite[nSprite].statnum != kStatFree) {
-
-		XSPRITE* pXSprite = &xsprite[sprite[nSprite].extra];
-		if (!pXSprite->locked || event.cmd == kCmdUnlock || event.cmd == kCmdToggleLock) {
-			switch (event.cmd) {
-				case kCmdLink:
-					LinkSprite(nSprite, pXSprite, event);
-					break;
-				case kCmdModernUse:
-					modernTypeTrigger(3, nSprite, event);
-					break;
-				default:
-					OperateSprite(nSprite, pXSprite, event);
-					break;
-			}
-		}
-	}
+    if (sprite[nSprite].statnum == kStatFree)
+        return;
+    spritetype *pSprite = &sprite[nSprite];
+    if (pSprite->extra < 0 || pSprite->extra >= kMaxXSprites)
+        return;
+    XSPRITE* pXSprite = &xsprite[sprite[nSprite].extra];
+    if (!pXSprite->locked || event.cmd == kCmdUnlock || event.cmd == kCmdToggleLock) {
+        switch (event.cmd) {
+            case kCmdLink:
+                LinkSprite(nSprite, pXSprite, event);
+                break;
+            case kCmdModernUse:
+                modernTypeTrigger(3, nSprite, event);
+                break;
+            default:
+                OperateSprite(nSprite, pXSprite, event);
+                break;
+        }
+    }
 }
 
 
@@ -2225,31 +2225,32 @@ void trInit(void)
 			case kSwitchPadlock:
 				pXSprite->triggerOnce = 1;
 				break;
-			case kModernRandom:
+            case kModernRandom:
+            case kModernRandom2:
 				if (!gModernMap || pXSprite->state == pXSprite->restState) break;
 				evPost(i, 3, (120 * pXSprite->busyTime) / 10, kCmdRepeat);
 				if (pXSprite->waitTime > 0)
 					evPost(i, 3, (pXSprite->waitTime * 120) / 10, pXSprite->restState ? kCmdOn : kCmdOff);
 				break;
-			case kModernSeqSpawner:
-			case kModernObjDataAccum:
-			case kModernDudeTargetChanger:
-			case kModernEffectSpawner:
-			case kModernWindGenerator:
+            case kModernSeqSpawner:
+            case kModernObjDataAccumulator:
+            case kModernDudeTargetChanger:
+            case kModernEffectSpawner:
+            case kModernWindGenerator:
 				if (pXSprite->state == pXSprite->restState) break;
 				evPost(i, 3, 0, kCmdRepeat);
 				if (pXSprite->waitTime > 0)
 					evPost(i, 3, (pXSprite->waitTime * 120) / 10, pXSprite->restState ? kCmdOn : kCmdOff);
 				break;
-			case kGenTrigger:
-			case kGenDripWater:
-			case kGenDripBlood:
-			case kGenMissileFireball:
-			case kGenDart:
-			case kGenBubble:
-			case kGenBubbleMulti:
-			case kGenMissileEctoSkull:
-			case kGenSound:
+            case kGenTrigger:
+            case kGenDripWater:
+            case kGenDripBlood:
+            case kGenMissileFireball:
+            case kGenDart:
+            case kGenBubble:
+            case kGenBubbleMulti:
+            case kGenMissileEctoSkull:
+            case kGenSound:
 				InitGenerator(i);
 				break;
 			case kThingArmedProxBomb:

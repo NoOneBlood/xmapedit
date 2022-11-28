@@ -223,8 +223,8 @@ void tileScrDrawStatus(int x1, int y1, int x2, int y2) {
 	gfxSetColor(gStdColor[24]);
 	gfxFillBox(x1+lmar+1, y1 + 2, x2 - rmar, y2 - 1);
 
-	if (totalclock < messageTime + 120)
-		gfxDrawText(x1+lmar+2, ty1+1, gStdColor[(totalclock & 32) ? 15 : 18], strupr(message), pFont);
+	if (totalclock < gScreen.msg[0].time)
+		gfxDrawText(x1+lmar+2, ty1+1, gStdColor[(totalclock & 32) ? 15 : 18], strupr(gScreen.msg[0].text), pFont);
 
 
 }
@@ -378,6 +378,24 @@ void tileInitSystemTiles() {
 		gSysTiles.noTileIco = nTile;
 		gSysTiles.add(nTile);
 	}
+	
+	if ((hIco = gGuiRes.Lookup((unsigned int)2, "TGA")) && (nTile = tileGetBlank()) > 0)
+	{
+		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		panm[nTile].xcenter = tilesizx[nTile] >> 1;
+		//panm[nTile].ycenter = -tilesizy[nTile];
+		
+		gSysTiles.wallHglt = nTile;
+		gSysTiles.add(nTile);
+	}
+	
+	if (tileAllocSysTile(&nTile, 4, 4))
+	{
+		BYTE* pTile = tileLoadTile(nTile);
+		memset(pTile, gStdColor[kColorWhite], tilesizx[nTile]*tilesizy[nTile]);
+		gSysTiles.pixel = nTile;
+		gSysTiles.add(nTile);
+	}
 }
 
 void tileUninitSystemTiles() {
@@ -420,11 +438,31 @@ void tileUninitSystemTiles() {
 		tileFreeTile(gSysTiles.xmpIco);
 	}
 	
+	if (gSysTiles.xmpIco)
+	{
+		tilePurgeTile(gSysTiles.noTileIco, TRUE);
+		tileFreeTile(gSysTiles.noTileIco);
+	}
+	
+	if (gSysTiles.wallHglt)
+	{
+		tilePurgeTile(gSysTiles.wallHglt, TRUE);
+		tileFreeTile(gSysTiles.wallHglt);
+	}
+	
 	if (gSysTiles.hgltQav)
 	{
 		tilePurgeTile(gSysTiles.hgltQav, TRUE);
 		tileFreeTile(gSysTiles.hgltQav);
 	}
+	
+	if (gSysTiles.pixel)
+	{
+		tilePurgeTile(gSysTiles.pixel, TRUE);
+		tileFreeTile(gSysTiles.pixel);
+	}
+	
+	
 }
 
 int tileInitFromIni() {
@@ -802,9 +840,12 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 		nTile = nVTile = tileIndex[nCursor];
 		if (gArtEd.mode > kArtEdModeBatch)
 			nVTile = (short)toolGetViewTile(nTile, gTool.nOctant, NULL, NULL);
-		else if (!gArtEd.mode && type == OBJ_CUSTOM && (i = adjIdxByTileInfo(nTile, 0)) >= 0)
-			scrSetMessage("Type %d: %s.", autoData[i].type, gSpriteNames[autoData[i].type]);
-
+		else if (!gArtEd.mode && type == OBJ_CUSTOM)
+		{
+			if ((i = adjIdxByTileInfo(nTile, adjCountSkips(nTile))) >= 0)
+				scrSetMessage("Type %d: %s.", autoData[i].type, gSpriteNames[autoData[i].type]);
+		}
+		
 		gArtEd.nTile = nTile;
 		gArtEd.nVTile = nVTile;
 		if (updLev > 0)

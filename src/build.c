@@ -34,7 +34,7 @@ int forcesetup = 1;
 
 int zlock = 0x7fffffff, zmode = 0, kensplayerheight = 32;
 short defaultspritecstat = 0, asksave = 0, editstatus, searchit;
-short searchsector, searchwall, searchstat;     //search output
+short searchsector, searchwall, searchindex, searchstat;     //search output
 int searchx, searchy;                          //search input
 
 short pointhighlight, linehighlight, highlightcnt;

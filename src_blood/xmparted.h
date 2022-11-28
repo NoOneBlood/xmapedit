@@ -114,7 +114,7 @@ struct ARTFILE {
 
 struct ARTEDIT {
 	
-	POINT origin;
+	POINT2D origin;
 	BYTE asksave;
 	unsigned int nTile		: 16;
 	unsigned int nVTile		: 16;

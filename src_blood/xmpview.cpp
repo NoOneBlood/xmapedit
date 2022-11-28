@@ -39,12 +39,6 @@
 #include "editor.h"
 #include "seq.h"
 
-/* BYTE gameModeLetterOfs[5] = {
-	
-	51, 34, 35, 52,
-	
-}; */
-
 void viewDoQuake(int strength, int* x, int* y, int* z, short* a, int* h) {
 	
 	if (!strength)
@@ -75,6 +69,10 @@ void viewRotateSprite(spritetype* pTSprite, int nView, int x, int y, int* offset
 }
 
 spritetype *viewInsertTSprite( int nSector, int nStatus, spritetype *pSource = NULL ) {
+	
+	if (spritesortcnt >= kMaxViewSprites)
+		return NULL;
+	
 	int nTSprite = spritesortcnt;
 	spritetype *pTSprite = &tsprite[nTSprite];
 	memset(pTSprite, 0, sizeof(spritetype));
@@ -102,7 +100,7 @@ spritetype *viewInsertTSprite( int nSector, int nStatus, spritetype *pSource = N
 
 void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 	
-	if (spritesortcnt >= kMaxViewSprites)
+	if (spritesortcnt >= kMaxViewSprites - 1)
 		return;
 	
 	int i, j, k, f, zTop, zBot, zTop2, zBot2;
@@ -110,7 +108,7 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 
 	switch (nViewEffect) {
 		case kViewEffectMiniCustomDude:
-			if (gModernMap) break;
+			if (!gModernMap) break;
 			// no break
 		case kViewEffectMiniDude:
 		{
@@ -165,12 +163,13 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 						z-=((abs(zTop - zBot)) + 512);
 					}
 					break;
-				case kViewEffectMiniCustomDude:
-
+				default:
 					// it's better to use picnum from autoData if no seq loaded
 					if (pXSpr->data2 <= 0 || !getSeqPrefs(pXSpr->data2, &pic, &xr, &yr, &pal))
 					{
-						if ((k = adjIdxByType(kDudeModernCustom)) < 0) break;
+						if ((k = adjIdxByType(kDudeModernCustom)) < 0)
+							break;
+						
 						pic = autoData[k].picnum;
 						pal = autoData[k].plu;
 					}
@@ -178,7 +177,7 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 					spritetype *pTEffect  = viewInsertTSprite(pTSprite->sectnum, -32767, pTSprite);
 					
 					// rotate ViewFullN sprites
-					viewRotateSprite(pTEffect, viewType[pTEffect->picnum], posx, posy, &ofs);
+					viewRotateSprite(pTEffect, viewType[pic], posx, posy, &ofs);
 					
 					pTEffect->picnum	 = ClipLow(pic + ofs, 0);
 					pTEffect->pal		 = ClipLow((pSpr->hitag & kModernTypeFlag1) ? pSpr->pal : pal, 0);
@@ -189,51 +188,6 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 					break;
 			}
 		}
-		break;
-/* 		case kViewEffectGameMode:
-		{
-			#define kRepStep 4
-			signed char xofs = 0; BOOL modes[4];
-			spritetype* pSpr = &sprite[pTSprite->owner];
-			if (pSpr->extra <= 0)
-				break;
-			
-			XSPRITE* pXSpr = &xsprite[pSpr->extra];
-			GetSpriteExtents(pTSprite, &zTop, &zBot);
-
-			modes[0] = !pXSpr->lS;
-			modes[1] = !pXSpr->lB;
-			modes[2] = !pXSpr->lC;
-			modes[3] = !pXSpr->lT;
-			
-			for (i = 0; i < LENGTH(modes); i++) { if (modes[i]) xofs+=kRepStep; }
-			if (!xofs)
-				break;
-
-			xofs = (xofs >> 1);
-			if (xofs)
-				xofs-=(kRepStep >> 1);
-			
-			for (i = 0; i < LENGTH(modes); i++)
-			{
-				if (!modes[i])
-					continue;
-				
-				spritetype *pTEffect = viewInsertTSprite(pTSprite->sectnum, 0, pTSprite);
-				pTEffect->picnum 	= 4480 + gameModeLetterOfs[i];
-				pTEffect->xoffset 	+= xofs;
-				pTEffect->shade 	= -128;
-				pTEffect->pal 		= (pSpr->type == kMarkerMPStart) ? 5 : 7;
-				pTEffect->xrepeat 	= 48;
-				pTEffect->yrepeat 	= 48;
-				
-				GetSpriteExtents(pTEffect, &zTop2, &zBot2);
-				pTEffect->z 		= zTop+((zTop2-zBot2)>>1);
-				
-				xofs -= kRepStep;
-			}
-			
-		} */
 		break;
 		case kViewEffectAngle:
 		{
@@ -340,11 +294,306 @@ int viewSpriteShade(int nShade, int nTile, int nSect)
 	return nShade;
 }
 
+unsigned char viewWallHighlightScale(int width, int height, int x, int y)
+{
+	#define kVal 0x1B000
+	
+	unsigned char size;
+	size = (unsigned char)ClipRange(scale(height, width, kVal), 20, 48);
+	size = (unsigned char)ClipRange(mulscale8(size, approxDist(x-posx, y-posy)/18), size, 164);
+	return size;
+}
+
+void viewWallHighlight(int nWall, int nSect, POINT3D point[4])
+{
+	unsigned char size;
+	
+	spritetype* pEffect;
+	int nAng  = (GetWallAngle(nWall) + kAng90) & kAngMask;
+	int zTop, zBot, nLen = getWallLength(nWall);
+	int lHeigh = klabs(point[2].z - point[0].z);
+	int rHeigh = klabs(point[3].z - point[1].z);
+	int nFSpr;
+	
+	BOOL badfslope = (sector[nSect].floorslope != 0);
+	BOOL badcslope = (sector[nSect].ceilingslope != 0);
+	
+	if ((nFSpr = headspritestat[kStatFree]) < 0)
+		return;
+	
+	// left top
+	if ((pEffect = viewInsertTSprite(nSect, -32767)) != NULL)
+	{
+		size = viewWallHighlightScale(nLen, lHeigh, point[0].x, point[0].y);
+
+		pEffect->picnum 	= gSysTiles.wallHglt;
+		pEffect->cstat 	   |= (kSprFlipX | kSprOneSided);
+		
+		// leave sprite face oriented if we cannot see it because of slope
+		if (!badcslope)
+			pEffect->cstat |= kSprWall;
+		
+		if (!h)
+			pEffect->cstat |= kSprTransluc2;
+		
+		pEffect->xrepeat 	= pEffect->yrepeat = size;
+		pEffect->shade 		= -128;
+		pEffect->ang 		= nAng;
+		
+		pEffect->x 			= point[0].x;
+		pEffect->y 			= point[0].y;
+		pEffect->z 			= point[0].z;
+		
+		pEffect->owner 		= nFSpr;
+		
+		doWallCorrection(nWall, &pEffect->x, &pEffect->y);
+		GetSpriteExtents(pEffect, &zTop, &zBot);
+		pEffect->z = zBot;
+	}
+	
+	// right top
+	if ((pEffect = viewInsertTSprite(nSect, -32767)) != NULL)
+	{
+		size = viewWallHighlightScale(nLen, rHeigh, point[1].x, point[1].y);
+		
+		pEffect->picnum 	= gSysTiles.wallHglt;
+		pEffect->cstat 	 	|= (kSprOneSided);
+		
+		// leave sprite face oriented if we cannot see it because of slope
+		if (!badcslope)
+			pEffect->cstat |= kSprWall;
+		
+		if (!h)
+			pEffect->cstat |= kSprTransluc2;
+		
+		pEffect->xrepeat 	= pEffect->yrepeat = size;
+		pEffect->shade 		= -128;
+		pEffect->ang 		= nAng;
+		
+		pEffect->x 			= point[1].x;
+		pEffect->y 			= point[1].y;
+		pEffect->z 			= point[1].z;
+		
+		pEffect->owner 		= nFSpr;
+		
+		doWallCorrection(nWall, &pEffect->x, &pEffect->y);
+		GetSpriteExtents(pEffect, &zTop, &zBot);
+		pEffect->z = zBot;
+	}
+	
+	// left bot
+	if ((pEffect = viewInsertTSprite(nSect, -32767)) != NULL)
+	{
+		size = viewWallHighlightScale(nLen, lHeigh, point[2].x, point[2].y);
+		
+		pEffect->picnum 	= gSysTiles.wallHglt;
+		pEffect->cstat 	   |= (kSprFlipX | kSprFlipY | kSprOneSided);
+		
+		// leave sprite face oriented if we cannot see it because of slope
+		if (!badfslope)
+			pEffect->cstat |= kSprWall;
+		
+		if (!h)
+			pEffect->cstat |= kSprTransluc2;
+		
+		pEffect->xrepeat 	= pEffect->yrepeat = size;
+		pEffect->shade 		= -128;
+		pEffect->ang 		= nAng;
+		
+		pEffect->x 			= point[2].x;
+		pEffect->y 			= point[2].y;
+		pEffect->z 			= point[2].z;
+		
+		pEffect->owner 		= nFSpr;
+		
+		doWallCorrection(nWall, &pEffect->x, &pEffect->y);
+		GetSpriteExtents(pEffect, &zTop, &zBot);
+		pEffect->z = zTop;
+	}
+	
+	//right bot
+	if ((pEffect = viewInsertTSprite(nSect, -32767)) != NULL)
+	{
+		size = viewWallHighlightScale(nLen, rHeigh, point[3].x, point[3].y);
+		
+		pEffect->picnum 	= gSysTiles.wallHglt;
+		pEffect->cstat 	   |= (kSprFlipY | kSprOneSided);
+		
+		// leave sprite face oriented if we cannot see it because of slope
+		if (!badfslope)
+			pEffect->cstat |= kSprWall;
+		
+		if (!h)
+			pEffect->cstat |= kSprTransluc2;
+		
+		pEffect->xrepeat 	= pEffect->yrepeat = size;
+		pEffect->shade 		= -128;
+		pEffect->ang 		= nAng;
+		
+		pEffect->x 			= point[3].x;
+		pEffect->y 			= point[3].y;
+		pEffect->z 			= point[3].z;
+		
+		pEffect->owner 		= nFSpr;
+		
+		doWallCorrection(nWall, &pEffect->x, &pEffect->y);
+		GetSpriteExtents(pEffect, &zTop, &zBot);
+		pEffect->z = zTop;
+	}
+}
+
+void viewWallHighlight(int nWall, int nSect, char how, BOOL testPoint)
+{
+	char which = 0;
+	int x1, y1, x2, y2;
+	int cz1, cz2, fz1, fz2;
+	int nNext = wall[nWall].nextsector;
+	POINT3D point[4];
+
+	getWallCoords(nWall, &x1, &y1, &x2, &y2);
+	point[0].x = point[2].x = x1;	point[1].x = point[3].x = x2;
+	point[0].y = point[2].y = y1; 	point[1].y = point[3].y = y2; 
+		
+	getzsofslope(nSect, x1, y1, &cz1, &fz1); // this left top bot
+	getzsofslope(nSect, x2, y2, &cz2, &fz2); // this right top bot
+	
+	if (how < 0x10 || nNext < 0)
+	{
+		point[0].z = cz1;	point[1].z = cz2;
+		point[2].z = fz1;	point[3].z = fz2;
+		
+		if (testPoint && nNext >= 0)
+		{
+			getzsofslope(nNext, x1, y1, &cz1, &fz1); // next left top bot
+			getzsofslope(nNext, x2, y2, &cz2, &fz2); // next right top bot
+			
+			if (point[3].z > fz1 || point[1].z > fz2) which |= 0x01;
+			if (point[2].z < cz1 || point[0].z < cz2) which |= 0x02;
+			
+			if (!how && !which) return;
+			else if (how & 0x01)
+			{
+				switch (which & 0x03) {
+					case 3:
+						viewWallHighlight(nWall, nSect, (POINT3D*)point); 	// only full wall
+						return;
+					case 2:
+						viewWallHighlight(nWall, nSect, 0x020, FALSE);		// only ceil wall
+						return;
+					case 1:
+						viewWallHighlight(nWall, nSect, 0x010, FALSE);		// only floor wall
+						return;
+				}
+			}
+		}
+
+		if (!testPoint || (point[2].z != point[0].z && point[3].z != point[1].z))
+			viewWallHighlight(nWall, nSect, (POINT3D*)point);
+	}
+	else if (nNext >= 0)
+	{
+		// wall from floor
+		if (how & 0x10)
+		{
+			point[0].z = ClipLow(getflorzofslope(nNext, x1, y1), cz1); 		// next left top
+			point[1].z = ClipLow(getflorzofslope(nNext, x2, y2), cz2); 		// next right top
+			point[2].z = getflorzofslope(nSect, x1, y1); 					// this left bot
+			point[3].z = getflorzofslope(nSect, x2, y2); 					// this right bot
+			
+			if (!testPoint || point[2].z > point[0].z)
+				viewWallHighlight(nWall, nSect, (POINT3D*)point);
+		}
+		
+		// wall from ceil
+		if (how & 0x20)
+		{
+			point[0].z = getceilzofslope(nSect, x1, y1); 					// this left top
+			point[1].z = getceilzofslope(nSect, x2, y2); 					// this right top
+			point[2].z = ClipHigh(getceilzofslope(nNext, x1, y1), fz1); 	// next left bot
+			point[3].z = ClipHigh(getceilzofslope(nNext, x2, y2), fz2); 	// next right bot
+			
+			if (!testPoint || point[2].z > point[0].z)
+				viewWallHighlight(nWall, nSect, (POINT3D*)point);
+		}
+		
+		// between floor and ceil
+		if (how & 0x40)
+		{
+			getzsofslope(nNext, x1, y1, &point[0].z, &point[2].z); 			// next left top bot
+			getzsofslope(nNext, x2, y2, &point[1].z, &point[3].z); 			// next right top bot
+			
+			if (!testPoint || (point[2].z != point[0].z && point[3].z != point[1].z))
+				viewWallHighlight(nWall, nSect, (POINT3D*)point);
+		}
+	}
+}
+
 void viewProcessSprites(int x, int y, int z, int a) {
 	
 	static int i, dx, dy, nOctant, nSprite, nXSprite, nTile, nShade;
 	static int voxType, offset, nView, nTileNew;
+	
+	if (gSysTiles.wallHglt > 0 && gHovWall >= 0)
+	{
+		if (gHovStat == OBJ_MASKED)
+			viewWallHighlight(gHovWall, sectorofwall(gHovWall), 0, FALSE);
+		else if (searchwallcf)
+			viewWallHighlight(gHovWall, searchsector, 0x10);
+		else
+			viewWallHighlight(gHovWall, searchsector, 0x20);
+	}
+	
+/* 	if (searchsector >= 0)
+	{
+		int s, e;
+		getSectorWalls(searchsector, &s, &e);
 		
+		int nFSpr;
+		if ((nFSpr = headspritestat[kStatFree]) < 0)
+			return;
+		
+		
+		while(s <= e)
+		{
+			
+			//int zTop, int zBot;
+			int x1, y1;
+			getWallCoords(s, &x1, &y1);
+			
+			unsigned char size;
+			
+			spritetype* pEffect;
+			if ((pEffect = viewInsertTSprite(searchsector, -32767)) != NULL)
+			{
+				pEffect->picnum 	= gSysTiles.pixel;
+				pEffect->cstat 	   |= (kSprFloor);
+				
+				if (!h)
+					pEffect->cstat |= kSprTransluc2;
+				
+				
+				pEffect->shade 		= -128;
+				pEffect->ang 		= GetWallAngle(s) + kAng90;
+				
+				pEffect->x 			= x1;
+				pEffect->y 			= y1;
+				pEffect->z 			= getflorzofslope(searchsector, x1, y1);
+				
+				pEffect->owner 		= nFSpr;
+				
+				size = (unsigned char)ClipRange(mulscale8(64, approxDist(x1-posx, y1-posy)>>5), 4, 164);
+				pEffect->xrepeat 	= pEffect->yrepeat = size;
+				
+				doWallCorrection(s, &pEffect->x, &pEffect->y);
+				//GetSpriteExtents(pEffect, &zTop, &zBot);
+				//pEffect->z = zTop;
+			}
+			
+			s++;
+		}
+		
+	} */
+
 	for (i = spritesortcnt - 1; i >= 0; i--)
 	{
 		spritetype *pTSprite = &tsprite[i];
@@ -446,10 +695,6 @@ void viewProcessSprites(int x, int y, int z, int a) {
 						viewAddEffect(i, kViewEffectSmokeHigh);
 					}
 					break;
-				//case kMarkerSPStart:
-				//case kMarkerMPStart:
-					//viewAddEffect(i, kViewEffectGameMode);
-					//break;
 				case kMarkerDudeSpawn:
 					viewAddEffect(i, kViewEffectMiniDude);
 					break;
@@ -497,4 +742,6 @@ void viewProcessSprites(int x, int y, int z, int a) {
 		if (pXSector && pXSector->coloredLights)
 			pTSprite->pal = (char)pSector->floorpal;
 	}
+
+
 }

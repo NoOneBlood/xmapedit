@@ -32,7 +32,7 @@ extern int globalorientation;
 
 extern short searchit;
 extern int searchx, searchy;
-extern short searchsector, searchwall, searchstat;
+extern short searchsector, searchwall, searchindex, searchstat;
 
 extern char inpreparemirror;
 

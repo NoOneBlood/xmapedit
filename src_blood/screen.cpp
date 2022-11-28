@@ -35,10 +35,7 @@ extern "C" {
 #include "xmpconf.h"
 #include "xmpmisc.h"
 
-char message[256];
-int messageTime;
 PALETTE gamepal;
-
 bool DacInvalid = true;
 static char(*gammaTable)[256];
 RGB curDAC[256];
@@ -187,19 +184,51 @@ void scrLoadPalette(void)
 
 }
 
-void scrSetMessage(char *__format, ...) {
-
-	va_list argptr;
-	va_start(argptr, __format);
-	vsprintf(message, __format, argptr);
+void scrSetMessage(char *__format, ...)
+{
+	SCRMESSAGE* pMsg = &gScreen.msg[0];
+	register int i = LENGTH(gScreen.msg); char buffer[sizeof(pMsg->text)];
+	
+	va_list argptr; va_start(argptr, __format);
+	vsprintf(buffer, __format, argptr);
 	va_end(argptr);
 	
-	messageTime = totalclock;
+	//if (strcmp(pMsg->text, buffer) != 0)
+	//{
+		gScreen.msgShowCur = ClipHigh(gScreen.msgShowCur + 1, ClipHigh(gScreen.msgShowTotal, i));
+		while(--i > 0)
+			gScreen.msg[i] = gScreen.msg[i-1];
+		
+		sprintf(pMsg->text, buffer);
+	//}
+	
+	pMsg->time = totalclock+(gScreen.msgShowCur<<3)+gScreen.msgTime;
 }
 
-void scrDisplayMessage( int color ) {
-	if (totalclock >= messageTime + 120) return;
-	gfxPrinTextShadow(windowx1 + 1, windowy1 + 1, gStdColor[15], message, qFonts[0]);
+void scrDisplayMessage()
+{
+	if (!gScreen.msgShowCur)
+		return;
+		
+	register int i; register int y = windowy1 + 1;
+	QFONT* pFont = qFonts[gScreen.msgFont]; SCRMESSAGE* pMsg; 
+	char nColor = kColorWhite;
+	
+	for (i = 0; i < gScreen.msgShowCur; i++)
+	{
+		pMsg = &gScreen.msg[i];
+		if (totalclock < pMsg->time)
+		{
+			gfxPrinTextShadow(windowx1+1, y, clr2std(nColor), pMsg->text, pFont);
+			y+=perc2val(140, pFont->height);
+			nColor++;
+		}
+		else
+		{
+			gScreen.msgShowCur--;
+			pMsg->time = 0;
+		}
+	}
 }
 
 void scrSetPalette(int palId, bool updDac)
@@ -332,7 +361,7 @@ void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits)
     
 	scrNextPage();
     scrSetPalette(curPalette);
-    gfxSetClip(0, 0, xdim, ydim);
+    gfxSetClip(windowx1, windowy1, windowx2-1, windowy2-1);
 }
 
 void scrNextPage(void)

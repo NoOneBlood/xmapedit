@@ -38,6 +38,7 @@
 #include "tile.h"
 #include "xmpmisc.h"
 #include "editor.h"
+#include "hglt.h"
 
 PREVIEW_MODE gPreview;
 static PREVIEW_MODE_KEYS gPreviewKeys[] = {
@@ -108,8 +109,6 @@ void PREVIEW_MODE::Init(IniFile* pIni, char* section)
 	explosionType		= ClipHigh(pIni->GetKeyInt(section, "ExplosionType", 1), kExplosionMax);
 	missileType			= ClipHigh(pIni->GetKeyInt(section, "MissileType", 5), kMissileMax-kMissileBase-1);
 	
-	showScore			= pIni->GetKeyBool(section, "ShowScore", 0);
-	bestScore			= ClipHigh(pIni->GetKeyInt(section, "BestScore", 0), 32767);
 	speed				= ClipHigh(pIni->GetKeyInt(section, "Speed", 4), 128);
 	m1cmd				= ClipHigh(pIni->GetKeyInt(section, "Mouse1Command", 2), 255);
 	m2cmd				= ClipHigh(pIni->GetKeyInt(section, "Mouse2Command", 0), 255);
@@ -129,8 +128,6 @@ void PREVIEW_MODE::Save(IniFile* pIni, char* section)
 	pIni->PutKeyInt(section, "MissileType", missileType);
 	
 	pIni->PutKeyString(section, "EpisodeIni", gPaths.episodeIni);
-	if (showScore)
-		pIni->PutKeyInt(section, "BestScore", bestScore);
 }
 
 int previewMenuDifficulty() {
@@ -247,85 +244,36 @@ BOOL previewProcessKeys() {
 	return TRUE;
 }
 
-void previewSaveState() {
-	
-	
+void previewSaveState()
+{
 	AutoAdjustSprites();
 	CleanUp();
-
-	int i;
-	for (i = 0; i < kMaxSectors; i++)
-	{
-		baseFloor[i] = sector[i].floorz;
-		baseCeil[i] = sector[i].ceilingz;
-		
-		cpysector[i] = sector[i];
-		if (sector[i].extra > 0)
-			cpyxsector[sector[i].extra] = xsector[sector[i].extra];
-	}
 	
-	for (i = 0; i < kMaxSprites; i++)
-	{
-		if (sprite[i].statnum < kMaxStatus)
-		{
-			baseSprite[i].x = sprite[i].x;
-			baseSprite[i].y = sprite[i].y;
-			baseSprite[i].z = sprite[i].z;
-		}
-		
-		cpysprite[i] = sprite[i];
-		if (sprite[i].extra > 0)
-			cpyxsprite[sprite[i].extra] = xsprite[sprite[i].extra];
-	}
-	
-	for (i = 0; i < kMaxWalls; i++)
-	{
-		baseWall[i].x = wall[i].x;
-		baseWall[i].y = wall[i].y;
-		
-		cpywall[i] = wall[i];
-		if (wall[i].extra > 0)
-			cpyxwall[wall[i].extra] = xwall[wall[i].extra];
-	}
+	memcpy(cpysector, sector, sizeof(sector));	memcpy(cpyxsector, xsector, sizeof(xsector));
+	memcpy(cpywall,   wall,   sizeof(wall));	memcpy(cpyxwall,   xwall,   sizeof(xwall));
+	memcpy(cpysprite, sprite, sizeof(sprite));	memcpy(cpyxsprite, xsprite, sizeof(xsprite));
 	
 	gPreview.oVisibility = visibility;
 	gPreview.modernMap = gModernMap;
-	
 }
 
 void previewLoadState() {
 
 	int i;
-	for (i = 0; i < kMaxSectors; i++) {
-		sector[i] = cpysector[i];
-		baseFloor[i] = sector[i].floorz;
-		baseCeil[i] = sector[i].ceilingz;
-		
-		if (sector[i].extra > 0)
-			xsector[sector[i].extra] = cpyxsector[sector[i].extra];
-	}
+	memcpy(sector, cpysector, sizeof(sector));	memcpy(xsector, cpyxsector, sizeof(xsector));
+	memcpy(wall,   cpywall,   sizeof(wall));	memcpy(xwall,   cpyxwall,   sizeof(xwall));
 	
-	for (i = 0; i < kMaxWalls; i++) {
-		
-		wall[i] = cpywall[i];
-		baseWall[i].x = wall[i].x;
-		baseWall[i].y = wall[i].y;
-		
-		if (wall[i].extra > 0)
-			xwall[wall[i].extra] = cpyxwall[wall[i].extra];
-	}
-	
-	for (i = 0; i < kMaxSprites; i++) {
-		
+	for (i = 0; i < kMaxSprites; i++)
+	{
 		int nStat  = sprite[i].statnum;
 		int nStat2 = cpysprite[i].statnum;
 		int nSect  = sprite[i].sectnum;
 		int nSect2 = cpysprite[i].sectnum;
 		
-
-		if (nStat != kStatFree) {
-			
-			if (nStat2 == kStatFree && nStat != kStatFree) { // delete created sprites
+		if (nStat != kStatFree)
+		{
+			if (nStat2 == kStatFree && nStat != kStatFree)
+			{ // delete created sprites
 				DeleteSprite(i);
 				continue;
 			}
@@ -333,14 +281,9 @@ void previewLoadState() {
 			if (nStat2 != nStat) ChangeSpriteStat(i, nStat2);
 			if (nSect2 != nSect) ChangeSpriteSect(i, nSect2);
 			
-			sprite[i] 		= cpysprite[i];
-			baseSprite[i].x = sprite[i].x;
-			baseSprite[i].y = sprite[i].y;
-			baseSprite[i].z = sprite[i].z;
-
+			sprite[i] = cpysprite[i];
 			if (sprite[i].extra > 0)
 				xsprite[sprite[i].extra] = cpyxsprite[sprite[i].extra];
-			
 		}
 	}
 	
@@ -349,7 +292,6 @@ void previewLoadState() {
 	// for unknown reason
 	resortFree(); 
 	updatenumsprites();
-	cpyObjectClear();
 	CleanUp();
 	
 	visibility = gPreview.oVisibility;
@@ -359,17 +301,21 @@ void previewLoadState() {
 void previewInitGameLite() {
 	
 	int i; BOOL found = FALSE;
-	for (i = 0; i < kMaxSprites; i++) {
+	
+	memset(gSpriteHit, 0, sizeof(gSpriteHit));
+	memset(xvel, 0, sizeof(xvel));	memset(yvel, 0, sizeof(yvel));
+	memset(zvel, 0, sizeof(zvel));
+	
+	for (i = 0; i < kMaxSprites; i++)
+	{
 		spritetype *pSprite = &sprite[i];
-		if (pSprite->extra <= 0 || pSprite->statnum == kStatFree)
+		if (pSprite->extra <= 0 || pSprite->statnum >= kMaxStatus)
 			continue;
-		
 		
 		XSPRITE *pXSprite = &xsprite[pSprite->extra];
 		if (pXSprite->rxID == 60 && pXSprite->txID == pXSprite->rxID && pXSprite->command == 100)
 			gModernMap = TRUE;
-		
-		
+				
 		if ((pXSprite->lSkill & (1 << gPreview.difficulty)))
 		{
 			hideSprite(pSprite);
@@ -406,6 +352,7 @@ void previewInitGameLite() {
 				pXSprite->waitTime = ClipLow(pXSprite->waitTime, 1);
 				break;
 			case kTrapMachinegun:
+			//case kModernThingTNTProx:
 				pXSprite->state = 0;
 				// no break;
 			case kTrapFlame:
@@ -426,15 +373,54 @@ void previewInitGameLite() {
 				break;
 		}
 		
-		if (pSprite->statnum == kStatDude)
+		if (IsDudeSprite(pSprite))
 		{
 			pSprite->cstat |= kSprBlock;
 			pXSprite->health = 100 << 4;
+			
+			switch (pSprite->type) {
+				case kDudeGargoyleFlesh:
+				case kDudeGargoyleStone:
+				case kDudeBat:
+				case kDudePhantasm:
+					break;
+				case kDudePodGreen:
+				case kDudePodFire:
+				case kDudeTentacleGreen:
+				case kDudeTentacleFire:
+					if (gModernMap && (pSprite->cstat & kSprFlipY)) break;
+					pSprite->flags = kPhysGravity|kPhysFalling|kPhysMove;
+					break;
+				case kDudeSpiderBrown:
+				case kDudeSpiderBlack:
+				case kDudeSpiderMother:
+				case kDudeSpiderRed:
+					pSprite->cstat &= ~kSprFlipY;
+					// no break
+				default:
+					pSprite->flags = kPhysGravity|kPhysFalling|kPhysMove;
+					break;
+			}
+			
+			gPreview.kills.total++;
+		}
+		else if (IsThingSprite(pSprite))
+		{
+			int nType = pSprite->type - kThingBase;
+			pXSprite->health = thingInfo[nType].startHealth << 4;
+			if (!gModernMap)
+				pSprite->clipdist = thingInfo[nType].clipdist;
+			
+			pSprite->flags = thingInfo[nType].flags;
+			if (pSprite->flags & kPhysGravity)
+				pSprite->flags |= kPhysFalling;
 		}
 	}
 	
 	if (gModernMap)
 		nnExtInitModernStuff();
+	else
+		nnExtResetGlobals();
 	
 	if (gPreview.forceStartPos && !found && startsectnum >= 0)
 	{
@@ -456,10 +442,7 @@ void previewInitGameLite() {
 
 void previewStart() {
 	
-	int i;
-	
 	gPreviewMode = TRUE;
-	
 	grshUnhgltObjects(-1, FALSE);
 	previewSaveState();
 	
@@ -468,6 +451,10 @@ void previewStart() {
 	gPostCount = 0;
 	
 	memset(gPreview.scrEffects, 0, sizeof(gPreview.scrEffects));
+	memset(show2dsprite, 	0, sizeof(show2dsprite));
+	memset(show2dwall, 		0, sizeof(show2dwall));
+	memset(show2dsector, 	0, sizeof(show2dsector));
+	automapping = true;
 	
 	previewInitGameLite();
 	if (gPreview.enableSound)
@@ -494,14 +481,21 @@ void previewStart() {
 	gHighSpr = -1;
 
 	gPreview.sectnum = cursectnum;
-	gPreview.scoreSpeed	= 64;
-	gPreview.score = 0;
 	
 	gMouse.VelocityReset();
 	gMapedHud.SetTile(-1, -1, -1);
 	
-	if (numsprites < kMaxSprites >> 1) gPreview.trackFree = TRUE;
+	memset(&gPreview.kills,   0, sizeof(gPreview.kills));
+	memset(&gPreview.secrets, 0, sizeof(gPreview.secrets));
+	
+	gPreview.levelTime = 0;
+	
+	memset(gScreen.msg, 0, sizeof(gScreen.msg));
+	gScreen.msgShowTotal = 16;
+	
 	if (gMisc.externalModels == 2) usevoxels = 1;
+	previewMessage("Game mode: %s", gGameNames[gPreview.mode].name);
+	previewMessage("Difficulty: %s.", gDifficNames[gPreview.difficulty].name);
 	previewMessage("Preview mode enabled.");
 	BeepOk();
 	
@@ -530,30 +524,12 @@ void previewProcess() {
 		
 		ambProcess();
 		sfxUpdate3DSounds();
+		
+		gPreview.levelTime++;
 	}
 	
 	previewCheckPickup();
 	previewGetTriggerObject();
-	if (gPreview.bestScore < gPreview.score) gPreview.bestScore = gPreview.score;
-	if (totalclock > gPreview.scoreTicks + gPreview.scoreSpeed) {
-		gPreview.score = (ushort)ClipLow(gPreview.score - 1, 0);
-		gPreview.scoreTicks = totalclock;
-	}
-	
-	if (gPreview.trackFree) {
-
-		int nSprite = headspritestat[kStatFree];
-		if (nSprite >= kMaxSprites >> 1) {
-			
-			resortFree();
-			
-			nSprite = headspritestat[kStatFree];
-			if (nSprite >= kMaxSprites >> 1)
-				gPreview.trackFree = FALSE;
-			
-		}
-		
-	}
 }
 
 void previewStop() {
@@ -585,6 +561,38 @@ void previewStop() {
 	if (gMisc.externalModels == 2)
 		usevoxels = 0;
 	
+	memset(show2dsprite, 	0, sizeof(show2dsprite));
+	memset(show2dwall, 		0, sizeof(show2dwall));
+	memset(show2dsector, 	0, sizeof(show2dsector));
+	automapping = false;
+	
+	int i, s, e;
+	for (i = 0; i < numsectors; i++)
+	{
+		getSectorWalls(i, &s, &e);
+		while(s <= e)
+		{
+			// restore wall highlight effect
+			if (hgltCheck(OBJ_WALL, s) >= 0)
+				SetBitString(show2dwall, s);
+			
+			s++;
+		}
+		
+		for (s = headspritesect[i]; s >= 0; s = nextspritesect[s])
+		{
+			// restore sprite highlight effect
+			if (hgltCheck(OBJ_SPRITE, s) >= 0)
+				SetBitString(show2dsprite, s);
+		}
+	}
+	
+	// free lists
+	gProxySpritesList.Free();
+	gSightSpritesList.Free();
+	gPhysSpritesList.Free();
+	
+	gScreen.msgShowTotal = 1;
 	gMapedHud.SetTile(-1, -1, -1);
 	previewMessage("Preview mode disabled.");
 	BeepFail();
@@ -595,8 +603,7 @@ void previewShowStatus() {
 	
 	QFONT* pFont = qFonts[0];
 	int tcol = kColorWhite, bcol = kColorRed ^ h, i;
-	if (!gPreview.showScore) i = sprintf(buffer,"<< PREVIEW MODE >>");
-	else i = sprintf(buffer,"<< PREVIEW MODE [SCORE: %d/%d] >>", gPreview.score, gPreview.bestScore);
+	i = sprintf(buffer,"<< PREVIEW MODE >>");
 	
 	gfxSetColor(gStdColor[bcol]);
 	int len = gfxGetTextLen(buffer, pFont) + 4;
@@ -709,20 +716,29 @@ void previewCheckPickup()
 void previewPickupItem(spritetype* pSprite, XSPRITE* pXSprite) {
 	
 	int nType = pSprite->type;
-	if (irngok(nType, kItemWeaponBase, kItemWeaponMax)
-		|| irngok(nType, kItemAmmoBase, kItemAmmoMax-1) || irngok(nType, kItemBase, kItemMax-1))
+	switch(nType)
 	{
-		gPreview.score+=kPreviewScorePickup;
-		previewMessage("Picked up %s", gSpriteNames[pSprite->type]);
-		if (pXSprite && pXSprite->triggerPickup)
-			trTriggerSprite(pSprite->index, pXSprite, kCmdSpritePickup);
-		
-		
-		hideSprite(pSprite);
-		BeepOk();
+		case kItemFlagABase:
+		case kItemFlagBBase:
+			return;
+		default:
+			if (!rngok(nType, kItemBase, kItemMax))
+			{
+				if (!irngok(nType, kItemWeaponBase, kItemWeaponMax))
+				{
+					if (!rngok(nType, kItemAmmoBase, kItemAmmoMax))
+						return;
+				}
+			}
+			break;
 	}
 	
-
+	previewMessage("Picked up %s", gSpriteNames[pSprite->type]);
+	if (pXSprite && pXSprite->triggerPickup)
+		trTriggerSprite(pSprite->index, pXSprite, kCmdSpritePickup);
+	
+	hideSprite(pSprite);
+	BeepOk();
 }
 
 char previewMorphDude(spritetype* pSprite, XSPRITE* pXSprite) {
@@ -793,7 +809,7 @@ void previewKillDude(spritetype* pSprite, XSPRITE* pXSprite) {
 		}
 	}
 	
-	gPreview.score+=kPreviewScoreKill;
+	gPreview.kills.done++;
 	previewMessage("%s is killed.", gSpriteNames[pSprite->type]);
 	if (pSprite->yvel == kDeleteReally) actPostSprite(pSprite->index, kStatFree);
 	else hideSprite(pSprite);
@@ -802,14 +818,10 @@ void previewKillDude(spritetype* pSprite, XSPRITE* pXSprite) {
 }
 
 
-void previewDestroyThing(spritetype* pSprite, XSPRITE* pXSprite, int cmd) {
-	
-	if (!(pSprite->cstat & kSprInvisible))
-		gPreview.score+=kPreviewScoreDestroyThing;
-	
+void previewDestroyThing(spritetype* pSprite, XSPRITE* pXSprite, int cmd)
+{
 	if (pXSprite)
 		trTriggerSprite(pSprite->index, pXSprite, cmd);
-	
 }
 
 
@@ -952,7 +964,6 @@ void previewGetTriggerObject() {
 					return;
 				case -2:
 					previewMessage("The %s#%d is common and cannot be triggered!", gSearchStatNames[type], idx);
-					gPreview.score = (ushort)ClipLow(gPreview.score - kPreviewScoreMiss, 0);
 					BeepFail();
 					return;
 				case -3:
@@ -966,10 +977,11 @@ void previewGetTriggerObject() {
 				
 		switch (type) {
 			case OBJ_SPRITE:
+			{
+				spritetype* pSprite = &sprite[idx];
+				XSPRITE* pXSprite = (pSprite->extra > 0) ? &xsprite[pSprite->extra] : NULL;
 				if (mouse1)
 				{
-					spritetype* pSprite = &sprite[idx];
-					XSPRITE* pXSprite = (pSprite->extra > 0) ? &xsprite[pSprite->extra] : NULL;
 					switch (pSprite->statnum){
 						case kStatItem:
 							previewPickupItem(pSprite, pXSprite);
@@ -982,8 +994,20 @@ void previewGetTriggerObject() {
 							return;
 					}
 				}
-				trTriggerSprite(idx, &xsprite[sprite[idx].extra], cmd);
-				break;
+				
+				switch (pSprite->type)
+				{
+					case kModernCondition:
+					case kModernConditionFalse:
+						scrSetMessage("That must be triggered by object.");
+						BeepFail();
+						break;
+					default:
+						trTriggerSprite(idx, &xsprite[sprite[idx].extra], cmd);
+						break;
+				}
+			}
+			break;
 			case OBJ_WALL:
 			case OBJ_MASKED:
 				trTriggerWall(idx, &xwall[wall[idx].extra], cmd);

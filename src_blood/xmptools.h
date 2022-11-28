@@ -53,11 +53,6 @@ kGrabAll			= kGrabFloor|kGrabCeil|kGrabWall|kGrabOWall|kGrabSprite,
 extern char* toolMenu[3];
 
 struct ARTFILE;
-struct POINT {
-	
-	int x, y;
-	
-};
 
 #include "xmparted.h"
 
@@ -136,9 +131,9 @@ void toolGetResTableValues();
 int toolGetDefTileZoom();
 void toolDisplayMessage(short nColor, int x, int y, QFONT* pFont);
 void toolDrawPixels(int dist = 2, int color = 8);
-void toolDrawCenter(POINT* origin, int nColor, int xrng = 6, int yrng = 6, int skip = 4);
-void toolDrawCenterHUD(POINT* origin, int nTile, int nVTile, int scrYofs, int nOctant, int nColor);
-void toolSetOrigin(POINT* origin, int x, int y );
+void toolDrawCenter(POINT2D* origin, int nColor, int xrng = 6, int yrng = 6, int skip = 4);
+void toolDrawCenterHUD(POINT2D* origin, int nTile, int nVTile, int scrYofs, int nOctant, int nColor);
+void toolSetOrigin(POINT2D* origin, int x, int y );
 void toolDrawWindow(int x1, int y1, int x2, int y2, char* title, char textColor);
 int toolGetViewTile(int nTile, int nOctant, char *flags, int *ang);
 BOOL toolLoadAs(char* path, char* ext, char* title = "Load file");

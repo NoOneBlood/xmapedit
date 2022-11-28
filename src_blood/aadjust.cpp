@@ -685,6 +685,8 @@ void CleanUp() {
 		DeleteSprite(i);
 	}
 	
+	spritesortcnt = 0;
+	
 	warpInit();
 	InitSectorFX();
 	gCommentMgr.Cleanup();

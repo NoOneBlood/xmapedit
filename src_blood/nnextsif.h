@@ -1,7 +1,9 @@
 /**********************************************************************************
 ///////////////////////////////////////////////////////////////////////////////////
 // Copyright (C) 2021: Originally written by NoOne.
-// A lite version of game's view.cpp adapted for xmapedit.
+// A lite version of nnextsif adapted for xmapedit's preview mode feature.
+// This file provides functionality for kModernCondition types which is part
+// of nnexts.cpp. More info at http://cruo.bloodgame.ru/xxsystem
 //
 // This file is part of XMAPEDIT.
 //
@@ -20,24 +22,17 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#ifndef __XMPVIEW
-#define __XMPVIEW
-enum VIEW_EFFECT {
-kViewEffectTorchHigh 			=  4,
-kViewEffectTorchLow 			=  5,
-kViewEffectSmokeHigh 			=  6,
-kViewEffectSmokeLow 			=  7,
-kViewEffectCandleHalo 			= 12,
-kViewEffectHighlight				,
-kViewEffectAngle					,
-kViewEffectMiniDude					,
-kViewEffectMiniCustomDude			,
-kViewEffectGameMode				,
-kViewEffectMax						,
-};
 
-void viewDoQuake(int strength, int* x, int* y, int* z, short* a, int* h);
-void viewProcessSprites(int x, int y, int z, int a);
-int viewSpriteShade(int nShade, int nTile, int nSect);
-void viewWallHighlight(int nWall, int nSect, char how = 0x0, BOOL testPoint = TRUE);
+#ifndef __NNEXTSIF_H
+#define __NNEXTSIF_H
+#include "db.h"
+#include "eventq.h"
+
+void conditionsInit();
+void conditionsTrackingAlloc();
+void conditionsTrackingClear();
+void conditionsTrackingProcess();
+void useCondition(spritetype* pSource, XSPRITE* pXSource, EVENT event);
+
+
 #endif

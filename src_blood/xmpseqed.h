@@ -34,7 +34,7 @@
 
 struct SEQEDIT {
 	
-	POINT origin;
+	POINT2D origin;
 	SEQFRAME clipboard;
 	char* filename;
 	unsigned int clipboardOk	: 1;

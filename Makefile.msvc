@@ -204,6 +204,7 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\eventq.$o \
 	$(XMAPEDSRC)\enumstr.$o \
 	$(XMAPEDSRC)\nnexts.$o \
+	$(XMAPEDSRC)\nnextsif.$o \
 	$(XMAPEDSRC)\grdshd.$o \
 	$(XMAPEDSRC)\hglt.$o \
 	$(XMAPEDSRC)\prefabs.$o \
@@ -281,9 +282,9 @@ ENGINEOBJS=$(ENGINEOBJS) $(BUILDSRC)\version.$o
 {$(XMAPEDSRC)}.rc{$(XMAPEDSRC)}.$(res):
 	$(R_COMPILER) $(RF) /fo$@ /r $<
 
-# {$(BUILDSRC)}.glsl{$(BUILDSRC)}.c:
-#	if not exist bin2c.exe $(MAKE) /f Makefile.msvc /$(MAKEFLAGS) /nologo bin2c.exe
-#	bin2c.exe -text $< default_$(@B)_glsl > $@
+{$(BUILDSRC)}.glsl{$(BUILDSRC)}.c:
+	if not exist bin2c.exe $(MAKE) /f Makefile.msvc /nologo bin2c.exe
+	bin2c.exe -text $< default_$(@B)_glsl > $@
 
 # TARGETS
 all: enginelib editorlib $(XMAPEDOUT)\xmapedit.exe ;
@@ -299,7 +300,9 @@ $(BUILDSRC)\$(EDITORLIB): $(EDITOROBJS)
 $(XMAPEDOUT)\xmapedit.exe: $(EDITOREXEOBJS) $(AUDIOLIBROOT)\$(JFAUDIOLIB)
 	$(LINKER) /OUT:$@ $(SUBSYSTEM) $(LF) "/LIBPATH:$(DXROOT)\lib" /MAP $** $(REQLIBS) $(JFAUDIOLIB_LINKFLAGS)
 
-
+bin2c.exe: $(BUILDSRC)\bin2c.$o
+	$(LINKER) /OUT:$@ /SUBSYSTEM:CONSOLE $(LF) /MAP $**
+	
 jfaudiolib: AlwaysBuild
 	cd "$(AUDIOLIBROOT)"
 	$(MAKE) /f Makefile.msvc /$(MAKEFLAGS) RELEASE=$(RELEASE)
