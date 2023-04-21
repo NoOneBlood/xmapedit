@@ -383,11 +383,24 @@ void tileInitSystemTiles() {
 	{
 		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
 		panm[nTile].xcenter = tilesizx[nTile] >> 1;
-		//panm[nTile].ycenter = -tilesizy[nTile];
-		
 		gSysTiles.wallHglt = nTile;
 		gSysTiles.add(nTile);
 	}
+	
+	if ((hIco = gGuiRes.Lookup((unsigned int)3, "TGA")) && (nTile = tileGetBlank()) > 0)
+	{
+		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		gSysTiles.icoVer1 = nTile;
+		gSysTiles.add(nTile);
+	}
+	
+	if ((hIco = gGuiRes.Lookup((unsigned int)4, "TGA")) && (nTile = tileGetBlank()) > 0)
+	{
+		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		gSysTiles.icoVer2 = nTile;
+		gSysTiles.add(nTile);
+	}
+	
 	
 	if (tileAllocSysTile(&nTile, 4, 4))
 	{
@@ -448,6 +461,18 @@ void tileUninitSystemTiles() {
 	{
 		tilePurgeTile(gSysTiles.wallHglt, TRUE);
 		tileFreeTile(gSysTiles.wallHglt);
+	}
+	
+	if (gSysTiles.icoVer1)
+	{
+		tilePurgeTile(gSysTiles.icoVer1, TRUE);
+		tileFreeTile(gSysTiles.icoVer1);
+	}
+	
+	if (gSysTiles.icoVer2)
+	{
+		tilePurgeTile(gSysTiles.icoVer2, TRUE);
+		tileFreeTile(gSysTiles.icoVer2);
 	}
 	
 	if (gSysTiles.hgltQav)

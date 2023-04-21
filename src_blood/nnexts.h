@@ -22,12 +22,13 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
+#pragma once
 #include "common_game.h"
 #include "eventq.h"
 #include "db.h"
 #include "gui.h"
-#pragma once
+
+
 
 #define kCauserGame (kMaxSprites - 1)
 #define kSlopeDist 0x20
@@ -60,6 +61,10 @@
 
 #define kDudeFlagStealth    0x0001
 #define kDudeFlagCrouch     0x0002
+
+#define kCdudeFileNamePrefix        "CDUD"
+#define kCdudeFileNamePrefixWild    "CDUD*"
+#define kCdudeFileExt               "CDU"
 
 extern BOOL gEventRedirectsUsed;
 class IDLIST
@@ -240,8 +245,16 @@ struct SPRITEMASS
     int fraction; // mainly needs for moving debris
 };
 
+struct EXTERNAL_FILES_LIST
+{
+    const char* name;
+    const char* ext;
+};
 
 extern SPRITEMASS gSpriteMass[kMaxXSprites];
+extern EXTERNAL_FILES_LIST gExternFiles[1];
+extern char gCustomDudeNames[kMaxSprites][32];
+
 
 inline BOOL xspriRangeIsFine(int nXindex) {
     return (nXindex > 0 && nXindex < kMaxXSprites);
@@ -346,3 +359,6 @@ XSPRITE* evrIsRedirector(int nSprite);
 int listTx(XSPRITE* pXRedir, int tx);
 void nnExtTriggerObject(int objType, int objIndex, int command);
 int getSpriteMassBySize(spritetype* pSprite);
+
+int nnExtResAddExternalFiles(Resource* pIn, const char* pPath, EXTERNAL_FILES_LIST* pList, int nLen);
+DICTNODE* nnExtResFileSearch(Resource* pIn, const char* pName, const char* pExt, char external = true);

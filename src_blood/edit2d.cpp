@@ -890,7 +890,8 @@ void PaintDialogItem(DIALOG_ITEM *dialog, DIALOG_ITEM *control, int focus)
 				if (label[0] == kPrefixSpecial) // special case
 				{
 					DIALOG_ITEM* ctrl;
-					switch (sprType->value) {
+					switch (sprType->value)
+					{
 						case 500: // data names depends on CMD type
 							for (ctrl = dialog; ctrl->tabGroup != 5; ctrl++);
 							for (j = 0; j < LENGTH(pCtrlDataNames); j++, label = defLabel)
@@ -912,10 +913,7 @@ void PaintDialogItem(DIALOG_ITEM *dialog, DIALOG_ITEM *control, int focus)
 							break;
 					}
 				}
-
-				if (!focus)
-					foreColor = clr2std((label == defLabel) ? kColorCyan : kColorLightCyan);
-
+				
 				if (irngok(sprType->value, 0, maxRng))
 				{
 					for (i = 0; i < 4; i++)
@@ -935,8 +933,8 @@ void PaintDialogItem(DIALOG_ITEM *dialog, DIALOG_ITEM *control, int focus)
 				}
 				
 				// fix for unsigned data4
-				if (control->tabGroup == kSprDialogData4 && control->value == 65535)
-					control->value = -1; // just display -1, but set 65535
+				//if (control->tabGroup == kSprDialogData4 && control->value == 65535)
+					//control->value = -1; // just display -1, but set 65535
 				
 				sprintf(&buffer[i], ": %-6d", control->value);
 			}
@@ -1089,7 +1087,7 @@ int EditDialog(DIALOG_ITEM *dialog)
 		if (gHints == NULL) // load hints for edit dialog
 		{
 			if ((hFile = gGuiRes.Lookup(kIniEditDialogHints, "INI")) != NULL)
-				gHints = new IniFile(gGuiRes.Load(hFile));
+				gHints = new IniFile((BYTE*)gGuiRes.Load(hFile), hFile->size);
 		}
 	}
 	

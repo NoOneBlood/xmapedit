@@ -265,6 +265,19 @@ SYS_STATNUM_GROUP sysStatData[] = {
 	
 };
 
+char isSysStatnum(int nStat)
+{
+	int i;
+	for (i = 0; i < LENGTH(sysStatData); i++)
+	{
+		SYS_STATNUM_GROUP* data = &sysStatData[i];
+		if (nStat == data->statnum)
+			return true;
+	}
+	
+	return false;
+}
+
 void AutoAdjustSprites(void) {
 
 	if (gPreviewMode || !gAutoAdjust.enabled)
@@ -344,6 +357,7 @@ void AutoAdjustSprites(void) {
 						pSprite->shade = -128;
 						break;
 					case kDudeModernCustom:
+					case kModernCustomDudeSpawn:
 						cdGetSeq(pSprite);
 						break;
 					case kDudeGillBeast:
@@ -658,7 +672,7 @@ void CleanUp() {
 			dbDeleteXSprite(sprite[i].extra);
 
 		sprite[i].cstat |= kSprInvisible;
-		sprite[i].cstat &= ~kSprBlock & ~kSprHitscan;
+		sprite[i].cstat &= ~(kSprBlock | kSprHitscan);
 
 		int nSector = sprite[i].owner;
 		int nXSector = sector[nSector].extra;
@@ -746,6 +760,12 @@ void CleanUpStatnum(int nSpr) {
 		
 		if (chgTo >= 0)
 		{
+			if (!gAutoAdjust.setStatnumThings && rngok(pSpr->type, kThingBase, kThingMax))
+			{
+				if (!isSysStatnum(pSpr->statnum))
+					break;
+			}
+						
 			if (data->check & 0x04) pSpr->statnum = chgTo;
 			else ChangeSpriteStat(nSpr, chgTo);
 		}

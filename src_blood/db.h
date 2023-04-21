@@ -149,6 +149,8 @@ struct XSPRITE {
     AISTATE* aiState;                   // ai
     signed int sysData1: 32;            // used to keep here various system data, so user can't change it in map editor
     signed int sysData2: 32;            //
+	signed int sysData3: 32;            //
+	signed int sysData4: 32;            //
     unsigned int physAttr : 32;         // currently used by additional physics sprites to keep it's attributes.
     signed int scale;                   // used for scaling SEQ size on sprites
 

@@ -285,6 +285,7 @@ int getPluOf(int oType, int oIdx);
 int getPicOf(int oType, int oIdx);
 int getShadeOf(int oType, int oIdx);
 BOOL isSearchSector();
+char removeQuotes(char* str);
 
 //void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1);
 //BOOL ss2obj(int* objType, int* objIdx, BOOL asIs = FALSE);

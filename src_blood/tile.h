@@ -40,6 +40,8 @@ struct SYSTEM_TILES {
 	unsigned int pixel				: 17;
 	unsigned int sectfil			: 17;
 	unsigned int hgltQav			: 17;
+	unsigned int icoVer1			: 17;
+	unsigned int icoVer2			: 17;
 	STATUS_BIT1 busy[kMaxTiles];
 	BOOL isBusy(int nTile) 	{ return (BOOL)busy[nTile].ok; }
 	void add(int nTile) 	{ busy[nTile].ok = 1; }

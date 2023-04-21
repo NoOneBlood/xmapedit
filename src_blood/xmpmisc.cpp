@@ -2150,6 +2150,25 @@ BOOL isSearchSector()
 	return (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING);
 }
 
+char removeQuotes(char* str)
+{
+	if (str)
+	{
+		int i, l = strlen(str);
+		if (l && (str[0] == '"' || str[0] == '\'') && str[l - 1] == str[0])
+		{
+			l-=2;
+			for (i = 0; i < l; i++)
+				str[i] = str[i + 1];
+			
+			str[i] = '\0';
+			return 1;
+		}
+	}
+	
+	return 0;
+}
+
 /* void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1)
 {
 	int nAng, i;
@@ -2221,22 +2240,6 @@ BOOL ss2obj(int* objType, int* objIdx, BOOL asIs) {
 			*objType = searchstat;
 			*objIdx  = searchwall;
 			return TRUE;
-	}
-	
-	return FALSE;
-}
-
-BOOL dosboxRescan() {
-	
-	// system() makes DosBoxECE crash when launching xmapedit
-	// from bat file for some reason :(
-	// i have to use hacks to force clear drive cache
-	int hFile;
-	if ((hFile = open(kRescanFile, O_WRONLY | O_CREAT)) >= 0)
-	{
-		close(hFile);
-		unlink(kRescanFile);
-		return TRUE;
 	}
 	
 	return FALSE;

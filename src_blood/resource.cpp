@@ -366,9 +366,10 @@ void Resource::AddExternalResource(const char *name, const char *type, int id, i
     else
         Bstrncpy(path, filename, BMAX_PATH-1);
 
-    int fhandle = open(filename, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE);
+    int fhandle = open(path, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE);
     if (fhandle == -1)
         return;
+	
     int size = filelength(fhandle);
     close(fhandle);
     strcpy(name2, name);

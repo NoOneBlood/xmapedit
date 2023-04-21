@@ -31,17 +31,16 @@
 
 #define kDefaultMapName		"newboard.map"
 #define kXmpDataDir			"xmapedit"
-#define kPrefabsDir			"xmapedit\\prefabs"
-#define kCoreIniName 		"xmapedit\\xmapedit.ini"
-#define kCoreRffName 		"xmapedit\\xmapedit.rff"
-#define kExternalVoxelsDB 	"xmapedit\\models.ini"
-#define kPalDBIni			"xmapedit\\palettes\\i2tpaldb.ini"
-#define kPalImportDir		"xmapedit\\palettes\\import"
-#define kPalPaintDir		"xmapedit\\palettes\\paint"
-#define kLogFile			"xmapedit\\xmapedit.log"
-#define kStdPalDB			"xmapedit\\stdclr.ini"
-#define kRescanFile			"xmapedit\\rescan.tmp"
-#define kTempFileBase		"xmapedit\\fil"
+#define kPrefabsDir			"xmapedit/prefabs"
+#define kCoreIniName 		"xmapedit/xmapedit.ini"
+#define kCoreRffName 		"xmapedit/xmapedit.rff"
+#define kExternalVoxelsDB 	"xmapedit/models.ini"
+#define kPalDBIni			"xmapedit/palettes/i2tpaldb.ini"
+#define kPalImportDir		"xmapedit/palettes/import"
+#define kPalPaintDir		"xmapedit/palettes/paint"
+#define kLogFile			"xmapedit/xmapedit.log"
+#define kStdPalDB			"xmapedit/stdclr.ini"
+#define kTempFileBase		"xmapedit/fil"
 #define kDefaultBoardSize	196608
 
 #define kMaxGrids 			11
@@ -76,6 +75,7 @@ class AUTOADJUST {
 	unsigned int setPlu				: 1;
 	unsigned int setHitscan			: 1;
 	unsigned int correctedSprites	: 16;
+	unsigned int setStatnumThings	: 1;
 	void Init(IniFile* pIni, char* section);
 };
 
@@ -230,6 +230,7 @@ class PATHS {
 	char voxelDAT[_MAX_PATH];
 	char shadeDAT[_MAX_PATH];
 	char voxelEXT[_MAX_PATH];
+	char modNblood[_MAX_PATH];
 	void InitBase();
 	void InitResourceRFF(IniFile* pIni, char* section);
 	void InitResourceART(IniFile* pIni, char* section);

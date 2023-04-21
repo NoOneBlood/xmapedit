@@ -35,13 +35,43 @@ IniFile::IniFile(char *fileName)
     Load();
 }
 
-IniFile::IniFile(void *res, char* saveName)
+IniFile::IniFile(BYTE *res, int nLength, char* saveName)
 {
-    head.next = &head;
-	memset(this->fileName, 0, sizeof(this->fileName));
+    memset(this->fileName, 0, sizeof(this->fileName));	
+	BYTE* pResNew = (BYTE*)malloc(nLength + 1);
+	int i, j, c;
 	
+	
+	head.next = &head;
 	if (saveName)
 		strcpy(this->fileName, saveName);
+	
+	if (pResNew)
+	{
+		memset(pResNew, 0, nLength + 1);
+		for (i = 0, j = 0; i < nLength; i++)
+		{
+			c = res[i];
+			if (c == '\r' || c == '\n')
+			{
+				pResNew[j++] = '\n';
+
+				if (c == '\r')
+				{
+					if (i + 1 < nLength && res[i + 1] == '\n')
+						i++;
+				}
+			}
+			else
+			{
+				pResNew[j++] = c;
+			}
+		}
+		
+		LoadRes(pResNew);
+		free(pResNew);
+		return;
+	}
 	
     LoadRes(res);
 }
@@ -115,15 +145,13 @@ void IniFile::Load()
 	BYTE *pAllocFile, *pFile; int hFile, len = 0;
 	if ((hFile = open(fileName, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
 	{
-		len = lseek(hFile, 0, SEEK_END);
-		pAllocFile = (BYTE*)Bcalloc(1, len + 1);
+		len = filelength(hFile);
+		pAllocFile = (BYTE*)malloc(len+1);
+		memset(pAllocFile, 0, len+1);
 		pFile = pAllocFile;
 		
 		if (len > 0)
-		{
-			lseek(hFile, 0, SEEK_SET);
 			read(hFile, pAllocFile, len);
-		}
 		
 		close(hFile);
 		LoadRes(pFile);

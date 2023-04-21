@@ -32,7 +32,8 @@ kViewEffectHighlight				,
 kViewEffectAngle					,
 kViewEffectMiniDude					,
 kViewEffectMiniCustomDude			,
-kViewEffectGameMode				,
+kViewEffectGameMode					,
+kViewEffectCdudeVersion				,
 kViewEffectMax						,
 };
 

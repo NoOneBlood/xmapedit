@@ -23,6 +23,7 @@
 ***********************************************************************************/
 #pragma once
 #include "compat.h"
+#include "common_game.h"
 
 struct ININODE
 {
@@ -35,7 +36,7 @@ class IniFile
 {
 public:
     IniFile(char *fileName);
-    IniFile(void *res, char *saveName = NULL);
+    IniFile(BYTE *res, int nLength, char *saveName = NULL);
     ~IniFile();
 
     void Save(void);

@@ -52,11 +52,11 @@ void extVoxInit() {
 		char saved = '\0'; ININODE* prev = NULL;
 		char* key = NULL; char* value; char* end = NULL;
 		char tileTok[] = "tile"; int keylen = strlen(tileTok);
+		int nView;
+		
 		
 		while (gExtVoxIni->GetNextString(NULL, &key, &value, &prev))
 		{
-			//Alert("'%s' / '%s'", key, value);
-			
 			if (!key || strlen(key) <= keylen || value == NULL)
 				continue;
 
@@ -67,8 +67,25 @@ void extVoxInit() {
 			*end = saved, key =& key[keylen];
 			if ((i = atoi(key)) < 0 || i >= kMaxTiles) continue;
 			else if (!tilesizx[i] || !tilesizy[i] || extVoxelPath[i] != NULL) continue;
-			else if (!fileExists(value)) continue; // have to check here :(
-			else extVoxelPath[i] = value;
+			else
+			{
+				if (value[0] == '*')
+				{
+					// force kSprViewVoxSpin flag
+					nView = kSprViewVoxSpin;
+					value = &value[1];
+				}
+				else
+				{
+					nView = kSprViewVox;
+				}
+
+				if (!fileExists(value))
+					continue;
+				
+				panm[i].view = nView;
+				extVoxelPath[i] = value;
+			}
 			
 			for (j = 0; j < kMaxTiles; j++)
 			{
@@ -77,19 +94,9 @@ void extVoxInit() {
 					voxid--, j = 0;
 			}
 			
+			//Alert("'%s' / '%s'", key, value);
 			voxelIndex[i] = voxid;  // overrides RFF voxels
 			tiletovox[i]  = voxid;
-			
-			// force kSprViewVoxSpin flag
-			if (extVoxelPath[i][0] == '*')
-			{
-				extVoxelPath[i] =& extVoxelPath[i][1];
-				panm[i].view = kSprViewVoxSpin;
-			}
-			else
-			{
-				panm[i].view = kSprViewVox;
-			}
 		}
 	}
 }

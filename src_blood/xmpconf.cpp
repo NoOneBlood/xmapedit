@@ -67,11 +67,12 @@ void AUTOADJUST::Init(IniFile* pIni, char* section)
 	setType = TRUE;
 	if ((enabled = pIni->GetKeyBool(section, "Enabled", TRUE)) == 1)
 	{
-		setPic 			= pIni->GetKeyBool(section, "SetPicnum",	TRUE);
-		setSize			= pIni->GetKeyBool(section, "SetSize",		TRUE);
-		setPlu			= pIni->GetKeyBool(section, "SetPalette",	TRUE);
-		setHitscan		= pIni->GetKeyBool(section, "SetHitscan",	TRUE);	
-		setStatnum 		= pIni->GetKeyBool(section, "SetStatnum",	TRUE);
+		setPic 				= pIni->GetKeyBool(section, "SetPicnum",			TRUE);
+		setSize				= pIni->GetKeyBool(section, "SetSize",				TRUE);
+		setPlu				= pIni->GetKeyBool(section, "SetPalette",			TRUE);
+		setHitscan			= pIni->GetKeyBool(section, "SetHitscan",			TRUE);	
+		setStatnum 			= pIni->GetKeyBool(section, "SetStatnum",			TRUE);
+		setStatnumThings	= pIni->GetKeyBool(section, "SetStatnumForThings",	TRUE);
 
 		// modify autoData array
 		short pic, xr, yr, plu;
@@ -347,6 +348,7 @@ void PATHS::InitBase()
 	memset(images, 	   0, 	sizeof(images));
 	memset(episodeIni, 0, 	sizeof(episodeIni));
 	memset(maps, 	   0, 	sizeof(maps));
+	memset(modNblood,  0, sizeof(modNblood));
 }
 
 void PATHS::InitResourceRFF(IniFile* pIni, char* section)
@@ -365,10 +367,29 @@ void PATHS::InitResourceART(IniFile* pIni, char* section)
 
 void PATHS::InitMisc(IniFile* pIni, char* section)
 {
-	RESHANDLE hFile; char* pth;
-	pth = pIni->GetKeyString(section, "Map", "");
+	char* pth = pIni->GetKeyString(section, "Map", "");
+	RESHANDLE hFile; int l;
+	
 	if (fileExists(pth, &hFile))
 		sprintf(maps, pth);
+	
+	sprintf(modNblood, "./");
+	sprintf(buffer, "nblood.cfg");
+	
+	if (fileExists(buffer))
+	{
+		IniFile* pConf = new IniFile(buffer);
+		pth = pConf->GetKeyString("Setup", "ModDir", NULL);
+		if (pth)
+		{
+			sprintf(modNblood, "%s", pth);
+			removeQuotes(modNblood); l = strlen(modNblood);
+			if (l == 1 && modNblood[0] == '/' || modNblood[0] == '\\')
+				sprintf(modNblood, "./");
+		}
+		
+		delete(pConf);
+	}
 }
 
 void PATHS::Save(IniFile* pIni, char* section)

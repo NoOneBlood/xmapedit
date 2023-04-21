@@ -182,8 +182,8 @@ NAMED_XOBJECT spriteNames[] = {
 	VC,	kSwitchCombo,				"CM Swch",			"Combination Switch",			{"Current", "Goal", sharedTxt[42], sharedTxt[8]},
 	VC,	kSwitchPadlock,				NULL,				"Padlock",						{NULL, NULL, NULL, NULL},
 	MO,	kMarkerWarpDest,			"Teleport",			"Teleport target", 				{sharedTxt[0], "*Angle", sharedTxt[24], sharedTxt[48]},
-	MO,	kDudeModernCustom,			NULL,				"Custom Dude",					{sharedTxt[41], sharedTxt[35], sharedTxt[8],  sharedTxt[29]},
-	MO, kModernCustomDudeSpawn,		NULL,				"Custom Dude Spawn",			{sharedTxt[41], sharedTxt[35], sharedTxt[8], sharedTxt[29]},
+	MO,	kDudeModernCustom,			NULL,				"Custom Dude",					{NULL, NULL, NULL, sharedTxt[29]},
+	MO, kModernCustomDudeSpawn,		NULL,				"Custom Dude Spawn",			{NULL, NULL, NULL, sharedTxt[29]},
 	MO, kModernSpriteDamager,		NULL,				"Damager",						{"TargetID", "DamageType", "Damage", NULL},
 	MO,	kGenMissileEctoSkull,		NULL,				"Missile Gen", 					{"Missile", sharedTxt[24], "Slope", "Burst time"},
 	MO,	kModernPlayerControl,		"Player Ctrl",		"Player Control",				{sharedTxt[0],  sharedTxt[47], sharedTxt[47], sharedTxt[47]},
@@ -835,6 +835,13 @@ char *ExtGetSpriteCaption( short nSprite ) {
 			if (pXSprite->data2 <= 0) break;
 			else sprintf(midl, "%s [%i]", name, pXSprite->data2);
 			break;
+		case kDudeModernCustom:
+			if (pXSprite->sysData4 >= 2)
+			{
+				if (gCustomDudeNames[pSprite->index][0])
+					sprintf(name, gCustomDudeNames[pSprite->index]);
+			}
+			break;
 		case kModernCondition:
 		case kModernConditionFalse:
 			if (pXSprite->busyTime > 0)
@@ -1354,7 +1361,7 @@ int ExtInit(int argc, char const * const argv[])
 			if (hIni)
 			{
 				buildprintf("Creating \"%s\" with default settings.\n", kCoreIniName);
-				MapEditINI = new IniFile(gGuiRes.Load(hIni), kCoreIniName);
+				MapEditINI = new IniFile((BYTE*)gGuiRes.Load(hIni), hIni->size, kCoreIniName);
 				MapEditINI->PutKeyInt("General", "ConfigVersion", kConfigReqVersion);
 				iniGenerated = TRUE;
 			}
@@ -1387,7 +1394,7 @@ int ExtInit(int argc, char const * const argv[])
 		ThrowError("%s is not found.", buffer);
 
 	buildprintf("Loading file: \"%s\".\n", gPaths.bloodRFF);
-	gSysRes.Init(gPaths.bloodRFF); // initialize BLOOD.RFF
+	gSysRes.Init(gPaths.bloodRFF); // initialize BLOOD.RFF	
 	// ---------------------------------------------------------------------------
 	// initialize recently used files / folders
 	gPaths.InitMisc(MapEditINI,	"Visited");
@@ -1440,6 +1447,9 @@ int ExtInit(int argc, char const * const argv[])
 	gHudPrefs.Init(MapEditINI,				"HUD");
 	gCmtPrefs.Init(MapEditINI,				"Comments");
 	gPluPrefs.Init(MapEditINI,				"PalookupViewer");
+	// ---------------------------------------------------------------------------
+	// add more external files in resource system
+	nnExtResAddExternalFiles(&gSysRes, gPaths.modNblood, gExternFiles, LENGTH(gExternFiles));
 	// ---------------------------------------------------------------------------
 	// initialize ART related stuff
 	buildprintf("Initialising tiles...\n");

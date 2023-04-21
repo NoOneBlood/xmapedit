@@ -35,6 +35,7 @@
 #include "seq.h"
 #include "xmpmisc.h"
 #include "nnextsif.h"
+#include "nnextstr.h"
 
 BOOL gEventRedirectsUsed = FALSE;
 IDLIST gProxySpritesList(false);	// list of additional sprites which can be triggered by Proximity
@@ -42,6 +43,94 @@ IDLIST gSightSpritesList(false);	// list of additional sprites which can be trig
 IDLIST gImpactSpritesList(false);	// list of additional sprites which can be triggered by Impact
 IDLIST gPhysSpritesList(false);		// list of additional sprites which can be affected by physics
 SPRITEMASS gSpriteMass[];   		// cache for getSpriteMassBySize();
+
+EXTERNAL_FILES_LIST gExternFiles[] =
+{
+    { kCdudeFileNamePrefixWild, kCdudeFileExt },
+};
+
+int nnExtResAddExternalFiles(Resource* pIn, const char* pPath, EXTERNAL_FILES_LIST* pList, int nLen)
+{
+    char match[BMAX_PATH], tmp[BMAX_PATH];
+    EXTERNAL_FILES_LIST* ptr; BDIR* pDir; Bdirent* pEntry;
+    int i, nRetn = 0;
+	char *name, *ext;
+    char* pMatch;
+	
+	buildprintf("Adding external files from: \"%s\"...\n", pPath);
+	
+    for (i = 0; i < nLen; i++)
+    {
+        ptr = &pList[i];
+		
+        Bmemset(match, 0, sizeof(match)); pMatch = match;
+        pMatch += Bsprintf(pMatch, "%s",  (ptr->name) ? ptr->name : "*");
+        pMatch += Bsprintf(pMatch, ".%s", (ptr->ext) ? ptr->ext   : "*");
+
+        if ((pDir = Bopendir(pPath)) != NULL)
+        {
+            while ((pEntry = Breaddir(pDir)) != NULL)
+            {
+				if (Bwildmatch(pEntry->name, match))
+                {
+					pathSplit2(pEntry->name, tmp, NULL, NULL, &name, &ext);
+					if (ext[0] == '.')
+						ext = &ext[1];
+
+					buildprintf("Added: \"%s\"\n", pEntry->name);
+					pIn->AddExternalResource(name, ext, 0, 0, pPath);
+                    nRetn++;
+                }
+            }
+
+            Bclosedir(pDir);
+        }
+    }
+
+    return nRetn;
+}
+
+DICTNODE* nnExtResFileSearch(Resource* pIn, const char* pName, const char* pExt, char external)
+{
+    int nLenA = Bstrlen(pName), nLenB;
+    int i = pIn->count;
+    DICTNODE* pFile;
+	
+    while(--i >= 0)  // from bottom we can meet it faster
+    {
+        pFile = &pIn->dict[i];
+        if ((external && (pFile->flags & DICT_EXTERNAL)) || !external)
+        {
+            if (Bstrcasecmp(pFile->type, pExt) == 0 && Bstrncasecmp(pName, pFile->name, nLenA) == 0)
+            {
+                nLenB = Bstrlen(pFile->name);
+                if (nLenB == nLenA || (nLenB > nLenA && pFile->name[nLenA] == '_'))
+					return pFile;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+DICTNODE* nnExtResFileSearch(Resource* pIn, int nID, const char* pExt)
+{
+    int i = pIn->count;
+    DICTNODE* pFile;
+	
+    while(--i >= 0)
+    {
+        pFile = &pIn->dict[i];
+		if (pFile->id == nID && !(pFile->flags & DICT_EXTERNAL))
+		{
+			if (Bstrcasecmp(pFile->type, pExt) == 0)
+				return pFile;
+		}
+    }
+
+    return NULL;
+}
+
 
 int getSpriteMassBySize(spritetype* pSprite) {
     int mass = 0; int seqId = -1; int clipDist = pSprite->clipdist; Seq* pSeq = NULL;
@@ -911,23 +1000,225 @@ void cdTransform(spritetype* pSprite) {
 	adjSpriteByType(pSprite);
 }
 
-void cdGetSeq(spritetype* pSprite) {
+IniFile* cdDescriptLoad(int nID)
+{
+    DICTNODE* hFil;
+	IniFile* pIni = NULL;
 	
-	dassert(xspriRangeIsFine(pSprite->extra));
-	XSPRITE* pXSprite = &xsprite[pSprite->extra];
+    char tmp[BMAX_PATH]; BYTE* pRawIni = NULL;
+    const char* fname = kCdudeFileNamePrefix;
+    const char* fext = kCdudeFileExt;
+    
+    if (rngok(nID, 0, 10000))
+    {
+        Bsprintf(tmp, "%s%d", fname, nID);
+        if ((hFil = nnExtResFileSearch(&gSysRes, tmp, fext)) == NULL) // name not found
+			hFil = nnExtResFileSearch(&gSysRes, nID, fext); // try by ID
+		
+		if (hFil && (pRawIni = (BYTE*)gSysRes.Load(hFil)) != NULL)
+			pIni = new IniFile((BYTE*)pRawIni, hFil->size);
+    }
+
+    return pIni;
+}
+
+#define kParamMax 255
+
+#pragma pack(push, 1)
+struct PARAM
+{
+    unsigned int id             : 8;
+    const char* text;
+};
+#pragma pack(pop)
+
+enum enum_CDUD_POSTURE {
+kCdudePosture                   = 0,
+kCdudePostureL                  = kCdudePosture,
+kCdudePostureC,
+kCdudePostureW,
+kCdudePostureMax,
+};
+
+enum enum_CDUD_STATUS {
+kCdudeStatusNormal              = 0x00,
+kCdudeStatusAwaked              = 0x01,
+kCdudeStatusForceCrouch         = 0x02,
+kCdudeStatusSleep               = 0x04,
+kCdudeStatusMorph               = 0x08,
+kCdudeStatusRespawn             = 0x10,
+};
+
+PARAM gParamPosture[] =
+{
+    {kCdudePostureL,        "Stand"  },
+    {kCdudePostureC,        "Crouch" },
+    {kCdudePostureW,        "Swim"   },
+    {kParamMax, NULL},
+};
+
+char gCustomDudeNames[kMaxSprites][32];
+
+int cdParseFindParam(const char* str, PARAM* pDb)
+{
+    PARAM* ptr = pDb;
+    while (ptr->id != kParamMax)
+    {
+        if (Bstrcasecmp(str, ptr->text) == 0)
+            return ptr->id;
+
+        ptr++;
+    }
+
+    return -1;
+}
+
+char cdParseAnimation(const char* str, unsigned int pOut[kCdudePostureMax])
+{
+    char key[256], val[256];
 	
+	int i, nPar;
+    if (isarray(str, &i))
+    {
+        if (i > kCdudePostureMax)
+			return false;
+		
+        i = 0;
+        while (enumStr(i, str, key, val))
+        {
+            nPar = cdParseFindParam(key, gParamPosture);
+            if (rngok(nPar, kCdudePosture, kCdudePostureMax))
+                pOut[nPar] = atoi(val);
+			
+            i++;
+        }
+
+        return true;
+    }
+    else if (!isempty(str))
+    {
+		pOut[kCdudePostureL] = atoi(str);
+        return true;
+    }
+
+    return false;
+}
+
+char cdParseRange(const char* str, int out[2], int nBaseVal)
+{
+    int nLen, nVal;
+    int nMin = out[0];
+    int nMax = out[1];
+    char chkrng = (nMin && nMax);
+    int i = 0;
+	
+    char tmp[256];
+    if (!isempty(str))
+    {
+        if (isarray(str, &nLen))
+        {
+            if (nLen > 2)
+				return false;
+        }
+
+        while (i < 2 && enumStr(i, str, tmp))
+        {
+            nVal = atoi(tmp);
+            nVal = perc2val(nVal, nBaseVal);
+            out[i++] = nVal;
+        }
+
+        return i;
+    }
+
+    return 0;
+}
+
+void nnExtSprScaleSet(spritetype* pSpr, int nScale)
+{
+    pSpr->xrepeat = ClipRange(mulscale8(pSpr->xrepeat, nScale), 0, 255);
+    pSpr->yrepeat = ClipRange(mulscale8(pSpr->yrepeat, nScale), 0, 255);
+}
+
+
+
+void cdGetSeq(spritetype* pSpr) {
+	
+	dassert(xspriRangeIsFine(pSpr->extra));
+	XSPRITE* pXSpr = &xsprite[pSpr->extra];
+	IniFile* pIni = cdDescriptLoad(pXSpr->data1);
+	char respawnMarker = (pSpr->type == kModernCustomDudeSpawn);
+	int nSeq = 11520, nScale = 256;
 	short pic, xr, yr, pal;
-	int nSeq = (pXSprite->data2 > 0) ? pXSprite->data2 : 11520;
-	if (getSeqPrefs(nSeq, &pic, &xr, &yr, &pal))
+	
+	if (pIni && pIni->GetKeyInt("General", "Version", 0) == 2)
 	{
-		if (pic >= 0) pSprite->picnum	= pic;
-		if (xr >= 0)  pSprite->xrepeat	= (BYTE)xr;
-		if (yr >= 0)  pSprite->yrepeat	= (BYTE)yr;
-		if (pal >= 0) pSprite->pal		= (BYTE)pal;
+		// cdude v2
+		unsigned int anim[kCdudePostureMax];
+		memset(anim, 0, sizeof(anim));
+		
+		char* group			= "Animation";
+		char* paramIdle		= "Idle";
+		char* paramSleep	= "IdleSleep";
+		char* paramScale	= "Scale";
+		const char* pValue	= NULL;
+
+		if (!(pXSpr->data2 & kCdudeStatusAwaked))
+			pValue = pIni->GetKeyString(group, paramSleep, NULL);
+		
+		if (isempty(pValue))
+			pValue = pIni->GetKeyString(group, paramIdle, NULL);
+		
+		if (cdParseAnimation(pValue, anim))
+		{
+			if (isUnderwaterSector(pSpr->sectnum) && anim[kCdudePostureW])				nSeq = anim[kCdudePostureW];
+			else if ((pXSpr->data2 & kCdudeStatusForceCrouch) && anim[kCdudePostureC])	nSeq = anim[kCdudePostureC];
+			else if (anim[kCdudePostureL])												nSeq = anim[kCdudePostureL];
+		}
+		
+		int range[2] = {0, 1024};
+		pValue = pIni->GetKeyString(group, paramScale, NULL);
+		switch(cdParseRange(pValue, range, 256))
+		{
+			case 1:
+			case 2:
+				nScale = range[0];
+				break;
+		}
+		
+		pValue = pIni->GetKeyString("General", "Name", "Custom Dude");
+		sprintf(gCustomDudeNames[pSpr->index], "%0.31s", pValue);
+		pXSpr->sysData4 = 2;
+		delete(pIni);
+	}
+	else
+	{
+		// cdude v1
+		pXSpr->sysData4 = 1;
+		if (pXSpr->data2 > 0)
+			nSeq = pXSpr->data2;
 	}
 	
-	pSprite->cstat &= ~kSprInvisible;
-
+	if (!respawnMarker)
+	{
+		if (getSeqPrefs(nSeq, &pic, &xr, &yr, &pal))
+		{
+			if (pic >= 0) pSpr->picnum	= pic;
+			if (xr >= 0)  pSpr->xrepeat	= (BYTE)xr;
+			if (yr >= 0)  pSpr->yrepeat	= (BYTE)yr;
+			if (pal >= 0) pSpr->pal		= (BYTE)pal;
+		}
+		
+		if (xr > 0 && yr > 0)
+			nnExtSprScaleSet(pSpr, nScale);
+		
+		pSpr->cstat &= ~kSprInvisible;
+	}
+	else if (getSeqPrefs(nSeq, &pic, &xr, &yr, &pal))
+	{
+		if (pic >= 0) pXSpr->sysData1 = pic;
+		if (pal >= 0) pSpr->pal	= (BYTE)pal;
+	}
 }
 
 // this function allows to spawn new custom dude and inherit spawner settings,
@@ -3541,41 +3832,51 @@ int getDataFieldOfObject(int objType, int objIndex, int dataIndex) {
 BOOL setDataValueOfObject(int objType, int objIndex, int dataIndex, int value) {
     switch (objType) {
         case EVOBJ_SPRITE: {
-            XSPRITE* pXSprite = &xsprite[sprite[objIndex].extra];
-
+            spritetype* pSpr 	= &sprite[objIndex];
+			XSPRITE* pXSpr 		= &xsprite[sprite[objIndex].extra];
+			
             // exceptions
-            if (IsDudeSprite(&sprite[objIndex]) && pXSprite->health <= 0) return TRUE;
-            switch (sprite[objIndex].type) {
+            if (IsDudeSprite(pSpr) && pXSpr->health <= 0)
+				return TRUE;
+            switch (pSpr->type)
+			{
                 case 425:
                 case 426:
                 case 427:
                     return TRUE;
             }
 
-            switch (dataIndex) {
+            switch (dataIndex)
+			{
                 case 1:
-                    xsprite[sprite[objIndex].extra].data1 = value;
-                    switch (sprite[objIndex].type) {
+                    pXSpr->data1 = value;
+                    switch (pSpr->type)
+					{
                         case 22:
-                            if (value == xsprite[sprite[objIndex].extra].data2) SetSpriteState(objIndex, &xsprite[sprite[objIndex].extra], 1);
-                            else SetSpriteState(objIndex, &xsprite[sprite[objIndex].extra], 0);
+                            if (value == pXSpr->data2) SetSpriteState(objIndex, pXSpr, 1);
+                            else SetSpriteState(objIndex, pXSpr, 0);
+                            break;
+                        case kDudeModernCustom:
+                        case kDudeModernCustomBurning:
+							cdGetSeq(pSpr);
                             break;
                     }
                     return TRUE;
                 case 2:
-                    xsprite[sprite[objIndex].extra].data2 = value;
-                    switch (sprite[objIndex].type) {
+                    pXSpr->data2 = value;
+                    switch (pSpr->type)
+					{
                         case kDudeModernCustom:
                         case kDudeModernCustomBurning:
-							cdGetSeq(&sprite[objIndex]);
+							cdGetSeq(pSpr);
                             break;
                     }
                     return TRUE;
                 case 3:
-                    xsprite[sprite[objIndex].extra].data3 = value;
+                    pXSpr->data3 = value;
                     return TRUE;
                 case 4:
-                    xsprite[sprite[objIndex].extra].data4 = value;
+                    pXSpr->data4 = value;
                     return TRUE;
                 default:
                     return FALSE;

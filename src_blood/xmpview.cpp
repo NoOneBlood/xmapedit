@@ -98,6 +98,36 @@ spritetype *viewInsertTSprite( int nSector, int nStatus, spritetype *pSource = N
 	return &tsprite[nTSprite];
 }
 
+spritetype* viewEffectCdudeVersion(spritetype* pSpr, int z, int rep = 48)
+{
+	int zTop, zBot;
+	XSPRITE* pXSpr = &xsprite[pSpr->extra];
+	int nPic = (pXSpr->sysData4 == 2) ? gSysTiles.icoVer2 : gSysTiles.icoVer1;
+	if (!nPic)
+		return NULL;
+	
+	spritetype *pTEffect = viewInsertTSprite(pSpr->sectnum, -32767, pSpr);
+	
+	pTEffect->z 			= z;
+	pTEffect->picnum		= nPic;
+	pTEffect->xrepeat		= rep;
+	pTEffect->yrepeat		= ClipLow(rep-8, 8);
+	pTEffect->shade			= -127;
+	pTEffect->cstat 	   |= (kSprTransluc2);
+	pTEffect->xoffset  		= panm[pSpr->picnum].xcenter;
+	
+	if (!isSkySector(pSpr->sectnum, OBJ_CEILING))
+	{
+		int fz, cz;
+		GetSpriteExtents(pTEffect, &zTop, &zBot);
+		getzsofslope(pTEffect->sectnum, pTEffect->x, pTEffect->y, &cz, &fz);
+		if (pTEffect->z < cz)
+			pTEffect->z = cz + klabs(zTop-zBot);
+	}
+	
+	return pTEffect;
+}
+
 void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 	
 	if (spritesortcnt >= kMaxViewSprites - 1)
@@ -107,6 +137,10 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 	spritetype *pTSprite = &tsprite[nTSprite];
 
 	switch (nViewEffect) {
+		case kViewEffectCdudeVersion:
+			GetSpriteExtents(pTSprite, &zTop, &zBot);
+			viewEffectCdudeVersion(pTSprite, zTop-1024);
+			break;
 		case kViewEffectMiniCustomDude:
 			if (!gModernMap) break;
 			// no break
@@ -164,16 +198,7 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 					}
 					break;
 				default:
-					// it's better to use picnum from autoData if no seq loaded
-					if (pXSpr->data2 <= 0 || !getSeqPrefs(pXSpr->data2, &pic, &xr, &yr, &pal))
-					{
-						if ((k = adjIdxByType(kDudeModernCustom)) < 0)
-							break;
-						
-						pic = autoData[k].picnum;
-						pal = autoData[k].plu;
-					}
-					
+					pic = pXSpr->sysData1; pal = pSpr->pal;
 					spritetype *pTEffect  = viewInsertTSprite(pTSprite->sectnum, -32767, pTSprite);
 					
 					// rotate ViewFullN sprites
@@ -185,6 +210,9 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 					pTEffect->cstat 	|= (kSprTransluc2);
 					pTEffect->cstat 	&= ~kSprOrigin;
 					pTEffect->z 		 = zTop;
+					
+					GetSpriteExtents(pTEffect, &zTop, &zBot);
+					viewEffectCdudeVersion(pTSprite, zTop-256, 32);
 					break;
 			}
 		}
@@ -670,7 +698,7 @@ void viewProcessSprites(int x, int y, int z, int a) {
 		for (; offset > 0; offset-- )
 			pTSprite->picnum += 1 + panm[pTSprite->picnum].frames;
 
-		if (pTSprite->statnum == 0)
+		if (pTSprite->statnum != kStatFX)
 		{
 			switch (pTSprite->type) {
 				case kDecorationCandle:
@@ -700,6 +728,9 @@ void viewProcessSprites(int x, int y, int z, int a) {
 					break;
 				case kModernCustomDudeSpawn:
 					viewAddEffect(i, kViewEffectMiniCustomDude);
+					break;
+				case kDudeModernCustom:
+					viewAddEffect(i, kViewEffectCdudeVersion);
 					break;
 				default:
 					if (!(pTSprite->flags & kHitagSmoke)) break;

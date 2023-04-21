@@ -203,6 +203,7 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\callback.$o \
 	$(XMAPEDSRC)\eventq.$o \
 	$(XMAPEDSRC)\enumstr.$o \
+	$(XMAPEDSRC)\nnextstr.$o \
 	$(XMAPEDSRC)\nnexts.$o \
 	$(XMAPEDSRC)\nnextsif.$o \
 	$(XMAPEDSRC)\grdshd.$o \

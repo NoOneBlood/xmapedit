@@ -80,7 +80,7 @@ void scrCreateStdColors(void)
 
 	if (fileExists(kStdPalDB)) colors = new IniFile(kStdPalDB);
 	else if ((hRes = gGuiRes.Lookup((unsigned int)2, "INI")) != NULL)
-		colors = new IniFile(gGuiRes.Load(hRes), kStdPalDB);
+		colors = new IniFile((BYTE*)gGuiRes.Load(hRes), hRes->size, kStdPalDB);
 	else
 		ThrowError("Standard color palette is not found!");
 	
