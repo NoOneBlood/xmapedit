@@ -1414,8 +1414,8 @@ int IMPORT_WIZARD::ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg)
 	
 	pgx = dx+4, pgy = y1, pgw = x2-dx-8, pgh = y2-30;
 	
-	tileDrawGetSize(gSysTiles.xmpIco, perc2val(banw, 75), &tw, &th);
-	Tile* tLogo = new Tile((banw>>1)-(tw>>1), pd<<1, gSysTiles.xmpIco, tw, th, 0, 0x02);
+	tileDrawGetSize(gSysTiles.icoXmp, perc2val(banw, 75), &tw, &th);
+	Tile* tLogo = new Tile((banw>>1)-(tw>>1), pd<<1, gSysTiles.icoXmp, tw, th, 0, 0x02);
 	
 	Panel* pButtons 		= new Panel(dx, dh-bth, x2-dx, bth);
 	TextButton* bNext 		= new TextButton(pButtons->width-btw, 0, btw, bth, guiTxt[2], 100);

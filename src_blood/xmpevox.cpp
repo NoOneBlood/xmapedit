@@ -21,52 +21,40 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "common_game.h"
-#include "tile.h"
-#include "gui.h"
+#include "inifile.h"
 #include "xmpconf.h"
 #include "xmpevox.h"
 #include "xmpmisc.h"
+#include "tile.h"
 
-
-IniFile* gExtVoxIni = NULL;
-char* extVoxelPath[kMaxTiles]; // array of pointers to INI file nodes
-
-void extVoxInit() {
-	
-	int i, j; short voxid = kMaxVoxels - 1;
+void extVoxInit()
+{
+	int voxid = kMaxVoxels - 1;
+	int i, j; 
 	
 	extVoxUninit();
 	
 	// read external voxels info
 	if (gMisc.externalModels && fileExists(gPaths.voxelEXT))
 	{
-		if (gExtVoxIni)
-		{
-			delete gExtVoxIni;
-			memset(extVoxelPath, 0, sizeof(extVoxelPath));
-		}
-		
-		gExtVoxIni = new IniFile(gPaths.voxelEXT);
-		
+		IniFile* pExtVox = new IniFile(gPaths.voxelEXT);
 		char saved = '\0'; ININODE* prev = NULL;
 		char* key = NULL; char* value; char* end = NULL;
 		char tileTok[] = "tile"; int keylen = strlen(tileTok);
 		int nView;
 		
-		
-		while (gExtVoxIni->GetNextString(NULL, &key, &value, &prev))
+		while (pExtVox->GetNextString(NULL, &key, &value, &prev))
 		{
-			if (!key || strlen(key) <= keylen || value == NULL)
+			if (!key || !value || strlen(key) <= keylen)
 				continue;
 
-			end =& key[keylen], saved = *end, *end = 0;
+			end =& key[keylen], saved = *end, *end = '\0';
 			if (stricmp(tileTok, key) != 0)
 				continue;
 				
 			*end = saved, key =& key[keylen];
 			if ((i = atoi(key)) < 0 || i >= kMaxTiles) continue;
-			else if (!tilesizx[i] || !tilesizy[i] || extVoxelPath[i] != NULL) continue;
+			else if (!tilesizx[i] || !tilesizy[i]) continue;
 			else
 			{
 				if (value[0] == '*')
@@ -84,7 +72,6 @@ void extVoxInit() {
 					continue;
 				
 				panm[i].view = nView;
-				extVoxelPath[i] = value;
 			}
 			
 			for (j = 0; j < kMaxTiles; j++)
@@ -94,19 +81,22 @@ void extVoxInit() {
 					voxid--, j = 0;
 			}
 			
-			//Alert("'%s' / '%s'", key, value);
+			gSysRes.AddExternalResource(value, voxid);
 			voxelIndex[i] = voxid;  // overrides RFF voxels
 			tiletovox[i]  = voxid;
 		}
+		
+		delete(pExtVox);
 	}
 }
 
 
-void extVoxUninit() {
-	for (int i = 0; i < kMaxTiles; i++)
+void extVoxUninit()
+{
+	int i = kMaxTiles;
+	while(--i >= 0)
 	{
-		if (!extVoxelPath[i]) continue;
-		tiletovox[i] = -1;
 		panm[i].view = viewType[i];
+		tiletovox[i] = -1;
 	}	
 }

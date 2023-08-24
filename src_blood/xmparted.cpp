@@ -239,7 +239,7 @@ BOOL artedProcessEditKeys(BYTE key, BYTE ctrl, BYTE alt, BYTE shift) {
 		case KEY_F5:
 			if (!canEdit()) break;
 			else if (artedDlgViewTypeSet(nTile) == -1) return TRUE;
-			else if (!extVoxelPath[nTile]) return TRUE;
+			else if (!isExternalModel(nTile)) return TRUE;
 			else Alert("Note: Selected view settings may be overriden by external voxel!");
 			return TRUE;
 		case KEY_F6:
@@ -928,7 +928,7 @@ int artedDlgViewTypeSet(int nTile) {
 			// no break
 		default:
 			viewType[nTile] = (char)nView;
-			if (!extVoxelPath[nTile]) panm[nTile].view = nView;
+			if (!isExternalModel(nTile)) panm[nTile].view = nView;
 			break;
 
 	}
@@ -1162,7 +1162,7 @@ int artedDlgImportArt(int nTile) {
 			panm[nTile].speed 		= pnm.speed;
 			panm[nTile].filler 		= 0;
 			viewType[nTile]			= (BYTE)pnm.view;
-			if (!extVoxelPath[nTile])
+			if (!isExternalModel(nTile))
 				panm[nTile].view = viewType[nTile];
 
 			if (waloff[nTile])
@@ -1206,11 +1206,10 @@ int artedDlgImportFLOORS(int nTile)
 	char defaultPal[_MAX_PATH], tmp[300]; BYTE *pTemp, *pTile; PALETTE pal;
 	
 	sprintf(defaultPal, "%s\\chasm.pal", kPalImportDir);
-	while(i < 99)
+	while(i < 80)
 		j += sprintf(&tmp[j], ".%02d", ++i);
 
 	i = palLoad(defaultPal, pal);
-	
 	while( 1 )
 	{
 		if (i < 0 && artedDlgSelPal("Load palette", gPaths.palImport, pal) < 0) return -1;
@@ -1735,7 +1734,7 @@ void artedCopyTile(int nTileSrc, int nTileDest, int what) {
 	if (what & kView)
 	{
 		viewType[nTileDest] = viewType[nTileSrc];
-		if (!extVoxelPath[nTileDest])
+		if (!isExternalModel(nTileDest))
 			panm[nTileDest].view = viewType[nTileDest];
 	}
 
@@ -2006,7 +2005,7 @@ void artedRevertTile(int nTile, int what) {
 		if (what & kView)
 		{
 			viewType[nTile]	= (BYTE)pnm.view;
-			if (!extVoxelPath[nTile])
+			if (!isExternalModel(nTile))
 				panm[nTile].view = viewType[nTile];
 		}
 
@@ -2033,7 +2032,7 @@ void artedCleanUpTile(int nTile) {
 			if (voxelIndex[nTile] < 0)
 			{
 				viewType[nTile] = kSprViewSingle;
-				if (!extVoxelPath[nTile])
+				if (!isExternalModel(nTile))
 					pnm->view = viewType[nTile];
 			}
 			break;

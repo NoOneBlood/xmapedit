@@ -96,6 +96,7 @@ public:
     DICTNODE **Probe(unsigned int id, const char *type);
     void Reindex(void);
     void Grow(void);
+	void AddExternalResource(const char* pzPath, int id = 0, int flags = 0);
     void AddExternalResource(const char *name, const char *type, int id = 0, int flags = 0, const char* pzDirectory = NULL);
     void AddFromBuffer(const char* name, const char* type, char *data, int size, int id = 0, int flags = 0);
     static void *Alloc(int nSize);

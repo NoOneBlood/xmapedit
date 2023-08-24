@@ -27,10 +27,10 @@
 #include "screen.h"
 #include "tile.h"
 #include "inifile.h"
-#include "enumstr.h"
 #include "gui.h"
 #include "common_game.h"
 
+#include "xmpstr.h"
 #include "xmparted.h"
 #include "xmpconf.h"
 #include "xmpmisc.h"

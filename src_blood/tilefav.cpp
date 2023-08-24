@@ -31,7 +31,7 @@
 #include "aadjust.h"
 #include "xmpmisc.h"
 #include "tilefav.h"
-#include "enumstr.h"
+#include "xmpstr.h"
 #include "gui.h"
 
 short gFavTilesC = 0;

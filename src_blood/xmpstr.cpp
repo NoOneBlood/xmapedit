@@ -27,9 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //-------------------------------------------------------------------------
 #include "common_game.h"
-#include "nnextstr.h"
-#include "nnexts.h"
-#include "enumstr.h"
+#include "xmpstr.h"
 
 #pragma pack(push, 1)
 struct NAMED_TYPE
@@ -58,7 +56,7 @@ int enumStr(int nOffs, const char* str, char* key, char* val)
     char buffer1[256], buffer2[256], string[256];
     int t;
 
-    if (isarray(str))
+    //if (isarray(str))
     {
         t = Bstrlen(str);
         Bstrcpy(string, str);
@@ -271,4 +269,127 @@ char isufix(const char* str)
 char isempty(const char* str)
 {
     return (!str || !Bstrlen(str));
+}
+
+char isIdKeyword(const char* fullStr, const char* prefix, int* nID)
+{
+    if (!fullStr || !prefix)
+        return false;
+    
+    int l1 = Bstrlen(fullStr);
+    int l2 = Bstrlen(prefix);
+
+    if (l2 < l1 && Bstrncasecmp(fullStr, prefix, l2) == 0)
+    {
+        while (fullStr[l2] == '_')
+        {
+            if (++l2 >= l1)
+                return false;
+        }
+        
+        if (isufix(&fullStr[l2]))
+        {
+            if (nID)
+                *nID = atoi(&fullStr[l2]);
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+char parseRGBString(const char* str, unsigned char out[3])
+{
+	int i = 0; char tmp[256];
+	int t;
+	
+	memset(out, 0, sizeof(unsigned char)*3);
+	while(i < 3 && enumStr(i, str, tmp))
+	{
+		if (isufix(tmp) && (t = atoi(tmp)) >= 0 && t < 256)
+			out[i] = (unsigned char)t;
+		i++;
+	}
+	
+	return (i == 3);
+}
+
+char* enumStrGetChar(int nOffs, char* out, char* astr, char expcr, char* def)
+{
+    static char* str = NULL;
+	int j = ClipLow(nOffs, 0);
+    int i = 0, n;
+
+    out[0] = '\0';
+    
+	if (astr != NULL)
+	{
+		if (str)
+			free(str);
+		
+		if ((n = strlen(astr)) > 0)
+		{
+			str = (char*)malloc(n+1);
+			dassert(str != NULL);
+			sprintf(str, astr);
+		}
+		else
+		{
+			return def;
+		}
+	}
+	else
+	{
+		dassert(!isempty(str));
+	}
+	
+    if (j > 0)
+    {
+        // search for start
+        while (str[i] && j > 0)
+        {
+            if (str[i++] == expcr)
+                j--;
+        }
+    }
+
+    while (str[i] && str[i] != expcr)
+        out[j++] = str[i++];
+    
+    
+    out[j] = '\0';
+    return (out[0]) ? out : def;
+}
+
+int enumStrGetInt(int nOffs, char* astr, char expcr, int retn)
+{
+    char buf[256];
+	if (enumStrGetChar(nOffs, buf, astr, expcr, NULL))
+	{
+		int i = 0, j;
+		while(buf[i])
+		{
+			if (!isdigit(buf[i]))
+			{
+				switch(buf[i])
+				{
+					case '-':
+					case '+':
+						break;
+					default:
+						for (j = i; buf[j]; j++) buf[j] = buf[j + 1];
+						buf[j - 1] = '\0';
+						break;
+				}
+			}
+			
+			i++;
+		}
+		
+		if (buf[0])
+			return atoi(buf);
+	}
+	
+	return retn;
 }

@@ -28,9 +28,8 @@ static int synctics = 0, lockclock = 0;
 int vel = 0, hvel = 0, svel = 0, angvel = 0, doubvel = 0;
 int posx, posy, posz, horiz = 100;		short ang, cursectnum;
 int startposx, startposy, startposz;	short startang, startsectnum;
-int ydim16, halfxdim16, midydim16, grponlymode = 0, editorgridextent;
-int xdim2d = 640, ydim2d = 480, xdimgame = 640, ydimgame = 480, bppgame = 8;
-int forcesetup = 1;
+int xdimgame = 640, ydimgame = 480, bppgame = 8;
+int grponlymode = 0, forcesetup = 1;
 
 int zlock = 0x7fffffff, zmode = 0, kensplayerheight = 32;
 short defaultspritecstat = 0, asksave = 0, editstatus, searchit;
@@ -38,7 +37,7 @@ short searchsector, searchwall, searchindex, searchstat;     //search output
 int searchx, searchy;                          //search input
 
 short pointhighlight, linehighlight, highlightcnt;
-short grid = 3, gridlock = 1, showtags = 1;
+short grid = 3, gridlock = 1;
 int zoom = 768, numsprites, mapversion;
 
 short highlight[MAXWALLS + MAXSPRITES];
@@ -47,16 +46,17 @@ extern unsigned char textfont[128][8];
 
 ////////////////
 int mousxplc, mousyplc;
-unsigned char gStdColor[256];
+int boardWidth, boardHeight;
 short temppicnum, tempcstat, templotag, temphitag, tempextra, tempxoffset, tempyoffset;
 unsigned char tempshade, temppal, tempvis, tempxrepeat, tempyrepeat;
 unsigned char somethingintab = 255;
-long clipmovemask2d = 0, clipmovemask3d = 0;
+int clipmovemask2d = 0, clipmovemask3d = 0;
 char gPreviewMode = 0, gMapLoaded = 0;
 int qsetmode = 0;
 short joinsector[2];
-char gSectorDrawing = 0, gNoclip = 0;
+char gSectorDrawing = 1, gNoclip = 0;
 int clipmoveboxtracenum = 3;
+int xdim2d, ydim2d;
 //////////////
 
 void (*customtimerhandler)(void);
@@ -79,12 +79,7 @@ void fixspritesectors(void);
 int movewalls(int start, int offs);
 int loadnames(void);
 void updatenumsprites(void);
-void getclosestpointonwall(int x, int y, int dawall, int *nx, int *ny);
 void initcrc(void);
-
-///////////////////
-unsigned char clr2std(char color) { return gStdColor[color]; }
-////////////////
 
 
 void clearkeys(void) { memset(keystatus,0,sizeof(keystatus)); }
@@ -265,9 +260,6 @@ void overheadeditor(void)
 	short suckwall=0, sucksect, newnumsectors, split=0, bad;
 	short splitsect=0, danumwalls, secondstartwall;
 	short splitstartwall=0, splitendwall, loopnum;
-	int centerx, centery, circlerad;
-	short circlewall, circlepoints, circleang1, circleang2, circleangdir;
-
 	joinsector[0] = joinsector[1] = -1;
 	
 	/////
@@ -312,8 +304,6 @@ void overheadeditor(void)
 
 	newnumwalls = -1;
 	joinsector[0] = -1;
-	circlewall = -1;
-	circlepoints = 7;
 	keystatus[0x9c] = 0;
 	
 	while ((keystatus[0x9c]>>1) == 0 && qsetmode != 200 && !quitevent)
@@ -334,124 +324,23 @@ void overheadeditor(void)
 		
 		
 
-		templong = numwalls;
-		numwalls = newnumwalls;
-		if (numwalls < 0) numwalls = templong;
-
-		clear2dscreen();
-		draw2dscreen(posx,posy,ang,zoom,grid);
+		//templong = numwalls;
+		//numwalls = newnumwalls;
+		//if (numwalls < 0) numwalls = templong;
 
 		begindrawing();	//{{{
 
 		//printcoords16(posx,posy,ang);
 
-		numwalls = templong;
-		OSD_Draw();
+		//numwalls = templong;
 		
 		ExtCheckKeys();
+		OSD_Draw();
 		
 		if (!gPreviewMode)
 		{
-			if (keystatus[0x2e] > 0)  // C (make circle of points)
-			{
-				if (circlewall >= 0)
-				{
-					circlewall = -1;
-				}
-				else
-				{
-					if (linehighlight >= 0)
-						circlewall = linehighlight;
-				}
-				keystatus[0x2e] = 0;
-			}
-			else if (keystatus[0x4a] > 0)  // -
-			{
-				if (circlepoints > 1)
-					circlepoints--;
-				keystatus[0x4a] = 0;
-			}
-			else if (keystatus[0x4e] > 0)  // +
-			{
-				if (circlepoints < 63)
-					circlepoints++;
-				keystatus[0x4e] = 0;
-			}
-
-			bad = (keystatus[0x39] > 0);  //Gotta do this to save lots of 3 spaces!
-
-			if (circlewall >= 0)
-			{
-				x1 = wall[circlewall].x;
-				y1 = wall[circlewall].y;
-				x2 = wall[wall[circlewall].point2].x;
-				y2 = wall[wall[circlewall].point2].y;
-				x3 = mousxplc;
-				y3 = mousyplc;
-				adjustmark(&x3,&y3,newnumwalls);
-				templong1 = dmulscale4(x3-x2,x1-x3,y1-y3,y3-y2);
-				templong2 = dmulscale4(y1-y2,x1-x3,y1-y3,x2-x1);
-				if (templong2 != 0)
-				{
-					centerx = (((x1+x2) + scale(y1-y2,templong1,templong2))>>1);
-					centery = (((y1+y2) + scale(x2-x1,templong1,templong2))>>1);
-
-					col = clr2std(14);
-					dax = mulscale14(centerx-posx,zoom);
-					day = mulscale14(centery-posy,zoom);
-					drawline16(halfxdim16+dax-2,midydim16+day-2,halfxdim16+dax+2,midydim16+day+2,col);
-					drawline16(halfxdim16+dax-2,midydim16+day+2,halfxdim16+dax+2,midydim16+day-2,col);
-
-					circleang1 = getangle(x1-centerx,y1-centery);
-					circleang2 = getangle(x2-centerx,y2-centery);
-
-					circleangdir = 1;
-					k = ((circleang2-circleang1)&2047);
-					if (mulscale4(x3-x1,y2-y1) < mulscale4(x2-x1,y3-y1))
-					{
-						circleangdir = -1;
-						k = -((circleang1-circleang2)&2047);
-					}
-
-					circlerad = (ksqrt(dmulscale4(centerx-x1,centerx-x1,centery-y1,centery-y1))<<2);
-
-					for(i=circlepoints;i>0;i--)
-					{
-						j = ((circleang1 + scale(i,k,circlepoints+1))&2047);
-						dax = centerx+mulscale14(sintable[(j+512)&2047],circlerad);
-						day = centery+mulscale14(sintable[j],circlerad);
-
-						if (dax <= -editorgridextent) dax = -editorgridextent;
-						if (dax >= editorgridextent) dax = editorgridextent;
-						if (day <= -editorgridextent) day = -editorgridextent;
-						if (day >= editorgridextent) day = editorgridextent;
-
-						if (bad > 0)
-						{
-							m = 0;
-							if (wall[circlewall].nextwall >= 0)
-								if (wall[circlewall].nextwall < circlewall) m = 1;
-							insertpoint(circlewall,dax,day);
-							circlewall += m;
-						}
-						dax = mulscale14(dax-posx,zoom);
-						day = mulscale14(day-posy,zoom);
-						drawline16(halfxdim16+dax-2,midydim16+day-2,halfxdim16+dax+2,midydim16+day-2,col);
-						drawline16(halfxdim16+dax+2,midydim16+day-2,halfxdim16+dax+2,midydim16+day+2,col);
-						drawline16(halfxdim16+dax+2,midydim16+day+2,halfxdim16+dax-2,midydim16+day+2,col);
-						drawline16(halfxdim16+dax-2,midydim16+day+2,halfxdim16+dax-2,midydim16+day-2,col);
-					}
-					if (bad > 0)
-					{
-						bad = 0;
-						keystatus[0x39] = 0;
-						asksave = 1;
-						printmessage16("Circle points inserted.");
-						circlewall = -1;
-					}
-				}
-			}
-
+			bad = (gSectorDrawing && keystatus[0x39] > 0);  //Gotta do this to save lots of 3 spaces!
+			
 			if (bad > 0)   //Space bar test
 			{
 				keystatus[0x39] = 0;
@@ -1075,22 +964,6 @@ void overheadeditor(void)
 	//searchy = scale(searchy,ydimgame,ydim2d-STATUS2DSIZ);
 }
 
-void getpoint(int searchxe, int searchye, int *x, int *y)
-{
-	if (posx <= -editorgridextent) posx = -editorgridextent;
-	if (posx >= editorgridextent) posx = editorgridextent;
-	if (posy <= -editorgridextent) posy = -editorgridextent;
-	if (posy >= editorgridextent) posy = editorgridextent;
-
-	*x = posx + divscale14(searchxe-halfxdim16,zoom);
-	*y = posy + divscale14(searchye-midydim16,zoom);
-
-	if (*x <= -editorgridextent) *x = -editorgridextent;
-	if (*x >= editorgridextent) *x = editorgridextent;
-	if (*y <= -editorgridextent) *y = -editorgridextent;
-	if (*y >= editorgridextent) *y = editorgridextent;
-}
-
 int adjustmark(int *xplc, int *yplc, short danumwalls)
 {
 	int i, dst, dist, dax, day, pointlockdist;
@@ -1585,24 +1458,6 @@ void printmessage16(char name[82])
 	}
 }
 
-	//Find closest point (*dax, *day) on wall (dawall) to (x, y)
-void getclosestpointonwall(int x, int y, int dawall, int *nx, int *ny)
-{
-	walltype *wal;
-	int i, j, dx, dy;
-
-    if (dawall < 0) { *nx = *ny = 0; return; }
-	wal = &wall[dawall];
-	dx = wall[wal->point2].x-wal->x;
-	dy = wall[wal->point2].y-wal->y;
-	i = dx*(x-wal->x) + dy*(y-wal->y);
-	if (i <= 0) { *nx = wal->x; *ny = wal->y; return; }
-	j = dx*dx+dy*dy;
-	if (i >= j) { *nx = wal->x+dx; *ny = wal->y+dy; return; }
-	i = divscale30(i,j);
-	*nx = wal->x + mulscale30(dx,i);
-	*ny = wal->y + mulscale30(dy,i);
-}
 
 void initcrc(void)
 {

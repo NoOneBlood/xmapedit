@@ -352,6 +352,17 @@ void Resource::Grow(void)
     Reindex();
 }
 
+void Resource::AddExternalResource(const char* pzPath, int id, int flags)
+{
+	char buf[BMAX_PATH];
+	char *dir = NULL, *name = NULL, *ext = NULL;
+	pathSplit2((char*)pzPath, buf, NULL, &dir, &name, &ext);
+	if (ext[0] == '.')
+		ext =& ext[1];
+	
+	AddExternalResource(name, ext, id, flags, dir);
+}
+
 void Resource::AddExternalResource(const char *name, const char *type, int id, int flags, const char *pzDirectory)
 {
     char name2[BMAX_PATH], type2[BMAX_PATH], filename[BMAX_PATH], path[BMAX_PATH];

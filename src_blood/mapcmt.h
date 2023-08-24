@@ -27,6 +27,7 @@
 
 #include "inifile.h"
 #include "common_game.h"
+#include "xmp2dscr.h"
 #include "gfx.h"
 
 #define kCommentMaxLength 128
@@ -85,8 +86,7 @@ class MAP_COMMENT_MGR {
 		void BindTo(int cmtID, int objType, int objIdx);
 		int  IsBind(int objType, int objIdx);
 		int  IsBind(int cmtID, int* objIdx = NULL);
-		void Draw(int x, int y, int zoom);
-		void DrawText(char* text, int foreCol, int backCol, QFONT* font, int cx, int cy, int x, int y, int wh, int hg, int zoome, int shadofs = 0);
+		void Draw(SCREEN2D* pScr);
 		int  ClosestToPoint(int nTresh, int x, int y, int zoome);
 		void SetXYBody(int cmtID, int x, int y);
 		void SetXYTail(int cmtID, int x, int y);

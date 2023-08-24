@@ -29,9 +29,7 @@
 #include "screen.h"
 #include "tile.h"
 #include "osd.h"
-#include "enumstr.h"
-
-
+#include "xmpstr.h"
 #include "xmpconf.h"
 #include "xmpmisc.h"
 
@@ -972,10 +970,9 @@ void Checkbox::Paint(int x, int y, BOOL hasFocus) {
 	
 	if (checked)
 	{
-		/// !!!
-		gfxFillBox(x + 4, y + 4, x + kCBSize - 4, y + kCBSize - 4);		
-		//Video_Line(0, x + 3, y + 3 , x + width - 4, y + height - 4);
-		//Video_Line(0, x + width - 4, y + 3 , x + 3, y + height - 4);
+		const int pd = 4;
+		gfxLine(x + pd, y + pd, x + kCBSize - pd, y + kCBSize - pd);
+		gfxLine(x + pd, y + kCBSize - pd , x + kCBSize - pd, y + pd);
 	}
 	
 	gfxHLine(y + 1, x + 1, x + kCBSize - 1);
@@ -985,7 +982,7 @@ void Checkbox::Paint(int x, int y, BOOL hasFocus) {
 	gfxHLine(y + kCBSize - 1, x + 1, x + kCBSize - 1);
 	gfxVLine(x + kCBSize - 1, y + 1, y + kCBSize - 1);
 	
-	if (strlen(label))
+	if (label[0])
 	{
 		x = x + kCBSize + kCBLabelPad;
 		gfxDrawLabel(x, y + kCBSize / 4, gStdColor[0], label, pFont);
@@ -1577,7 +1574,7 @@ void PluPick::HandleEvent( GEVENT *event )
 	if (event->type & evMouse)
 	{
 		if ((event->type == evMouseMove) || (event->type == evMouseUp && event->mouse.button == 0))
-		{		
+		{
 			if (event->mouse.wheel > 0)
 				nStart = ClipHigh(nStart + nCols, pPrefs->pluCnt-1);
 			else if (event->mouse.wheel < 0)
@@ -1678,7 +1675,8 @@ void EditText::Paint( int x, int y, BOOL hasFocus )
 	if (hasFocus && IsBlinkOn())
 	{
 		gfxSetColor(gStdColor[0]);
-		gfxVLine(x + gfxGetTextLen(string, pFont, pos) + 3, y + height / 2 - 4, y + height / 2 + 3);
+		int nPos = (pos) ? gfxGetTextLen(string, pFont, pos) : 0;
+		gfxVLine(x + nPos + 3, y + height / 2 - 4, y + height / 2 + 3);
 	}
 }
 
@@ -1686,7 +1684,6 @@ void EditText::Paint( int x, int y, BOOL hasFocus )
 void EditText::HandleEvent( GEVENT *event )
 {
 	int gfxLen;
-	
 	if ( event->type & evMouse )
 	{
 		if (event->mouse.button != 0)
@@ -1696,6 +1693,7 @@ void EditText::HandleEvent( GEVENT *event )
 		{
 			case evMouseDown:
 			case evMouseDrag:
+				string[len] = '\0';
 				pos = gfxFindTextPos(string, pFont, event->mouse.x - left);
 				SetBlinkOn();
 				event->Clear();
@@ -1780,18 +1778,33 @@ void EditText::HandleEvent( GEVENT *event )
 
 
 
-EditNumber::EditNumber( int left, int top, int width, int height, int n ) : EditText( left, top, width, height, "")
+EditNumber::EditNumber( int left, int top, int width, int height, int nVal, char nValType, int nMin, int nMax) : EditText( left, top, width, height, "")
 {
-	value = n;
-	itoa(n, string, 10);
-	len = strlen(string);
-	pos = len;
+	value = nVal;
+	valueType = nValType;
+	minValue = nMin;
+	maxValue = nMax;
+	ClampValue();
 }
 
 
 void EditNumber::HandleEvent( GEVENT *event )
 {
-	if ( event->type == evKeyDown )
+	if (event->type & evMouse)
+	{
+		if (event->mouse.button != 0)
+			return;
+
+		switch (event->type)
+		{
+			case evMouseDown:
+			case evMouseDrag:
+				SetBlinkOn();
+				event->Clear();
+				break;
+		}
+	}
+	else if ( event->type == evKeyDown )
 	{
 		switch ( event->key.make )
 		{
@@ -1814,21 +1827,63 @@ void EditNumber::HandleEvent( GEVENT *event )
 				break;
 
 			default:
-				if ( event->key.ascii != 0 )
+				if (event->key.ascii != 0)
 				{
 					if (event->key.ascii >= '0' && event->key.ascii <= '9' && len < maxlen)
 					{
-						memmove(&string[pos+1], &string[pos], len - pos);
-						string[pos++] = event->key.ascii;
-						string[++len] = '\0';
+						if (value < maxValue)
+						{
+							memmove(&string[pos+1], &string[pos], len - pos);
+							string[pos++] = event->key.ascii;
+							string[++len] = '\0';
+						}
 					}
+					
 					event->Clear();
 				}
 				break;
 		}
 	}
-	EditText::HandleEvent( event );
-	value = atoi(string);
+	
+	EditText::HandleEvent(event);
+	if (string[0])
+	{
+		value = atoi(string);
+		ClampValue();
+	}
+	else
+	{
+		value = 0;
+	}
+	
+	InsEndChar();
+}
+
+void EditNumber::ClampValue()
+{
+	value = ClipRange(value, minValue, maxValue);
+	itoa(value, string, 10); len = strlen(string);
+	pos = ClipRange(pos, 0, len);
+	InsEndChar();
+}
+
+void EditNumber::InsEndChar()
+{
+	switch(valueType)
+	{
+		case kValPerc:
+			sprintf(&string[len], "%c", '%');
+			break;
+		case kValMeter:
+			sprintf(&string[len], "%c", 'm');
+			break;
+		case kValPixel:
+			sprintf(&string[len], "%c", 'p');
+			break;
+		case kValRepeat:
+			sprintf(&string[len], "%c", 'r');
+			break;
+	}
 }
 
 #define kRepeatDelay	60
@@ -1950,13 +2005,6 @@ GEVENT_TYPE GetEvent( GEVENT *event )
 	return event->type;
 }
 
-char* fixFonts[] = {
-	
-	"ARIAL12",
-	"CALIB16",
-	
-};
-
 void LoadFontSymbols(ROMFONT* pFont)
 {
 	BYTE* data = pFont->data;
@@ -1980,6 +2028,7 @@ void LoadFontSymbols(ROMFONT* pFont)
 extern "C" unsigned char textfont[];
 extern "C" unsigned char smalltextfont[];
 
+
 void GUIInit() {
 
 	RESHANDLE hRes = NULL;
@@ -1990,11 +2039,14 @@ void GUIInit() {
 		if ((hRes = gGuiRes.Lookup(i, "QFN")) != NULL)
 		{
 			qFonts[j] = (QFONT*)gGuiRes.Lock(hRes);
-			for (k = 0; k < LENGTH(fixFonts); k++)
+			
+			// show non-existing chars as dots
+			const QFONTCHAR* pCharReplace = &qFonts[j]->info['.'];
+			for (k = 33; k < 256; k++)
 			{
-				if (stricmp(hRes->name, fixFonts[k]) != 0) continue;
-				qFonts[j]->baseline-=2;
-				break;
+				QFONTCHAR* pChar = &qFonts[j]->info[k];
+				if (!pChar->w || !pChar->h)
+					memcpy(pChar, pCharReplace, sizeof(QFONTCHAR));
 			}
 			
 			j++;
@@ -2073,8 +2125,9 @@ int ShowModal(Container *dialog, int flags)
 	int saveSize = bytesperline * ydim;
 	BYTE *saveUnder = (BYTE *)Resource::Alloc(saveSize);
 	
-	if (flags & kModalFadeScreen)
-		drawHighlight(0, 0, xdim, ydim, gStdColor[0]);
+	// !!!
+	//if (flags & kModalFadeScreen)
+		//drawHighlight(0, 0, xdim, ydim, gStdColor[0]);
 
 	// copy save under from last displayed page
 #if USE_POLYMOST
@@ -2205,11 +2258,11 @@ int showButtons(NAMED_TYPE* names, int namesLen, char* title) {
 
 	// get longest string to determine width of buttons and the dialog window
 	sprintf(upchar, title);
-	w1 = gfxGetTextLen(strupr(upchar), pFont);
+	w1 = gfxGetTextLen(strupr(upchar), pFont)+pFont->width;
 	for (i = 0; i < namesLen; i++)
 	{
 		sprintf(upchar, names[i].name);
-		if ((k = gfxGetTextLen(strupr(upchar), pFont)) > w1)
+		if ((k = gfxGetTextLen(strupr(upchar), pFont)+pFont->width) > w1)
 			w1 = k;
 	}
 	

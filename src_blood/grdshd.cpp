@@ -27,7 +27,7 @@
 #include "tile.h"
 #include "screen.h"
 #include "xmpstub.h"
-#include "xmpmisc.h"
+
 
 enum {
 mrRight = mrUser,
@@ -36,68 +36,81 @@ mrBoth2,
 mrLeft,
 };
 
-BOOL gResetHighlight = FALSE;
-GRSHIGHLIGHT gHglt[kMaxHgltObjects];
-short gHgltc = 0;
+OBJECT_LIST gListGrd;
 
-int grshShadeWalls(BOOL toggle) {
+void processShade(OBJECT* pObj, int* nShade, int nMaxShade, int nStep, int nStepRange, int* nStepCnt)
+{
+	setShadeOf(*nShade, pObj->type, pObj->index);
 	
-	schar shade = 0; 	  			static BYTE step = 4;
-	schar sshade = 0;				static schar mshade = 64 - 1;
- 	ushort stepc = 0;				static ushort stepRng = 1;
-	static schar direction = -1;	static schar prevDir = -1;	
+	*nStepCnt = *nStepCnt + 1;
+	if (*nStepCnt >= nStepRange)
+	{
+		*nShade = ClipRange(*nShade + nStep, -nMaxShade, nMaxShade);
+		*nStepCnt = 0;
+	}
+}
+
+int grshShadeWalls(char toggle)
+{
+	char* pShadeStr;
+	int nStep, nStepCnt, nShade, dwh, dhg;
+	int nBaseShade;
 	int i = 0;
 	
-	switch (direction) {
-		default: // start shade is a shade of first highlighted object
-			sshade = gHglt[0].shade;
+	static unsigned char nDir		= mrLeft;
+	static signed   char nMaxShade	= 63;
+	static unsigned char nStepRange = 1;
+	static unsigned char nShadeStep	= 4;
+	
+	int nLen = gListGrd.Length();
+	OBJECT* pDb  = gListGrd.Ptr();
+	OBJECT* pObj = pDb;
+	
+	switch (nDir)
+	{
+		case mrLeft:
+			i = nLen - 1;
 			break;
-		case mrLeft: // start shade is a shade of last highlighted object
-			sshade = gHglt[gHgltc - 1].shade;
-			break;
-		case mrBoth1: // start shade is a shade of middle highlighted object
-			sshade = (schar) (gHgltc >> 1);
-			if (sshade << 1 == gHgltc) sshade--;
-			sshade = gHglt[sshade].shade;
+		case mrBoth1:
+			i = nLen >> 1;
+			if (i << 1 == nLen)
+				i--;
+			
 			break;
 	}
-
-	sprintf(buffer, "Gradient shading [%d]", gHgltc);
+	
+	pObj = gListGrd.Ptr(i);
+	nBaseShade = getShadeOf(pObj->type, pObj->index);
+	
+	sprintf(buffer, "Gradient shading [%d]", nLen);
 	Window dialog(0, 0, 180, 180, buffer);
+	dialog.getSize(&dwh, &dhg);
 
 	Label *startShL = new Label(4, 10, "BASE SHADE. . . . . . . .");
-	EditNumber *startShE = new EditNumber(130, 4, 40, 16, sshade);
+	EditNumber *startShE = new EditNumber(130, 4, 40, 16, nBaseShade, 0, -128, 63);
 	
 	Label *stepShL = new Label(4, 30, "SHADE &STEP. . . . . . . .");
-	EditNumber *stepShE = new EditNumber(130, 24, 40, 16, step);
+	EditNumber *stepShE = new EditNumber(130, 24, 40, 16, nShadeStep, 0, 1, 32);
 
 	Label *maxShL = new Label(4, 50, "MAX   SHADE. . . . . . . .");
-	EditNumber *maxShE = new EditNumber(130, 44, 40, 16, mshade);
+	EditNumber *maxShE = new EditNumber(130, 44, 40, 16, nMaxShade, 0, -128, 63);
 
 	Label *stepRgL = new Label(4, 70, "OBJECT STEP. . . . . . .");
-	EditNumber *stepRgE = new EditNumber(130, 64, 40, 16, stepRng);
+	EditNumber *stepRgE = new EditNumber(130, 64, 40, 16, nStepRange, 0, 1, nLen-1);
 	
-	Label *text1 = new Label(10, 90, "Base shade greater than");
-	Label *text2 = new Label(20, 100, "max leads to brighten");
-	Label *text3 = new Label(67, 110, "objects.");
+	Text* pText = new Text(0, 90, dwh, pFont->height*3,
+	"Base shade greater than\n"
+	"max leads to brighten\n"
+	"objects.",
+	0x03);
 	
 	Label *pbDir = new Label(5, 130, ". . . . . . . .DIRECTION. . . . . . . .");
 	
-	sprintf(buffer, "--->");
-	int len = gfxGetTextLen(buffer, qFonts[0]) + 15;
-	sprintf(buffer, " ");
-	
-	TextButton *pbRight = new TextButton(3, 140, len, 20, "--->", mrRight);
-	pbRight->hotKey = '1';
-	
-	TextButton *pbBoth  = new TextButton(45, 140, len, 20, "<-->", mrBoth1);
-	pbBoth->hotKey = '2';
-	
-	TextButton *pbBoth2  = new TextButton(87, 140, len, 20, "-><-", mrBoth2);
-	pbBoth2->hotKey = '3';
-	
-	TextButton *pbLeft  = new TextButton(129, 140, len, 20, "<---", mrLeft);
-	pbLeft->hotKey = '4';
+	int bwh = dwh>>2;
+	TextButton *pbRight		= new TextButton(3, 140, bwh, 20, "--->", mrRight);
+	TextButton *pbBoth		= new TextButton(45, 140, bwh, 20, "<-->", mrBoth1);
+	TextButton *pbBoth2		= new TextButton(87, 140, bwh, 20, "-><-", mrBoth2);
+	TextButton *pbLeft		= new TextButton(129, 140, bwh, 20, "<---", mrLeft);
 
 	dialog.Insert(startShL);
 	dialog.Insert(startShE);
@@ -107,227 +120,84 @@ int grshShadeWalls(BOOL toggle) {
 	dialog.Insert(maxShE);
 	dialog.Insert(stepRgL);
 	dialog.Insert(stepRgE);
-	dialog.Insert(text1);
-	dialog.Insert(text2);
-	dialog.Insert(text3);
+	dialog.Insert(pText);
 	dialog.Insert(pbDir);
 	dialog.Insert(pbRight);
 	dialog.Insert(pbBoth);
 	dialog.Insert(pbBoth2);
 	dialog.Insert(pbLeft);
 	
-	if (!toggle || direction < 0) {
-		
-		prevDir = direction;
+	if (!toggle || nDir < 0)
+	{
 		ShowModal(&dialog);
-		direction = (schar)dialog.endState;
-		
-	} else if (++direction > mrLeft) {
-		
-		direction = mrRight;
-
+		if (dialog.endState == mrOk && dialog.focus)	// find a button we are focusing on
+		{
+			TextButton* pFocus = (TextButton*)dialog.focus;
+			if (pFocus->result)
+				nDir = pFocus->result;
+		}
+		else
+		{
+			nDir = dialog.endState;
+		}
+	}
+	else if (++nDir > mrLeft)
+	{
+		nDir = mrRight;
 	}
 	
-	startShE->value = ClipRange(startShE->value, -128, 64 - 1);
-	maxShE->value = ClipRange(maxShE->value, -128, 64 - 1);
-	stepShE->value = ClipHigh(abs(stepShE->value), 64 >> 1);
-	stepRgE->value = ClipRange(stepRgE->value, 1, gHgltc - 1);
 	
-	mshade = (schar)maxShE->value;    step = (BYTE)stepShE->value;
-	shade =  (schar)startShE->value;  stepRng = (ushort)stepRgE->value;
-	sshade = shade;
-
-	switch (direction) {
+	nMaxShade 	= maxShE->value;		nShadeStep = stepShE->value;
+	nShade 		= startShE->value;		nStepRange = stepRgE->value;
+	nBaseShade 	= nShade;
+	
+	nStep = (nBaseShade > nMaxShade) ? -nShadeStep : nShadeStep;
+	
+	switch (nDir)
+	{
 		case mrRight:
-			for (i = 0; i < gHgltc; i++){
-				gHglt[i].shade = shade;
-				if (++stepc < stepRng) continue;
-				else if (sshade > mshade) shade = (schar)ClipLow(shade - step, mshade);
-				else shade = (schar)ClipHigh(shade + step, mshade);
-				stepc = 0;
-			}
-			scrSetMessage("shade direction: --->");
+			for (i = 0; i < nLen; i++)
+				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange, &nStepCnt);
+			
+			pShadeStr = pbRight->text;
 			break;
 		case mrLeft:
-			for (i = gHgltc - 1; i >= 0; i--){
-				gHglt[i].shade = shade;
-				if (++stepc < stepRng) continue;
-				else if (sshade > mshade) shade = (schar)ClipLow(shade - step, mshade);
-				else shade = (schar)ClipHigh(shade + step, mshade);
-				stepc = 0;
-			}
-			scrSetMessage("shade direction: <---");
+			for (i = nLen-1; i >= 0; i--)
+				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange, &nStepCnt);
+			
+			pShadeStr = pbLeft->text;
 			break;
-		case mrBoth1:// to edges
-			for (i = (gHgltc - 1) >> 1, step<<=1 ; i < gHgltc; i++){
-				gHglt[i].shade = shade;
-				if (++stepc < stepRng >> 1) continue;
-				else if (sshade > mshade) shade = (schar)ClipLow(shade - step, mshade);
-				else shade = (schar)ClipHigh(shade + step, mshade);
-				stepc = 0;
-			}
-
-			for (i = (gHgltc - 1) >> 1, shade = (schar)startShE->value; i >= 0; i--){
-				gHglt[i].shade = shade;
-				if (++stepc < stepRng >> 1) continue;
-				else if (sshade > mshade) shade = (schar)ClipLow(shade - step, mshade);
-				else shade = (schar)ClipHigh(shade + step, mshade);
-				stepc = 0;
-			}
+		case mrBoth1:// from middle to edges
+			nStep<<=1;
+			for (i = (nLen-1)>>1; i < nLen; i++)
+				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange>>1, &nStepCnt);
 			
-			step = (BYTE)stepShE->value; // reset back because it's static.
-			scrSetMessage("shade direction: <-->");
+			nShade = nBaseShade;
+			for (i = (nLen-1)>>1; i >= 0; i--)
+				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange>>1, &nStepCnt);
+			
+			pShadeStr = pbBoth->text;
 			break;
-		case mrBoth2: // to middle
-			for (i = 0, step<<=1; i < gHgltc >> 1; i++){
-				gHglt[i].shade = shade;
-				if (++stepc < stepRng >> 1) continue;
-				else if (sshade > mshade) shade = (schar)ClipLow(shade - step, mshade);
-				else shade = (schar)ClipHigh(shade + step, mshade);
-				stepc = 0;
-			}
+		case mrBoth2: // from edges to middle
+			nStep<<=1;
+			for (i = 0; i < nLen>>1; i++)
+				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange>>1, &nStepCnt);
 			
-			for (i = gHgltc - 1, shade = (schar)startShE->value; i >= gHgltc >> 1; i--){
-				gHglt[i].shade = shade;
-				if (++stepc < stepRng >> 1) continue;
-				else if (sshade > mshade) shade = (schar)ClipLow(shade - step, mshade);
-				else shade = (schar)ClipHigh(shade + step, mshade);
-				stepc = 0;
-			}
+			nShade = nBaseShade;
+			for (i = nLen-1; i >= nLen>>1; i--)
+				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange>>1, &nStepCnt);
 			
-			step = (BYTE)stepShE->value; // reset back because it's static.
-			scrSetMessage("shade direction: -><-");
+			pShadeStr = pbBoth2->text;
 			break;
 		case mrCancel:
-			scrSetMessage("Gradient shade aborted by user");
-			break;
-		default:
-			direction = prevDir;
 			break;
 	}
 	
-	if (direction >= mrRight && direction <= mrLeft) {
-		grshUnhgltObjects(-1, FALSE);
-		gResetHighlight = TRUE; // reset highlight to zero on next highlight attempt
+	if (nDir >= mrRight && nDir <= mrLeft)
+	{
+		scrSetMessage("Shade direction: %s", pShadeStr);
 		BeepOk();
 	}
 
-	return direction;
-}
-
-short grshHighlighted(int otype, int idx){
-	
-	if (gHgltc <= 0) return -1;
-	for (short i = 0; i < kMaxHgltObjects; i++) {
-		if (gHglt[i].type == otype && gHglt[i].idx == idx)
-			return i;
-		
-	}
-	return -1;
-	
-}
-
-void grshUnhgltObjects(int hidx, BOOL erase) {
-
-	for (int i = ClipLow(hidx, 0); i < kMaxHgltObjects; i++) {
-		
-		if (gHglt[i].idx < 0)
-			continue;
-		
-		int idx = gHglt[i].idx;
-		switch(gHglt[i].type){
-			case OBJ_WALL:
-			case OBJ_MASKED:
-				wall[idx].picnum  = gHglt[i].picnum;
-				wall[idx].shade   = gHglt[i].shade;
-				break;
-			case OBJ_FLOOR:
-				sector[idx].floorpicnum = gHglt[i].picnum;
-				sector[idx].floorshade  = gHglt[i].shade;
-				break;
-			case OBJ_CEILING:
-				sector[idx].ceilingpicnum = gHglt[i].picnum;
-				sector[idx].ceilingshade  = gHglt[i].shade;
-				break;
-		}
-		
-		if (!erase) continue;
-		gHglt[i].type = -1;
-		gHglt[i].idx  = -1;
-		if (--gHgltc <= 0)
-			break;
-		
-	}
-	
-}
-
-BOOL grshAddObjects(schar otype, short idx) {
-	
-	BOOL ALLOW = FALSE;
-	switch (otype) {
-		case OBJ_WALL:
-		case OBJ_MASKED:
-			gHglt[gHgltc].picnum  = wall[idx].picnum;
-			gHglt[gHgltc].shade   = wall[idx].shade;
-			ALLOW = TRUE;
-			break;
-		case OBJ_FLOOR:
-			if (sector[idx].floorstat & kSectParallax) {
-				scrSetMessage("Floor must be non-parallaxed.");
-				break;
-			}
-			gHglt[gHgltc].picnum  = sector[idx].floorpicnum;
-			gHglt[gHgltc].shade  = sector[idx].floorshade;
-			ALLOW = TRUE;
-			break;
-		case OBJ_CEILING:
-			if (sector[idx].ceilingstat & kSectParallax) {
-				scrSetMessage("Ceiling must be non-parallaxed.");
-				break;
-			}
-			gHglt[gHgltc].picnum  = sector[idx].ceilingpicnum;
-			gHglt[gHgltc].shade  = sector[idx].ceilingshade;
-			ALLOW = TRUE;
-			break;
-	}
-	
-	if (ALLOW) {
-		
-		gHglt[gHgltc].type = otype;
-		gHglt[gHgltc].idx  = idx;
-		gHgltc++;
-		
-	}
-	
-	return ALLOW;
-	
-}
-
-void grshHgltObjects(int idx) {
-	
-	int i = 0;
-	if (gHgltc < 1)
-		return;
-	
-	for (i = 0; i < gHgltc; i++) {
-		if (gHglt[i].type < 0 || gHglt[i].idx < 0)
-			continue;
-		
-		idx = gHglt[i].idx;
-		switch(gHglt[i].type){
-			case OBJ_WALL:
-			case OBJ_MASKED:
-				wall[idx].picnum  = (short)gSysTiles.grdshdBg;
-				wall[idx].shade   = -127;
-				break;
-			case OBJ_FLOOR:
-				sector[idx].floorpicnum = (short)gSysTiles.grdshdBg;
-				sector[idx].floorshade  = -127;
-				break;
-			case OBJ_CEILING:
-				sector[idx].ceilingpicnum = (short)gSysTiles.grdshdBg;
-				sector[idx].ceilingshade  = -127;
-				break;
-		}
-	}
+	return nDir;
 }

@@ -38,6 +38,7 @@
 #include "xmpevox.h"
 #include "editor.h"
 #include "seq.h"
+#include "grdshd.h"
 
 void viewDoQuake(int strength, int* x, int* y, int* z, short* a, int* h) {
 	
@@ -94,7 +95,7 @@ spritetype *viewInsertTSprite( int nSector, int nStatus, spritetype *pSource = N
 		pTSprite->owner = pSource->owner;
 		pTSprite->ang = pSource->ang;
 	}
-
+	
 	return &tsprite[nTSprite];
 }
 
@@ -336,137 +337,72 @@ void viewWallHighlight(int nWall, int nSect, POINT3D point[4])
 {
 	unsigned char size;
 	
-	spritetype* pEffect;
+	spritetype* pView;
+	sectortype* pSect = &sector[nSect];
 	int nAng  = (GetWallAngle(nWall) + kAng90) & kAngMask;
 	int zTop, zBot, nLen = getWallLength(nWall);
 	int lHeigh = klabs(point[2].z - point[0].z);
 	int rHeigh = klabs(point[3].z - point[1].z);
 	int nFSpr;
-	
-	BOOL badfslope = (sector[nSect].floorslope != 0);
-	BOOL badcslope = (sector[nSect].ceilingslope != 0);
-	
+	int i;
+
 	if ((nFSpr = headspritestat[kStatFree]) < 0)
 		return;
 	
-	// left top
-	if ((pEffect = viewInsertTSprite(nSect, -32767)) != NULL)
+	for (i = 0; i < 4; i++)
 	{
-		size = viewWallHighlightScale(nLen, lHeigh, point[0].x, point[0].y);
-
-		pEffect->picnum 	= gSysTiles.wallHglt;
-		pEffect->cstat 	   |= (kSprFlipX | kSprOneSided);
+		if ((pView = viewInsertTSprite(nSect, -32767)) != NULL)
+		{			
+			switch(i)
+			{
+				case 0: // lt
+				case 1: // rt
+					size = viewWallHighlightScale(nLen, lHeigh, point[i].x, point[i].y);
+					if (i == 0) pView->cstat |= kSprFlipX;
+					break;
+				case 2: // lb
+				case 3: // rb
+					size = viewWallHighlightScale(nLen, rHeigh, point[i].x, point[i].y);
+					if (i == 2)
+						pView->cstat |= kSprFlipX;
+					
+					pView->cstat |= kSprFlipY;
+					break;
+			}
+			
+			pView->picnum		= gSysTiles.wallHglt;
+			pView->xrepeat		= size;
+			pView->yrepeat		= size;
+			pView->shade 		= -128;
+			pView->ang 			= nAng;
+			pView->cstat		|= kSprOneSided;			
+			if (!h)
+				pView->cstat |= kSprTransluc2;
+			
+			pView->x 			= point[i].x;
+			pView->y 			= point[i].y;
+			pView->z 			= point[i].z;
+			pView->owner 		= nFSpr;
+			
+			doWallCorrection(nWall, &pView->x, &pView->y);
+			GetSpriteExtents(pView, &zTop, &zBot);
+			
+			if (i > 1)
+			{
+				pView->z = zTop;
+				if (pSect->floorslope)
+					continue;
+			}
+			else
+			{
+				pView->z = zBot;
+				if (pSect->ceilingslope)
+					continue;
+			}
+			
+			pView->cstat |= kSprWall;
+		}
 		
-		// leave sprite face oriented if we cannot see it because of slope
-		if (!badcslope)
-			pEffect->cstat |= kSprWall;
-		
-		if (!h)
-			pEffect->cstat |= kSprTransluc2;
-		
-		pEffect->xrepeat 	= pEffect->yrepeat = size;
-		pEffect->shade 		= -128;
-		pEffect->ang 		= nAng;
-		
-		pEffect->x 			= point[0].x;
-		pEffect->y 			= point[0].y;
-		pEffect->z 			= point[0].z;
-		
-		pEffect->owner 		= nFSpr;
-		
-		doWallCorrection(nWall, &pEffect->x, &pEffect->y);
-		GetSpriteExtents(pEffect, &zTop, &zBot);
-		pEffect->z = zBot;
-	}
-	
-	// right top
-	if ((pEffect = viewInsertTSprite(nSect, -32767)) != NULL)
-	{
-		size = viewWallHighlightScale(nLen, rHeigh, point[1].x, point[1].y);
-		
-		pEffect->picnum 	= gSysTiles.wallHglt;
-		pEffect->cstat 	 	|= (kSprOneSided);
-		
-		// leave sprite face oriented if we cannot see it because of slope
-		if (!badcslope)
-			pEffect->cstat |= kSprWall;
-		
-		if (!h)
-			pEffect->cstat |= kSprTransluc2;
-		
-		pEffect->xrepeat 	= pEffect->yrepeat = size;
-		pEffect->shade 		= -128;
-		pEffect->ang 		= nAng;
-		
-		pEffect->x 			= point[1].x;
-		pEffect->y 			= point[1].y;
-		pEffect->z 			= point[1].z;
-		
-		pEffect->owner 		= nFSpr;
-		
-		doWallCorrection(nWall, &pEffect->x, &pEffect->y);
-		GetSpriteExtents(pEffect, &zTop, &zBot);
-		pEffect->z = zBot;
-	}
-	
-	// left bot
-	if ((pEffect = viewInsertTSprite(nSect, -32767)) != NULL)
-	{
-		size = viewWallHighlightScale(nLen, lHeigh, point[2].x, point[2].y);
-		
-		pEffect->picnum 	= gSysTiles.wallHglt;
-		pEffect->cstat 	   |= (kSprFlipX | kSprFlipY | kSprOneSided);
-		
-		// leave sprite face oriented if we cannot see it because of slope
-		if (!badfslope)
-			pEffect->cstat |= kSprWall;
-		
-		if (!h)
-			pEffect->cstat |= kSprTransluc2;
-		
-		pEffect->xrepeat 	= pEffect->yrepeat = size;
-		pEffect->shade 		= -128;
-		pEffect->ang 		= nAng;
-		
-		pEffect->x 			= point[2].x;
-		pEffect->y 			= point[2].y;
-		pEffect->z 			= point[2].z;
-		
-		pEffect->owner 		= nFSpr;
-		
-		doWallCorrection(nWall, &pEffect->x, &pEffect->y);
-		GetSpriteExtents(pEffect, &zTop, &zBot);
-		pEffect->z = zTop;
-	}
-	
-	//right bot
-	if ((pEffect = viewInsertTSprite(nSect, -32767)) != NULL)
-	{
-		size = viewWallHighlightScale(nLen, rHeigh, point[3].x, point[3].y);
-		
-		pEffect->picnum 	= gSysTiles.wallHglt;
-		pEffect->cstat 	   |= (kSprFlipY | kSprOneSided);
-		
-		// leave sprite face oriented if we cannot see it because of slope
-		if (!badfslope)
-			pEffect->cstat |= kSprWall;
-		
-		if (!h)
-			pEffect->cstat |= kSprTransluc2;
-		
-		pEffect->xrepeat 	= pEffect->yrepeat = size;
-		pEffect->shade 		= -128;
-		pEffect->ang 		= nAng;
-		
-		pEffect->x 			= point[3].x;
-		pEffect->y 			= point[3].y;
-		pEffect->z 			= point[3].z;
-		
-		pEffect->owner 		= nFSpr;
-		
-		doWallCorrection(nWall, &pEffect->x, &pEffect->y);
-		GetSpriteExtents(pEffect, &zTop, &zBot);
-		pEffect->z = zTop;
 	}
 }
 
@@ -556,94 +492,262 @@ void viewWallHighlight(int nWall, int nSect, char how, BOOL testPoint)
 	}
 }
 
-void viewProcessSprites(int x, int y, int z, int a) {
+void viewSpriteHighlight(spritetype* pSpr)
+{
+	spritetype* pView; char floor = 0x0;
+	int nSect = pSpr->sectnum, nAng = pSpr->ang, t = pSpr->ang;
+	int i, x1, y1, x2, y2, x3, y3, x4, y4, zt, zb;
+	int size, fz, cz;
+	int nFSpr;
 	
-	static int i, dx, dy, nOctant, nSprite, nXSprite, nTile, nShade;
-	static int voxType, offset, nView, nTileNew;
+	if ((nFSpr = headspritestat[kStatFree]) < 0)
+		return;
 	
-	if (gSysTiles.wallHglt > 0 && gHovWall >= 0)
+	switch (pSpr->cstat & kSprRelMask)
 	{
-		if (gHovStat == OBJ_MASKED)
-			viewWallHighlight(gHovWall, sectorofwall(gHovWall), 0, FALSE);
-		else if (searchwallcf)
-			viewWallHighlight(gHovWall, searchsector, 0x10);
-		else
-			viewWallHighlight(gHovWall, searchsector, 0x20);
+		case kSprFace:
+			pSpr->ang = nAng = (ang + kAng180) & kAngMask;
+			GetSpriteExtents(pSpr, &x1, &y1, &x2, &y2, &zt, &zb);
+			pSpr->ang = t;
+			break;
+		case kSprWall:
+			GetSpriteExtents(pSpr, &x1, &y1, &x2, &y2, &zt, &zb);
+			if ((x1-posx)*(y2-posy) < (x2-posx)*(y1-posy))
+			{
+				nAng = (pSpr->ang + kAng180) & kAngMask;
+				RotatePoint(&x1, &y1, kAng180, pSpr->x, pSpr->y);
+				RotatePoint(&x2, &y2, kAng180, pSpr->x, pSpr->y);
+			}	
+			break;
+		case kSprFloor:
+			GetSpriteExtents(pSpr, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4);
+			floor |= 0x01;
+			if (spriteGetSlope(pSpr->index))
+				floor |= 0x02;
+			break;
 	}
 	
-/* 	if (searchsector >= 0)
+	getzsofslope(nSect, pSpr->x, pSpr->y, &cz, &fz);
+	size = ClipRange(approxDist(pSpr->x - posx, pSpr->y - posy)/72, 20, 128);
+	
+	for (i = 0; i < 4; i++)
 	{
-		int s, e;
-		getSectorWalls(searchsector, &s, &e);
+		if ((pView = viewInsertTSprite(nSect, -32767, pSpr)) == NULL)
+			break;
 		
-		int nFSpr;
-		if ((nFSpr = headspritestat[kStatFree]) < 0)
-			return;
+		pView->xoffset		= pView->yoffset = -1;
+		pView->picnum 		= gSysTiles.wallHglt;
+		pView->xrepeat 		= pView->yrepeat = size;
+		pView->shade 		= -128;
+		pView->ang 			= nAng;
+		pView->owner 		= nFSpr;
+		pView->pal			= 10;
 		
+		if (!h)
+			pView->cstat |= kSprTransluc2;
 		
-		while(s <= e)
+		if (!floor)
 		{
-			
-			//int zTop, int zBot;
-			int x1, y1;
-			getWallCoords(s, &x1, &y1);
-			
-			unsigned char size;
-			
-			spritetype* pEffect;
-			if ((pEffect = viewInsertTSprite(searchsector, -32767)) != NULL)
+			pView->cstat |= (kSprOneSided | kSprWall);
+
+			switch(i)
 			{
-				pEffect->picnum 	= gSysTiles.pixel;
-				pEffect->cstat 	   |= (kSprFloor);
+				case 0: // lt
+					pView->x 			= x1;
+					pView->y 			= y1;
+					pView->z 			= zt;
+					pView->cstat    	|= kSprFlipX;
+					break;
+				case 1: // lb
+					pView->x 			= x1;
+					pView->y 			= y1;
+					pView->z 			= zb;
+					pView->cstat    	|= (kSprFlipX | kSprFlipY);
+					break;
+				case 2: //rt
+					pView->x 			= x2;
+					pView->y 			= y2;
+					pView->z 			= zt;
+					break;
+				case 3: //rb
+					pView->x 			= x2;
+					pView->y 			= y2;
+					pView->z 			= zb;
+					pView->cstat    	|= kSprFlipY;
+					break;
 				
-				if (!h)
-					pEffect->cstat |= kSprTransluc2;
-				
-				
-				pEffect->shade 		= -128;
-				pEffect->ang 		= GetWallAngle(s) + kAng90;
-				
-				pEffect->x 			= x1;
-				pEffect->y 			= y1;
-				pEffect->z 			= getflorzofslope(searchsector, x1, y1);
-				
-				pEffect->owner 		= nFSpr;
-				
-				size = (unsigned char)ClipRange(mulscale8(64, approxDist(x1-posx, y1-posy)>>5), 4, 164);
-				pEffect->xrepeat 	= pEffect->yrepeat = size;
-				
-				doWallCorrection(s, &pEffect->x, &pEffect->y);
-				//GetSpriteExtents(pEffect, &zTop, &zBot);
-				//pEffect->z = zTop;
 			}
 			
-			s++;
+			switch (i)
+			{
+				case 1:
+				case 3:
+					if (isSkySector(nSect, OBJ_FLOOR) || zb < fz) break;
+					pView->yoffset = -2;
+					break;
+				case 0:
+				case 2:
+					if (isSkySector(nSect, OBJ_CEILING) || zt > cz) break;
+					pView->yoffset = -2;
+					break;
+			}
+		}
+		else
+		{
+			pView->cstat |= kSprFloor;
+			
+			switch(i)
+			{
+				case 0: // lt
+					pView->x 			= x1;
+					pView->y 			= y1;
+					pView->cstat    	|= kSprFlipX;
+					break;
+				case 1: // rt
+					pView->x 			= x2;
+					pView->y 			= y2;
+					break;
+				case 2: //rb
+					pView->x 			= x3;
+					pView->y 			= y3;
+					pView->ang			= pSpr->ang + kAng90;
+					break;
+				case 3: //lb
+					pView->x 			= x4;
+					pView->y 			= y4;
+					pView->ang			= pSpr->ang + kAng180;
+					break;
+				
+			}
+			
+			if (floor & 0x02)
+				pView->z = spriteGetZOfSlope(pSpr->index, pView->x, pView->y);
+			else
+				pView->z = pSpr->z - 16;
+		}
+	}
+}
+
+void viewObjectHighlight(int nType, int nID)
+{
+	spritetype* pView = NULL;
+	int cx, cy, cz, fz, size;
+	int nFSpr;
+	int t;
+		
+	if ((nFSpr = headspritestat[kStatFree]) < 0)
+		return;
+	
+	switch(nType)
+	{
+		case OBJ_FLOOR:
+		case OBJ_CEILING:
+			if ((pView = viewInsertTSprite(nID, -32767)) != NULL)
+			{
+				avePointSector(nID, &cx, &cy);
+				getzsofslope(nID, cx, cy, &cz, &fz);
+				if (nType == OBJ_FLOOR)
+				{
+					pView->z		= fz - 2048;
+					pView->picnum	= 4518;
+				}
+				else
+				{
+					pView->z 		= cz + 2048;
+					pView->picnum	= 4515;
+				}
+				
+				pView->x 		= cx;
+				pView->y 		= cy;
+				pView->ang		= (short)((totalclock * 12) & kAngMask);
+				pView->cstat   |= kSprWall;
+			}
+			break;
+		case OBJ_WALL:
+			if ((pView = viewInsertTSprite(sectorofwall(nID), -32767)) != NULL)
+			{
+				avePointWall(nID, &cx, &cy, &cz);
+				doWallCorrection(nID, &cx, &cy);
+				//pView->ang = GetWallAngle(nID) + kAng90;
+				pView->picnum	= 4535;
+				pView->x 		= cx;
+				pView->y 		= cy;
+				pView->z		= cz;
+				pView->pal		= 10;
+			}
+			break;
+	}
+	
+	if (pView)
+	{
+		t = 128;
+		
+		if (h)
+		{
+			pView->cstat |= kSprTransluc2;
+			if (searchstat == nType && searchindex == nID)
+				t = 64;
 		}
 		
-	} */
+		size = ClipRange(approxDist(pView->x - posx, pView->y - posy)/t, 32, 128);
+		
+		pView->owner  	= nFSpr;
+		pView->shade 	= 63;
+		pView->pal		= 1;
+		pView->xrepeat	= size;
+		pView->yrepeat  = size;
+	}
+	
+}
 
-	for (i = spritesortcnt - 1; i >= 0; i--)
+void viewProcessSprites(int x, int y, int z, int a) {
+	
+	static int i, dx, dy, nOctant, nSpr, nXSpr, nTile;
+	static int voxType, offset, nView, nTileNew;
+	spritetype* pTSpr;
+	XSPRITE* pTXSpr;
+	
+	if (gSysTiles.wallHglt > 0)
 	{
-		spritetype *pTSprite = &tsprite[i];
-		XSPRITE *pTXSprite = (pTSprite->extra >= 0) ? &xsprite[pTSprite->extra] : NULL;
-		nXSprite = pTSprite->extra;
+		if (gHovWall >= 0)
+		{
+			if (gHovStat == OBJ_MASKED)
+				viewWallHighlight(gHovWall, sectorofwall(gHovWall), 0, FALSE);
+			else if (searchwallcf)
+				viewWallHighlight(gHovWall, searchsector, 0x10);
+			else
+				viewWallHighlight(gHovWall, searchsector, 0x20);
+		}
+	}
+	
+	if (gListGrd.Length())
+	{
+		OBJECT* pDb = gListGrd.Ptr();
+		while(pDb->type != OBJ_NONE)
+		{
+			viewObjectHighlight(pDb->type, pDb->index);
+			pDb++;
+		}
+	}
+	
+	i = spritesortcnt;
+	while(--i >= 0)
+	{
+		pTSpr = &tsprite[i]; nSpr = pTSpr->owner;				
+		nXSpr = (pTSpr->extra > 0) ? pTSpr->extra : 0;
+		pTXSpr = (nXSpr) ? &xsprite[nXSpr] : NULL;
 		
-		voxType = offset = 0; nTile = pTSprite->picnum;
-		dassert(nTile >= 0 && nTile < kMaxTiles);
-		
+		voxType = offset = 0; nTile = pTSpr->picnum;
+		nTile = ClipRange(nTile, 0, kMaxTiles);
 		nView = panm[nTile].view;
-		
-		nSprite = pTSprite->owner;
-		dassert(nSprite >= 0 && nSprite < kMaxSprites);
 
-		nShade = pTSprite->shade;
-		sectortype *pSector = &sector[pTSprite->sectnum];
-		XSECTOR *pXSector = (pSector->extra > 0) ? &xsector[pSector->extra] : NULL;
-		pTSprite->shade = (schar)ClipRange(viewSpriteShade(nShade, nTile, pTSprite->sectnum), -128, 127);
+		dassert(nSpr >= 0 && nSpr < kMaxSprites);
+
+		pTSpr->shade = (schar)ClipRange(viewSpriteShade(pTSpr->shade, nTile, pTSpr->sectnum), -128, 127);
 				
 		if (nView >= kSprViewVox)
 		{
-			if (extVoxelPath[nTile])
+			if (isExternalModel(nTile))
 			{
 				if (gPreviewMode || gMisc.externalModels == 1)
 					voxType = kVoxTypeExternal;
@@ -659,63 +763,66 @@ void viewProcessSprites(int x, int y, int z, int a) {
 
 		if (!gPreviewMode)
 		{
-			if (nSprite == gHovSpr)
+			if (nSpr == gHovSpr)
 			{
-				switch (pTSprite->cstat & 48) {
+				switch (pTSpr->cstat & 48) {
 					case kSprWall:
-						if (pTSprite->cstat & kSprOneSided) break;
+						if (pTSpr->cstat & kSprOneSided) break;
 						// no break
 					case kSprFace:
 						if (nView == kSprViewVox || nView == kSprViewVoxSpin) break;
 						viewAddEffect(i, kViewEffectAngle);
 						break;
 				}
+				
+				if (gSysTiles.wallHglt > 0)
+					viewSpriteHighlight(pTSpr);
 			}
 				
-			if ((h) && (nSprite == gHighSpr || TestBitString(show2dsprite, nSprite)))
+			if ((h) && (nSpr == gHighSpr || TestBitString(show2dsprite, nSpr)))
 				viewAddEffect(i, kViewEffectHighlight);
 		}
-		else if (showinvisibility && (sprite[nSprite].cstat & kSprInvisible))
-			pTSprite->cstat |= kSprTransluc1;
+		else if (showinvisibility && (sprite[nSpr].cstat & kSprInvisible))
+			pTSpr->cstat |= kSprTransluc1;
 		
 		
-		if (nXSprite > 0)
+		if (nXSpr > 0)
 		{
-			switch (sprite[nSprite].type) {
+			switch (sprite[nSpr].type) {
 				case kSwitchToggle:
 				case kSwitchOneWay:
-					offset = xsprite[nXSprite].state;
+					offset = xsprite[nXSpr].state;
 					break;
 				case kSwitchCombo:
-					offset = xsprite[nXSprite].data1;
+					offset = xsprite[nXSpr].data1;
 					break;
 			}
 		}
 				
 		if (!voxType)
-			viewRotateSprite(pTSprite, nView, x, y, &offset); // rotate ViewFullN sprites
+			viewRotateSprite(pTSpr, nView, x, y, &offset); // rotate ViewFullN sprites
 
 		for (; offset > 0; offset-- )
-			pTSprite->picnum += 1 + panm[pTSprite->picnum].frames;
+			pTSpr->picnum += 1 + panm[pTSpr->picnum].frames;
 
-		if (pTSprite->statnum != kStatFX)
+		if (pTSpr->statnum != kStatFX)
 		{
-			switch (pTSprite->type) {
+			switch (pTSpr->type) {
 				case kDecorationCandle:
-					if (!pTXSprite || pTXSprite->state > 0)
+					if (!pTXSpr || pTXSpr->state > 0)
 					{
-						pTSprite->shade = -128;
+						pTSpr->shade = -128;
 						viewAddEffect(i, kViewEffectCandleHalo);
 					} 
 					else
 					{
-						pTSprite->shade = -8;
+						pTSpr->shade = -8;
 					}
 					break;
 				case kDecorationTorch:
-					if (!pTXSprite || pTXSprite->state > 0)
+					if (!pTXSpr || pTXSpr->state > 0)
 					{
-						pTSprite->picnum++;
+						pTSpr->picnum++;
 						viewAddEffect(i, kViewEffectTorchHigh);
 					}
 					else 
@@ -733,45 +840,50 @@ void viewProcessSprites(int x, int y, int z, int a) {
 					viewAddEffect(i, kViewEffectCdudeVersion);
 					break;
 				default:
-					if (!(pTSprite->flags & kHitagSmoke)) break;
+					if (!(pTSpr->flags & kHitagSmoke)) break;
 					viewAddEffect(i, kViewEffectSmokeHigh);
 					break;
 			}
 		}	
-		
-		if (!tilesizx[pTSprite->picnum] && gSysTiles.noTileIco && pTSprite->statnum != kStatMarker)
+				
+		if (!tilesizx[pTSpr->picnum] && gSysTiles.icoNoTile && pTSpr->statnum != kStatMarker)
 		{
-			pTSprite->picnum = gSysTiles.noTileIco;
-			pTSprite->shade = -128;
-			pTSprite->cstat &= ~(kSprFlipX|kSprFlipY);
+			pTSpr->picnum = gSysTiles.icoNoTile;
+			pTSpr->shade = -128;
+			pTSpr->cstat &= ~(kSprFlipX|kSprFlipY);
 		}
 		
-		if (nXSprite > 0 && seqGetStatus(OBJ_SPRITE, nXSprite) > 0)
+		if (nXSpr && seqGetStatus(OBJ_SPRITE, nXSpr) > 0)
 		{
-			if (sprite[nSprite].flags & 1024) pTSprite->cstat |= kSprFlipX;
-			if (sprite[nSprite].flags & 2048) pTSprite->cstat |= kSprFlipY;
+			if (sprite[nSpr].flags & 1024) pTSpr->cstat |= kSprFlipX;
+			if (sprite[nSpr].flags & 2048) pTSpr->cstat |= kSprFlipY;
 		}
 		
 		if (voxType)
 		{
 			switch(voxType) {
 				case kVoxTypeInternal:
-					pTSprite->cstat &= ~(kSprFlipX|kSprFlipY); // no flip for RFF voxels
-					pTSprite->yoffset += panm[pTSprite->picnum].ycenter;
-					pTSprite->picnum   = voxelIndex[pTSprite->picnum];
-					pTSprite->cstat   |= kSprVoxel;
+					pTSpr->cstat &= ~(kSprFlipX|kSprFlipY); // no flip for RFF voxels
+					pTSpr->yoffset += panm[pTSpr->picnum].ycenter;
+					pTSpr->picnum   = voxelIndex[pTSpr->picnum];
+					pTSpr->cstat   |= kSprVoxel;
 					break;
 				case kVoxTypeExternal:
-					pTSprite->picnum = tileGetPic(pTSprite->picnum); // animate
+					pTSpr->picnum = tileGetPic(pTSpr->picnum); // animate
 					break;
 			}
 
 			if (panm[nTile].view == kSprViewVoxSpin)
-				pTSprite->ang = (short)((totalclock * 12) & kAngMask);
+				pTSpr->ang = (short)((totalclock * 12) & kAngMask);
 		}
-
-		if (pXSector && pXSector->coloredLights)
-			pTSprite->pal = (char)pSector->floorpal;
+		
+		sectortype *pSect = &sector[pTSpr->sectnum];
+		if (pSect->extra > 0)
+		{
+			XSECTOR *pXSect = &xsector[pSect->extra];
+			if (pXSect->coloredLights)
+				pTSpr->pal = (char)pSect->floorpal;
+		}
 	}
 
 

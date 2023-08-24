@@ -68,6 +68,10 @@ int TeleFrag(int nKiller, int nSector);
 void SectorStartSound(int nSector, int nState);
 void SectorEndSound(int nSector, int nState);
 void ActivateGenerator(int nSprite);
+void trBasePointInit();
 void TranslateSector(int nSector, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, char a12);
 void ZTranslateSector(int nSector, XSECTOR *pXSector, int a3, int a4);
+
+void setBaseWallSect(int nSect);
+void setBaseSpriteSect(int nSect);
 #endif

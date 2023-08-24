@@ -509,13 +509,24 @@ public:
 	int  GetLineByPos(int pos);
 };
 
+enum {
+kValNone = 0,
+kValPerc,
+kValPixel,
+kValRepeat,
+kValMeter,
+};
 
 class EditNumber : public EditText
 {
-public:
-	int value;
-	EditNumber( int left, int top, int width, int height, int n );
-	virtual void HandleEvent( GEVENT *event );
+	public:
+		int value;
+		int minValue, maxValue;
+		char valueType;
+		EditNumber( int left, int top, int width, int height, int nVal, char nValType = kValNone, int nMin = -99999999, int nMax = 99999999);
+		virtual void HandleEvent( GEVENT *event );
+		void ClampValue();
+		void InsEndChar();
 };
 
 enum {

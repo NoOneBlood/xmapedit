@@ -30,15 +30,49 @@ extern "C" {
 #include "a.h"
 }
 
-#define kCharReplace 0x3F
-char gColor = 0;
+int clip[4][4];
+int clipCnt = 0;
 Rect clipRect(0, 0, 0, 0);
 ROMFONT vFonts[kMaxVFonts];
 QFONT* qFonts[kMaxQFonts];
 QBITMAP* pBitmaps[kMaxBitmaps];
+char gColor = 0, gStdColor[32];
 
-// cyrillic symbols makes text printing crash
-inline BOOL charOk(char ch) { return (ch >= 32 && ch <= 126); }
+const char* gStdColorNames[] =
+{
+"Black"				,	// kColorBlack
+"Blue"				,	// kColorBlue
+"Green"				,	// kColorGreen
+"Cyan"				,	// kColorCyan
+"Red"				,	// kColorRed
+"Magenta"			,	// kColorMagenta
+"Brown"				,	// kColorBrown
+"LightGray"			,	// kColorLightGray
+"DarkGray"			,	// kColorDarkGray
+"LightBlue"			,	// kColorLightBlue
+"LightGreen"		,	// kColorLightGreen
+"LightCyan"			,	// kColorLightCyan
+"LightRed"			,	// kColorLightRed
+"LightMagenta"		,	// kColorLightMagenta
+"Yellow"			,	// kColorYellow
+"White"				,	// kColorWhite
+"Grey16"			,	// Some additional colors...
+"Grey17"			,
+"Grey18"			,
+"Grey19"			,
+"Grey20"			,
+"Grey21"			,
+"Grey22"			,
+"Grey23"			,
+"Grey24"			,
+"Grey25"			,
+"Grey26"			,
+"Grey27"			,
+"Grey28"			,
+"Grey29"			,
+"Grey30"			,
+"Grey31"			,
+};
 
 void gfxBlitM2V(char* src, int bpl, int width, int height, int x, int y)
 {
@@ -138,19 +172,18 @@ void gfxDrawBitmap(QBITMAP *qbm, int x, int y)
 	
 	switch (qbm->type)
 	{
-	case 0:
-		gfxBlitM2V(p+bitmap2.y0*qbm->bpl+bitmap2.x0, qbm->bpl, width, height, bitmap.x0, bitmap.y0);
-		break;
-	case 1:
-		gfxBlitMT2V(p+bitmap2.y0*qbm->bpl+bitmap2.x0, qbm->tcolor, qbm->bpl, width, height, bitmap.x0, bitmap.y0);
-		break;
+		case 0:
+			gfxBlitM2V(p+bitmap2.y0*qbm->bpl+bitmap2.x0, qbm->bpl, width, height, bitmap.x0, bitmap.y0);
+			break;
+		case 1:
+			gfxBlitMT2V(p+bitmap2.y0*qbm->bpl+bitmap2.x0, qbm->tcolor, qbm->bpl, width, height, bitmap.x0, bitmap.y0);
+			break;
 	}
 }
 
-void gfxDrawBitmap(int id, int x, int y) {
-	
+void gfxDrawBitmap(int id, int x, int y)
+{
 	gfxDrawBitmap(pBitmaps[id],x ,y);
-	
 }
 
 void gfxPixel(int x, int y)
@@ -176,14 +209,13 @@ void gfxHLine(int y, int x0, int x1)
 			return;
 	#endif
 	
-	y  = ClipRange(y,		clipRect.y0, clipRect.y1);
-	x0 = ClipRange(x0,		clipRect.x0, clipRect.x1);
-	x1 = ClipRange(x1 + 1,	clipRect.x0, clipRect.x1);
-
-	begindrawing();
-	char* dest = (char*)frameplace+ylookup[y]+x0;
-	memset(dest, gColor, x1-x0);
-	enddrawing();
+	if (!irngok(y, clipRect.y0, clipRect.y1))
+		return;
+	
+	x0 = ClipLow(x0, clipRect.x0);
+	x1 = ClipHigh(x1, clipRect.x1);
+	while(x0 <= x1)
+		gfxPixel(x0++, y);
 }
 
 void gfxVLine(int x, int y0, int y1)
@@ -192,19 +224,112 @@ void gfxVLine(int x, int y0, int y1)
 		if (getrendermode() >= 3)
 			return;
 	#endif
+
+	if (!irngok(x, clipRect.x0, clipRect.x1))
+		return;
 	
-	x  = ClipRange(x,		clipRect.x0, clipRect.x1);
-	y0 = ClipRange(y0,		clipRect.y0, clipRect.y1);
-	y1 = ClipRange(y1 + 1,	clipRect.y0, clipRect.y1);
+	y0 = ClipLow(y0, clipRect.y0);
+	y1 = ClipHigh(y1, clipRect.y1);
+	while(y0 <= y1)
+		gfxPixel(x, y0++);
 	
-	begindrawing();
-	char* dest = (char*)frameplace+ylookup[y0]+x;
-	register int hg = y1 - y0;
-	while(--hg >= 0)
-		*dest = gColor, dest += ylookup[1];
+}
+
+
+// NOTE: this is drawline16 adapted for gfx
+// JBF: Had to add extra tests to make sure x-coordinates weren't winding up -'ve
+//   after clipping or crashes would ensue
+void gfxLine(int x1, int y1, int x2, int y2)
+{
+	#if USE_POLYMOST
+		if (getrendermode() >= 3)
+			return;
+	#endif
 	
-	enddrawing();
+	unsigned int drawpat = (drawlinepat != kPatNormal) ? drawlinepat : 0;
+	int i = 0, t, dx, dy;
+	unsigned int c = 0;
 	
+	dx = x2-x1; dy = y2-y1;
+
+	if (dx >= 0)
+	{
+		if ((x1 >= xres) || (x2 < 0)) return;
+		if (x1 < 0) { if (dy) y1 += scale(0-x1,dy,dx); x1 = 0; }
+		if (x2 >= xres) { if (dy) y2 += scale(xres-1-x2,dy,dx); x2 = xres-1; }
+	}
+	else
+	{
+		if ((x2 >= xres) || (x1 < 0)) return;
+		if (x2 < 0) { if (dy) y2 += scale(0-x2,dy,dx); x2 = 0; }
+		if (x1 >= xres) { if (dy) y1 += scale(xres-1-x1,dy,dx); x1 = xres-1; }
+	}
+	if (dy >= 0)
+	{
+		if ((y1 >= yres) || (y2 < 0)) return;
+		if (y1 < 0) { if (dx) x1 += scale(0-y1,dx,dy); y1 = 0; if (x1 < 0) x1 = 0; }
+		if (y2 >= yres) { if (dx) x2 += scale(yres-1-y2,dx,dy); y2 = yres-1; if (x2 < 0) x2 = 0; }
+	}
+	else
+	{
+		if ((y2 >= yres) || (y1 < 0)) return;
+		if (y2 < 0) { if (dx) x2 += scale(0-y2,dx,dy); y2 = 0; if (x2 < 0) x2 = 0; }
+		if (y1 >= yres) { if (dx) x1 += scale(yres-1-y1,dx,dy); y1 = yres-1; if (x1 < 0) x1 = 0; }
+	}
+	
+	dx = klabs(dx)+1;
+	dy = klabs(dy)+1;
+	
+
+	if (dx >= dy)
+	{
+		if (x2 < x1)
+		{
+			swapValues(&x1, &x2);
+			swapValues(&y1, &y2);
+		}
+				
+		t = (y2 > y1) ? 1 : -1;
+		while(x1 <= x2)
+		{
+			if (!drawpat || (drawpat & pow2long[(c++) & 31]))
+				gfxPixel(x1, y1);
+
+			i += dy;
+			if (i >= dx)
+			{
+				i -= dx;
+				y1 += t;
+			}
+			
+			x1++;
+		}
+		return;
+	}
+
+
+	if (y2 < y1)
+	{
+		swapValues(&x1, &x2);
+		swapValues(&y1, &y2);
+	}
+	
+	t = (x2 > x1) ? 1 : -1;
+	while(y1 <= y2)
+	{
+		if (!drawpat || (drawpat & pow2long[(c++) & 31]))
+			gfxPixel(x1, y1);
+
+		i += dx;
+		if (i >= dy)
+		{
+			i -= dy;
+			x1 += t;
+		}
+		
+		y1++;
+	}
+
 }
 
 void gfxFillBox(int x0, int y0, int x1, int y1)
@@ -232,11 +357,25 @@ void gfxFillBox(int x0, int y0, int x1, int y1)
 }
 
 void gfxSetClip(int x0, int y0, int x1, int y1)
-{
+{	
 	clipRect.x0 = x0;
 	clipRect.y0 = y0;
 	clipRect.x1 = x1;
 	clipRect.y1 = y1;
+}
+
+void gfxBackupClip()
+{
+	int* pClip = clip[clipCnt++];
+	pClip[0]	= clipRect.x0;	pClip[2]	= clipRect.x1;
+	pClip[1]	= clipRect.y0;	pClip[3]	= clipRect.y1;
+}
+
+void gfxRestoreClip()
+{
+	int* pClip = clip[--clipCnt];
+	clipRect.x0 = pClip[0];		clipRect.x1 = pClip[2];
+	clipRect.y0 = pClip[1];		clipRect.y1 = pClip[3];
 }
 
 void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags)
@@ -282,45 +421,29 @@ int gfxGetTextLen(char * pzText, QFONT *pFont, int a3)
 	if (!pFont)
 		return strlen(pzText)*8;
 	
-	char c;
-	register int nLength = -pFont->charSpace;
+	int nLength = -pFont->charSpace;
 	if (a3 <= 0)
 		a3 = strlen(pzText);
 	
-	for (char* s = pzText; *s != 0 && a3 > 0; s++, a3--)
-	{
-		c = 0;
-		if (!charOk(*s))
-			c = *s, *s = kCharReplace;
-		
+	for (uint8_t* s = (uint8_t*)pzText; *s != 0 && a3 > 0; s++, a3--)
 	   nLength += pFont->info[*s].ox+pFont->charSpace;
-	   if (c)
-		   *s = c;
-	}
-	
+   
 	return nLength;
 }
 
 int gfxGetLabelLen(char *pzLabel, QFONT *pFont)
 {
-	char c;
-	register int nLength = 0;
+	int nLength = 0;
 	if (pFont)
 		nLength = -pFont->charSpace;
 
-	for (char* s = pzLabel; *s != 0; s++)
+	for (uint8_t* s = (uint8_t*)pzLabel; *s != 0; s++)
 	{
-		c = 0;
-		if (!charOk(*s))
-			c = *s, *s = kCharReplace;
-		
 		if (*s == '&') continue;
 		else if (!pFont) nLength += 8;
 		else nLength += pFont->info[*s].ox+pFont->charSpace;
-		
-		if (c)
-			*s = c;
 	}
+	
 	return nLength;
 }
 
@@ -330,21 +453,12 @@ int gfxFindTextPos(char *pzText, QFONT *pFont, int a3)
 	{
 		return a3 / 8;
 	}
-	char c;
-	register int nLength = -pFont->charSpace;
-	register int pos = 0;
-
-	for (char* s = pzText; *s != 0; s++, pos++)
+	
+	int nLength = -pFont->charSpace;
+	int pos = 0;
+	for (uint8_t* s = (uint8_t*)pzText; *s != 0; s++, pos++)
 	{
-		c = 0;
-		if (!charOk(*s))
-			c = *s, *s = kCharReplace;
-		
 		nLength += pFont->info[*s].ox+pFont->charSpace;
-		
-		if (c)
-			*s = c;
-		
 		if (nLength > a3)
 			break;
 	}
@@ -361,9 +475,9 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
 	if (!pzText)
 		return;
 	
-	char c;
 	bool underline = false;
 	gfxSetColor(color);
+	
 	if (pFont != NULL)
 	{
 		if (pFont->type == kFontTypeRasterVert)
@@ -380,12 +494,8 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
 		return;
 	}
 	
-	for (char* s = pzText; *s != 0; s++)
+	for (uint8_t* s = (uint8_t*)pzText; *s != 0; s++)
 	{
-		c = 0;
-		if (!charOk(*s))
-			c = *s, *s = kCharReplace;
-		
 		if (label && *s == '&')
 		{
 			underline = true;
@@ -394,12 +504,7 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
 
 		QFONTCHAR* pChar = &pFont->info[*s];
 		if (!pChar)
-		{
-			if (c)
-				*s = c;
-			
 			continue;
-		}
 		
 		Rect rect1(x, y+pChar->oy, x+pChar->w, y+pChar->oy+pChar->h);
 
@@ -412,7 +517,7 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
 
 			switch (pFont->type) {
 				case kFontTypeMono:
-					gfxBlitMono(&pFont->data[pChar->offset + (rect2.y0/8) * pChar->w+ rect2.x0], 1<<(rect2.y0&7), pChar->w,
+					gfxBlitMono(&pFont->data[pChar->offset + (rect2.y0/pChar->h) * pChar->w+ rect2.x0], 1<<(rect2.y0&7), pChar->w,
 						rect1.x1-rect1.x0, rect1.y1-rect1.y0, rect1.x0, rect1.y0);
 					break;
 				case kFontTypeRasterHoriz:
@@ -426,9 +531,6 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
 		}
 		
 		x += pFont->charSpace + pChar->ox;
-		if (c)
-			*s = c;
-		
 		underline = false;
 	}
 }
@@ -446,11 +548,6 @@ void gfxDrawLabel(int x, int y, int color, char* pzLabel, QFONT* pFont)
 {
 	gfxDrawText(x, y, color, pzLabel, pFont, true);
 }
-
-void gfxSetColor(char color) { gColor = color; }
-
-
-
 
 void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup )
 {
@@ -537,33 +634,28 @@ void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade, int nPLU,
 		return;
 #endif
 	
-	char *s, c;
-	dassert(string != NULL);
+	if (!string)
+		return;
+	
+	uint8_t *s;
 	BYTE *pPalookup = (BYTE*)(palookup[nPLU] + (qgetpalookup(nPLU, shade) << 8));
 	setupmvlineasm(16);
-
+	
 	if ( nAlign != 0 )
 	{
-		register int nWidth = -pFont->charSpace;
-		for ( s = string; *s; s++ )
+		int nWidth = -pFont->charSpace;
+		for (s = (uint8_t*)string; *s; s++)
 			nWidth += pFont->info[*s].ox + pFont->charSpace;
 
-		if ( nAlign == 1 )
+		if (nAlign == 1)
 			nWidth >>= 1;
 
 		x -= nWidth;
 	}
 
-	for ( s = string; *s; s++ )
+	for (s = (uint8_t*)string; *s; s++)
 	{
-		c = 0;
-		if (!charOk(*s))
-			c = *s, *s = kCharReplace;
-		
 		viewDrawChar(pFont, *s, x, y, pPalookup);
 		x += pFont->info[*s].ox + pFont->charSpace;
-		
-		if (c)
-			*s = c;
 	}
 }

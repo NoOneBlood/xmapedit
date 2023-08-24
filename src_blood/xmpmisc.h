@@ -37,6 +37,20 @@
 #define kBakExt				".BAK"
 #define kBakSignatureLength 32
 
+#define PIX2MET(n) 				(n / (32<<4))
+#define MET2PIX(n) 				(n * (32<<4))
+#define IVAL2PERC(val, full) 	((val * 100) / full)
+#define DELETE_AND_NULL(x) 		delete(x), x = NULL;
+
+enum {
+kFlagRotateSide1		= 0x00,
+kFlagRotateSide2		= 0x01,
+kFlagRotateSprites		= 0x02,
+kFlagRotateRpoint		= 0x04,
+kFlagRotateGrid			= 0x08,
+};
+
+
 enum {
 kSurfNone = 0,
 kSurfStone,
@@ -56,6 +70,57 @@ kSurfLava,
 kSurfMax,
 };
 
+void nnExtOffsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z);
+class POSOFFS
+{
+	private:
+		int bx, by, bz, ba;
+	public:
+		int x, y, z, a;
+		//------------------------------------------------------------------------------------------
+		POSOFFS(int aA, int aX, int aY, int aZ)		{ New(aA, aX, aY, aZ); }
+		POSOFFS(int aA, int aX, int aY)				{ New(aA, aX, aY, 0); }
+		POSOFFS() {};
+		//------------------------------------------------------------------------------------------
+		void New(int aA, int aX, int aY, int aZ)
+		{
+			x = bx = aX;
+			y = by = aY;
+			z = bz = aZ;
+			a = ba = aA;
+		}
+		void Reset(char which = 0x0F)
+		{
+			if (which & 0x01) x = bx;
+			if (which & 0x02) y = by;
+			if (which & 0x04) z = bz;
+			if (which & 0x08) a = ba;
+		}
+		void New(int aA, int aX, int aY)					{ New(aA, aX, aY, 0); }
+		//------------------------------------------------------------------------------------------
+		void Offset (int byX, int byY, int byZ)				{ nnExtOffsetPos(byX, byY, byZ, a, &x, &y, &z); }
+		void Left(int nBy) 									{ Offset(-klabs(nBy), 0, 0); }
+		void Right(int nBy)									{ Offset(klabs(nBy), 0, 0); }
+		void Backward(int nBy)								{ Offset(0, -klabs(nBy), 0); }
+		void Forward(int nBy)								{ Offset(0, klabs(nBy), 0); }
+		void Up(int nBy)									{ Offset(0, 0, -klabs(nBy)); }
+		void Down(int nBy)									{ Offset(0, 0, klabs(nBy)); }
+		void Turn(int nAng)									{ a = (a + nAng) & kAngMask; }
+		//------------------------------------------------------------------------------------------
+		#if 0
+		void Offset (int byX, int byY, int* aX, int* aY) 	{ Offset(byX, byY, 0); *aX = x; *aY = y; }
+		void Left(int nBy, int* aX, int* aY)				{ Left(nBy); 		*aX = x; *aY = y; }
+		void Right(int nBy, int* aX, int* aY)				{ Right(nBy);		*aX = x; *aY = y; }
+		void Backward(int nBy, int* aX, int* aY)			{ Backward(nBy);	*aX = x; *aY = y; }
+		void Forward(int nBy, int* aX, int* aY)				{ Forward (nBy);	*aX = x; *aY = y; }
+		void Up(int nBy, int* aZ)							{ Up(nBy);			*aZ = z; }
+		void Down(int nBy, int* aZ)							{ Down(nBy);		*aZ = z; }
+		#endif
+		//------------------------------------------------------------------------------------------
+		int  Distance()										{ return exactDist(x - bx, y - by);}
+		int  Angle()										{ return getangle(x - bx, y - by); }
+};
+
 #pragma pack(push, 1)
 struct NAMED_TYPE;
 struct FUNCT_LIST
@@ -64,24 +129,40 @@ struct FUNCT_LIST
 	void* pFunc;
 };
 
+struct WALLPOINT_INFO
+{
+	int w, x, y;
+};
+
 struct OBJECT
 {
 	unsigned int type			: 8;
 	unsigned int index			: 16;
 };
+
+struct LINE2D
+{
+	int x1, y1, x2, y2;
+};
+
+
+struct SCANWALL
+{
+	POSOFFS pos;
+	short w, s;
+};
+
 #pragma pack(pop)
 
 class OBJECT_LIST
 {
-	#define kMaxType 255
-	
 	private:
 		OBJECT *db;
 		unsigned int externalCount;
 		unsigned int internalCount;
 		void MarkEnd()
 		{
-			db[externalCount].type  = kMaxType;
+			db[externalCount].type  = OBJ_NONE;
 			db[externalCount].index = 0;
 		}
 		
@@ -102,10 +183,11 @@ class OBJECT_LIST
 			db = NULL;
 		}
 	public:
-		OBJECT_LIST()   { Init(); }
-		~OBJECT_LIST()  { Free(); }
-		OBJECT* Ptr()	{ return &db[0]; }
-		int Length()	{ return externalCount; }
+		OBJECT_LIST()   		{ Init(); }
+		~OBJECT_LIST()  		{ Free(); }
+		OBJECT* Ptr()			{ return &db[0]; }
+		OBJECT* Ptr(int nID)	{ return &db[nID]; }
+		int Length()			{ return externalCount; }
 		
 		int Add(int nType, int nIndex, BOOL check = FALSE)
 		{
@@ -113,41 +195,33 @@ class OBJECT_LIST
 			if (check && (retn = Find(nType, nIndex)) >= 0)
 				return retn;
 			
-			
-			OBJECT* pDb = (OBJECT*)realloc(db, sizeof(OBJECT) * (internalCount + 1));
-			if (pDb)
-			{
-				db = pDb;
-				db[externalCount].type  = nType;
-				db[externalCount].index = nIndex;
-				retn = externalCount;
-				externalCount++;
-				internalCount++;
-			}
+			db = (OBJECT*)realloc(db, sizeof(OBJECT) * (internalCount + 1));
+			dassert(db != NULL);
+
+			db[externalCount].type  = nType;
+			db[externalCount].index = nIndex;
+			retn = externalCount;
+			externalCount++;
+			internalCount++;
 			
 			MarkEnd();
 			return retn;
 		}
 		
-/* 		int Remove(int nType, int nIndex)
+		OBJECT* Remove(int nType, int nIndex)
 		{
-			int t = Find(nType, nIndex);
-			if (t < 0)
-				return externalCount;
+			int nID, t;
+			if ((nID = Find(nType, nIndex)) < 0)
+				return &db[externalCount];
 			
-			int i;
-			for (i = t; i < externalCount; t++)
-			{
-				db[i].type = db[i + 1].type;
-				db[i].index = db[i + 1].index;
-			}
-			
+			t = nID;
+			while(t < externalCount) db[t] = db[t+1], t++;
+			db = (OBJECT*)realloc(db, sizeof(OBJECT) * internalCount);
+			dassert(db != NULL);
 			externalCount--;
 			internalCount--;
-			
-			OBJECT* pDb = (OBJECT*)realloc(db, sizeof(OBJECT) * (internalCount + 1));
-			MarkEnd();
-		} */
+			return &db[nID];
+		}
 		
 		int Find(int nType, int nIndex)
 		{
@@ -160,7 +234,13 @@ class OBJECT_LIST
 			
 			return -1;
 		}
+		
+		void Clear() { Free(); Init(); }
+		char Exists(int nType, int nIndex) { return (Find(nType, nIndex) >= 0); }
 };
+
+char scanWallOfSector(SCANWALL* pIn, SCANWALL* pOut);
+NAMED_TYPE gReverseSectorErrors[];
 
 void Delay(int time);
 BOOL Beep(BOOL cond);
@@ -189,7 +269,8 @@ inline BOOL wallVert(int nWall) {
 
 BOOL isModernMap();
 void avePointSector(int nSector, int *x, int *y);
-int getDataOf(BYTE idata, short objType, short objIndex);
+int getDataOf(int nData, int nType, int nID);
+char setDataOf(int nData, int nVal, int nType, int nID);
 int getClosestId(int nId, int nMaxId, char* nType, BOOL dir);
 void clampSprite(spritetype* pSprite, int which = 0x03);
 void clampSpriteZ(spritetype* pSprite, int z, int which);
@@ -208,6 +289,7 @@ void playSound(int sndId, int showMsg = 1);
 
 void cpyObjectClear();
 void doGridCorrection(int* x, int* y, int nGrid);
+void doGridCorrection(int* x, int nGrid);
 void doWallCorrection(int nWall, int* x, int* y, int shift = 14);
 void dozCorrection(int* z, int zStep = 0x3FF);
 void hit2pos(int* rtx, int* rty, int* rtz = NULL, int32_t clipmask = BLOCK_MOVE | BLOCK_HITSCAN);
@@ -284,10 +366,54 @@ void setPluOf(int nPlu, int oType, int oIdx);
 int getPluOf(int oType, int oIdx);
 int getPicOf(int oType, int oIdx);
 int getShadeOf(int oType, int oIdx);
+void setShadeOf(int nShade, int oType, int oIdx);
+void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* zt = NULL, int* zb = NULL, char flags = 0x07);
+void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, char flags = 0x07);
 BOOL isSearchSector();
 char removeQuotes(char* str);
 
-//void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1);
+void performRotate(int* x, int* y, int nAng, int ax, int ay, BOOL rpoint = TRUE);
+void loopGetWalls(int nStartWall, int* swal, int *ewal);
+void loopGetEdgeWalls(int nFirst, short* lw, short* rw, short* tw, short* bw);
+void avePointLoop2(int nFirst, int* ax, int* ay);
+void avePointLoop(int nFirst, int* ax, int* ay);
+void loopRotateWalls(int nFirst, int nAng, int ax, int ay, char flags = kFlagRotateRpoint);
+void loopRotateWalls(int nFirst, int nAng, char flags = kFlagRotateRpoint);
+int getXYGrid(int x, int y, int min = 1, int max = 7);
+void rotateSector(int nSector, int nAng, int ax, int ay, char flags = kFlagRotateSprites);
+void sectorDetach(int nSector);
+void sectorAttach(int nSector);
+int isMarkerSprite(int nSpr);
+int getPrevWall(int nWall);
+void avePointWall(int nWall, int* x, int* y, int* z);
+double getWallLength(int nWall, int nGrid);
+char sectorHasMoveRObjects(int nSect);
+int revertValue(int nVal);
+int reverseSectorPosition(int nSect, char flags = 0x03);
+int countSpritesOfSector(int nSect);
+void sectGetEdgeZ(int nSector, int* fz, int* cz);
+void ceilGetEdgeZ(int nSector, int* zBot, int* zTop);
+void floorGetEdgeZ(int nSector, int* zBot, int* zTop);
+int getSectorHeight(int nSector);
+void flipWalls(int nStart, int nOffs);
+
+void setFirstWall(int nSect, int nWall);
+char loopInside(int nSect, POINT2D* pPoint, int nCount, char full);
+int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pModel);
+void insertPoints(WALLPOINT_INFO* pInfo, int nCount);
+
+int redSectorCanMake(int nStartWall);
+int redSectorMake(int nStartWall);
+int redSectorMerge(int nThis, int nWith);
+
+int roundAngle(int nAng, int nAngles);
+BOOL testXSectorForLighting(int nXSect);
+XSPRITE* GetXSpr(spritetype* pSpr);
+XSECTOR* GetXSect(sectortype* pSect);
+XWALL* GetXWall(walltype* pWall);
+
+void collectUsedChannels(unsigned char used[1024]);
+
 //BOOL ss2obj(int* objType, int* objIdx, BOOL asIs = FALSE);
 //BOOL dosboxRescan();
 //void pathMake(char* out, char* dsk, char* dir, char* fil, char* ext);

@@ -40,7 +40,12 @@
 #define kPalPaintDir		"xmapedit/palettes/paint"
 #define kLogFile			"xmapedit/xmapedit.log"
 #define kStdPalDB			"xmapedit/stdclr.ini"
+//#define kScreen2DPrefs		"xmapedit/2dsclr.ini"
 #define kTempFileBase		"xmapedit/fil"
+#define kThemesDir			"xmapedit/themes"
+#define kDefaultTheme		"default"
+
+
 #define kDefaultBoardSize	196608
 
 #define kMaxGrids 			11
@@ -124,8 +129,6 @@ class MISC_PREFS {
 	unsigned int pan				: 1;
 	unsigned int hgltTreshold		: 6;
 	unsigned int zeroTile2pal		: 8;
-	unsigned int ambShowRadius		: 4;
-	unsigned int ambShowRadiusHglt	: 1;
 	unsigned int autoSecrets		: 1;
 	unsigned int showTypes			: 2;
 	unsigned int diffSky			: 1;
@@ -137,7 +140,8 @@ class MISC_PREFS {
 	unsigned int forceSetup			: 1;
 	unsigned int zlockAvail			: 1;
 	unsigned int editMode			: 1;
-	unsigned int useTranslucency	: 1;
+	unsigned int circlePoints		: 8;
+	unsigned int forceEditorPos		: 1;
 	char tilesBaseName[5];
 	void Init(IniFile* pIni, char* section);
 	void Save(IniFile* pIni, char* section);

@@ -28,7 +28,7 @@
 #include "xmpstub.h"
 #include "xmpexplo.h"
 #include "xmpmisc.h"
-#include "enumstr.h"
+#include "xmpstr.h"
 
 
 #define kDirExpMaxFiles 1024 // per directory
@@ -102,14 +102,15 @@ BOOL compareExtension(char* ext, char* allow) {
 	
 	if (pAllow[0] == '.')
 		pAllow =& allow[1];
-
+	
+	
 	enumStrGetChar(i, tmp, pAllow, '.');
 	while(enumStrGetChar(i++, tmp, NULL, '.'))
 	{
 		if (stricmp(tmp, pExt) == 0)
 			return TRUE;
 	}
-
+	
 	return FALSE;
 }
 

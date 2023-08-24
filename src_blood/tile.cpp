@@ -234,43 +234,24 @@ void tileIdxFillFull() {
 		tileIndex[tileIndexCount] = tileIndexCount;
 }
 
-void qloadvoxel( int nVoxel )
+void qloadvoxel(int nVoxel)
 {
+	int i; static int nLastVoxel = 0;
+	RESHANDLE hVox;
+	char *pVox;
 	
 	dassert(nVoxel >= 0 && nVoxel < kMaxVoxels);
 
 	// this voxel already loaded
-	if (voxoff[nVoxel] && voxoff[nVoxel][0] != 0)
+	if (voxoff[nVoxel] && voxoff[nVoxel][0] != 0) return;
+	else if ((hVox = gSysRes.Lookup(nVoxel, "KVX")) == NULL)
 		return;
-
-	int i, hFile, len; static int nLastVoxel = 0;
-	char *pVox = NULL; RESHANDLE hVoxel = NULL;
-
-	// search voxels in the RFF
-	if ((hVoxel = gSysRes.Lookup(nVoxel, "KVX")) != NULL)
-	{
-		if ( hVoxel->lockCount == 0)
-			voxoff[nLastVoxel][0] = 0;
-
-		nLastVoxel = nVoxel;
-		pVox = (char *)gSysRes.Lock(hVoxel);
-	}
-	else if (gMisc.externalModels >= 1)	// search external voxels on the disk
-	{
-		for (i = 0; i < kMaxTiles && tiletovox[i] != nVoxel; i++);	// must find the tile first
-		if (i >= kMaxTiles || !extVoxelPath[i]) return;
-		else if ((hFile = open(extVoxelPath[i], O_RDONLY | O_BINARY)) < 0) return;
-		else if ((len = filelength(hFile)) <= 0) return;
-		
-		pVox = (char *)Resource::Alloc(len);
-		read(hFile, pVox, len);
-		close(hFile);
-	}
-	else
-	{
-		return;
-	}
-
+	
+	if (hVox->lockCount == 0)
+		voxoff[nLastVoxel][0] = 0;
+	
+	nLastVoxel = nVoxel;
+	pVox = (char *)gSysRes.Lock(hVox);
     
 	for (i = 0; i < MAXVOXMIPS; i++)
     {
@@ -311,6 +292,8 @@ BOOL tileAllocSysTile(short* dest, int w, int h) {
 	return (nTile >= 0);
 }
 
+
+
 void tileInitSystemTiles() {
 
 	register int i, len;
@@ -324,28 +307,11 @@ void tileInitSystemTiles() {
 		memset(pTile, gTileView.background, 128*128);
 	}
 
-	if (tileAllocSysTile(&nTile, 4, 4))
-	{
-		gSysTiles.grdshdBg = nTile;
-		BYTE* pTile = (BYTE*)waloff[gSysTiles.grdshdBg];
-		memset(pTile, 255, 4*4);
-	}
-	
 	if (tileAllocSysTile(&nTile, xdim, ydim))
 	{
-		gSysTiles.sectfil = nTile;
+		gSysTiles.drawBuf = nTile;
 	}
 	
-	if (tileAllocSysTile(&nTile, 1, 1))
-	{
-		gSysTiles.hglt2d = nTile;
-	}
-	
-	if (tileAllocSysTile(&nTile, 1, 1))
-	{
-		gSysTiles.hgltQav = nTile;
-	}
-
 	gSysTiles.gameMirrorStart = 4080;
 	gSysTiles.gameMirrorEnd = gSysTiles.gameMirrorEnd = gSysTiles.gameMirrorStart + 16;
 	for (i = gSysTiles.gameMirrorStart; i < gSysTiles.gameMirrorEnd; i++)
@@ -368,14 +334,14 @@ void tileInitSystemTiles() {
 	if ((hIco = gGuiRes.Lookup((unsigned int)0, "TGA")) && (nTile = tileGetBlank()) > 0)
 	{
 		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
-		gSysTiles.xmpIco = nTile;
+		gSysTiles.icoXmp = nTile;
 		gSysTiles.add(nTile);
 	}
 
 	if ((hIco = gGuiRes.Lookup((unsigned int)1, "TGA")) && (nTile = tileGetBlank()) > 0)
 	{
 		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
-		gSysTiles.noTileIco = nTile;
+		gSysTiles.icoNoTile = nTile;
 		gSysTiles.add(nTile);
 	}
 	
@@ -400,15 +366,6 @@ void tileInitSystemTiles() {
 		gSysTiles.icoVer2 = nTile;
 		gSysTiles.add(nTile);
 	}
-	
-	
-	if (tileAllocSysTile(&nTile, 4, 4))
-	{
-		BYTE* pTile = tileLoadTile(nTile);
-		memset(pTile, gStdColor[kColorWhite], tilesizx[nTile]*tilesizy[nTile]);
-		gSysTiles.pixel = nTile;
-		gSysTiles.add(nTile);
-	}
 }
 
 void tileUninitSystemTiles() {
@@ -421,40 +378,28 @@ void tileUninitSystemTiles() {
 		tileFreeTile(gSysTiles.tileViewBg);
 	}
 
-	if (gSysTiles.grdshdBg)
-	{
-		tilePurgeTile(gSysTiles.grdshdBg, TRUE);
-		tileFreeTile(gSysTiles.grdshdBg);
-	}
-	
 	if (gSysTiles.angArrow)
 	{
 		tilePurgeTile(gSysTiles.angArrow, TRUE);
 		tileFreeTile(gSysTiles.angArrow);
 	}
 	
-	if (gSysTiles.hglt2d)
+	if (gSysTiles.drawBuf)
 	{
-		tilePurgeTile(gSysTiles.hglt2d, TRUE);
-		tileFreeTile(gSysTiles.hglt2d);
+		tilePurgeTile(gSysTiles.drawBuf, TRUE);
+		tileFreeTile(gSysTiles.drawBuf);
 	}
 	
-	if (gSysTiles.sectfil)
+	if (gSysTiles.icoXmp)
 	{
-		tilePurgeTile(gSysTiles.sectfil, TRUE);
-		tileFreeTile(gSysTiles.sectfil);
+		tilePurgeTile(gSysTiles.icoXmp, TRUE);
+		tileFreeTile(gSysTiles.icoXmp);
 	}
 	
-	if (gSysTiles.xmpIco)
+	if (gSysTiles.icoNoTile)
 	{
-		tilePurgeTile(gSysTiles.xmpIco, TRUE);
-		tileFreeTile(gSysTiles.xmpIco);
-	}
-	
-	if (gSysTiles.xmpIco)
-	{
-		tilePurgeTile(gSysTiles.noTileIco, TRUE);
-		tileFreeTile(gSysTiles.noTileIco);
+		tilePurgeTile(gSysTiles.icoNoTile, TRUE);
+		tileFreeTile(gSysTiles.icoNoTile);
 	}
 	
 	if (gSysTiles.wallHglt)
@@ -474,20 +419,6 @@ void tileUninitSystemTiles() {
 		tilePurgeTile(gSysTiles.icoVer2, TRUE);
 		tileFreeTile(gSysTiles.icoVer2);
 	}
-	
-	if (gSysTiles.hgltQav)
-	{
-		tilePurgeTile(gSysTiles.hgltQav, TRUE);
-		tileFreeTile(gSysTiles.hgltQav);
-	}
-	
-	if (gSysTiles.pixel)
-	{
-		tilePurgeTile(gSysTiles.pixel, TRUE);
-		tileFreeTile(gSysTiles.pixel);
-	}
-	
-	
 }
 
 int tileInitFromIni() {
@@ -1646,7 +1577,7 @@ void tileShowInfoWindow(int nTile) {
 		if (voxelIndex[nTile] >= 0) {
 
 			strcat(buffer, " ");
-			sprintf(buffer2, "(%s)", (extVoxelPath[nTile] != NULL) ? "disk" : "rff");
+			sprintf(buffer2, "(%s)", (isExternalModel(nTile)) ? "disk" : "rff");
 			strcat(buffer, buffer2);
 
 		}

@@ -2,6 +2,7 @@
 resource "INI\DEFAULTS.INI" as 0;	// default xmapedit settings
 resource "INI\HINTS.INI" as 1;		// hints for HUD edit dialogs
 resource "INI\STDCLR.INI" as 2;		// standard color palette
+resource "INI\2DSCLR.INI" as 3;		// 2d screen colors
 ///////////////////////////////
 
 
@@ -50,8 +51,12 @@ resource "RFN\08X08TSB.RFN" as 11;
 //resource "RFN\08X16TSB.RFN" as 13;
 //-------------------------------
 resource "RFN\08X08VTL.RFN" as 14;
-//resource "RFN\08X14TSB.RFN" as 15;
-//resource "RFN\08X16TSB.RFN" as 16;
+//resource "RFN\08X14VTL.RFN" as 15;
+//resource "RFN\08X16VTL.RFN" as 16;
+//-------------------------------
+resource "RFN\08X08FJ1.RFN" as 17;
+//resource "RFN\08X14FJ1.RFN" as 18;
+//resource "RFN\08X16FJ1.RFN" as 19;
 //-------------------------------
 ///////////////////////////////
 

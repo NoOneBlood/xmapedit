@@ -31,7 +31,7 @@ extern "C" {
 #include "screen.h"
 #include "gui.h"
 #include "inifile.h"
-#include "enumstr.h"
+#include "xmpstr.h"
 #include "xmpconf.h"
 #include "xmpmisc.h"
 
@@ -245,7 +245,6 @@ void scrSetPalette(int palId, bool updDac)
 
 void scrSetGamma(int nGamma)
 {
-    dassert(nGamma < gGammaLevels);
     curGamma = nGamma;
     for (int i = 0; i < 256; i++)
     {
@@ -359,17 +358,43 @@ void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits)
         }
     }
     
-	scrNextPage();
     scrSetPalette(curPalette);
-    gfxSetClip(windowx1, windowy1, windowx2-1, windowy2-1);
+    gfxSetClip(windowx1, windowy1, windowx2, windowy2);
+}
+
+unsigned char* pScrSave = NULL;
+unsigned int nScrSaveSiz = 0;
+
+void scrSave()
+{
+	nScrSaveSiz = bytesperline * ydim;
+	
+	if (pScrSave)
+		free(pScrSave);
+	
+	pScrSave = (unsigned char*)malloc(nScrSaveSiz);
+	if (pScrSave)
+		memcpy(pScrSave, (void*)frameplace, nScrSaveSiz);
+}
+
+void scrRestore(char freeIt)
+{
+	int nPrevSiz = nScrSaveSiz;
+	int nCurSiz = bytesperline * ydim;
+	nCurSiz = ClipHigh(nCurSiz, nPrevSiz);
+	
+	if (pScrSave)
+	{
+		memcpy((void*)frameplace, pScrSave, nCurSiz);
+		if (freeIt)
+			free(pScrSave), pScrSave = NULL;
+	}
+	
+	if (freeIt)
+		nScrSaveSiz = 0;
 }
 
 void scrNextPage(void)
 {
     nextpage();
-}
-
-void qsetvgapalette(void)
-{
-	return;
 }

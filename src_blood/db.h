@@ -36,10 +36,12 @@
 #define kMattID1    			0x4d617474  // Matt
 #define kMattID2    			0x7474614d  // ttaM
 #define kXMPHeadSig    			"XmP"
-#define kXMPHeadVer     		1
+#define kXMPHeadVer1     		1
+#define kXMPHeadVer2     		2
 
 #define kMonoCopyriteCRC 		0x77443AF8
 #define kMonoCopyriteLength 	57
+
 
 #pragma pack(push, 1)
 struct AISTATE;
@@ -67,6 +69,13 @@ struct BLMHEADER_MAIN
 	int16_t numsprites;
 };
 
+enum
+{
+kXmpFlagNone			= 0x00,
+kXmpFlagCustomSkyBits	= 0x01,
+kXmpFlagFog				= 0x02,
+};
+
 struct BLMHEADER_EXTRA
 {
 	char  pad[64]; 		// vanilla MAPEDIT writes a copyright here
@@ -77,9 +86,12 @@ struct BLMHEADER_EXTRA
 	// ------------------
 	char  	xmpsign[3];		// xmp signature
 	int8_t  xmpheadver;		// xmp header version
-	int8_t	xmpmapflags;	// & 0x01 = fixed sky bits number enabled so it won't be auto-adjusted
+	int8_t	xmpMapFlags;	// various global map flags
+	int16_t xmpBoardWidth;	// 2D board size
+	int16_t xmpBoardHeight; // 2D board size
+	int8_t  xmpPalette;		// global screen palette
 	// ------------------
-	char  pad2[47];
+	char  pad2[42];
 };
 
 struct XSPRITE {

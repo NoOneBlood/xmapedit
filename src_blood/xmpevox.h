@@ -22,13 +22,8 @@
 ***********************************************************************************/
 #ifndef __XMPEVOX
 #define __XMPEVOX
-
-#include "inifile.h"
-
-extern IniFile* gExtVoxIni;
-extern char* extVoxelPath[kMaxTiles];
-extern BOOL spinvox[kMaxTiles];
-
+#include "common_game.h"
+inline char isExternalModel(int nTile) { return (tiletovox[nTile] >= 0); }
 extern void extVoxInit();
 void extVoxUninit();
 #endif

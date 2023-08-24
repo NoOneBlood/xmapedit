@@ -2,10 +2,8 @@
 #define __XMPHUDLG_H
 #include "common_game.h"
 
-typedef struct DIALOG_ITEM *ITEM_PTR;
-typedef BYTE ( *ITEM_PROC )(DIALOG_ITEM* dialog, ITEM_PTR, BYTE key );
-struct DIALOG_ITEM {
-	
+struct DIALOG_ITEM
+{
 	char flags;
 	unsigned int enabled			: 1;
 	unsigned int x					: 10;
@@ -15,23 +13,40 @@ struct DIALOG_ITEM {
 	char *formatLabel;
 	int minValue;
 	int maxValue;
-	char **names;
-	ITEM_PROC fieldHelpProc;
+	char **names;	
+	char (*pHelpFunc)(DIALOG_ITEM* pRoot, DIALOG_ITEM* pItem, BYTE key);
 	char *readyLabel;
 	int value;
-	
+};
+
+class DIALOG_HANDLER
+{
+	private:
+		DIALOG_ITEM* pDlg;
+		int nMaxGroup;
+	public:
+		DIALOG_HANDLER(DIALOG_ITEM* pItem);
+		~DIALOG_HANDLER();
+		void Paint(void);
+		void Paint(DIALOG_ITEM* pItem, char focus);
+		void PrintText(DIALOG_ITEM* pItem, char fc, char bc);
+		void SetLabel(DIALOG_ITEM* pItem, char *__format, ...);
+		void SetValue(int nGroup, int nValue);
+		int  GetValue(int nGroup);
+		
+		DIALOG_ITEM *FindGroup(int nGroup, int dir = 0);
+		char Edit(void);
 };
 
 enum
 {
-	CONTROL_END = 0,
-	HEADER,
-	LABEL,
-	NUMBER,
-	CHECKBOX,
-	RADIOBUTTON,
-	LIST,
-	DIALOG
+CONTROL_END 			= 0,
+HEADER,
+LABEL,
+NUMBER,
+CHECKBOX,
+LIST,
+DIALOG
 };
 
 
@@ -50,23 +65,10 @@ enum {
 kSectDialogData			= 33,
 };
 
-
 enum {
-NO		= 0x00,
-DISABLED = 0x01,
+NO						= 0x00,
+DISABLED				= 0x01,
 };
-
-
-/* struct DLG_MAP_INFO
-{
-	char* pathptr[1];
-	char* authptr[1];
-	unsigned int revision;
-	
-};
-
-
-extern DLG_MAP_INFO gTest; */
 
 extern DIALOG_ITEM dlgSprite[];
 extern DIALOG_ITEM dlgXSprite[];
@@ -77,11 +79,29 @@ extern DIALOG_ITEM dlgXSector[];
 extern DIALOG_ITEM dlgXSectorFX[];
 extern DIALOG_ITEM dlgMapInfo[];
 
-// dialog helper function prototypes
-BYTE GetNextUnusedID(DIALOG_ITEM *dialog, DIALOG_ITEM *control, BYTE key );
-BYTE DoSectorFXDialog(DIALOG_ITEM *dialog, DIALOG_ITEM *control, BYTE key );
-BYTE AuditSound(DIALOG_ITEM *dialog, DIALOG_ITEM *control, BYTE key );
-BYTE pickItemTile(DIALOG_ITEM *dialog, DIALOG_ITEM *control, BYTE key);
-BYTE pickEnemyTile(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
-BYTE pickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
+void EditSectorData(int nSector, BOOL xFirst = TRUE);
+void EditWallData(int nWall, BOOL xFirst = TRUE);
+void EditSpriteData(int nSprite, BOOL xFirst = TRUE);
+void EditSectorLighting(int nSector);
+void ShowSectorData(int nSector, BOOL xFirst, BOOL dialog = TRUE);
+void ShowWallData(int nWall, BOOL xFirst, BOOL dialog = TRUE);
+void ShowSpriteData(int nSprite, BOOL xFirst, BOOL dialog = TRUE);
+
+void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector);
+void dlgXSectorToDialog(DIALOG_HANDLER* pHandle, int nSector);
+void dlgDialogToSector(DIALOG_HANDLER* pHandle, int nSector);
+void dlgSectorToDialog(DIALOG_HANDLER* pHandle, int nSector);
+
+void dlgDialogToXSectorFX(DIALOG_HANDLER* pHandle, int nSector);
+void dlgXSectorFXToDialog(DIALOG_HANDLER* pHandle, int nSector);
+
+void dlgDialogToSprite(DIALOG_HANDLER* pHandle, int nSprite);
+void dlgDialogToXSprite(DIALOG_HANDLER* pHandle, int nSprite);
+void dlgXSpriteToDialog(DIALOG_HANDLER* pHandle, int nSprite);
+void dlgSpriteToDialog(DIALOG_HANDLER* pHandle, int nSprite);
+
+void dlgDialogToWall(DIALOG_HANDLER* pHandle, int nWall);
+void dlgWallToDialog(DIALOG_HANDLER* pHandle, int nWall);
+void dlgDialogToXWall(DIALOG_HANDLER* pHandle, int nWall);
+void dlgXWallToDialog(DIALOG_HANDLER* pHandle, int nWall);
 #endif

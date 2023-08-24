@@ -52,6 +52,7 @@
 #include "xmpconf.h"
 #include "xmpmisc.h"
 #include "xmpview.h"
+#include "xmpsky.h"
 #include "edit3d.h"
 
 IniFile* gHints = NULL;
@@ -106,6 +107,14 @@ char *gCaptionStyleNames[] = {
 	"BUILD style",
 	
 };
+
+char* gShowMapNames[] = {
+	
+	"Disabled",
+	"Floors",
+	"Ceilings",
+};
+
 
 static char* sharedTxt[] = {
 
@@ -596,11 +605,13 @@ void ExtPreLoadMap(void) { }
 void ExtLoadMap(const char *mapname) { }
 void ExtPreSaveMap(void) { }
 void ExtSaveMap(const char *mapname) { }
-void qdraw2dscreen(int x, int y, short nAngle, int nZoom, short nGrid );
-void qsetvgapalette(void);
 void HookReplaceFunctions(void);
 void ProcessKeys3D();
 void ProcessKeys2D();
+
+
+
+
 
 
 void InitializeNames( void ) {
@@ -711,14 +722,14 @@ int GetXSprite( int nSprite )
 	return nXSprite;
 }
 
-char *ExtGetSectorCaption(short nSector)
+const char *ExtGetSectorCaption(short nSector, char captStyle)
 {
 	int i = 0, j;
 	int nType = sector[nSector].type, nXSector = sector[nSector].extra;
 	char* to = buffer, *typeName = NULL;
 	
 	to[0] = '\0';
-	if (showtags == kCaptionStyleMapedit && nXSector > 0)
+	if (captStyle == kCaptionStyleMapedit && nXSector > 0)
 	{
 		if (xsector[nXSector].rxID > 0) i += sprintf(&to[i], "%i: ", xsector[nXSector].rxID);
 		if (nType >= 0 && nType < LENGTH(gSectorCaptions) && gSectorCaptions[nType])
@@ -751,13 +762,13 @@ char *ExtGetSectorCaption(short nSector)
 	return to;
 }
 
-char *ExtGetWallCaption(short nWall) {
-
+const char *ExtGetWallCaption(short nWall, char captStyle)
+{
 	int i = 0, nType = wall[nWall].type, nXWall = wall[nWall].extra;
 	char* to = buffer;
 	to[0] = '\0';
 
-	if (showtags == kCaptionStyleMapedit && nXWall > 0)
+	if (captStyle == kCaptionStyleMapedit && nXWall > 0)
 	{
 		if (xwall[nXWall].rxID > 0)
 			i += sprintf(&to[i], "%d: ", xwall[nXWall].rxID);
@@ -784,8 +795,8 @@ char *ExtGetWallCaption(short nWall) {
 	return to;
 }
 
-char *ExtGetSpriteCaption( short nSprite ) {
-
+const char *ExtGetSpriteCaption(short nSprite, char captStyle)
+{
 	spritetype *pSprite = &sprite[nSprite];
 	static char rx[6], name[32], midl[32], tx[6];
 	short nType = pSprite->type;
@@ -794,7 +805,7 @@ char *ExtGetSpriteCaption( short nSprite ) {
 
 	to[0] = '\0';
 	
-	if (showtags == kCaptionStyleBuild)
+	if (captStyle == kCaptionStyleBuild)
 	{
 		if (nType || pSprite->hitag)
 			sprintf(to, "{%i:%i}", pSprite->hitag, nType);
@@ -802,7 +813,8 @@ char *ExtGetSpriteCaption( short nSprite ) {
 		return to;
 	}
 	
-	switch (pSprite->statnum) {
+	switch (pSprite->statnum)
+	{
 		case kStatMarker:
 		case kStatAmbience:
 		case kStatFX:
@@ -961,17 +973,13 @@ void faketimerhandler( void )
 	sampletimer();
 }
 
-/***********************************************************************
- * ExtPreCheckKeys()
- *
- * Called before drawrooms, drawmasks and nextpage in 3D mode.
- *
- **********************************************************************/
 void ExtPreCheckKeys(void)
 {
-	if (qsetmode == 200)	// in 3D mode
+	if (qsetmode == 200 || gScreen2D.prefs.showMap)
 	{
-		FireProcess();	// animate dynamic fire
+		if (TestBitString(gotpic, 2342))
+			FireProcess();	// animate dynamic fire
+		
 		DoSectorLighting();	// animate sector lighting
 		if (gMisc.pan && totalclock >= gTimers.pan + 4)
 		{
@@ -980,7 +988,11 @@ void ExtPreCheckKeys(void)
 			DoSectorPanning();
 		}
 		
-		clearview(gStdColor[29]);
+		if (qsetmode == 200)
+		{
+			gfxSetColor(clr2std(29));
+			gfxFillBox(windowx1, windowy1, windowx2, windowy2);
+		}
 	}
 }
 
@@ -1094,8 +1106,6 @@ void process3DMode() {
  * Called just before nextpage in both 2D and 3D modes.
  *
  **********************************************************************/
- 
-
 void ExtCheckKeys( void )
 {
 	int i, x, y, len, lay = 1;
@@ -1111,6 +1121,15 @@ void ExtCheckKeys( void )
 	}
 	else
 	{
+		gScreen2D.data.ang		= ang;
+		gScreen2D.data.grid		= grid;
+		gScreen2D.data.zoom		= zoom;
+		gScreen2D.data.camx		= posx;
+		gScreen2D.data.camy		= posy;
+
+		gScreen2D.ScreenClear();
+		gScreen2D.ScreenDraw();
+		
 		lay = gHudPrefs.layout2D;
 	}
 	
@@ -1158,7 +1177,8 @@ void ExtCheckKeys( void )
 		dialog = (lay == kHudLayoutFull);
 		gMapedHud.DrawIt();
 		
-		switch (objType) {
+		switch (objType)
+		{
 			case OBJ_FLOOR:
 			case OBJ_CEILING:
 				ShowSectorData(objIdx, !ctrl, dialog);
@@ -1265,15 +1285,12 @@ void ExtCheckKeys( void )
 	{
 		keyClear();
 		asksave = TRUE;
-	}	
+	}
 }
 
 
 
-void qprintmessage16(char name[82]) {
-	
-	gMapedHud.SetMsgImp(128, name);
-}
+
 
 /* void textareatest() {
 	
@@ -1295,17 +1312,167 @@ void qprintmessage16(char name[82]) {
 	ShowModal(&dialog);
 } */
 
+char dlgMapSettings()
+{
+	const int kPad1 = 6, bw = 80, bh = 24;
+	char* skyTilesNames[] = { "Auto", "1", "2", "4", "8", "16", "32" };
+	char* skyTypeNames[]  = {"Static", "Stretch", "Wrap"};
+	int dw, dx1, dy1, dx2, dy2, dwh, dhg, i;
+	int nSkyTiles = (gCustomSkyBits) ? (pskybits+1) : 0;
+	int nSkyType = parallaxtype;
+	
+	Window dialog(0, 0, 320, 200, "Map properties");
+	dialog.getEdges(&dx1, &dy1, &dx2, &dy2);
+	dialog.getSize(&dwh, &dhg);
+		
+	int enw = pFont->width  << 3;
+	int enh = pFont->height << 1;
+	
+	FieldSet* fBSize 		= new FieldSet(dx1+2, dy1+2, dwh-kPad1, enh<<1, "2D BOARD SIZE", kColorDarkGray, kColorDarkGray);
+	int cy = (fBSize->height >> 1) - (enh>>1);
+	EditNumber* eW			= new EditNumber(kPad1, cy, enw, enh, PIX2MET(boardWidth), kValMeter, 10, 10000);
+	Label* lX				= new Label(eW->left + eW->width + kPad1, cy + (pFont->height>>1), "X");
+	EditNumber* eH			= new EditNumber(lX->left + lX->width + kPad1 + 1, cy, enw, enh, PIX2MET(boardHeight), kValMeter, 10, 10000);
+	Label* lDesc			= new Label(eH->left + eW->width + kPad1, cy + (pFont->height>>1), "// 1m = 512 pixels", kColorDarkGray);
+	
+	Panel* pButtons 		= new Panel(dx1, dy2-bh-1, dwh, bh);
+	TextButton* bOk			= new TextButton(0, 0, bw, bh, "Confirm", mrOk);
+	bOk->fontColor 			= kColorBlue;
+	TextButton* bCancel		= new TextButton(bOk->left + bOk->width + 4, 0, bw, bh, "Cancel", mrCancel);
+	bCancel->fontColor		= kColorRed;
+	
+	dy1 += fBSize->height + 16;
+	FieldSet* fVis 			= new FieldSet(dx1+2, dy1, dwh-kPad1, enh<<1, "GLOBAL VISIBILITY", kColorDarkGray, kColorDarkGray);
+	EditNumber* eVis		= new EditNumber(kPad1, cy, enw, enh, 100 - IVAL2PERC(visibility, 4095), kValPerc, 0, 100);
+	Checkbox* cFog			= new Checkbox(eVis->left+eVis->width+kPad1, (fVis->height>>1)-(pFont->height>>1)-1, gFogMode, "Enable fog");
+
+	
+	dy1 += fVis->height + 16;
+	FieldSet* fSky 			= new FieldSet(dx1+2, dy1, dwh-kPad1, enh<<1, "PARALLAX SETUP", kColorDarkGray, kColorDarkGray);
+	
+	Label* lSkyTiles		= new Label(4, 6, "Amount of tiles:");
+	TextButton* bSkyTiles	= new TextButton(lSkyTiles->left+lSkyTiles->width+8, 1, 40, 18, skyTilesNames[nSkyTiles], 1000);
+	bSkyTiles->font			= qFonts[1];
+	bSkyTiles->fontColor	= kColorBlue;
+	
+	Label* lSkyType			= new Label(4, 6, "Parallax type:");
+	TextButton* bSkyType	= new TextButton(lSkyType->left+lSkyType->width+8, 1, 44, 18, skyTypeNames[nSkyType], 1001);
+	bSkyType->font			= qFonts[1];
+	bSkyType->fontColor		= kColorBlue;
+	
+	Panel* pSkyTiles		= new Panel(kPad1, cy, lSkyTiles->width+bSkyTiles->width+14, 20, 0, 0, 0);
+	Panel* pSkyType			= new Panel(pSkyTiles->left+pSkyTiles->width+2, cy, lSkyType->width+bSkyType->width+14, 20, 0, 0, 0);
+	
+	fBSize->Insert(eW);
+	fBSize->Insert(lX);
+	fBSize->Insert(eH);
+	fBSize->Insert(lDesc);
+	
+	fVis->Insert(eVis);
+	fVis->Insert(cFog);
+	
+	pSkyTiles->Insert(lSkyTiles);
+	pSkyTiles->Insert(bSkyTiles);
+	fSky->Insert(pSkyTiles);
+	
+	pSkyType->Insert(lSkyType);
+	pSkyType->Insert(bSkyType);
+	fSky->Insert(pSkyType);
+	
+	
+	pButtons->Insert(bOk);
+	pButtons->Insert(bCancel);
+		
+	dialog.Insert(fBSize);
+	dialog.Insert(fVis);
+	dialog.Insert(fSky);
+	
+	dialog.Insert(pButtons);
+	
+	while( 1 )
+	{
+		ShowModal(&dialog);
+		
+		eW->ClampValue();
+		eH->ClampValue();
+		eVis->ClampValue();
+		
+		switch(dialog.endState)
+		{
+			case mrOk:
+				boardWidth 	= MET2PIX(eW->value);
+				boardHeight = MET2PIX(eH->value);
+				visibility  = 4095 - perc2val(eVis->value, 4095);
+				gFogMode	= cFog->checked;
+				scrLoadPLUs();
+				if (nSkyTiles > 0)
+				{
+					for (pskybits = 0; pskybits < 6; pskybits++)
+					{
+						gSkyCount = 1 << pskybits;
+						if (gSkyCount == nSkyTiles)
+							break;
+					}
+					
+					gCustomSkyBits = true;
+				}
+				else
+				{
+					gCustomSkyBits = false;
+					gSkyCount = 16;
+					pskybits = 4;
+					
+					i = numsectors;
+					while(--i >= 0)
+					{
+						if (!isSkySector(i, OBJ_CEILING)) continue;
+						else if (Sky::GetMostUsed(i, OBJ_CEILING, true, &i) && tileLoadTile(i))
+						{
+							pskybits = (10 - (picsiz[i] & 0x0F));
+							gSkyCount = 1 << pskybits;
+							break;
+						}
+					}
+				}
+				parallaxtype = nSkyType;
+				return true;
+			case 1000:
+				if ((i = showButtons(skyTilesNames, LENGTH(skyTilesNames), "Select") - mrUser) >= 0)
+				{
+					nSkyTiles = (i > 0) ? atoi(skyTilesNames[i]) : 0;
+					bSkyTiles->text = skyTilesNames[i];
+				}
+				continue;
+			case 1001:
+				if ((i = showButtons(skyTypeNames, LENGTH(skyTypeNames), "Select") - mrUser) >= 0)
+				{
+					bSkyType->text = skyTypeNames[i];
+					nSkyType = i;
+				}
+				continue;
+		}
+		
+		break;
+	}
+	
+	return false;
+}
+
+void qprintmessage16(char name[82])
+{
+	gMapedHud.SetMsgImp(128, name);
+}
+
 //extern "C" char* defsfilename = "blood.def";
 //extern "C" int nextvoxid = 0;
 int ExtInit(int argc, char const * const argv[])
 {
 	int i, retn = 0;
 	BOOL iniGenerated = FALSE;
+	RESHANDLE hIni = NULL;
 	
 	HookReplaceFunctions();
 	setbrightness_replace 		= qsetbrightness;
-	draw2dscreen_replace 		= qdraw2dscreen;
-	setvgapalette_replace 		= qsetvgapalette;
 	printmessage16_replace 		= qprintmessage16;
 	loadtile_replace 			= qloadtile;
 
@@ -1357,7 +1524,7 @@ int ExtInit(int argc, char const * const argv[])
 		// create INI file with default settings
 		if (!fileExists(kCoreIniName))
 		{
-			RESHANDLE hIni = gGuiRes.Lookup((unsigned int)0, "INI");
+			hIni = gGuiRes.Lookup((unsigned int)0, "INI");
 			if (hIni)
 			{
 				buildprintf("Creating \"%s\" with default settings.\n", kCoreIniName);
@@ -1474,9 +1641,26 @@ int ExtInit(int argc, char const * const argv[])
 	// ---------------------------------------------------------------------------
 	// initialize hud
 	gMapedHud.InitColors();
-	gMapedHud.SetView(0, ydim - kHudHeighNormal, xdim, ydim);
-	gMapedHud.SetLogo("XMAPEDIT", pFont->charSpace * 6, gSysTiles.xmpIco);
+	gMapedHud.SetView(0, ydim - kHudHeighNormal-1, xdim-1, ydim-1);
+	gMapedHud.SetLogo("XMAPEDIT", pFont->charSpace * 6, gSysTiles.icoXmp);
 	hudSetLayout(&gMapedHud, (qsetmode == 200) ? gHudPrefs.layout3D : gHudPrefs.layout2D, &gMouse);
+	// ---------------------------------------------------------------------------
+	// initialize global 2D mode edit screen
+	
+	hIni = gGuiRes.Lookup((unsigned int)3, "INI");
+	if (hIni)
+	{
+		IniFile* pColors = new IniFile((BYTE*)gGuiRes.Load(hIni), hIni->size);
+		gScreen2D.ColorInit(pColors);
+		delete(pColors);
+	}
+	
+	gScreen2D.SetView(0, 0, xdim-1, ydim-1);
+	gScreen2D.prefs.showFeatures	= 1;
+	gScreen2D.prefs.showSprites		= 1;
+	gScreen2D.prefs.showHighlight	= 1;
+	gScreen2D.prefs.showVertex		= 1;
+	
 	// ---------------------------------------------------------------------------
 	// initialize sound
 	buildprintf("Initialising sound system...\n");
@@ -1504,7 +1688,7 @@ int ExtInit(int argc, char const * const argv[])
 	
 	splashScreen();
 	//textareatest();
-	
+		
 	if (argc <= 1 || argv[1] == NULL)
 	{
 		sprintf(buffer, kDefaultMapName);
@@ -1650,45 +1834,29 @@ int xsysConnect(int nTypeA, int nIdxA, int nTypeB, int nIdxB) {
 	int chlID = findUnusedChannel();
 	if (pXSprA)
 	{
-
-		//if (isMultiTX(nIdxA))
-		//{
-
-		//}
 		if (chlRangeIsFine(pXSprA->txID)) chlID = pXSprA->txID;
 		else pXSprA->txID = chlID;
-
-		gXTracker.TrackSprite(nIdxA, 1);
 	}
 	else if (pXSectA)
 	{
 		if (chlRangeIsFine(pXSectA->txID)) chlID = pXSectA->txID;
 		else pXSectA->txID = chlID;
-
-		gXTracker.TrackSector(nIdxA, 1);
 	}
 	else if (pXWallA)
 	{
 		if (chlRangeIsFine(pXWallA->txID)) chlID = pXWallA->txID;
 		else pXWallA->txID = chlID;
-
-		gXTracker.TrackWall(nIdxA, 1);
 	}
 	else
 	{
 		return -1;
 	}
 
-	// disconnect all objects that points on this?
-	////
-
 	if (pXSprB)  pXSprB->rxID  = chlID;
 	if (pXSectB) pXSectB->rxID = chlID;
 	if (pXWallB) pXWallB->rxID = chlID;
-
-
-
-
+	
+	CXTracker::Track(nTypeA, nIdxA, 1);
 	return 0;
 }
 
@@ -1718,54 +1886,391 @@ int xsysConnect2(int nTypeA, int nIdxA, int nTypeB, int nIdxB) {
 	return 0;
 }
 
-
 BOOL processKeysShared() {
 
-	if (key == 0)
+	if (!key)
 		return FALSE;
-
+		
 	int x, y, swal, ewal, sect2;
-	int i = 0, j = 0, k = 0, f = 0, sect = -1, nwall = -1, type = getHighlightedObject();
 	BOOL in2d = (qsetmode != 200);
+	int i = 0, j = 0, k = 0, f = 0, sect = -1, nwall = -1;
+	int type;
 	
-	switch (key) {
-		default: return FALSE;
-/* 		case KEY_3:
+	if (in2d)
+	{
+		if (pGCircleW || pGDoorR || pGDoorSM)
 		{
-			if (!isSearchSector())
+			switch(key)
 			{
+				case KEY_PLUS:
+				case KEY_MINUS:
+				case KEY_SPACE:
+				case KEY_F1:
+				case KEY_F2:
+				case KEY_F3:
+				case KEY_F4:
+					return 0;
+			}
+		}
+	}
+
+	type = getHighlightedObject();
+	
+	switch (key)
+	{
+		default:
+			return FALSE;
+		case KEY_ESC:
+			if (pGCircleW)
+			{
+				scrSetMessage("Points inserting aborted.");
+				DELETE_AND_NULL(pGCircleW);
 				BeepFail();
 				break;
 			}
-			
-			sectortype* pNeigh;
-			sectortype* pSect = &sector[searchindex];
-			XSECTOR* pXSect = &xsector[GetXSector(searchindex)];
-			pSect->type = kSectorZMotion;
-			
-			int nOffset = 0;
-			int nDoorType = 0;
-			int nVel = 10;
-			int nWait = 0;
-			
-			switch(nDoorType) {
-				case 0:
-					pXSect->offFloorZ = pSect->floorz;
-					pXSect->onFloorZ = pSect->floorz;
-					pXSect->offCeilZ = pSect->floorz;
-					pXSect->onCeilZ = pSect->ceilingz;
-					pXSect->busyTimeA = nVel;
-					pXSect->state = 0;
+			else if (pGDoorSM || pGDoorR)
+			{
+				scrSetMessage("Door inserting aborted.");
+				if (pGDoorSM)	DELETE_AND_NULL(pGDoorSM);
+				if (pGDoorR)	DELETE_AND_NULL(pGDoorR);
+				BeepFail();
+				break;
+			}
+			else if (keystatus[KEY_SPACE])
+			{
+				if (!in2d && somethingintab != 255)
+				{
+					scrSetMessage("Clipboard buffer cleared.");
+					somethingintab = 255;
+					BeepFail();
+				}
+
+				break;
+			}
+			else
+			{
+				if (highlightcnt > 0) hgltReset(kHgltPoint), i = 1;
+				if (!in2d && highlightsectorcnt > 0) hgltReset(kHgltSector), i = 1;
+				if (gListGrd.Length() > 0) gListGrd.Clear(), i = 1;
+				if (i == 1)
+				{
+					scrSetMessage("Highlight reset.");
+					BeepFail();
 					break;
+				}
+			}
+			xmpMenuProcess();
+			keyClear();
+			break;
+		case KEY_COMMA:
+		case KEY_PERIOD:
+			if (in2d && highlightsectorcnt > 0)
+			{
+				i = (shift) ? ((ctrl) ? 128 : 256) : 512;
+				if (key == KEY_COMMA)
+					i = -i;
 				
+				char nFlags = kFlagRotateSprites;
+				if (shift)
+					nFlags |= kFlagRotateRpoint;
+
+				hgltSectAvePoint(&x, &y);
+				for (j = 0; j < highlightsectorcnt; j++)
+					rotateSector(highlightsector[j], i, x, y, nFlags);
+				
+				scrSetMessage("%d of %d sectors rotated by %d.", highlightsectorcnt, numsectors, i);
+				BeepOk();
+				break;
+			}
+			else if (type == 200)
+			{
+				if (sprInHglt(searchwall))
+				{
+					i = (shift) ? ((ctrl) ? 128 : 256) : 512;
+					if (key == KEY_COMMA)
+						i = -i;
+					
+					hgltSprRotate(i);
+					scrSetMessage("Rotate %d sprite(s) by %d", hgltSprCount(), i);
+					BeepOk();
+					break;
+				}
+
+				i = (shift) ? 16 : 256;
+				if (key == KEY_COMMA) sprite[searchwall].ang = (short)DecNext(sprite[searchwall].ang, i);
+				else sprite[searchwall].ang = (short)IncNext(sprite[searchwall].ang, i);
+				
+				if (!isMarkerSprite(searchwall))
+					sprite[searchwall].ang = sprite[searchwall].ang & kAngMask;
+				
+				scrSetMessage("%s #%d angle: %i", gSearchStatNames[searchstat], searchwall, sprite[searchwall].ang);
+				BeepOk();
+				break;
+			}
+			else if (!in2d && type == 100)
+			{
+				AutoAlignWalls(searchwall);
+				BeepOk();
+				break;
+			}
+			break;
+		case KEY_PAD5:
+			if (!ctrl)
+			{
+				if (in2d)
+				{
+					switch(searchstat)
+					{
+						case OBJ_SPRITE:
+							if ((sprite[searchwall].cstat & kSprRelMask) >= kSprWall) break;
+						case OBJ_WALL:
+							searchsector = sectorhighlight;
+							// no break
+						case OBJ_FLOOR:
+						case OBJ_CEILING:
+							switch(gScreen2D.prefs.showMap)
+							{
+								case 0: return true;
+								case 1: searchstat = OBJ_FLOOR;		break;
+								case 2: searchstat = OBJ_CEILING;	break;
+							}
+							if (isSkySector(searchsector, searchstat)) return true;
+							else break;
+					}
+				}
+				
+				if (searchstat < 255)
+					sprintf(buffer, gSearchStatNames[searchstat]);
+				
+				i = -1;
+				switch (searchstat)
+				{
+					case OBJ_SPRITE:
+						i = searchwall;
+						sprintf(buffer2, "repeat");
+						sprite[searchwall].xrepeat = sprite[searchwall].yrepeat = 64;
+						break;
+					case OBJ_WALL:
+					case OBJ_MASKED:
+						i = searchwall;
+						sprintf(buffer2, "pan/repeat");
+						wall[searchwall].xpanning = wall[searchwall].ypanning = 0;
+						wall[searchwall].xrepeat  = wall[searchwall].yrepeat  = 8;
+						fixrepeats(searchwall);
+						break;
+					case OBJ_FLOOR:
+					case OBJ_CEILING:
+						i = searchsector;
+						sprintf(buffer2, "pan");
+						if (searchstat == OBJ_FLOOR) sector[i].floorxpanning = sector[i].floorypanning = 0;
+						else sector[i].ceilingxpanning = sector[i].ceilingypanning = 0;
+						if (isSkySector(i, searchstat))
+						{
+							Sky::SetPan(i, searchstat, 0, 0, alt);
+							i = -2;
+						}
+						break;
+				}
+				
+				if (i >= 0)
+					scrSetMessage("%s[%d] %s reset", buffer, i, buffer2);
+				
+				Beep(i >= 0 || i == -2);
+			}
+			break;
+		case KEY_PAD7:
+		case KEY_PAD9:
+		case KEY_PADUP:
+		case KEY_PADDOWN:
+		case KEY_PADLEFT:
+		case KEY_PADRIGHT:
+		{
+			walltype* pWall; spritetype* pSpr; sectortype* pSect;
+			BOOL bCoarse, chx = 0, chy = 0;
+			signed char changedir, step;
+			int vlx, vly;
+
+			changedir = (key == KEY_PADUP || key == KEY_PADRIGHT || key == KEY_PAD9) ? 1 : -1;
+			bCoarse = (!shift) ? TRUE : FALSE;
+			step = (bCoarse) ? 8 : 1;
+
+			chx = (key == KEY_PADLEFT || key == KEY_PADRIGHT);
+			chy = (key == KEY_PADUP   || key == KEY_PADDOWN);
+			if (key == KEY_PAD7 || key == KEY_PAD9)
+				chx = chy = TRUE;
+			
+			if (in2d)
+			{
+				switch(searchstat)
+				{
+					case OBJ_SPRITE:
+						if ((sprite[searchwall].cstat & kSprRelMask) >= kSprWall) break;
+					case OBJ_WALL:
+						searchsector = sectorhighlight;
+						// no break
+					case OBJ_FLOOR:
+					case OBJ_CEILING:
+						switch(gScreen2D.prefs.showMap)
+						{
+							case 0: return true;
+							case 1: searchstat = OBJ_FLOOR;		break;
+							case 2: searchstat = OBJ_CEILING;	break;
+						}
+						if (isSkySector(searchsector, searchstat)) return true;
+						else break;
+				}
 			}
 			
-			BeepOk();
+			if (searchstat < 255)
+				sprintf(buffer, gSearchStatNames[searchstat]);
+
+			i = -1;
+			switch (searchstat)
+			{
+				case OBJ_WALL:
+				case OBJ_MASKED:
+					pWall = (!ctrl) ? getCorrectWall(searchwall) : &wall[searchwall];
+					changedir = -changedir;
+					i = searchwall;
+					
+					if (ctrl)
+					{
+						sprintf(buffer2, "panning");
+						if (chx)
+						{
+							// fix wrong panning direction when wall x-flipped and/or bottom swapped.
+							if ((pWall->nextwall >= 0 && (wall[pWall->nextwall].cstat & kWallSwap)
+								&& (wall[pWall->nextwall].cstat & kWallFlipX)) || (pWall->cstat & kWallFlipX))
+									changedir = -changedir;
+									
+							pWall->xpanning = changechar(pWall->xpanning, changedir, bCoarse, 0);
+						}
+						
+						if (chy) pWall->ypanning = changechar(pWall->ypanning, -changedir, bCoarse, 0);
+						
+						vlx = pWall->xpanning;
+						vly = pWall->ypanning;
+					}
+					else
+					{
+						sprintf(buffer2, "repeat");
+						if (changedir < 0) step = -step;
+						if (chx) pWall->xrepeat = ClipRange(pWall->xrepeat + step, 0, 255);
+						if (chy) pWall->yrepeat = ClipRange(pWall->yrepeat + step, 0, 255);
+						
+						vlx = pWall->xrepeat;
+						vly = pWall->yrepeat;
+					}
+					break;
+				case OBJ_SPRITE:
+					pSpr = &sprite[searchwall];
+					i = searchwall;
+					if (alt)
+					{
+						sprintf(buffer2, "pos");
+						if (chx) pSpr->x += ((changedir == 1) ? step : -step);
+						if (chy) pSpr->y += ((changedir == 1) ? step : -step);
+						
+						vlx = pSpr->x;
+						vly = pSpr->y;
+					}
+					else if (ctrl)
+					{
+						sprintf(buffer2, "offset");
+						if ((pSpr->cstat & kSprRelMask) != 48)
+						{
+							if (chx)
+							{
+								j = -changedir;
+								if (pSpr->cstat & kSprFlipX)
+									j = -j;
+								
+								pSpr->xoffset = changechar(pSpr->xoffset, j, bCoarse, 0);
+							}
+							
+							if (chy)
+							{
+								j = changedir;
+								if ((pSpr->cstat & kSprRelMask) != kSprFace) // fix wrong offset direction when sprite flipped
+								{
+									if (pSpr->cstat & kSprFlipY)
+										j = -j;
+								}
+								
+								pSpr->yoffset = changechar(pSpr->yoffset, j, bCoarse, 0);
+								
+							}
+						}
+						
+						vlx = pSpr->xoffset;
+						vly = pSpr->yoffset;
+					}
+					else
+					{
+						sprintf(buffer2, "repeat");
+						if (changedir < 0) step = -step;
+						if (chx) pSpr->xrepeat = ClipRange(pSpr->xrepeat + step, 2, 255);
+						if (chy) pSpr->yrepeat = ClipRange(pSpr->yrepeat + step, 2, 255);
+						
+						vlx = pSpr->xrepeat;
+						vly = pSpr->yrepeat;
+					}
+					break;
+				case OBJ_FLOOR:
+				case OBJ_CEILING:
+					pSect = &sector[searchsector];
+					sprintf(buffer2, "panning");
+					i = searchsector;
+					if (searchstat == OBJ_FLOOR)
+					{
+						if (chx) pSect->floorxpanning = changechar(pSect->floorxpanning, changedir, bCoarse, 0);
+						if (chy) pSect->floorypanning = changechar(pSect->floorypanning, changedir, bCoarse, 0);
+						
+						vlx = pSect->floorxpanning;
+						vly = pSect->floorypanning;
+					}
+					else
+					{
+						if (chx) pSect->ceilingxpanning = changechar(pSect->ceilingxpanning, changedir, bCoarse, 0);
+						if (chy) pSect->ceilingypanning = changechar(pSect->ceilingypanning, changedir, bCoarse, 0);
+						
+						vlx = pSect->ceilingxpanning;
+						vly = pSect->ceilingypanning;
+					}
+					
+					if (isSkySector(searchsector, searchstat))
+					{
+						i = -2; // show just Sky messages!
+						if (chy)
+							Sky::SetPan(searchsector, searchstat, 0, vly, alt);
+						
+						if (chx)
+						{
+							Sky::FixPan(searchsector, searchstat,  alt); 	// fix panning first
+							Sky::Rotate((changedir < 0) ? 0 : 1); 			// rotate global sky
+						}
+					}
+					break;
+			}
 			
+			if (i >= 0) scrSetMessage("%s #%d x%s: %d  y%s: %d", strlwr(buffer), i, buffer2, vlx, buffer2, vly);
+			Beep(i >= 0 || i == -2);
+			break;
 		}
-		break; */
 		case KEY_F11:
-			if (!alt) return FALSE;
+			if (!alt)
+			{
+				if (in2d)
+				{
+					i = IncRotate(gScreen2D.prefs.showMap, 3);
+					scrSetMessage("Show 2D map: %s", gShowMapNames[i]);
+					gScreen2D.prefs.showMap = i;
+					Beep(i);
+					break;
+				}
+				
+				return FALSE;
+			}
 			while( 1 )
 			{
 				if (in2d)
@@ -1802,7 +2307,7 @@ BOOL processKeysShared() {
 				return FALSE;
 			}
 			else if (!in2d && !alt) return FALSE;
-			else if (in2d) getpoint(searchx, searchy, &x1, &y1), x2 = x1, y2 = y1;
+			else if (in2d) gScreen2D.GetPoint(searchx, searchy, &x1, &y1), x2 = x1, y2 = y1;
 			else x1 = posx, y1 = posy, hit2pos(&x2, &y2);
 			
 			if (in2d)
@@ -1989,30 +2494,6 @@ BOOL processKeysShared() {
 				BeepOk();
 			}
 			break;
-		case KEY_ESC:
-			if (keystatus[KEY_SPACE])
-			{
-				if (!in2d && somethingintab != 255)
-				{
-					scrSetMessage("Clipboard buffer cleared.");
-					somethingintab = 255;
-					BeepFail();
-				}
-
-				break;
-			}
-			if (highlightcnt > 0) hgltReset(kHgltPoint), i = 1;
-			if (!in2d && highlightsectorcnt > 0) hgltReset(kHgltSector), i = 1;
-			if (gHgltc > 0) grshUnhgltObjects(-1, TRUE), i = 1;
-			if (i == 1)
-			{
-				scrSetMessage("Highlight reset.");
-				BeepFail();
-				break;
-			}
-			xmpMenuProcess();
-			keyClear();
-			break;
 		case KEY_TAB:
 			if (!alt)
 			{
@@ -2113,30 +2594,15 @@ BOOL processKeysShared() {
 			if (highlightcnt > 0) 		i |= kHgltPoint;
 			if (i > 0)
 			{
-				hgltIsolateRorMarkers(i);
-				hgltIsolatePathMarkers(i);
-				hgltIsolateChannels(i, kChlCheckOutsideR | kChlCheckInsideRS | kChlCheckOutsideS);
-
-				scrSetMessage("Objects isolated.");
+				//splashScreen("This may take some time...");
+				hgltIsolateRorMarkers(i); hgltIsolatePathMarkers(i);
+				hgltIsolateChannels(i);
 				BeepOk();
+				
+				scrSetMessage("Objects isolated.");
 				break;
 			}
 			return FALSE;
-		case KEY_APOSTROPHE:
-		case KEY_SEMICOLON:
-			i = 512;
-			if (ctrl)  i >>= 1;
-			if (shift) i >>= 1;
-			switch (searchstat) {
-				case OBJ_SPRITE:
-					if (!sprInHglt(searchwall)) break;
-					i = (key == KEY_APOSTROPHE) ? i : -i;
-					hgltSprRotate(i);
-					scrSetMessage("Rotate %d sprite(s) by %d", hgltSprCount(), i);
-					BeepOk();
-					break;
-			}
-			break;
 		case KEY_DELETE:
 			if (ctrl)
 			{
@@ -2536,10 +3002,6 @@ BOOL processKeysShared() {
 					i = 0x20;
 					scrSetMessage("sprite[%i] is floor sprite", searchwall);
 					break;
-				case 0x20:
-					i = 0x00;
-					scrSetMessage("sprite[%i] is face sprite", searchwall);
-					break;
 				default:
 					i = 0x00;
 					scrSetMessage("sprite[%i] is face sprite", searchwall);
@@ -2833,7 +3295,9 @@ void xmpQuit(int code)
 int xmpMenuCreate(char* name) {
 
 	RESHANDLE hFile;
-	int x = 4, y = 4, bh = 20, pd = 4, i, j;
+	const int bh = 20; const int pd = 4;
+	int x = 4, y = 4, i, j;
+	
 	static char asavename[6][14], editors[3][14];
 	
 	sprintf(editors[0], getExt(kQav));
@@ -2848,14 +3312,14 @@ int xmpMenuCreate(char* name) {
 	TextButton* pReloadBoard = new TextButton(4, y, 40,  bh, "&Re", mrReload);
 	if (!fileExists(gPaths.maps, &hFile))
 	{
-		pReloadBoard->fontColor = 8;
+		pReloadBoard->fontColor = kColorDarkGray;
 		pReloadBoard->disabled  = TRUE;
 		pReloadBoard->canFocus  = FALSE;
 	}
 
 	if (!gMapLoaded)
 	{
-		pSaveBoard->fontColor = pSaveBoardAs->fontColor = pReloadBoard->fontColor = 8;
+		pSaveBoard->fontColor = pSaveBoardAs->fontColor = pReloadBoard->fontColor = kColorDarkGray;
 		pSaveBoard->disabled  = pSaveBoardAs->disabled  = pReloadBoard->disabled  = TRUE;
 		pSaveBoard->canFocus  = pSaveBoardAs->canFocus  = pReloadBoard->canFocus  = FALSE;
 	}
@@ -2863,11 +3327,20 @@ int xmpMenuCreate(char* name) {
 	dialog.Insert(pSaveBoard);
 	dialog.Insert(pSaveBoardAs);
 	dialog.Insert(pReloadBoard);
-	dialog.Insert(new TextButton(44, y, 84,   bh, "&Load board", mrLoad));	y+=bh;
-	dialog.Insert(new TextButton(4,  y, 124,  bh, "&New board", mrNew));	y+=bh;	
-	dialog.Insert(new TextButton(4,  y, 124,  bh, "&Quit editor", mrQuit));	y+=bh;
-	dialog.Insert(new TextButton(4,  y, 124,  bh, "&Options", mrOptions));	y+=bh;
-	dialog.Insert(new TextButton(4,  y, 124,  bh, "A&bout", mrAbout));		y+=bh;
+	dialog.Insert(new TextButton(44, y, 84,   bh, "&Load board", mrLoad));						y+=bh;
+	dialog.Insert(new TextButton(4,  y, 124,  bh, "&Import board", mrToolImportWizard));		y+=bh;
+	TextButton* pBoardOpts = new TextButton(4, y, 124, bh, "Setup &Board", mrBoardOptions); 	y+=bh;
+	if (!gMapLoaded)
+	{
+		pBoardOpts->fontColor 	= kColorDarkGray;
+		pBoardOpts->disabled 	= TRUE;
+		pBoardOpts->canFocus 	= FALSE;
+	}
+	dialog.Insert(pBoardOpts);
+	dialog.Insert(new TextButton(4,  y, 124,  bh, "&New board", mrNew));						y+=bh;
+	dialog.Insert(new TextButton(4,  y, 124,  bh, "&Quit editor", mrQuit));						y+=bh;
+	dialog.Insert(new TextButton(4,  y, 124,  bh, "&Options", mrOptions));						y+=bh;
+	dialog.Insert(new TextButton(4,  y, 124,  bh, "Abo&ut", mrAbout));							y+=bh;
 
 	y+=(pd<<1);
 	if (gMapLoaded && gAutosave.max > 0 && gAutosave.interval > 0)
@@ -2890,9 +3363,10 @@ int xmpMenuCreate(char* name) {
 
 	dialog.Insert(new Label(8, y, ">TOOLS", kColorBlue)); y+=(pFont->height+pd);
 	TextButton* pPreviewMode   = new TextButton(x, y, 124,  bh, "&Preview mode", mrToolPreviewMode);		y+=bh;
+	TextButton* pDoorWizard    = new TextButton(x, y, 124,  bh, "&Door wizard", mrToolDoorWizard);			y+=bh;
+	TextButton* pSpriteText    = new TextButton(x, y, 124,  bh, "Sprite Te&xt", mrToolSpriteText);			y+=bh;
 	TextButton* pExplodeSeq    = new TextButton(x, y, 124,  bh, "&Exploder sequence", mrToolExpSeq);		y+=bh;
 	TextButton* pCleanChannel  = new TextButton(x, y, 124,  bh, "&Channel cleaner", mrToolCleanChannel);	y+=bh;
-	TextButton* pImportWizard  = new TextButton(x, y, 124,  bh, "&Import wizard", mrToolImportWizard);		y+=bh;
 	
 	i = 124/3;
 	TextButton* pButtonQavedit = new TextButton(x, y, i,  bh, editors[0], mrToolQavEdit); 	x+=i;
@@ -2902,16 +3376,31 @@ int xmpMenuCreate(char* name) {
 	
 	if (!gMapLoaded)
 	{
-		pCleanChannel->fontColor = pPreviewMode->fontColor = pExplodeSeq->fontColor = 8;
+		pCleanChannel->fontColor = pPreviewMode->fontColor = pExplodeSeq->fontColor = kColorDarkGray;
 		pCleanChannel->disabled  = pPreviewMode->disabled  = pExplodeSeq->disabled = TRUE;
 		pCleanChannel->canFocus  = pPreviewMode->canFocus  = pExplodeSeq->canFocus = FALSE;
+	}
+
+	if (!gMapLoaded || qsetmode == 200)
+	{
+		pDoorWizard->fontColor 	= kColorDarkGray;
+		pDoorWizard->disabled 	= TRUE;
+		pDoorWizard->canFocus 	= FALSE;
+	}
+	
+	if (!gMapLoaded || qsetmode != 200)
+	{
+		pSpriteText->fontColor 	= kColorDarkGray;
+		pSpriteText->disabled 	= TRUE;
+		pSpriteText->canFocus 	= FALSE;
 	}
 	
 	dialog.height = y + (pd*6);
 	dialog.Insert(pPreviewMode);
+	dialog.Insert(pDoorWizard);
+	dialog.Insert(pSpriteText);
 	dialog.Insert(pExplodeSeq);
 	dialog.Insert(pCleanChannel);
-	dialog.Insert(pImportWizard);
 	dialog.Insert(pButtonQavedit);
 	dialog.Insert(pButtonSeqedit);
 	dialog.Insert(pButtonArtedit);
@@ -2963,6 +3452,18 @@ int xmpMenuProcess() {
 				else if (gPreviewMode) previewStop();
 				previewStart();
 				return result;
+			case mrBoardOptions:
+				if (dlgMapSettings()) return result;
+				result = mrMenu;
+				break;
+			case mrToolDoorWizard:
+				if (dlgDoorWizard()) return result;
+				result = mrMenu;
+				break;
+			case mrToolSpriteText:
+				if (dlgSpriteText()) return result;
+				result = mrMenu;
+				break;
 			case mrToolCleanChannel:
 				if
 				(
@@ -2993,8 +3494,11 @@ int xmpMenuProcess() {
 					{
 						Alert("No unlinked channels found.");
 					}
+					
+					return result;
 				}
-				return result;
+				result = mrMenu;
+				break;
 			case mrToolExpSeq:
 				if (toolExploderSeq() == mrOk) return result;
 				result = mrMenu;
@@ -3018,7 +3522,7 @@ int xmpMenuProcess() {
 				gQaved.Start(NULL);
 				return result;
 			case mrNew:
-				if (gMapLoaded && !Confirm("Start new board now?"))
+				if ((gMapLoaded && !Confirm("Start new board now?")) || !dlgMapSettings())
 				{
 					result = mrMenu;
 					break;
@@ -3551,6 +4055,35 @@ void setStartPos(int x, int y, int z, int ang)
 	startposy = y;
 	startposz = z - kensplayerheight;
 	startang  = ang;
+	
+	if (gMisc.forceEditorPos)
+	{
+		spritetype* pSpr; XSPRITE* pXSpr;
+		int i;
+		
+		for (i = headspritestat[0]; i >= 0; i = nextspritestat[i])
+		{
+			pSpr = &sprite[i];
+			if (pSpr->type == kMarkerSPStart && pSpr->extra > 0)
+			{
+				pXSpr = &xsprite[pSpr->extra];
+				if (pXSpr->data1 == 0)
+				{
+					pSpr->ang	= startang;
+					pSpr->x 	= startposx;
+					pSpr->y 	= startposy;
+					pSpr->z 	= startposz;
+					
+					if (startsectnum >= 0)
+						ChangeSpriteSect(pSpr->index, startsectnum);
+					
+					clampSprite(pSpr);
+					break;
+				}
+			}
+		}
+	}
+	
 }
 
 void boardPreloadTiles()
@@ -3788,7 +4321,6 @@ int boardLoad(char *filename)
 			}
 
 			sectors++;
-
 		}
 
 		for(i = 0; i < highlightsectorcnt; i++)
@@ -3829,7 +4361,6 @@ int boardSave(char* filename, BOOL autosave)
 	int i;
 	keyClear();
 	UndoSectorLighting(); // fix up floor and ceiling shade values for sectors that have dynamic lighting
-	grshUnhgltObjects(-1, FALSE); // restore shade and picnum for objects that was highlighted for gradient shading
 	fixspritesectors();
 	
 	if (!autosave)
@@ -3848,7 +4379,6 @@ int boardSave(char* filename, BOOL autosave)
 		asksave = 0;
 	}
 	
-	if (!gResetHighlight) grshHgltObjects(-1); // change picnum and shade back to highlighted for highlighted objects
 	formatMapInfo(gMapInfoStr);
 	return i;
 }
@@ -3875,9 +4405,13 @@ void boardReset(int hgltreset)
 	if (!hgltreset) hgltReset(); // reset using default params
 	else hgltReset(hgltreset); 	// override param
 	
+	if (pGDoorSM)	DELETE_AND_NULL(pGDoorSM);
+	if (pGDoorR)	DELETE_AND_NULL(pGDoorR);
+	if (pGCircleW)  DELETE_AND_NULL(pGCircleW);
+	
 	memset(gMapInfoStr, 0, sizeof(gMapInfoStr));
 	gCommentMgr.DeleteAll();
-	gXTracker.TrackClear();
+	CXTracker::Clear();
 	eraseExtra();
 	dbInit();
 }

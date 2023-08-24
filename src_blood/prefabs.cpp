@@ -28,7 +28,7 @@
 #include "inifile.h"
 #include "tile.h"
 #include "hglt.h"
-#include "enumstr.h"
+#include "xmpstr.h"
 #include "xmpmisc.h"
 
 // offsets for enumStr
@@ -474,7 +474,7 @@ int pfbInsert(char* file, int sstat, int sect, int x, int y, int z) {
 		
 		if (nXSprite >= 0) {
 			
-			if (channelsFound)   hgltIsolateChannels(kHgltPoint, kChlCheckOutsideR | kChlCheckInsideRS | kChlCheckOutsideS);
+			if (channelsFound)   hgltIsolateChannels(kHgltPoint);
 			if (pathMarkerFound) hgltIsolatePathMarkers(kHgltPoint);
 			if (rorMarkerFound)  hgltIsolateRorMarkers(kHgltPoint);
 			

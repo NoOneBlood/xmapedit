@@ -169,8 +169,6 @@ void CFX::fxProcess(void)
 			continue;
 
         short nSector = pSprite->sectnum;
-        dassert(nSector >= 0 && nSector < kMaxSectors);
-        dassert(pSprite->type < kFXMax);
 		FXDATA *pFXData = &gFXData[pSprite->type];
         actAirDrag(pSprite, pFXData->ata);
         if (xvel[nSprite])
@@ -197,13 +195,11 @@ void CFX::fxProcess(void)
                     sub_73FFC(nSprite);
                     continue;
                 }
-                dassert(gCallback[pFXData->funcID] != NULL);
                 gCallback[pFXData->funcID](nSprite);
                 continue;
             }
             if (nSector != pSprite->sectnum)
             {
-                dassert(nSector >= 0 && nSector < kMaxSectors);
                 ChangeSpriteSect(nSprite, nSector);
             }
         }
@@ -223,7 +219,6 @@ void CFX::fxProcess(void)
                     sub_73FFC(nSprite);
                     continue;
                 }
-                dassert(gCallback[pFXData->funcID] != NULL);
                 gCallback[pFXData->funcID](nSprite);
                 continue;
             }

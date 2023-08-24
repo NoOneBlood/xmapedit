@@ -32,13 +32,8 @@ kHgltPoint			= 0x0002,
 kHgltGradient		= 0x0004,
 };
 
-enum {
-kChlCheckOutsideR	= 0x0001,
-kChlCheckInsideRS	= 0x0002,
-kChlCheckOutsideS	= 0x0004,
-};
-
 extern int hgltx1, hgltx2, hglty1, hglty2;
+extern short hgltType;
 
 void sprFixSector(spritetype* pSprite, int dummy = 0);
 void sprDelete(spritetype* pSprite, int dummy = 0);
@@ -102,9 +97,7 @@ int hgltWallsCheckStat(int nStat, int which = 0x03, int nMask = 0x0);
 void hgltSectGetEdgeWalls(short* lw, short* rw, short* tw, short* bw);
 void hgltSectGetEdges(int* left, int* right, int* top, int* bot);
 void hgltSectAvePoint(int* ax, int* ay);
+void hgltDetachSectors();
 
-void hgltIsolateChannels(int htype, int var1);
+void hgltIsolateChannels(char which);
 void hgltIsolateRorMarkers(int which);
-void generateChannelSequence(int oldtx, int newtx, int highlightType, int which);
-BOOL chlOutHighlight(int chl, int which, int highlightType);
-void setChannelId(ushort otype, short oidx, ushort newchl, BYTE which);

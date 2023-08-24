@@ -1,3 +1,5 @@
+#include <cmath>
+
 #include "nnexts.h"
 #include "preview.h"
 #include "aadjust.h"
@@ -9,23 +11,25 @@
 #include "xmpconf.h"
 #include "xmpmisc.h"
 
+#include "editor.h"
 #include "edit2d.h"
 
+#define kMaxMessages		32
+#define kMaxMessageLength	64
 
-/* DLG_MAP_INFO gTest;
-DIALOG_ITEM dlgMapInfo[] =
-{
-	{ NO,	1,		0,	0,	0,	HEADER,			"General info:" },
-	{ NO,	1,		0,	1,	1,	LABEL,			"Filename....: %s", 0, 1, gTest.pathptr},
-	{ NO,	1,		0,	2,	2,	LABEL,			"Author......: %s", 0, 1, gTest.authptr},
-	{ NO,	1,		0,	3,	3,	NUMBER, 		"Revisions...: %d", 0, 13421722 },
-}; */
+// dialog helper function prototypes
+static char helperGetNextUnusedID(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key);
+static char helperDoSectorFXDialog(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key);
+static char helperAuditSound(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key);
+static char helperPickItemTile(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key);
+static char helperPickEnemyTile(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
+static char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 
 DIALOG_ITEM dlgXSprite[] =
 {
 	{ NO,	1,		0,	0,	1,	LIST,			"Type %4d: %-18.18s", 0, 1023, gSpriteNames },
-	{ NO,	1,		0,	1,	2,	NUMBER, 		"RX ID: %-4d", 0, 1023, NULL, GetNextUnusedID },
-	{ NO,	1,		0,	2,	3,	NUMBER, 		"TX ID: %-4d", 0, 1023, NULL, GetNextUnusedID },
+	{ NO,	1,		0,	1,	2,	NUMBER, 		"RX ID: %-4d", 0, 1023, NULL, helperGetNextUnusedID },
+	{ NO,	1,		0,	2,	3,	NUMBER, 		"TX ID: %-4d", 0, 1023, NULL, helperGetNextUnusedID },
 	{ NO,	1,		0,	3,	4,	LIST, 			"State  %1d: %-3s", 0, 1, gBoolNames },
 	{ NO,	1,		0,	4,	5,	LIST, 			"Cmd: %3d: %-16s", 0, 255, gCommandNames },
 
@@ -66,10 +70,10 @@ DIALOG_ITEM dlgXSprite[] =
 	{ NO,	1,		46,	5,	33,	CHECKBOX, 		"Player only" },
 
 	{ NO,	1,		46,	6,	0,	HEADER, 		"Data:           " },
-	{ NO,	1,		46, 7,	kSprDialogData1,	NUMBER, 	"Data1", -32767, 32767, NULL, AuditSound },
-	{ NO,	1,		46,	8,	kSprDialogData2,	NUMBER, 	"Data2", -32767, 32767, NULL, AuditSound },
-	{ NO,	1,		46,	9,	kSprDialogData3,	NUMBER, 	"Data3", -32767, 32767, NULL, AuditSound },
-	{ NO,	1,		46,	10,	kSprDialogData4,	NUMBER, 	"Data4", -65535, 65535, NULL, AuditSound },
+	{ NO,	1,		46, 7,	kSprDialogData1,	NUMBER, 	"Data1", -32767, 32767, NULL, helperAuditSound },
+	{ NO,	1,		46,	8,	kSprDialogData2,	NUMBER, 	"Data2", -32767, 32767, NULL, helperAuditSound },
+	{ NO,	1,		46,	9,	kSprDialogData3,	NUMBER, 	"Data3", -32767, 32767, NULL, helperAuditSound },
+	{ NO,	1,		46,	10,	kSprDialogData4,	NUMBER, 	"Data4", -65535, 65535, NULL, helperAuditSound },
 
 	{ NO,	1,		64,	0,	0,	HEADER, 		"Respawn:      " },
 	{ NO,	1,		64,	1,	38,	LIST, 			"When %1d: %-6.6s", 0, 3, gRespawnNames },
@@ -85,8 +89,8 @@ DIALOG_ITEM dlgXSprite[] =
 	{ NO,	1,		64,	6,	44,	LIST,			"Key:  %1d %-7.7s", 0, 7, gKeyItemNames },
 	{ NO,	1,		64,	7,	45,	LIST,			"Wave: %1d %-7.7s", 0, 3, gBusyNames },
 	{ NO,	1,		64,	8,	46,	NUMBER,			"Hi-tag: %-6d",  -32767, 32767, },
-	{ NO,	1,		64,	9,	47,	NUMBER,			"Message:   %-3d", 0, 255, NULL, pickIniMessage },
-	{ NO,	1,		64,	10,	48,	NUMBER,			"Drop item: %-3d", 0, kItemMax, NULL, pickItemTile },
+	{ NO,	1,		64,	9,	47,	NUMBER,			"Message:   %-3d", 0, 255, NULL, helperPickIniMessage },
+	{ NO,	1,		64,	10,	48,	NUMBER,			"Drop item: %-3d", 0, kItemMax, NULL, helperPickItemTile },
 
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
@@ -144,8 +148,8 @@ DIALOG_ITEM dlgSprite[] =
 DIALOG_ITEM dlgXWall[] =
 {
 	{ NO,	1,		0,	0,	1,	LIST, 		"Type %4d: %-18.18s", 0, 1023, gWallNames },
-	{ NO,	1,		0,	1,	2,	NUMBER, 	"RX ID: %4d", 0, 1023, NULL, GetNextUnusedID },
-	{ NO,	1,		0,	2,	3,	NUMBER, 	"TX ID: %4d", 0, 1023, NULL, GetNextUnusedID },
+	{ NO,	1,		0,	1,	2,	NUMBER, 	"RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
+	{ NO,	1,		0,	2,	3,	NUMBER, 	"TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
 	{ NO,	1,		0,	3,	4,	LIST, 		"State %1d: %-3.3s", 0, 1, gBoolNames },
 	{ NO,	1,		0,	4,	5,	LIST, 		"Cmd: %3d: %-18.18s", 0, 255, gCommandNames },
 
@@ -175,7 +179,7 @@ DIALOG_ITEM dlgXWall[] =
 	{ NO,	1,		48,	5,	22,	CHECKBOX,	"Player only" },
 
 	{ NO,	1,		48,	7,	0,	HEADER, 	"Data:         " },
-	{ NO,	1,		48,	8,	kWallDialogData,	NUMBER, 	"Data", -65535, 65535, NULL, AuditSound },
+	{ NO,	1,		48,	8,	kWallDialogData,	NUMBER, 	"Data", -65535, 65535, NULL, helperAuditSound },
 
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
@@ -273,8 +277,8 @@ DIALOG_ITEM dlgXSectorFX[] =
 DIALOG_ITEM dlgXSector[] =
 {
 	{ NO,	1,		0,	0,	1,	LIST, 		"Type %4d: %-16.16s", 0, 1023, gSectorNames },
-	{ NO,	1,		0,	1,	2,	NUMBER, 	"RX ID: %4d", 0, 1023, NULL, GetNextUnusedID },
-	{ NO,	1,		0,	2,	3,	NUMBER, 	"TX ID: %4d", 0, 1023, NULL, GetNextUnusedID },
+	{ NO,	1,		0,	1,	2,	NUMBER, 	"RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
+	{ NO,	1,		0,	2,	3,	NUMBER, 	"TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
 	{ NO,	1,		0,	3,	4,	LIST, 		"State %1d: %-3.3s", 0, 1, gBoolNames },
 	{ NO,	1,		0,	4,	5,	LIST, 		"Cmd: %3d: %-16.16s", 0, 255, gCommandNames },
 
@@ -287,41 +291,41 @@ DIALOG_ITEM dlgXSector[] =
 
 	{ NO,	1,		28,	0,	0,	HEADER, 	"OFF->ON:" },
 	{ NO,	1,		28,	1,	11,	CHECKBOX,	"send at ON" },
-	{ NO,	1,		28,	2,	12,	NUMBER, 	"busyTime   = %3d", 0, 255 },
+	{ NO,	1,		28,	2,	12,	NUMBER, 	"busyTime   = %3d", 0, 4095 },
 	{ NO,	1,		28,	3,	13,	LIST, 		"Wave: %1d %-8.8s", 0, 3, gBusyNames },
 	{ NO,	1,		28,	4,	14,	CHECKBOX, 	"" },
-	{ NO,	1,		30,	4,	15,	NUMBER, 	"waitTime = %3d", 0, 255 },
+	{ NO,	1,		30,	4,	15,	NUMBER, 	"waitTime = %3d", 0, 4095 },
 
 	{ NO,	1,		28,	6,	0,	HEADER, 	"ON->OFF:" },
 	{ NO,	1,		28,	7,	16,	CHECKBOX,	"send at OFF" },
-	{ NO,	1,		28,	8,	17,	NUMBER, 	"busyTime   = %3d", 0, 255 },
+	{ NO,	1,		28,	8,	17,	NUMBER, 	"busyTime   = %3d", 0, 4095 },
 	{ NO,	1,		28,	9,	18,	LIST, 		"Wave: %1d %-8.8s", 0, 3, gBusyNames },
 	{ NO,	1,		28,	10,	19,	CHECKBOX, 	"" },
-	{ NO,	1,		30,	10,	20,	NUMBER, 	"waitTime = %3d", 0, 255 },
+	{ NO,	1,		30,	10,	20,	NUMBER, 	"waitTime = %3d", 0, 4095 },
 
-	{ NO,	1,		45,	0,	0,	HEADER, 	"Trigger On:    " },
-	{ NO,	1,		45,	1,	21,	CHECKBOX,	"Push" },
-	{ NO,	1,		45,	2,	22,	CHECKBOX,	"WallPush" },
+	{ NO,	1,		46,	0,	0,	HEADER, 	"Trigger On:    " },
+	{ NO,	1,		46,	1,	21,	CHECKBOX,	"Push" },
+	{ NO,	1,		46,	2,	22,	CHECKBOX,	"WallPush" },
 	//{	45,	2,	22,	CHECKBOX,	"Vector" },
 	//{	45,	3,	23,	CHECKBOX,	"Reserved" },
-	{ NO,	1,		45,	3,	23,	CHECKBOX,	"Enter" },
-	{ NO,	1,		45,	4,	24,	CHECKBOX,	"Exit" },
+	{ NO,	1,		46,	3,	23,	CHECKBOX,	"Enter" },
+	{ NO,	1,		46,	4,	24,	CHECKBOX,	"Exit" },
 
-	{ NO,	1,		45,	6,	0,	HEADER, 	"Sound:         " },
-	{ NO,	1,		45,	7,	25,	NUMBER,		"Off->On : %5d", 0, 32768, NULL, AuditSound },
-	{ NO,	1,		45,	8,	26,	NUMBER,		"Stopping: %5d", 0, 32768, NULL, AuditSound },
-	{ NO,	1,		45,	9,	27,	NUMBER,		"On->Off : %5d", 0, 32768, NULL, AuditSound },
-	{ NO,	1,		45,	10,	28,	NUMBER,		"Stopping: %5d", 0, 65535, NULL, AuditSound },
+	{ NO,	1,		46,	6,	0,	HEADER, 	"Sound:         " },
+	{ NO,	1,		46,	7,	25,	NUMBER,		"Off->On : %5d", 0, 32768, NULL, helperAuditSound },
+	{ NO,	1,		46,	8,	26,	NUMBER,		"Stopping: %5d", 0, 32768, NULL, helperAuditSound },
+	{ NO,	1,		46,	9,	27,	NUMBER,		"On->Off : %5d", 0, 32768, NULL, helperAuditSound },
+	{ NO,	1,		46,	10,	28,	NUMBER,		"Stopping: %5d", 0, 65535, NULL, helperAuditSound },
 
-	{ NO,	1,		61,	0,	29,	LIST,		"Key:   %1d %-7.7s", 0, 7, gKeyItemNames },
-	{ NO,	1,		61,	1,	30,	LIST,		"Depth: %1d %-7.7s", 0, 7, gDepthNames },
-	{ NO,	1,		61,	3,	31,	CHECKBOX, 	"Underwater" },
-	{ NO,	1,		61,	4,	32,	CHECKBOX, 	"Crush" },
+	{ NO,	1,		62,	0,	29,	LIST,		"Key:   %1d %-7.7s", 0, 7, gKeyItemNames },
+	{ NO,	1,		62,	1,	30,	LIST,		"Depth: %1d %-7.7s", 0, 7, gDepthNames },
+	{ NO,	1,		62,	3,	31,	CHECKBOX, 	"Underwater" },
+	{ NO,	1,		62,	4,	32,	CHECKBOX, 	"Crush" },
 
-	{ NO,	1,		61,	6,	0,	HEADER, 		"Data:         " },
-	{ NO,	1,		61,	7,	kSectDialogData,	NUMBER,		"Data", -65535, 65535 },
+	{ NO,	1,		62,	6,	0,	HEADER, 		"Data:         " },
+	{ NO,	1,		62,	7,	kSectDialogData,	NUMBER,		"Data", -32768, 32767 },
 
-	{ NO,	1,		61,	10,	34,	DIALOG,		"FX...",  0, 0, NULL, DoSectorFXDialog },
+	{ NO,	1,		62,	10,	34,	DIALOG,		"FX...",  0, 0, NULL, helperDoSectorFXDialog },
 
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
@@ -394,29 +398,848 @@ DIALOG_ITEM dlgSector[] =
 };
 
 
-/* void getDialogSize(DIALOG_ITEM* dialog, int* wh, int* hg)
+DIALOG_HANDLER::DIALOG_HANDLER(DIALOG_ITEM* pItem)
 {
-	int len; *wh = *hg = 0;
-	for (DIALOG_ITEM *ptr = dialog; ptr->type != CONTROL_END; ptr++)
+	pDlg = pItem;
+	nMaxGroup = 0;
+	
+	DIALOG_ITEM* pCur = pDlg;
+	while(pCur->type != CONTROL_END)
 	{
-		switch (ptr->type) {
+		switch(pCur->type)
+		{
 			case HEADER:
 			case DIALOG:
+				pCur->readyLabel = pCur->formatLabel;
+				break;
 			case LABEL:
+				pCur->readyLabel = (pCur->names) ? NULL : pCur->formatLabel;
 				break;
 			default:
-				controlSetReadyLabel(ptr, ptr->formatLabel);
+				pCur->readyLabel = NULL;
 				break;
 		}
 		
-		len = strlen((ptr->readyLabel) ? ptr->readyLabel : ptr->formatLabel);
-		*wh += (ptr->x << 3) + (len << 3);
-		*hg += (ptr->y << 3) + 8;
+		if (pCur->tabGroup > nMaxGroup)
+			nMaxGroup = pCur->tabGroup;
+		
+		pCur++;
 	}
-} */
+}
 
-BYTE GetNextUnusedID(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key ) {
+DIALOG_HANDLER::~DIALOG_HANDLER()
+{
+	DIALOG_ITEM* pCur = pDlg;
+	while(pCur->type != CONTROL_END)
+	{
+		if (pCur->readyLabel && pCur->readyLabel != pCur->formatLabel)
+		{
+			free(pCur->readyLabel);
+			pCur->readyLabel = NULL;
+		}
+		
+		pCur++;
+	}
+}
 
+void DIALOG_HANDLER::Paint()
+{
+	gMapedHud.ClearContent();
+	
+	DIALOG_ITEM* pCur = pDlg;
+	while(pCur->type != CONTROL_END)
+	{
+		Paint(pCur, 0);
+		pCur++;
+	}
+}
+
+void DIALOG_HANDLER::Paint(DIALOG_ITEM* pItem, char focus)
+{
+	unsigned char fc = clr2std(kColorLightCyan);
+	unsigned char bc = clr2std(kColorDarkGray);
+
+	if (focus)
+	{
+		fc = clr2std(kColorYellow);
+		bc = clr2std(kColorBlack);
+
+		// assuming that we are in edit mode
+		if (gHints)
+			gMapedHud.DrawEditDialogHints(pDlg, pItem);
+	}
+	else if (pItem->type == HEADER)
+	{
+		fc = clr2std(kColorWhite);
+		bc = clr2std(kColorGreen);
+	}
+	else if (!pItem->enabled)
+	{
+		fc = clr2std(20);
+	}
+	else if (pItem->flags > 0 && gMisc.showTypes != pItem->flags)
+	{
+		fc = clr2std(kColorCyan);
+	}
+	
+	switch (pItem->type)
+	{
+		case LABEL:
+			if (pItem->names)
+				SetLabel(pItem, pItem->formatLabel, pItem->names[pItem->value]);
+			
+			PrintText(pItem, fc, bc);
+			break;
+		case NUMBER:
+			if (pDlg == dlgXSprite && irngok(pItem->tabGroup, kSprDialogData1, kSprDialogData4))
+			{
+				int nType = pDlg->value, maxRng = LENGTH(gSpriteDataNames);
+				char** dataName = gSpriteDataNames[nType], *label;
+				int longest = 5; int nData, i, j, k;
+				
+				nData = ((pItem->tabGroup - kSprDialogData4) + 4) - 1;
+				if (!rngok(nType, 0, maxRng) || (label = dataName[nData]) == NULL)
+					label = pItem->formatLabel;
+
+				// special case
+				if (label[0] == kPrefixSpecial)
+				{
+					DIALOG_ITEM* pCtrl;
+					switch (nType)
+					{
+						case 500: // data names depends on CMD type
+							for (pCtrl = pDlg; pCtrl->tabGroup != 5; pCtrl++);
+							for (j = 0; j < LENGTH(pCtrlDataNames); j++, label = pItem->formatLabel)
+							{
+								if (pCtrlDataNames[j].var1 != pCtrl->value) continue;
+								else if (!pCtrlDataNames[j].dataOvr[nData]) continue;
+								else label = pCtrlDataNames[j].dataOvr[nData];
+								break;
+							}
+
+							// get longest strlen from special array
+							if (j == LENGTH(pCtrlDataNames)) break;
+							for (k = 0; k < 4; k++)
+							{
+								if (!pCtrlDataNames[j].dataOvr[k]) continue;
+								if ((i = strlen(pCtrlDataNames[j].dataOvr[k])) > longest)
+									longest = i;
+							}
+							break;
+					}
+				}
+				
+				if (rngok(nType, 0, maxRng))
+				{
+					for (i = 0; i < 4; i++)
+					{
+						if (dataName[i] == NULL) continue;
+						else if ((j = strlen(dataName[i])) > longest)
+							longest = j;
+					}
+				}
+
+				i = sprintf(buffer, "%-0.10s", label);
+				if ((j = strlen(label)) < longest)
+				{
+					k = ClipRange(longest - j, 0, 5);
+					memset(&buffer[i], 32, k);
+					i+=k;
+				}
+
+				sprintf(&buffer[i], ": %-6d", pItem->value);
+			}
+			else if (pDlg == dlgXWall && pItem->tabGroup == kWallDialogData)
+			{
+				// get wall type
+				DIALOG_ITEM *wallType = pDlg;
+				int maxRng = LENGTH(gWallDataNames)-1;
+				char* label = NULL;
+				
+				if (!irngok(wallType->value, 0, maxRng) || (label = gWallDataNames[wallType->value][0]) == NULL)
+				{
+					label = pItem->formatLabel;
+					if (!focus)
+						fc = clr2std(kColorCyan);
+				}
+
+				sprintf(buffer, "%-0.11s: %-5d", label, pItem->value);
+				
+			}
+			else if (pDlg == dlgXSector && pItem->tabGroup == kSectDialogData)
+			{
+				// get sector type
+				DIALOG_ITEM *sectType = pDlg;
+				int maxRng = LENGTH(gSectorDataNames)-1;
+				char* label = NULL;
+				
+				if (!irngok(sectType->value, 0, maxRng) || (label = gSectorDataNames[sectType->value][0]) == NULL)
+				{
+					label = pItem->formatLabel;
+					if (!focus)
+						fc = clr2std(kColorCyan);
+				}
+
+				sprintf(buffer, "%-0.11s: %-5d", label, pItem->value);
+			}
+			else
+			{
+				sprintf(buffer, pItem->formatLabel, pItem->value);
+			}
+			SetLabel(pItem, buffer);
+			PrintText(pItem, fc, bc);
+			break;
+		case LIST:
+			SetLabel(pItem, pItem->formatLabel, pItem->value,
+				(pItem->names[pItem->value]) ? pItem->names[pItem->value] : "<unnamed>");
+			PrintText(pItem, fc, bc);
+			break;
+		case CHECKBOX:
+			SetLabel(pItem, "%c %s", pItem->value ? 3 : 2, pItem->formatLabel);
+			// no break
+		default:
+			PrintText(pItem, fc, bc);
+			break;
+	}
+}
+
+char DIALOG_HANDLER::Edit()
+{
+	int x1, x2, x3, x4, y1, y2, y3, y4, wh, hg;
+	char tmp[16], upd = true, *label;
+	BYTE key, ctrl, shift, alt;
+	DIALOG_ITEM *pItem, *pCur;
+	
+	int nGroup = 1, nVal, i;
+	static int recurLev = 0;
+	RESHANDLE hFile;
+	MOUSE mouse;
+
+	keyClear();
+	if (recurLev++ < 1)
+	{
+		if (gHints == NULL) // load hints for edit dialog
+		{
+			if ((hFile = gGuiRes.Lookup(kIniEditDialogHints, "INI")) != NULL)
+				gHints = new IniFile((BYTE*)gGuiRes.Load(hFile), hFile->size);
+		}
+	}
+	
+	gMapedHud.GetWindowCoords(&gMapedHud.content, &x1, &y1, &x2, &y2);
+	
+	mouse.ChangeCursor(kBitmapMouseCursor);
+	wh = mouse.cursor.width; hg = mouse.cursor.height >> 1;
+	mouse.RangeSet(x1+wh, y1+hg, x2-wh, y2-ClipLow(hg, 9));
+	mouse.VelocitySet(40, 35, false);
+	mouse.wheelDelay = 14;
+	
+	// focus on first group
+	pCur = FindGroup(nGroup, 0);
+	mouse.X = x1 + (pCur->x << 3);
+	mouse.Y = y1 + (pCur->y << 3);
+	nGroup = pCur->tabGroup;
+	
+	while ( 1 )
+	{
+		if (upd)
+		{
+			Paint();
+			Paint(pCur, true);
+			mouse.Draw();
+			showframe();
+		}
+		
+		updateClocks();
+		
+		mouse.Read();
+		keyGetHelper(&key, &ctrl, &shift, &alt);
+		handleevents();
+		
+		upd = (key || mouse.buttons || mouse.dX2 || mouse.dY2);
+		if (!upd)
+			continue;
+		
+		if ((mouse.dY2 || mouse.dX2) && !keystatus[KEY_Q])
+		{
+			// find item to focus with mouse
+			for (pItem = pDlg; pItem->type != CONTROL_END; pItem++)
+			{
+				if (pItem->tabGroup > 0 && pItem->enabled)
+				{
+					x3 = pItem->x << 3, y3 = pItem->y << 3;
+					x4 = x3 + (ClipLow(strlen(pItem->readyLabel), 1) << 3), y4 = y3 + 8;
+					if (irngok(mouse.X, x1+x3, x1+x4) && irngok(mouse.Y, y1+y3, y1+y4))
+					{
+						nGroup	= pItem->tabGroup;
+						pCur	= pItem;
+						break;
+					}
+				}
+			}
+		}
+		
+		if (key)
+		{
+			if (pCur->pHelpFunc)
+				key = pCur->pHelpFunc(pDlg, pCur, key);
+		}
+		else if (mouse.buttons) // convert mouse buttons in keyboard scans
+		{
+			if (mouse.wheel && keystatus[KEY_Q])
+			{
+				key = (mouse.wheel < 0) ? KEY_LEFT : KEY_RIGHT;
+				mouse.wheel = 0;
+			}
+
+			if ((mouse.press & 4) && pCur->pHelpFunc)
+			{
+				key = pCur->pHelpFunc(pDlg, pCur, KEY_F10);
+				continue;
+			}
+		
+			if (mouse.press & 2)
+			{
+				pCur->value = 0;
+			}
+			
+			switch (pCur->type)
+			{
+				case CHECKBOX:
+					if (mouse.press & 1) key = KEY_SPACE;
+					break;
+				case DIALOG:
+					if (!(mouse.press & 1)) break;
+					pCur->pHelpFunc(pDlg, pCur, KEY_ENTER);
+					continue;
+				case LIST:
+				case NUMBER:
+					if (mouse.press & 4)
+					{
+						if (pCur->type == LIST) // force a dialog box
+							key = KEY_1;
+					}
+					else if (mouse.wheel == -1)
+					{
+						if (ctrl || alt) key = KEY_PAGEUP;
+						else if (shift) key = KEY_PADPLUS;
+						else if (pCur->pHelpFunc != helperAuditSound) key = KEY_UP;
+						else pCur->pHelpFunc(pDlg, pCur, KEY_UP); // force skip non-existing sounds
+					}
+					else if (mouse.wheel == 1)
+					{
+						if (ctrl || alt) key = KEY_PAGEDN;
+						else if (shift) key = KEY_PADMINUS;
+						else if (pCur->pHelpFunc != helperAuditSound) key = KEY_DOWN;
+						else pCur->pHelpFunc(pDlg, pCur, KEY_DOWN); // force skip non-existing sounds
+					}
+					break;
+			}
+		}
+		
+		nVal = pCur->value;
+		
+		switch (key)
+		{
+			case KEY_ENTER:
+			case KEY_PADENTER:
+				BeepOk();
+				// no break
+			case KEY_ESC:
+				keystatus[key] = 0;
+				if (gHints && pDlg != dlgXSectorFX)
+				{
+					delete(gHints);
+					gHints = NULL;
+				}
+				sndKillAllSounds();
+				recurLev--;
+				return (key == KEY_ESC) ? 0 : 1;
+			case KEY_TAB:
+			case KEY_RIGHT:
+				if (!shift)
+				{
+					Paint(pCur, false);
+					pCur = FindGroup(nGroup, 1);
+					nGroup = pCur->tabGroup;
+					continue;
+				}
+				// no break
+			case KEY_LEFT:
+				Paint(pCur, false);
+				pCur = FindGroup(nGroup, -1);
+				nGroup = pCur->tabGroup;
+				continue;
+		}
+
+		switch (pCur->type)
+		{
+			case NUMBER:
+				switch (key) {
+					case KEY_DELETE:
+						pCur->value = 0;
+						break;
+					case KEY_PADPLUS:
+					case KEY_UP:
+						pCur->value++;
+						break;
+					case KEY_PADMINUS:
+					case KEY_DOWN:
+						pCur->value--;
+						break;
+					case KEY_PAGEUP:
+						if (ctrl) pCur->value = pCur->maxValue;
+						else pCur->value = IncBy(pCur->value, 10);
+						break;
+					case KEY_PAGEDN:
+						if (ctrl) pCur->value = pCur->minValue;
+						else pCur->value = DecBy(pCur->value, 10);
+						break;
+					case KEY_MINUS:
+						if (pCur->minValue >= 0) break;
+						else if (!pCur->value) pCur->value = -1;
+						sprintf(tmp, "%d", (pCur->value > 0) ? -pCur->value : pCur->value);
+						pCur->value = atoi(tmp);
+						break;
+					case KEY_PLUS:
+						if (pCur->maxValue < 0) break;
+						sprintf(tmp, "%d", abs(pCur->value));
+						pCur->value = atoi(tmp);
+						break;
+					case KEY_BACKSPACE:
+						if ((i = sprintf(tmp, "%d", pCur->value)) > 1) tmp[i-1] = 0;
+						else tmp[0] = '\0';
+						pCur->value = atoi(tmp);
+						break;
+					default:
+						if (irngok(key, KEY_1, KEY_0) || irngok(key, KEY_PAD7, KEY_PAD0))
+						{
+							i = 0;
+							i += sprintf(&tmp[i], "%d", pCur->value);
+							i += sprintf(&tmp[i], "%c", keyAscii[key]);
+							pCur->value = atoi(tmp);
+						}
+						break;
+				}
+				pCur->value = ClipRange(pCur->value, pCur->minValue, pCur->maxValue);
+				break;
+			case CHECKBOX:
+				switch (key)
+				{
+					case KEY_SPACE:
+					case KEY_BACKSPACE:
+					case KEY_DELETE:
+						pCur->value = !pCur->value;
+						break;
+				}
+				break;
+			case LIST:
+				switch (key)
+				{
+					case KEY_DELETE:
+					case KEY_SPACE:
+						pCur->value = 0;
+						break;
+					case KEY_PAGEUP:
+					case KEY_PADPLUS:
+					case KEY_UP:
+						if (!ctrl)
+						{
+							do
+							{
+								nVal = IncBy(nVal, (key == KEY_PAGEUP) ? 5 : 1);
+								if (nVal > pCur->maxValue)
+									nVal = pCur->minValue;
+							}
+							while (nVal <= pCur->maxValue && pCur->names[nVal] == NULL);
+						}
+						else
+						{
+							nVal = pCur->maxValue;
+							while (nVal >= pCur->minValue && pCur->names[nVal] == NULL) nVal--;
+						}
+						break;
+					case KEY_PAGEDN:
+					case KEY_PADMINUS:
+					case KEY_DOWN:
+						if (!ctrl)
+						{
+							do
+							{
+								nVal = DecBy(nVal, (key == KEY_PAGEDN) ? 5 : 1);
+								if (nVal < pCur->minValue)
+									nVal = pCur->maxValue;
+							}
+							while (nVal >= pCur->minValue && pCur->names[nVal] == NULL);
+						}
+						else
+						{
+							nVal = pCur->minValue;
+							while (nVal <= pCur->maxValue && pCur->names[nVal] == NULL) nVal++;
+						}
+						break;
+					default:
+						if (irngok(key, KEY_1, KEY_0) || irngok(key, KEY_PAD7, KEY_PAD0))
+						{
+							sprintf(buffer, "Enter value (%d - %d)", pCur->minValue, pCur->maxValue);
+							nVal = GetNumberBox(buffer, nVal, nVal);
+							if (!irngok(nVal, pCur->minValue, pCur->maxValue))
+								Alert("Value must be in a range of %d and %d.", pCur->minValue, pCur->maxValue);
+							else if (!pCur->names || pCur->names[nVal] == NULL)
+								Alert("Value %d is reserved or not exist.", nVal);
+						}
+						break;
+				}
+				if (nVal < pCur->minValue || nVal > pCur->maxValue || !pCur->names[nVal]) break;
+				pCur->value = nVal;
+				break;
+		}
+	}
+}
+
+DIALOG_ITEM* DIALOG_HANDLER::FindGroup(int nGroup, int dir)
+{
+	if (dir == -1 && --nGroup < 1) nGroup = nMaxGroup;
+	else if (dir == 1 && ++nGroup > nMaxGroup)
+		nGroup = 1;
+	
+	DIALOG_ITEM *pItem = pDlg;
+	while(pItem->type != CONTROL_END)
+	{
+		if (pItem->tabGroup == nGroup)
+		{
+			if (pItem->enabled) break;
+			else if (dir == -1) nGroup--;
+			else nGroup++;
+			
+			if (nGroup < 1) nGroup = nMaxGroup;
+			else if (nGroup > nMaxGroup)
+				nGroup = 1;
+			
+			pItem = pDlg;
+		}
+		
+		pItem++;
+	}
+	
+	return pItem;
+}
+
+void DIALOG_HANDLER::PrintText(DIALOG_ITEM* pItem, char fc, char bc)
+{
+	if (!pItem->readyLabel)
+		return;
+	
+	int x1 = gMapedHud.content.x1+(pItem->x << 3);
+	int y1 = gMapedHud.content.y1+(pItem->y << 3);
+	int x2 = x1 + (strlen(pItem->readyLabel) << 3);
+	int	y2 = y1 + 8;
+	
+	gfxSetColor(bc);
+	gfxFillBox(x1, y1, x2, y2);
+	printextShadowL(x1, y1, fc, pItem->readyLabel);
+}
+
+void DIALOG_HANDLER::SetLabel(DIALOG_ITEM* pItem, char *__format, ...)
+{
+	char text[64];
+	int t;
+	
+	va_list argptr;
+	va_start(argptr, __format);
+	t = vsprintf(text, __format, argptr);
+	va_end(argptr);
+	
+	pItem->readyLabel = (char*)realloc(pItem->readyLabel, t+1);
+	sprintf(pItem->readyLabel, text);
+}
+
+void DIALOG_HANDLER::SetValue(int nGroup, int nValue)
+{
+	DIALOG_ITEM* pItem = pDlg;
+	while(pItem->tabGroup != nGroup && pItem->type != CONTROL_END)
+		pItem++;
+	
+	pItem->value = nValue;
+}
+
+int DIALOG_HANDLER::GetValue(int nGroup)
+{
+	DIALOG_ITEM* pItem = pDlg;
+	while(pItem->tabGroup != nGroup && pItem->type != CONTROL_END)
+		pItem++;
+	
+	return pItem->value;
+}
+
+void ShowSectorData(int nSector, BOOL xFirst, BOOL showDialog)
+{
+	dassert(nSector >= 0 && nSector < kMaxSectors);
+	sectortype* pSect =& sector[nSector];
+	char buf[256], *pBuf = buf;
+	int i;
+	
+	pBuf += sprintf(pBuf, "Sector #%d: Area = %d", nSector, AreaOfSector(pSect));
+	if (pSect->alignto)
+		pBuf += sprintf(pBuf, ", Auto-align to wall = #%d", pSect->wallptr + pSect->alignto);
+	
+	if (pSect->extra > 0 && xFirst)
+	{
+		if (showDialog)
+		{
+			if (testXSectorForLighting(pSect->extra))
+			{
+				DIALOG_HANDLER dialog(dlgXSectorFX);
+				dlgXSectorFXToDialog(&dialog, nSector);
+				dialog.Paint();
+			}
+			else
+			{
+				DIALOG_HANDLER dialog(dlgXSector);
+				dlgXSectorToDialog(&dialog, nSector);
+				dialog.Paint();
+			}
+		}
+		
+		pBuf += sprintf(pBuf, ", Extra = %d, XRef = %d", pSect->extra, xsector[pSect->extra].reference);
+	}
+	else if (showDialog)
+	{
+		DIALOG_HANDLER dialog(dlgSector);
+		dlgSectorToDialog(&dialog, nSector);
+		dialog.Paint();
+	}
+	
+	gMapedHud.SetComment();
+	if (pSect->extra > 0)
+	{
+		if ((i = gCommentMgr.IsBind(OBJ_SECTOR, pSect->extra)) >= 0)
+			gMapedHud.SetComment(&gCommentMgr.comments[i]);
+	}
+	
+	if (searchstat == OBJ_FLOOR)
+		gMapedHud.SetTile(pSect->floorpicnum, pSect->floorpal, pSect->floorshade);
+	else
+		gMapedHud.SetTile(pSect->ceilingpicnum, pSect->ceilingpal, pSect->ceilingshade);
+	
+	gMapedHud.SetMsg(buf);
+}
+
+void ShowWallData(int nWall, BOOL xFirst, BOOL showDialog)
+{
+	dassert(nWall >= 0 && nWall < kMaxWalls);
+	walltype* pWall =& wall[nWall];
+	int nSect = sectorofwall(nWall);
+	char buf[256], *pBuf = buf;
+	float nLen, t;
+	int nAng, i;
+	
+	int x1, y1, x2, y2;
+	getWallCoords(nWall, &x1, &y1, &x2, &y2);
+	
+	if (showDialog)
+	{
+		if (pWall->extra > 0 && xFirst)
+		{
+			DIALOG_HANDLER dialog(dlgXWall);
+			dlgXWallToDialog(&dialog, nWall);
+			dialog.Paint();
+		}
+		else
+		{
+			DIALOG_HANDLER dialog(dlgWall);
+			dlgWallToDialog(&dialog, nWall);
+			dialog.Paint();
+		}
+	}
+		
+	if (pWall->cstat & kWallOneWay)		 	pBuf += sprintf(pBuf, "One way wall");
+	else if (pWall->cstat & kWallMasked)	pBuf += sprintf(pBuf, "Masked wall");
+	else if (pWall->nextwall < 0) 		 	pBuf += sprintf(pBuf, "Solid wall");
+	else 								 	pBuf += sprintf(pBuf, "Wall");
+	
+	nLen = exactDist(x2 - x1, y2 - y1);
+	pBuf += sprintf(pBuf, " #%d: Length = %d", nWall, (int)nLen);
+	if (grid)
+	{
+		float nGrid = (float)(nLen / (2048>>grid));
+		if (modf(nGrid, &t))
+		{
+			pBuf += sprintf(pBuf, " (%2.1fG)", nGrid);
+		}
+		else
+		{
+			pBuf += sprintf(pBuf, " (%dG)", (int)nGrid);
+		}
+	}
+	
+	pBuf += sprintf(pBuf, ", Angle = %d", getangle(x2 - x1, y2 - y1) & kAngMask);
+	
+	gMapedHud.SetComment();
+	if (pWall->extra > 0)
+	{
+		if ((i = gCommentMgr.IsBind(OBJ_WALL, pWall->extra)) >= 0)
+			gMapedHud.SetComment(&gCommentMgr.comments[i]);
+		
+		pBuf += sprintf(pBuf, ", Extra = %d, XRef = %d", pWall->extra, xwall[pWall->extra].reference);
+	}
+	
+	sectortype* pSect = &sector[nSect];
+	if (pSect->wallptr == nWall) pBuf += sprintf(pBuf, " [FIRST]");
+	if (pSect->alignto && nWall - pSect->wallptr == pSect->alignto)
+		pBuf += sprintf(pBuf, " [AUTO-ALIGN]");
+	
+	
+	gMapedHud.SetTile((searchstat == OBJ_MASKED) ? pWall->overpicnum : pWall->picnum, pWall->pal, pWall->shade);
+	gMapedHud.SetMsg(buf);
+}
+
+void ShowSpriteData(int nSprite, BOOL xFirst, BOOL showDialog)
+{
+	dassert(nSprite >= 0 && nSprite < kMaxSprites);
+	spritetype* pSpr =& sprite[nSprite];
+	char buf[256], *pBuf = buf;
+	int nComment;
+	
+	if (isMarkerSprite(nSprite))
+	{
+		pBuf += sprintf(pBuf, "Marker #%d: ", nSprite);
+		if (pSpr->ang)
+		{
+			pBuf += sprintf(pBuf, "rotate %s", (pSpr->ang < 0) ? "counter clockwise" : "clockwise");
+			double nTimes = (double)(klabs(pSpr->ang))/kAng360;
+			if (nTimes >= 1)
+				pBuf += sprintf(pBuf, " around %2.1f times", nTimes);
+		}
+		else
+		{
+			pBuf += sprintf(pBuf, "no rotation");
+		}
+	}
+	else
+	{
+		pBuf += sprintf(pBuf, "Sprite #%d: Statnum = %d", nSprite, pSpr->statnum);
+	}
+	
+	if (pSpr->extra > 0 && xFirst)
+	{
+		if (showDialog)
+		{
+			DIALOG_HANDLER dialog(dlgXSprite);
+			dlgXSpriteToDialog(&dialog, nSprite);
+			dialog.Paint();
+		}
+		
+		pBuf += sprintf(pBuf, ", Extra = %d, XRef = %d", pSpr->extra, xsprite[pSpr->extra].reference);
+	}
+	else if (showDialog)
+	{
+		DIALOG_HANDLER dialog(dlgSprite);
+		dlgSpriteToDialog(&dialog, nSprite);
+		dialog.Paint();
+	}
+	
+	if ((nComment = gCommentMgr.IsBind(OBJ_SPRITE, nSprite)) < 0)
+		gMapedHud.SetComment();
+	else
+		gMapedHud.SetComment(&gCommentMgr.comments[nComment]);
+	
+	gMapedHud.SetTile(pSpr->picnum, pSpr->pal, pSpr->shade);
+	gMapedHud.SetMsg(buf);
+}
+
+void EditSectorData(int nSector, BOOL xFirst)
+{
+	ShowSectorData(nSector, xFirst);
+	if (xFirst)
+	{
+		GetXSector(nSector);
+		
+		DIALOG_HANDLER dialog(dlgXSector);
+		dlgXSectorToDialog(&dialog, nSector);
+		if (dialog.Edit())
+			dlgDialogToXSector(&dialog, nSector);
+	}
+	else
+	{
+		DIALOG_HANDLER dialog(dlgSector);
+		dlgSectorToDialog(&dialog, nSector);
+		if (dialog.Edit())
+			dlgDialogToSector(&dialog, nSector);
+	}
+
+	CleanUp();
+	vel = svel = angvel = 0;
+	ShowSectorData(nSector, TRUE);
+}
+
+void EditSectorLighting(int nSector)
+{
+	ShowSectorData(nSector, TRUE);
+	GetXSector(nSector);
+
+	DIALOG_HANDLER dialog(dlgXSectorFX);
+	dlgXSectorFXToDialog(&dialog, nSector);
+	if (dialog.Edit())
+		dlgDialogToXSectorFX(&dialog, nSector);
+
+	CleanUp();
+	vel = svel = angvel = 0;
+	ShowSectorData(nSector, TRUE);
+}
+
+void EditWallData(int nWall, BOOL xFirst)
+{
+	ShowWallData(nWall, xFirst);
+	if (xFirst)
+	{
+		GetXWall(nWall);
+		
+		DIALOG_HANDLER dialog(dlgXWall);
+		dlgXWallToDialog(&dialog, nWall);
+		if (dialog.Edit())
+			dlgDialogToXWall(&dialog, nWall);
+	}
+	else
+	{
+		DIALOG_HANDLER dialog(dlgWall);
+		dlgWallToDialog(&dialog, nWall);
+		if (dialog.Edit())
+			dlgDialogToWall(&dialog, nWall);
+	}
+	
+	CleanUp();
+	vel = svel = angvel = 0;
+	ShowWallData(nWall, TRUE);
+}
+
+void EditSpriteData(int nSprite, BOOL xFirst)
+{
+	ShowSpriteData(nSprite, xFirst);
+	if (xFirst)
+	{
+		GetXSprite(nSprite);
+		
+		DIALOG_HANDLER dialog(dlgXSprite);
+		dlgXSpriteToDialog(&dialog, nSprite);
+		if (dialog.Edit())
+			dlgDialogToXSprite(&dialog, nSprite);
+	}
+	else
+	{
+		DIALOG_HANDLER dialog(dlgSprite);
+		dlgSpriteToDialog(&dialog, nSprite);
+		if (dialog.Edit())
+			dlgDialogToSprite(&dialog, nSprite);
+	}
+	
+	CleanUp();
+	AutoAdjustSprites();
+	vel = svel = angvel = 0;
+	ShowSpriteData(nSprite, xFirst);
+}
+
+char helperGetNextUnusedID(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
+{
 	int i;
 	switch (key) {
 		case KEY_F10:
@@ -428,23 +1251,19 @@ BYTE GetNextUnusedID(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key ) {
 	return key;
 }
 
-
-BYTE DoSectorFXDialog(DIALOG_ITEM*, DIALOG_ITEM*, BYTE key )
+char helperDoSectorFXDialog(DIALOG_ITEM*, DIALOG_ITEM*, BYTE key)
 {
-	switch ( key )
+	if (key == KEY_ENTER)
 	{
-		case KEY_ENTER:
-			if ( EditDialog(dlgXSectorFX) )
-				return KEY_ENTER;
+		DIALOG_HANDLER dialog(dlgXSectorFX);
+		if (dialog.Edit())
 			return 0;
 	}
-
+	
 	return key;
 }
 
-
-
-BYTE AuditSound( DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
+char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 {
 	int i = 0;
 	switch ( key )
@@ -467,7 +1286,7 @@ BYTE AuditSound( DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
 			}
 			for (i = control->value-1; i > 0; i--)
 			{
-				if ( gSoundRes.Lookup(i, "SFX") != NULL )
+				if (gSoundRes.Lookup(i, "SFX") != NULL)
 				{
 					control->value = i;
 					break;
@@ -477,7 +1296,8 @@ BYTE AuditSound( DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
 		case KEY_F10:
 			if (dialog == dlgXWall)
 			{
-				switch (dialog->value) {
+				switch (dialog->value)
+				{
 					case kWallGib:
 						if (control->tabGroup != kWallDialogData) break;
 						i = toolGibTool(control->value, OBJ_WALL);
@@ -490,10 +1310,11 @@ BYTE AuditSound( DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
 			}
 			else if (dialog == dlgXSprite)
 			{
-				switch (dialog->value) {
+				switch (dialog->value)
+				{
 					case kMarkerDudeSpawn:
 						if (control->tabGroup < kSprDialogData1 || control->tabGroup > kSprDialogData4) break;
-						pickEnemyTile(dialog, control, key);
+						helperPickEnemyTile(dialog, control, key);
 						return 0;
 					case kMarkerUpLink:
 					case kMarkerUpWater:
@@ -504,7 +1325,7 @@ BYTE AuditSound( DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
 					case kMarkerLowStack:
 					case kMarkerLowGoo:
 						if (control->tabGroup != kSprDialogData1) break;
-						else control->value = findUnusedStack();
+						else if ((i = findUnusedStack()) >= 0) control->value = i;
 						return 0;
 					case kMarkerPath:
 						if (control->tabGroup < kSprDialogData1 || control->tabGroup > kSprDialogData2) break;
@@ -545,7 +1366,7 @@ BYTE AuditSound( DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
 	return key;
 }
 
-int pickTypeHelper(int nGroup, char* title)
+int helperPickTypeHelper(int nGroup, char* title)
 {
 	int retn = -1;
 	
@@ -572,36 +1393,32 @@ int pickTypeHelper(int nGroup, char* title)
 	return retn;
 }
 
-BYTE pickEnemyTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key) {
-
+char helperPickEnemyTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
+{
 	int value;
 	if (key == KEY_F10)
 	{
-		if ((value = pickTypeHelper(kOGrpDude, "Select enemy to spawn")) >= 0)
+		if ((value = helperPickTypeHelper(kOGrpDude, "Select enemy to spawn")) >= 0)
 			control->value = value;
 	}
 	
 	return key;
-
 }
 
-BYTE pickItemTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key) {
-
+char helperPickItemTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
+{
 	int value;
 	if (key == KEY_F10)
 	{
-		if ((value = pickTypeHelper(kOGrpWeapon | kOGrpAmmo | kOGrpAmmoMix | kOGrpItem, "Select item")) >= 0)
+		if ((value = helperPickTypeHelper(kOGrpWeapon | kOGrpAmmo | kOGrpAmmoMix | kOGrpItem, "Select item")) >= 0)
 			control->value = value;
 	}
 	
 	return key;
-
 }
 
-#define kMaxMessages 32
-#define kMaxMessageLength 64
-BYTE pickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key) {
-
+char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key)
+{
 	if (key != KEY_F10)
 		return key;
 
@@ -665,4 +1482,800 @@ BYTE pickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key) {
 	Resource::Free(scrSave);
 	return key;
 
+}
+
+void dlgXWallToDialog(DIALOG_HANDLER* pHandle, int nWall)
+{
+	int nXWall = wall[nWall].extra;
+	dassert(nXWall > 0 && nXWall < kMaxXWalls);
+	XWALL *pXWall = &xwall[nXWall];
+
+	pHandle->SetValue(1, wall[nWall].type);
+	pHandle->SetValue(2, pXWall->rxID);
+	pHandle->SetValue(3, pXWall->txID);
+	pHandle->SetValue(4, pXWall->state);
+	pHandle->SetValue(5, pXWall->command);
+
+	pHandle->SetValue(6, pXWall->triggerOn);
+	pHandle->SetValue(7, pXWall->triggerOff);
+	pHandle->SetValue(8, pXWall->busyTime);
+	pHandle->SetValue(9, pXWall->waitTime);
+	pHandle->SetValue(10, pXWall->restState);
+
+	pHandle->SetValue(11, pXWall->triggerPush);
+	pHandle->SetValue(12, pXWall->triggerVector);
+	pHandle->SetValue(13, pXWall->triggerTouch);
+
+	pHandle->SetValue(14, pXWall->key);
+	pHandle->SetValue(15, pXWall->panXVel);
+	pHandle->SetValue(16, pXWall->panYVel);
+	pHandle->SetValue(17, pXWall->panAlways);
+
+	pHandle->SetValue(18, pXWall->decoupled);
+	pHandle->SetValue(19, pXWall->triggerOnce);
+	pHandle->SetValue(20, pXWall->locked);
+	pHandle->SetValue(21, pXWall->interruptable);
+	pHandle->SetValue(22, pXWall->dudeLockout);
+
+	pHandle->SetValue(kWallDialogData, pXWall->data);
+
+}
+
+void dlgDialogToXWall(DIALOG_HANDLER* pHandle, int nWall)
+{
+	int nXWall = wall[nWall].extra;
+	dassert(nXWall > 0 && nXWall < kMaxXWalls);
+	XWALL *pXWall = &xwall[nXWall];
+
+	wall[nWall].type			= pHandle->GetValue(1);
+	pXWall->rxID				= pHandle->GetValue(2);
+	pXWall->txID				= pHandle->GetValue(3);
+
+	pXWall->state				= pHandle->GetValue(4);
+	pXWall->command				= pHandle->GetValue(5);
+
+	pXWall->triggerOn			= pHandle->GetValue(6);
+	pXWall->triggerOff			= pHandle->GetValue(7);
+	pXWall->busyTime			= pHandle->GetValue(8);
+	pXWall->waitTime			= pHandle->GetValue(9);
+	pXWall->restState			= pHandle->GetValue(10);
+
+	pXWall->triggerPush			= pHandle->GetValue(11);
+	pXWall->triggerVector		= pHandle->GetValue(12);
+	pXWall->triggerTouch		= pHandle->GetValue(13);
+
+	pXWall->key					= pHandle->GetValue(14);
+	pXWall->panXVel				= pHandle->GetValue(15);
+	pXWall->panYVel				= pHandle->GetValue(16);
+	pXWall->panAlways			= pHandle->GetValue(17);
+
+	pXWall->decoupled			= pHandle->GetValue(18);
+	pXWall->triggerOnce			= pHandle->GetValue(19);
+	pXWall->locked				= pHandle->GetValue(20);
+	pXWall->interruptable		= pHandle->GetValue(21);
+	pXWall->dudeLockout			= pHandle->GetValue(22);
+
+	pXWall->data				= pHandle->GetValue(kWallDialogData);
+}
+
+void dlgWallToDialog(DIALOG_HANDLER* pHandle, int nWall)
+{
+	dassert(nWall >= 0 && nWall < kMaxWalls);
+	walltype* pWall =&wall[nWall];
+
+	pHandle->SetValue(1, pWall->x);
+	pHandle->SetValue(2, pWall->y);
+	pHandle->SetValue(3, pWall->point2);
+	pHandle->SetValue(4, sectorofwall(nWall));
+	pHandle->SetValue(5, pWall->nextwall);
+	pHandle->SetValue(6, pWall->nextsector);
+	pHandle->SetValue(7, pWall->hitag);
+	pHandle->SetValue(8, pWall->lotag);
+	pHandle->SetValue(9, pWall->extra);
+	
+	pHandle->SetValue(10, pWall->picnum);
+	pHandle->SetValue(11, pWall->overpicnum);
+	pHandle->SetValue(12, pWall->shade);
+	pHandle->SetValue(13, pWall->pal);
+	pHandle->SetValue(14, pWall->xrepeat);
+	pHandle->SetValue(15, pWall->yrepeat);
+	pHandle->SetValue(16, pWall->xpanning);
+	pHandle->SetValue(17, pWall->ypanning);
+	
+/* 	pHandle->SetValue(18, pWall->cstat & kWallBlock);
+	pHandle->SetValue(19, pWall->cstat & kWallSwap);
+	pHandle->SetValue(20, pWall->cstat & kWallOrgBottom);
+	pHandle->SetValue(21, pWall->cstat & kWallFlipX);
+	pHandle->SetValue(22, pWall->cstat & kWallFlipY);
+	pHandle->SetValue(23, pWall->cstat & kWallMasked);
+	pHandle->SetValue(24, pWall->cstat & kWallOneWay);
+	pHandle->SetValue(25, pWall->cstat & kWallHitscan);
+	pHandle->SetValue(26, pWall->cstat & kWallTransluc2);
+	pHandle->SetValue(27, pWall->cstat & kWallTranslucR);
+	pHandle->SetValue(28, pWall->cstat & kWallMoveForward);
+	pHandle->SetValue(29, pWall->cstat & kWallMoveReverse); */
+		
+	//pHandle->SetValue(30, GetWallAngle(nWall) & kAngMask);
+	//pHandle->SetValue(31, getWallLength(nWall));
+	//pHandle->SetValue(32, (pSect->floorz - pSect->ceilingz)>>8);
+
+
+}
+
+void dlgDialogToWall(DIALOG_HANDLER* pHandle, int nWall)
+{
+	dassert(nWall >= 0 && nWall < kMaxWalls);
+	walltype* pWall =&wall[nWall];
+
+	pWall->x 			= pHandle->GetValue(1);
+	pWall->y 			= pHandle->GetValue(2);
+	pWall->point2 		= pHandle->GetValue(3);
+	// 4
+	pWall->nextwall 	= pHandle->GetValue(5);
+	pWall->nextwall 	= pHandle->GetValue(6);
+	pWall->hitag 		= pHandle->GetValue(7);
+	pWall->type 		= pHandle->GetValue(8);
+	pWall->extra 		= pHandle->GetValue(9);
+	
+	pWall->picnum 		= pHandle->GetValue(10);
+	pWall->overpicnum 	= pHandle->GetValue(11);
+	pWall->shade 		= pHandle->GetValue(12);
+	pWall->pal 			= pHandle->GetValue(13);
+	pWall->xrepeat 		= pHandle->GetValue(14);
+	pWall->yrepeat 		= pHandle->GetValue(15);
+	pWall->xpanning 	= pHandle->GetValue(16);
+	pWall->ypanning 	= pHandle->GetValue(17);
+	
+/* 	setCstat(pHandle->GetValue(18), &pWall->cstat, kWallBlock);
+	setCstat(pHandle->GetValue(19), &pWall->cstat, kWallSwap);
+	setCstat(pHandle->GetValue(20), &pWall->cstat, kWallOrgBottom);
+	setCstat(pHandle->GetValue(21), &pWall->cstat, kWallFlipX);
+	setCstat(pHandle->GetValue(22), &pWall->cstat, kWallFlipY);
+	setCstat(pHandle->GetValue(23), &pWall->cstat, kWallMasked);
+	setCstat(pHandle->GetValue(24), &pWall->cstat, kWallOneWay);
+	setCstat(pHandle->GetValue(25), &pWall->cstat, kWallHitscan);
+	setCstat(pHandle->GetValue(26), &pWall->cstat, kWallTransluc);
+	setCstat(pHandle->GetValue(27), &pWall->cstat, kWallTransluc2);
+	setCstat(pHandle->GetValue(28), &pWall->cstat, kWallMoveForward);
+	setCstat(pHandle->GetValue(29), &pWall->cstat, kWallMoveReverse); */
+}
+
+void dlgSectorToDialog(DIALOG_HANDLER* pHandle, int nSector)
+{
+	dassert(nSector >= 0 && nSector < kMaxSectors);
+	sectortype* pSect =& sector[nSector];
+	int i, cnt = 0;
+		
+	pHandle->SetValue(1, pSect->wallnum);
+	pHandle->SetValue(2, pSect->wallptr);	
+	for (i = headspritesect[nSector]; i >= 0; i = nextspritesect[i])
+	{
+		if (sprite[i].statnum >= kMaxStatus) continue;
+		cnt++;
+	}
+	
+	pHandle->SetValue(3, cnt);
+	pHandle->SetValue(4, headspritesect[nSector]);
+	pHandle->SetValue(5, pSect->hitag);
+	pHandle->SetValue(6, pSect->lotag);
+	pHandle->SetValue(7, pSect->visibility);
+	pHandle->SetValue(8, pSect->extra);
+	
+	pHandle->SetValue(9, pSect->ceilingpicnum);
+	pHandle->SetValue(10, pSect->ceilingshade);
+	pHandle->SetValue(11, pSect->ceilingpal);
+	pHandle->SetValue(12, pSect->ceilingxpanning);
+	pHandle->SetValue(13, pSect->ceilingypanning);
+	pHandle->SetValue(14, pSect->ceilingheinum);
+	pHandle->SetValue(15, pSect->ceilingz);
+	
+	pHandle->SetValue(16, pSect->floorpicnum);
+	pHandle->SetValue(17, pSect->floorshade);
+	pHandle->SetValue(18, pSect->floorpal);
+	pHandle->SetValue(19, pSect->floorxpanning);
+	pHandle->SetValue(20, pSect->floorypanning);
+	pHandle->SetValue(21, pSect->floorheinum);
+	pHandle->SetValue(22, pSect->floorz);
+	
+/* 	pHandle->SetValue(23, pSect->ceilingstat  & kSectSloped);
+	pHandle->SetValue(24, pSect->floorstat    & kSectSloped);
+	
+	pHandle->SetValue(25, pSect->ceilingstat  & kSectParallax);
+	pHandle->SetValue(26, pSect->floorstat    & kSectParallax);
+	
+	pHandle->SetValue(27, pSect->ceilingstat  & kSectExpand);
+	pHandle->SetValue(28, pSect->floorstat    & kSectExpand);
+	
+	pHandle->SetValue(29, pSect->ceilingstat  & kSectRelAlign);
+	pHandle->SetValue(30, pSect->floorstat    & kSectRelAlign);
+	
+	pHandle->SetValue(31, pSect->ceilingstat  & kSectFlipX);
+	pHandle->SetValue(32, pSect->floorstat    & kSectFlipX);
+	
+	pHandle->SetValue(33, pSect->ceilingstat  & kSectFlipY);
+	pHandle->SetValue(34, pSect->floorstat    & kSectFlipY);
+	
+	BOOL floorshade = (!(pSect->ceilingstat & kSectParallax) || (pSect->ceilingstat & kSectShadeFloor));
+	pHandle->SetValue(35, !floorshade);
+	pHandle->SetValue(36,  floorshade);
+	
+	pHandle->SetValue(37, pSect->ceilingstat & kSectMasked);
+	pHandle->SetValue(38, pSect->floorstat   & kSectMasked); */
+}
+
+void dlgDialogToSector(DIALOG_HANDLER* pHandle, int nSector)
+{
+	dassert(nSector >= 0 && nSector < kMaxSectors);
+	
+	int i, cnt = 0;
+	sectortype* pSect =& sector[nSector];
+	
+	//pSect->wallnum				= pHandle->GetValue(1);
+	//pSect->wallptr				= pHandle->GetValue(2);
+	// 3
+	//headspritesect[nSector]		= pHandle->GetValue(4);
+	pSect->hitag					= pHandle->GetValue(5);
+	pSect->lotag 					= pHandle->GetValue(6);
+	pSect->visibility				= pHandle->GetValue(7);
+	
+	pSect->ceilingpicnum			= ClipHigh(pHandle->GetValue(9), gMaxTiles-1);
+	pSect->ceilingshade				= pHandle->GetValue(10);
+	pSect->ceilingpal				= pHandle->GetValue(11);
+	pSect->ceilingxpanning			= pHandle->GetValue(12);
+	pSect->ceilingypanning			= pHandle->GetValue(13);
+	
+	//SetCeilingSlope(nSector,		pHandle->GetValue(14));
+	//SetCeilingZ(nSector, 			pHandle->GetValue(15));
+	
+	pSect->floorpicnum				= ClipHigh(pHandle->GetValue(16), gMaxTiles-1);
+	pSect->floorshade				= pHandle->GetValue(17);
+	pSect->floorpal					= pHandle->GetValue(18);
+	pSect->floorxpanning			= pHandle->GetValue(19);
+	pSect->floorypanning			= pHandle->GetValue(20);
+	
+	//SetFloorSlope(nSector,			pHandle->GetValue(21));
+	//SetFloorZ(nSector,				pHandle->GetValue(22));
+
+	
+	/* i = kSectSloped;
+	setCstat(pHandle->GetValue(23), &pSect->ceilingstat, i);
+	setCstat(pHandle->GetValue(24), &pSect->floorstat, i);
+	
+	if (!(pSect->ceilingstat & i)) SetCeilingSlope(nSector, 0);
+	if (!(pSect->floorstat & i)) SetFloorSlope(nSector, 0);
+	
+	i = kSectParallax;
+	setCstat(pHandle->GetValue(25), &pSect->ceilingstat, i);
+	setCstat(pHandle->GetValue(26), &pSect->floorstat, i);
+	
+	i = kSectExpand;
+	setCstat(pHandle->GetValue(27), &pSect->ceilingstat, i);
+	setCstat(pHandle->GetValue(28), &pSect->floorstat, i);
+	
+	i = kSectRelAlign;
+	setCstat(pHandle->GetValue(29), &pSect->ceilingstat, i);
+	setCstat(pHandle->GetValue(30), &pSect->floorstat, i);
+	
+	i = kSectFlipX;
+	setCstat(pHandle->GetValue(31), &pSect->ceilingstat, i);
+	setCstat(pHandle->GetValue(32), &pSect->floorstat, i);
+	
+	i = kSectFlipY;
+	setCstat(pHandle->GetValue(33), &pSect->ceilingstat, i);
+	setCstat(pHandle->GetValue(34), &pSect->floorstat, i);
+	
+	if (pSect->ceilingstat & kSectParallax)
+	{
+		// 35 for ceiling
+		setCstat(pHandle->GetValue(36), &pSect->floorstat, kSectShadeFloor);
+	}
+	else
+	{
+		pSect->floorstat &= ~kSectShadeFloor;
+	}
+	
+	i = kSectMasked;
+	setCstat(pHandle->GetValue(37), &pSect->ceilingstat, i);
+	setCstat(pHandle->GetValue(38), &pSect->floorstat, i); */
+}
+
+
+void dlgSpriteToDialog(DIALOG_HANDLER* pHandle, int nSprite)
+{
+	dassert(nSprite >= 0 && nSprite < kMaxSprites);
+	spritetype* pSpr =&sprite[nSprite];
+	
+	pHandle->SetValue(1, pSpr->x);
+	pHandle->SetValue(2, pSpr->y);
+	pHandle->SetValue(3, pSpr->z);
+	pHandle->SetValue(4, pSpr->sectnum);
+	pHandle->SetValue(5, pSpr->statnum);
+	pHandle->SetValue(6, pSpr->hitag);
+	pHandle->SetValue(7, pSpr->lotag);
+	pHandle->SetValue(8, pSpr->clipdist);
+	pHandle->SetValue(9, pSpr->extra);
+		
+	pHandle->SetValue(10, pSpr->picnum);
+	pHandle->SetValue(11, pSpr->shade);
+	pHandle->SetValue(12, pSpr->pal);
+	pHandle->SetValue(13, pSpr->xrepeat);
+	pHandle->SetValue(14, pSpr->yrepeat);
+	pHandle->SetValue(15, pSpr->xoffset);
+	pHandle->SetValue(16, pSpr->yoffset);
+	pHandle->SetValue(17, spriteGetSlope(nSprite));
+	
+	pHandle->SetValue(18, pSpr->ang);
+	pHandle->SetValue(19, pSpr->xvel);
+	pHandle->SetValue(20, pSpr->yvel);
+	pHandle->SetValue(21, pSpr->zvel);
+	pHandle->SetValue(22, pSpr->owner);
+	
+/* 	pHandle->SetValue(23, (pSpr->cstat & kSprRelMask) == kSprFloor);
+	pHandle->SetValue(24, (pSpr->cstat & kSprRelMask) == kSprWall);
+	pHandle->SetValue(25, (pSpr->cstat & kSprRelMask) == kSprVoxel);
+	pHandle->SetValue(26, pSpr->cstat & kSprBlock);
+	pHandle->SetValue(27, pSpr->cstat & kSprHitscan);
+	pHandle->SetValue(28, pSpr->cstat & kSprOneSided);
+	pHandle->SetValue(29, pSpr->cstat & kSprInvisible);
+	pHandle->SetValue(30, pSpr->cstat & kSprOrigin);
+	pHandle->SetValue(31, pSpr->cstat & kSprFlipX);
+	pHandle->SetValue(32, pSpr->cstat & kSprFlipY);
+	pHandle->SetValue(33, pSpr->cstat & kSprTransluc2);
+	pHandle->SetValue(34, pSpr->cstat & kSprTranslucR);
+	pHandle->SetValue(35, pSpr->cstat & kSprMoveForward);
+	pHandle->SetValue(36, pSpr->cstat & kSprMoveReverse); */
+}
+
+
+void dlgXSpriteToDialog(DIALOG_HANDLER* pHandle, int nSprite)
+{
+	int nXSprite = sprite[nSprite].extra;
+	dassert(nXSprite > 0 && nXSprite < kMaxXSprites);
+	XSPRITE *pXSprite = &xsprite[nXSprite];
+
+	pHandle->SetValue(1, sprite[nSprite].type);
+	pHandle->SetValue(2, pXSprite->rxID);
+	pHandle->SetValue(3, pXSprite->txID);
+	pHandle->SetValue(4, pXSprite->state);
+	pHandle->SetValue(5, pXSprite->command);
+
+	pHandle->SetValue(6, pXSprite->triggerOn);
+	pHandle->SetValue(7, pXSprite->triggerOff);
+	pHandle->SetValue(8, pXSprite->busyTime);
+	pHandle->SetValue(9, pXSprite->waitTime);
+	pHandle->SetValue(10, pXSprite->restState);
+
+	pHandle->SetValue(11, pXSprite->triggerPush);
+	pHandle->SetValue(12, pXSprite->triggerVector);
+	pHandle->SetValue(13, pXSprite->triggerImpact);
+	pHandle->SetValue(14, pXSprite->triggerPickup);
+	pHandle->SetValue(15, pXSprite->triggerTouch);
+	pHandle->SetValue(16, pXSprite->triggerProximity);
+	pHandle->SetValue(17, pXSprite->triggerSight);
+
+	pHandle->SetValue(18, (pXSprite->unused3 & 0x0001) ? 1 : 0);
+	pHandle->SetValue(19, (pXSprite->unused3 & 0x0002) ? 1 : 0);
+
+	//pHandle->SetValue(18, pXSprite->triggerReserved1);
+	//pHandle->SetValue(19, pXSprite->triggerReserved2);
+
+	pHandle->SetValue(20, !((pXSprite->lSkill >> 0) & 1));
+	pHandle->SetValue(21, !((pXSprite->lSkill >> 1) & 1));
+	pHandle->SetValue(22, !((pXSprite->lSkill >> 2) & 1));
+	pHandle->SetValue(23, !((pXSprite->lSkill >> 3) & 1));
+	pHandle->SetValue(24, !((pXSprite->lSkill >> 4) & 1));
+	pHandle->SetValue(25, !pXSprite->lS);
+	pHandle->SetValue(26, !pXSprite->lB);
+	pHandle->SetValue(27, !pXSprite->lC);
+	pHandle->SetValue(28, !pXSprite->lT);
+
+	pHandle->SetValue(29, pXSprite->decoupled);
+	pHandle->SetValue(30, pXSprite->triggerOnce);
+	pHandle->SetValue(31, pXSprite->locked);
+	pHandle->SetValue(32, pXSprite->interruptable);
+	pHandle->SetValue(33, pXSprite->dudeLockout);
+
+	pHandle->SetValue(kSprDialogData1, pXSprite->data1);
+	pHandle->SetValue(kSprDialogData2, pXSprite->data2);
+	pHandle->SetValue(kSprDialogData3, pXSprite->data3);
+	pHandle->SetValue(kSprDialogData4, pXSprite->data4);
+
+
+	pHandle->SetValue(38, pXSprite->respawn);
+	pHandle->SetValue(39, pXSprite->dudeFlag4);
+	pHandle->SetValue(40, pXSprite->dudeDeaf);
+	pHandle->SetValue(41, pXSprite->dudeGuard);
+	pHandle->SetValue(42, pXSprite->dudeAmbush);
+	pHandle->SetValue(43, pXSprite->unused1); // used to set stealth flag for dude
+
+	pHandle->SetValue(44, pXSprite->key);
+	pHandle->SetValue(45, pXSprite->wave);
+	pHandle->SetValue(46, sprite[nSprite].flags);
+	pHandle->SetValue(47, pXSprite->lockMsg);
+	pHandle->SetValue(48, pXSprite->dropItem);
+}
+
+void dlgDialogToXSprite(DIALOG_HANDLER* pHandle, int nSprite)
+{
+	int val, nXSprite = sprite[nSprite].extra;
+	dassert(nXSprite > 0 && nXSprite < kMaxXSprites);
+	XSPRITE *pXSprite = &xsprite[nXSprite];
+
+	sprite[nSprite].type		= (short)pHandle->GetValue(1);;
+	pXSprite->rxID				= pHandle->GetValue(2);
+	pXSprite->txID				= pHandle->GetValue(3);
+	pXSprite->state				= pHandle->GetValue(4);
+	pXSprite->command			= pHandle->GetValue(5);
+
+	pXSprite->triggerOn			= pHandle->GetValue(6);
+	pXSprite->triggerOff		= pHandle->GetValue(7);
+	pXSprite->busyTime			= pHandle->GetValue(8);
+	pXSprite->waitTime			= pHandle->GetValue(9);
+	pXSprite->restState			= pHandle->GetValue(10);
+
+	pXSprite->triggerPush		= pHandle->GetValue(11);
+	pXSprite->triggerVector		= pHandle->GetValue(12);
+	pXSprite->triggerImpact		= pHandle->GetValue(13);
+	pXSprite->triggerPickup		= pHandle->GetValue(14);
+ 	pXSprite->triggerTouch		= pHandle->GetValue(15);
+ 	pXSprite->triggerProximity	= pHandle->GetValue(16);
+	pXSprite->triggerSight		= pHandle->GetValue(17);
+	if (pHandle->GetValue(18)) pXSprite->unused3 |= 0x0001;
+	else pXSprite->unused3 &= ~0x0001;
+
+ 	if (pHandle->GetValue(19)) pXSprite->unused3 |= 0x0002;
+	else pXSprite->unused3 &= ~0x0002;
+	//pXSprite->triggerReserved1	= pHandle->GetValue(18);
+	//pXSprite->triggerReserved2	= pHandle->GetValue(19);
+
+
+ 	pXSprite->lSkill			=
+								(!pHandle->GetValue(20) << 0) |
+								(!pHandle->GetValue(21) << 1) |
+								(!pHandle->GetValue(22) << 2) |
+								(!pHandle->GetValue(23) << 3) |
+								(!pHandle->GetValue(24) << 4);
+ 	pXSprite->lS				= !pHandle->GetValue(25);
+ 	pXSprite->lB				= !pHandle->GetValue(26);
+ 	pXSprite->lC				= !pHandle->GetValue(27);
+ 	pXSprite->lT				= !pHandle->GetValue(28);
+
+	pXSprite->decoupled			= pHandle->GetValue(29);
+	pXSprite->triggerOnce		= pHandle->GetValue(30);
+	pXSprite->locked			= pHandle->GetValue(31);
+	pXSprite->interruptable		= pHandle->GetValue(32);
+	pXSprite->dudeLockout		= pHandle->GetValue(33);
+
+	pXSprite->data1				= pHandle->GetValue(kSprDialogData1);
+	pXSprite->data2				= pHandle->GetValue(kSprDialogData2);
+	pXSprite->data3				= pHandle->GetValue(kSprDialogData3);
+	
+	val							= pHandle->GetValue(kSprDialogData4);
+	pXSprite->data4				= (val == -1) ? 65535 : val;
+
+	pXSprite->respawn			= pHandle->GetValue(38);
+
+	pXSprite->dudeFlag4			= pHandle->GetValue(39);
+	pXSprite->dudeDeaf			= pHandle->GetValue(40);
+	pXSprite->dudeGuard			= pHandle->GetValue(41);
+	pXSprite->dudeAmbush		= pHandle->GetValue(42);
+	pXSprite->unused1			= pHandle->GetValue(43);
+
+	pXSprite->key				= pHandle->GetValue(44);
+	pXSprite->wave				= pHandle->GetValue(45);
+	sprite[nSprite].flags       = (short)pHandle->GetValue(46);
+	pXSprite->lockMsg			= pHandle->GetValue(47);
+	pXSprite->dropItem			= pHandle->GetValue(48);
+
+}
+
+void dlgDialogToSprite(DIALOG_HANDLER* pHandle, int nSprite)
+{
+	int i;
+	dassert(nSprite > 0 && nSprite < kMaxSprites);
+	spritetype *pSpr = &sprite[nSprite];
+	
+	pSpr->x 			= pHandle->GetValue(1);
+	pSpr->y 			= pHandle->GetValue(2);
+	pSpr->z 			= pHandle->GetValue(3);
+	pSpr->sectnum 		= pHandle->GetValue(4);
+	pSpr->statnum 		= pHandle->GetValue(5);
+	pSpr->hitag 		= pHandle->GetValue(6);
+	pSpr->type 			= pHandle->GetValue(7);
+	pSpr->clipdist 		= pHandle->GetValue(8);
+	pSpr->extra 		= pHandle->GetValue(9);
+	
+	pSpr->picnum 		= pHandle->GetValue(10);
+	pSpr->shade 		= pHandle->GetValue(11);
+	pSpr->pal 			= pHandle->GetValue(12);
+	pSpr->xrepeat 		= pHandle->GetValue(13);
+	pSpr->yrepeat 		= pHandle->GetValue(14);
+	pSpr->xoffset 		= pHandle->GetValue(15);
+	pSpr->yoffset 		= pHandle->GetValue(16);
+	
+	i = pHandle->GetValue(17);
+	if (i && (pSpr->cstat & kSprRelMask) != kSprFloor)
+		pSpr->cstat |= kSprFloor;
+
+	spriteSetSlope(nSprite, i);
+	
+	pSpr->ang 			= pHandle->GetValue(18);
+	pSpr->xvel 			= pHandle->GetValue(19);
+	pSpr->yvel 			= pHandle->GetValue(20);
+	pSpr->zvel 			= pHandle->GetValue(21);
+	pSpr->owner 		= pHandle->GetValue(22);
+	
+	// 23
+	// 24
+	// 25
+	
+/* 	setCstat(pHandle->GetValue(26), &pSpr->cstat, kSprBlock);
+	setCstat(pHandle->GetValue(27), &pSpr->cstat, kSprHitscan);
+	setCstat(pHandle->GetValue(28), &pSpr->cstat, kSprOneSided);
+	setCstat(pHandle->GetValue(29), &pSpr->cstat, kSprInvisible);
+	setCstat(pHandle->GetValue(30), &pSpr->cstat, kSprOrigin);
+	setCstat(pHandle->GetValue(31), &pSpr->cstat, kSprFlipX);
+	setCstat(pHandle->GetValue(32), &pSpr->cstat, kSprFlipY);
+	setCstat(pHandle->GetValue(33), &pSpr->cstat, kSprTransluc1);
+	setCstat(pHandle->GetValue(34), &pSpr->cstat, kSprTranslucR);
+	setCstat(pHandle->GetValue(35), &pSpr->cstat, kSprMoveForward);
+	setCstat(pHandle->GetValue(36), &pSpr->cstat, kSprMoveReverse); */
+}
+
+void dlgXSectorToDialog(DIALOG_HANDLER* pHandle, int nSector)
+{
+	int nXSector = sector[nSector].extra;
+	int i, j;
+	
+	dassert(nXSector > 0 && nXSector < kMaxXSectors);
+	XSECTOR *pXSector = &xsector[nXSector];
+
+	pHandle->SetValue(1, sector[nSector].type);
+
+	pHandle->SetValue(2, pXSector->rxID);
+	pHandle->SetValue(3, pXSector->txID);
+	pHandle->SetValue(4, pXSector->state);
+	pHandle->SetValue(5, pXSector->command);
+
+	pHandle->SetValue(6, pXSector->decoupled);
+	pHandle->SetValue(7, pXSector->triggerOnce);
+	pHandle->SetValue(8, pXSector->locked);
+	pHandle->SetValue(9, pXSector->interruptable);
+	pHandle->SetValue(10, pXSector->dudeLockout);
+
+	pHandle->SetValue(11, pXSector->triggerOn);
+	pHandle->SetValue(12, pXSector->busyTimeA);
+	pHandle->SetValue(13, pXSector->busyWaveA);
+	pHandle->SetValue(14, pXSector->reTriggerA);
+	pHandle->SetValue(15, pXSector->waitTimeA);
+
+	pHandle->SetValue(16, pXSector->triggerOff);
+	pHandle->SetValue(17, pXSector->busyTimeB);
+	pHandle->SetValue(18, pXSector->busyWaveB);
+	pHandle->SetValue(19, pXSector->reTriggerB);
+	pHandle->SetValue(20, pXSector->waitTimeB);
+
+	pHandle->SetValue(21, pXSector->triggerPush);
+	pHandle->SetValue(22, pXSector->triggerWallPush);
+	pHandle->SetValue(23, pXSector->triggerEnter);
+	pHandle->SetValue(24, pXSector->triggerExit);
+
+	// get values of first found setor sfx sprite
+	for(i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
+	{
+		if (sprite[i].type == kSoundSector && sprite[i].extra > 0)
+		{
+			for (j = 0; j < 4; j++)
+				pHandle->SetValue(25 + j, getDataOf(j, OBJ_SPRITE, i));
+			
+			break;
+		}
+	}
+
+	// nothing found? set all zeros
+	if (i == -1)
+	{
+		for (i = 0; i < 4; i++)
+			pHandle->SetValue(25 + i, 0);
+	}
+
+	pHandle->SetValue(29, pXSector->key);
+	pHandle->SetValue(30, pXSector->Depth);
+	pHandle->SetValue(31, pXSector->underwater);
+	pHandle->SetValue(32, pXSector->crush);
+
+	pHandle->SetValue(kSectDialogData, pXSector->data);
+	
+	
+	DIALOG_HANDLER dialog(dlgXSectorFX);
+	dlgXSectorFXToDialog(&dialog, nSector);
+	
+}
+
+
+void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
+{
+	int nXSector = sector[nSector].extra;
+	dassert(nXSector > 0 && nXSector < kMaxXSectors);
+	XSECTOR *pXSector = &xsector[nXSector];
+
+	sector[nSector].type 		= (short)pHandle->GetValue(1);
+	pXSector->rxID 				= pHandle->GetValue(2);
+	pXSector->txID 				= pHandle->GetValue(3);
+	pXSector->state 			= pHandle->GetValue(4);
+	pXSector->command 			= pHandle->GetValue(5);
+
+	pXSector->decoupled			= pHandle->GetValue(6);
+	pXSector->triggerOnce		= pHandle->GetValue(7);
+	pXSector->locked			= pHandle->GetValue(8);
+	pXSector->interruptable		= pHandle->GetValue(9);
+	pXSector->dudeLockout		= pHandle->GetValue(10);
+
+	pXSector->triggerOn  		= pHandle->GetValue(11);
+	pXSector->busyTimeA			= pHandle->GetValue(12);
+	pXSector->busyWaveA			= pHandle->GetValue(13);
+	pXSector->reTriggerA		= pHandle->GetValue(14);
+	pXSector->waitTimeA			= pHandle->GetValue(15);
+
+	pXSector->triggerOff 		= pHandle->GetValue(16);
+	pXSector->busyTimeB			= pHandle->GetValue(17);
+	pXSector->busyWaveB			= pHandle->GetValue(18);
+	pXSector->reTriggerB		= pHandle->GetValue(19);
+	pXSector->waitTimeB			= pHandle->GetValue(20);
+
+	pXSector->triggerPush		= pHandle->GetValue(21);
+	pXSector->triggerWallPush	= pHandle->GetValue(22);
+
+	pXSector->triggerEnter		= pHandle->GetValue(23);
+	pXSector->triggerExit		= pHandle->GetValue(24);
+
+	int i = 0;
+	short cstat = 0;
+	int x = kHiddenSpriteLoc, y = kHiddenSpriteLoc, z = sector[nSector].floorz;
+
+	// delete all the sector sfx sprites in this sector
+	for (i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
+	{
+		if (sprite[i].statnum >= kStatFree || sprite[i].type != kSoundSector)
+			continue;
+
+		// save info of first found sprite
+		if (x == kHiddenSpriteLoc)
+		{
+
+			x = sprite[i].x;
+			y = sprite[i].y;
+			z = sprite[i].z;
+			cstat = sprite[i].cstat;
+		}
+
+		DeleteSprite(i);
+		i = headspritesect[nSector];
+	}
+
+	// create new sector sfx sprite if values are not zero
+	for (i = 0; i < 4; i++)
+	{
+		if (pHandle->GetValue(25 + i) <= 0)
+			continue;
+
+		// set new coords if there was no old sprite found
+		if (x == kHiddenSpriteLoc)
+			avePointSector(nSector, &x, &y);
+
+		int nSprite = InsertSprite(nSector, 0);
+		dassert(nSprite >= 0 && nSprite < kMaxSprites);
+
+		sprite[nSprite].x = x;
+		sprite[nSprite].y = y;
+		sprite[nSprite].z = z;
+
+		ChangeSpriteSect(nSprite, nSector);
+
+
+		spritetype* pSprite = &sprite[nSprite];
+		int nXSprite = GetXSprite(nSprite);
+		dassert(nXSprite >= 0 && nXSprite < kMaxXSprites && nXSprite == pSprite->extra);
+		pSprite->type = kSoundSector;
+		adjSpriteByType(pSprite);
+
+		for (i = 0; i < 4; i++)
+			setDataValueOfObject(OBJ_SPRITE, pSprite->index, i + 1, pHandle->GetValue(25 + i));
+
+		if (cstat != 0) pSprite->cstat = cstat;
+		else if (sector[nSector].type > kSectorTeleport && sector[nSector].type <= kSectorRotate)
+			pSprite->cstat |= kSprMoveForward; // if sector is movable, set kinetic movement stat
+
+		break;
+	}
+
+	pXSector->key				= pHandle->GetValue(29);
+	pXSector->Depth				= pHandle->GetValue(30);
+	pXSector->underwater		= pHandle->GetValue(31);
+	pXSector->crush				= pHandle->GetValue(32);
+
+	pXSector->data				= pHandle->GetValue(kSectDialogData);
+	
+	DIALOG_HANDLER dialog(dlgXSectorFX);
+	dlgDialogToXSectorFX(&dialog, nSector);
+}
+
+void dlgXSectorFXToDialog(DIALOG_HANDLER* pHandle, int nSector)
+{
+	int nXSector = sector[nSector].extra;
+	dassert(nXSector > 0 && nXSector < kMaxXSectors);
+	XSECTOR *pXSector = &xsector[nXSector];
+	
+	pHandle->SetValue(1, pXSector->shadeWave);
+	pHandle->SetValue(2, pXSector->amplitude);
+	pHandle->SetValue(3, pXSector->shadeFreq);
+	pHandle->SetValue(4, pXSector->shadePhase);
+	pHandle->SetValue(5, pXSector->shadeFloor);
+	pHandle->SetValue(6, pXSector->shadeCeiling);
+	pHandle->SetValue(7, pXSector->shadeWalls);
+	pHandle->SetValue(8, pXSector->shadeAlways);
+
+	pHandle->SetValue(9, pXSector->coloredLights);
+	pHandle->SetValue(10, pXSector->ceilpal2);
+	pHandle->SetValue(11, pXSector->floorpal2);
+
+	pHandle->SetValue(12, pXSector->panVel);
+	pHandle->SetValue(13, pXSector->panAngle);
+	pHandle->SetValue(14, pXSector->panFloor);
+	pHandle->SetValue(15, pXSector->panCeiling);
+	pHandle->SetValue(16, pXSector->panAlways);
+	pHandle->SetValue(17, pXSector->drag);
+
+	pHandle->SetValue(18, pXSector->windVel);
+	pHandle->SetValue(19, pXSector->windAng);
+	pHandle->SetValue(20, pXSector->windAlways);
+
+	pHandle->SetValue(21, pXSector->bobZRange);
+	pHandle->SetValue(22, pXSector->bobTheta);
+	pHandle->SetValue(23, pXSector->bobSpeed);
+	pHandle->SetValue(24, pXSector->bobAlways);
+	pHandle->SetValue(25, pXSector->bobFloor);
+	pHandle->SetValue(26, pXSector->bobCeiling);
+	pHandle->SetValue(27, pXSector->bobRotate);
+	pHandle->SetValue(28, pXSector->damageType);
+}
+
+void dlgDialogToXSectorFX(DIALOG_HANDLER* pHandle, int nSector)
+{
+	int nXSector = sector[nSector].extra;
+	dassert(nXSector > 0 && nXSector < kMaxXSectors);
+	XSECTOR *pXSector = &xsector[nXSector];
+	
+	pXSector->shadeWave			= pHandle->GetValue(1);
+	pXSector->amplitude     	= pHandle->GetValue(2);
+	pXSector->shadeFreq        	= pHandle->GetValue(3);
+	pXSector->shadePhase		= pHandle->GetValue(4);
+	pXSector->shadeFloor    	= pHandle->GetValue(5);
+	pXSector->shadeCeiling  	= pHandle->GetValue(6);
+	pXSector->shadeWalls    	= pHandle->GetValue(7);
+	pXSector->shadeAlways   	= pHandle->GetValue(8);
+
+	pXSector->coloredLights		= pHandle->GetValue(9);
+	pXSector->ceilpal2			= pHandle->GetValue(10);
+	pXSector->floorpal2			= pHandle->GetValue(11);
+
+	pXSector->panVel			= pHandle->GetValue(12);
+	pXSector->panAngle			= pHandle->GetValue(13);
+	pXSector->panFloor			= pHandle->GetValue(14);
+	pXSector->panCeiling		= pHandle->GetValue(15);
+	pXSector->panAlways			= pHandle->GetValue(16);
+	pXSector->drag				= pHandle->GetValue(17);
+
+	pXSector->windVel			= pHandle->GetValue(18);
+	pXSector->windAng			= pHandle->GetValue(19);
+	pXSector->windAlways		= pHandle->GetValue(20);
+
+	pXSector->bobZRange			= pHandle->GetValue(21);
+	pXSector->bobTheta			= pHandle->GetValue(22);
+	pXSector->bobSpeed			= pHandle->GetValue(23);
+	pXSector->bobAlways			= pHandle->GetValue(24);
+	pXSector->bobFloor			= pHandle->GetValue(25);
+	pXSector->bobCeiling		= pHandle->GetValue(26);
+	pXSector->bobRotate			= pHandle->GetValue(27);
+	pXSector->damageType		= pHandle->GetValue(28);
 }

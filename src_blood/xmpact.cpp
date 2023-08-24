@@ -184,7 +184,6 @@ int MoveThing(spritetype *pSprite)
 	}
 	else
 	{
-		dassert(nSector >= 0 && nSector < kMaxSectors);
 		FindSector(pSprite->x, pSprite->y, pSprite->z, &nSector);
 	}
 
@@ -345,7 +344,6 @@ void MoveDude(spritetype *pSprite)
 	int nSector = pSprite->sectnum;
 	int nAiStateType = -1;
 
-	dassert(nSector >= 0 && nSector < kMaxSectors);
 	if (xvel[nSprite] || yvel[nSprite])
 	{
 		short bakCstat = pSprite->cstat;
@@ -366,7 +364,6 @@ void MoveDude(spritetype *pSprite)
 			if (nSector2 != -1)
 				nSector = nSector2;
 		}
-		dassert(nSector >= 0);
 		pSprite->cstat = bakCstat;
 
 		switch (gSpriteHit[nXSprite].hit&0xc000) {
@@ -413,13 +410,11 @@ void MoveDude(spritetype *pSprite)
 	}
 	else
 	{
-		dassert(nSector >= 0 && nSector < kMaxSectors);
 		FindSector(pSprite->x, pSprite->y, pSprite->z, &nSector);
 	}
 
 	if (pSprite->sectnum != nSector)
 	{
-		dassert(nSector >= 0 && nSector < kMaxSectors);
 		XSECTOR *pXSector;
 		int nXSector = sector[pSprite->sectnum].extra;
 		if (nXSector > 0)
@@ -607,7 +602,6 @@ void MoveDude(spritetype *pSprite)
 
 void actHitcodeToData(int a1, HITINFO *pHitInfo, int *a3, spritetype **a4, XSPRITE **a5, int *a6, walltype **a7, XWALL **a8, int *a9, sectortype **a10, XSECTOR **a11)
 {
-	dassert(pHitInfo != NULL);
 	int nSprite = -1;
 	spritetype *pSprite = NULL;
 	XSPRITE *pXSprite = NULL;
@@ -622,7 +616,6 @@ void actHitcodeToData(int a1, HITINFO *pHitInfo, int *a3, spritetype **a4, XSPRI
 	case 3:
 	case 5:
 		nSprite = pHitInfo->hitsprite;
-		dassert(nSprite >= 0 && nSprite < kMaxSprites);
 		pSprite = &sprite[nSprite];
 		if (pSprite->extra > 0)
 			pXSprite = &xsprite[pSprite->extra];
@@ -630,7 +623,6 @@ void actHitcodeToData(int a1, HITINFO *pHitInfo, int *a3, spritetype **a4, XSPRI
 	case 0:
 	case 4:
 		nWall = pHitInfo->hitwall;
-		dassert(nWall >= 0 && nWall < kMaxWalls);
 		pWall = &wall[nWall];
 		if (pWall->extra > 0)
 			pXWall = &xwall[pWall->extra];
@@ -639,7 +631,6 @@ void actHitcodeToData(int a1, HITINFO *pHitInfo, int *a3, spritetype **a4, XSPRI
 	case 2:
 	case 6:
 		nSector = pHitInfo->hitsect;
-		dassert(nSector >= 0 && nSector < kMaxSectors);
 		pSector = &sector[nSector];
 		if (pSector->extra > 0)
 			pXSector = &xsector[pSector->extra];
@@ -669,7 +660,6 @@ void actImpactMissile(spritetype *pMissile, int hitCode)
 {
 
 	int nXMissile = pMissile->extra;
-	dassert(nXMissile > 0 && nXMissile < kMaxXSprites);
 	XSPRITE *pXMissile = &xsprite[pMissile->extra];
 
 	int nSpriteHit = -1; int nWallHit = -1; int nSectorHit = -1;
@@ -840,8 +830,6 @@ void actBuildMissile(spritetype* pMissile, int nXSprite, int nSprite) {
 
 spritetype* actFireMissile(spritetype *pSprite, int a2, int a3, int a4, int a5, int a6, int nType)
 {
-
-	dassert(nType >= kMissileBase && nType < kMissileMax);
 	char v4 = 0;
 	int nSprite = pSprite->index;
 	MissileType *pMissileInfo = &missileInfo[nType-kMissileBase];
@@ -892,7 +880,6 @@ spritetype* actFireMissile(spritetype *pSprite, int a2, int a3, int a4, int a5, 
 	//actPropagateSpriteOwner(pMissile, pSprite);
 	pMissile->cstat |= 1;
 	int nXSprite = pMissile->extra;
-	dassert(nXSprite > 0 && nXSprite < kMaxXSprites);
 	xsprite[nXSprite].target = -1;
 	evPost(nMissile, 3, 600, kCallbackRemoveSpecial);
 
@@ -908,8 +895,6 @@ spritetype* actFireMissile(spritetype *pSprite, int a2, int a3, int a4, int a5, 
 
 int MoveMissile(spritetype *pSprite)
 {
-
-	dassert(xspriRangeIsFine(pSprite->extra));
 	int nXSprite = pSprite->extra;
 	XSPRITE *pXSprite = &xsprite[nXSprite];
 	int vdi = -1;
@@ -1016,10 +1001,8 @@ int MoveMissile(spritetype *pSprite)
 		pSprite->z = z+vz;
 		updatesector(x, y, &nSector);
 		if (nSector >= 0 && nSector != pSprite->sectnum)
-		{
-			dassert(nSector >= 0 && nSector < kMaxSectors);
 			ChangeSpriteSect(nSprite, nSector);
-		}
+		
 		CheckLink(pSprite);
 		gHitInfo.hitsect = pSprite->sectnum;
 		gHitInfo.hitx = pSprite->x;
@@ -1191,11 +1174,9 @@ void actProcessSprites() {
 		gAffectedXWalls[0] = -1;
 
 		int nType = pSprite->type;
-		dassert(nType >= 0 && nType < kExplosionMax);
 		EXPLODE_INFO *pExp = &explodeInfo[nType];
 
 		int nXSprite = pSprite->extra;
-		dassert(nXSprite > 0 && nXSprite < kMaxXSprites);
 		XSPRITE *pXSprite = &xsprite[nXSprite];
 
 		int radius = pExp->radius;
@@ -1293,7 +1274,6 @@ void actProcessSprites() {
 void actAirDrag(int* vx, int* vy, int* vz, int nSect, int nDrag)
 {
 	int windX = 0, windY = 0;
-	dassert(nSect >= 0 && nSect < kMaxSectors);
 	sectortype *pSector = &sector[nSect];
 
 	if (pSector->extra > 0)
@@ -1321,31 +1301,6 @@ void actAirDrag( spritetype *pSpr, int nDrag ) {
 
 	int nSpr = pSpr->index;
 	actAirDrag(&xvel[nSpr], &yvel[nSpr], &zvel[nSpr], pSpr->sectnum, nDrag);
-
-/* 	int windX = 0, windY = 0;
-	int nSector = pSprite->sectnum;
-	dassert(nSector >= 0 && nSector < kMaxSectors);
-	sectortype *pSector = &sector[nSector];
-	int nXSector = pSector->extra;
-	if (nXSector > 0) {
-		dassert(nXSector < kMaxXSectors);
-		XSECTOR *pXSector = &xsector[nXSector];
-		if (pXSector->windVel && (pXSector->windAlways || pXSector->busy))
-		{
-			int windVel = pXSector->windVel << 12;
-
-			if ( !pXSector->windAlways && pXSector->busy )
-				windVel = mulscale16(windVel, pXSector->busy);
-
-			windX = mulscale30(windVel, Cos(pXSector->windAng));
-			windY = mulscale30(windVel, Sin(pXSector->windAng));
-		}
-	}
-	int nSprite = pSprite->index;
-	xvel[nSprite] += mulscale16(windX - xvel[nSprite], nDrag);
-	yvel[nSprite] += mulscale16(windY - yvel[nSprite], nDrag);
-	zvel[nSprite] -= mulscale16(zvel[nSprite], nDrag); */
-
 }
 
 void actExplodeSprite(spritetype *pSprite)
@@ -1497,10 +1452,6 @@ spritetype *actSpawnSprite( spritetype *pSource, int nStat ) {
 }
 
 spritetype* actDropObject( spritetype *pActor, int nObject ) {
-	dassert(pActor->statnum < kMaxStatus);
-	dassert( (nObject >= kItemBase && nObject < kItemMax)
-		|| (nObject >= kItemAmmoBase && nObject < kItemAmmoMax)
-		|| (nObject >= kItemWeaponBase && nObject < kItemWeaponMax) );
 
 	// create a sprite for the dropped ammo
 	int x = pActor->x;
@@ -1664,8 +1615,6 @@ int actFloorBounceVector(int *x, int *y, int *z, int nSector, int a5)
 
 void actTouchFloor(spritetype *pSprite, int nSector)
 {
-	dassert(pSprite != NULL);
-	dassert(nSector >= 0 && nSector < kMaxSectors);
 	sectortype * pSector = &sector[nSector];
 	XSECTOR * pXSector = NULL;
 	if (pSector->extra > 0)
@@ -1701,7 +1650,6 @@ void actTouchFloor(spritetype *pSprite, int nSector)
 
 spritetype * actSpawnThing(int nSector, int x, int y, int z, int nThingType)
 {
-    dassert(nThingType >= kThingBase && nThingType < kThingMax);
     spritetype *pSprite = actSpawnSprite(nSector, x, y, z, 4, 1);
 	if (pSprite == NULL)
 		return NULL;
@@ -1743,7 +1691,6 @@ spritetype * actSpawnThing(int nSector, int x, int y, int z, int nThingType)
 
 spritetype * actFireThing(spritetype *pSprite, int a2, int a3, int a4, int thingType, int a6)
 {
-    dassert(thingType >= kThingBase && thingType < kThingMax);
     int x = pSprite->x+mulscale30(a2, Cos(pSprite->ang+512));
     int y = pSprite->y+mulscale30(a2, Sin(pSprite->ang+512));
     int z = pSprite->z+a3;

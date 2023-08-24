@@ -20,23 +20,10 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
+#ifndef __GRDSHD_H
+#define __GRDSHD_H
+#include "xmpmisc.h"
 
-struct GRSHIGHLIGHT {
-	schar  type;
-	short  idx;
-	short  picnum;
-	schar  order;
-	schar  shade;
-};
-
-#define kMaxHgltObjects 512
-#define kMaxHgltParts   kMaxHgltObjects / 2
-extern BOOL gResetHighlight;
-extern GRSHIGHLIGHT gHglt[kMaxHgltObjects];
-extern short gHgltc;
-
-short grshHighlighted(int otype, int idx);
-void grshUnhgltObjects(int hidx, BOOL erase);
-BOOL grshAddObjects(schar otype, short idx);
-void grshHgltObjects(int idx);
-int grshShadeWalls(BOOL toggle);
+extern OBJECT_LIST gListGrd;
+int grshShadeWalls(char toggle);
+#endif

@@ -60,3 +60,6 @@ void scrUnInit(bool engineUninit = true);
 void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits = 8);
 char scrFindClosestColor(int red, int green, int blue);
 void scrNextPage(void);
+
+void scrSave();
+void scrRestore(char freeIt = 1);

@@ -41,6 +41,7 @@
 #include "edit3d.h"
 #include "mapcmt.h"
 #include "xmpror.h"
+#include "tracker.h"
 
 BYTE markerDB[6][3] = {
 	
@@ -604,8 +605,7 @@ int FixMarker(int nSect, int nMrk, int nMrkType)
 
 void CleanUp() {
 
-	int x1, y1, x2, y2;
-	register int s, e, i, j;
+	int  i, j;
 	XSECTOR* pXSect; sectortype* pSect;
 		
 	if (gPreviewMode)
@@ -617,32 +617,7 @@ void CleanUp() {
 	
 	for (i = 0; i < numsectors; i++)
 	{
-		getSectorWalls(i, &s, &e);
-		pSect  =&sector[i];
-		while(s <= e)
-		{
-			getWallCoords(s, &x1, &y1, &x2, &y2);
-			if (x1 == x2 && y1 == y2)
-			{
-				if (sector[i].wallnum > 1)
-				{
-					deletepoint(s);
-					for (j = 0; j < numsectors; j++)
-						sectorAttach(j);
-				}
-				else
-				{
-					sectDelete(i); // delete the sector
-				}
-				
-				// restart the main loop
-				i = 0;
-				break;
-			}
-			
-			s++;
-		}
-		
+		pSect = &sector[i];
 		if (pSect->extra > 0)
 		{
 			j = 0;
@@ -677,7 +652,7 @@ void CleanUp() {
 		int nSector = sprite[i].owner;
 		int nXSector = sector[nSector].extra;
 
-		if (nSector >= 0 && nSector < numsectors && nXSector > 0 && nXSector < kMaxXSectors)
+		if (rngok(nSector, 0, numsectors) && rngok(nXSector, 1, kMaxXSectors))
 		{
 			switch (sprite[i].type)
 			{
@@ -704,7 +679,8 @@ void CleanUp() {
 	warpInit();
 	InitSectorFX();
 	gCommentMgr.Cleanup();
-
+	CXTracker::Cleanup();
+	
 	if (gMisc.pan)
 		AlignSlopes();
 }

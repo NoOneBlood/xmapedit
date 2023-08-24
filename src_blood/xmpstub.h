@@ -162,7 +162,10 @@ mrAsaveMax 						= 113,
 mrLoadAsave 					= mrAsaveMax,
 mrOptions						,
 mrAbout							,
+mrBoardOptions					,
 mrToolPreviewMode				,
+mrToolDoorWizard				,
+mrToolSpriteText				,
 mrToolExpSeq					,
 mrToolCleanChannel				,
 mrToolImportWizard				,
@@ -229,5 +232,7 @@ void boardPreloadTiles();
 int boardSave(char* filename, BOOL autosave);
 void boardReset(int hgltreset = 0);
 
-
+const char *ExtGetSectorCaption(short sectnum, char captStyle);
+const char *ExtGetWallCaption(short wallnum, char captStyle);
+const char *ExtGetSpriteCaption(short spritenum, char captStyle);
 #endif

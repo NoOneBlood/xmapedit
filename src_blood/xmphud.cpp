@@ -32,6 +32,10 @@
 #include "xmpmisc.h"
 #include "xmparted.h"
 
+#define kMsgScrollStartDelay		128
+#define kMsgScrollDelay				10
+
+
 char* gHudLayoutNames[] = {
 	
 	"Disabled",			// 0
@@ -72,7 +76,8 @@ void MAPEDIT_HUD::InitColors() {
 	this->colors.tilshd		= clr2std(17);
 	this->colors.cmtbg		= this->colors.mainbg;
 	this->colors.cmtfr		= clr2std(kColorWhite);
-	
+	this->colors.scrlin1	= clr2std(kColorBrown);
+	this->colors.scrlin2	= clr2std(kColorBrown);
 	
 }
 
@@ -105,33 +110,36 @@ void MAPEDIT_HUD::SetView(int x1, int y1, int x2, int y2) {
 	lgw = kHudLogoWidth, tw = kHudPanelHeigh;
 	t = tw >> 1;
 	
-	wide = (wh >= 1023);
-	slim = (hg == kHudPanelHeigh);
-	draw = (wh >= 640 && hg >= kHudPanelHeigh);
-
+	wide		= (wh >= 1000);
+	wide800		= (wh >= 768);
+	wide1024	= wide;
+	
+	slim		= (hg == kHudPanelHeigh);
+	compact		= (hg == kHudPanelHeigh+t);
+	draw		= (wh >= 600 && hg >= kHudPanelHeigh);
+	
 	main.x1 = x1;
 	main.y1 = y1;
 	main.x2 = x2;
 	main.y2 = y2;
 
-	if (wide)
+	if (wide800)
 	{
 		ts = hg-tw-t;
-		tilebox.x1 = x2-ts;
-		tilebox.y1 = y1+tw;
-		tilebox.x2 = x2;
-		tilebox.y2 = y2-t;
-		
+		tilebox.x1 = x2-ts+4;
+		tilebox.y1 = y1+tw+4;
+		tilebox.x2 = x2-4;
+		tilebox.y2 = y2-t-4;
 		tileInfo.inside = (WindowInside(&tilebox, &main) && (tilebox.y2 - tilebox.y1) > 80);
 	}
 
 	if (!tileInfo.inside)
 	{
 		ts = mulscale16(gHudPrefs.tileScaleSize, 0xD8F0);
-		tilebox.x1 = x2-ts-t;
-		tilebox.x2 = x2;
-		tilebox.y1 = y1-ts;
-		tilebox.y2 = y1+t;
+		tilebox.x1 = x2-ts-t-4;
+		tilebox.x2 = x2-4;
+		tilebox.y1 = y1-ts-(t>>1);
+		tilebox.y2 = y1+t-(t>>1);
 	}
 	
 	logo.x1 = x1;
@@ -176,9 +184,9 @@ void MAPEDIT_HUD::SetView(int x1, int y1, int x2, int y2) {
 
 	content.x1  = x1+4;
 	content.y1  = y1+tw+4;
-	content.x2  = (wide) ? tilebox.x1 : x2;
+	content.x2  = 640;
 	content.y2  = y2-t;
-	
+
 	editHints.x1 = x1;
 	editHints.x2 = x2;
 	editHints.y1 = y2-t;
@@ -189,6 +197,43 @@ void MAPEDIT_HUD::SetView(int x1, int y1, int x2, int y2) {
 	comment.y1 = y2-t;
 	comment.y2 = y2;
 	
+	editScr.draw = (wide && !compact && !slim);
+	if (editScr.draw)
+	{
+		int tx2 = tilebox.x1 - 4;
+		int tx1 = content.x2 + 4;
+		int twh = tx2-tx1;
+		editScr.draw = (twh >= 150);
+		if (editScr.draw)
+		{
+			editScrBox.x2 = tx2;
+			editScrBox.x1 = tx2-ClipHigh(twh, 400);
+			editScrBox.y1 = y1+tw+4;
+			editScrBox.y2 = y2-t-4;
+			
+			SCREEN2D* pScr = &editScr.screen2D;
+			
+			memcpy(pScr->colors, gScreen2D.colors, sizeof(gScreen2D.colors));
+			memcpy(&pScr->prefs, &gScreen2D.prefs, sizeof(gScreen2D.prefs));
+			
+			pScr->data.grid				= 0;
+			pScr->data.zoom				= 384;
+			pScr->prefs.useTransluc		= 0;
+			pScr->prefs.showTags		= 0;
+			pScr->prefs.showMap			= 0;
+			pScr->prefs.ambRadius		= 3;
+			pScr->prefs.ambRadiusHover	= 0;
+			pScr->prefs.showVertex		= 0;
+			pScr->prefs.showHighlight	= 0;
+			pScr->prefs.showFeatures	= 0;
+
+			pScr->SetView
+			(
+				editScrBox.x1+4, editScrBox.y1+4,
+				editScrBox.x2-4, editScrBox.y2-4
+			);
+		}
+	}
 }
 
 void MAPEDIT_HUD::UpdateView(int x1, int y1, int x2, int y2) {
@@ -345,7 +390,7 @@ void MAPEDIT_HUD::DrawIt() {
 	if (pComment && !slim)
 	{
 		PrintComment();
-		if (wide)
+		if (wide800)
 			DrawTile();
 	}
 	else
@@ -363,10 +408,14 @@ void MAPEDIT_HUD::DrawIt() {
 				PrintZoom2d();
 				PrintGrid2d();
 			}
-			
-			DrawTile();
 		}
+		
+		if (wide800)
+			DrawTile();
 	}
+	
+	if (editScr.draw)
+		DrawEditScreen();
 }
 
 void MAPEDIT_HUD::ClearContent() {
@@ -400,8 +449,8 @@ void MAPEDIT_HUD::PrintComment()
 	
 }
 
-void MAPEDIT_HUD::DrawEditDialogHints(DIALOG_ITEM* dialog, DIALOG_ITEM* control) {
-
+void MAPEDIT_HUD::DrawEditDialogHints(DIALOG_ITEM* dialog, DIALOG_ITEM* control)
+{
 	if (!control || !dialog || !gHints)
 		return;
 	
@@ -433,9 +482,6 @@ void MAPEDIT_HUD::DrawEditDialogHints(DIALOG_ITEM* dialog, DIALOG_ITEM* control)
 	gfxFillBox(x1+1, y1+1, x2-1, y2-1);
 	
 	i = wh>>3; len = 0;
-	//if (control->fieldHelpProc)
-		//len = sprintf(buf1, "(Press F10 to call helper) ");
-	
 	if ((len += sprintf(&buf1[len], "%0.255s", tmp)) >= i)
 		buf1[i] = 0, len = i;
 	
@@ -453,38 +499,59 @@ void MAPEDIT_HUD::ClearMessageArea()
 		gfxHLine(y1+i, x3+i, x2);
 }
 
-void MAPEDIT_HUD::SetMsgImp(int nTime, char *__format, ...) {
-	
-	msgData.message[0] = '\0';
-
-	va_list argptr;
-	va_start(argptr, __format);
-	vsprintf(msgData.message, __format, argptr);
-	va_end(argptr);
-	
-	msgData.ticks = totalclock + nTime;
+void MAPEDIT_HUD::SetMsgImp(int nTime, char *__format, ...)
+{
+	MAPEDIT_HUD_MSG* pData =& msgData;
+	if (pData->showTicks >= 0 && totalclock >= pData->showTicks)
+	{
+		char tmp[256];
+		va_list argptr;
+		va_start(argptr, __format);
+		pData->textLen = vsprintf(tmp, __format, argptr);
+		va_end(argptr);
+		
+		if (stricmp(tmp, pData->message) != 0)
+		{
+			sprintf(pData->message, "%s", tmp);
+			pData->showTicks	= totalclock + nTime;
+			pData->scrollTicks	= totalclock + kMsgScrollStartDelay;
+			pData->scrollDir	= 0;
+			pData->textPos		= 0;
+		}
+	}
 }
 
 void MAPEDIT_HUD::SetMsg(char *__format, ...)
 {
-	if (msgData.ticks >= 0 && totalclock >= msgData.ticks)
+	MAPEDIT_HUD_MSG* pData =& msgData;
+	if (pData->showTicks >= 0 && totalclock >= pData->showTicks)
 	{
-		msgData.ticks = 0;
-		msgData.message[0] = '\0';
+		char tmp[256];
 		
+		pData->showTicks = 0;
+
 		va_list argptr;
 		va_start(argptr, __format);
-		vsprintf(msgData.message, __format, argptr);
+		pData->textLen = vsprintf(tmp, __format, argptr);
 		va_end(argptr);
+		
+		if (stricmp(tmp, pData->message) != 0)
+		{
+			sprintf(pData->message, "%s", tmp);
+			pData->scrollTicks	= totalclock + kMsgScrollStartDelay;
+			pData->scrollDir	= 0;
+			pData->textPos		= 0;
+		}
 	}
 }
 
 void MAPEDIT_HUD::SetMsg()
 {
-	if (msgData.ticks >= 0 && totalclock >= msgData.ticks)
+	MAPEDIT_HUD_MSG* pData =& msgData;
+	if (pData->showTicks >= 0 && totalclock >= pData->showTicks)
 	{
-		msgData.ticks = 0;
-		msgData.message[0] = '\0';
+		pData->showTicks = 0;
+		pData->message[0] = '\0';
 	}
 }
 
@@ -493,11 +560,46 @@ void MAPEDIT_HUD::PrintMessage()
 	char tcol;
 	int x1, x2, y1, y2, hg, t = tw >> 1;
 	MAPEDIT_HUD_MSG* pData =& msgData;
-	tcol = (pData->ticks && h) ? colors.mesgfr2 : colors.mesgfr1;
+	tcol = (pData->showTicks && h) ? colors.mesgfr2 : colors.mesgfr1;
 
 	ClearMessageArea();
 	GetWindowCoords(&message, &x1, &y1, &x2, &y2); hg = y2 - y1;
-	printextShadowL(x1 + t, y1+((hg>>1)-(8>>1)), tcol, pData->message);
+	if (pData->scrollTicks && totalclock >= pData->scrollTicks)
+	{
+		if (x1+(pData->textLen<<3) > x2)
+		{
+			if (!pData->scrollDir)
+			{
+				int x3 = x1+((pData->textLen - pData->textPos)<<3);
+				if (x3 >= x1+perc2val(75, x2-x1))
+				{
+					pData->textPos = ClipHigh(pData->textPos + 1, pData->textLen - 1);
+					pData->scrollTicks = totalclock + kMsgScrollDelay;
+				}
+				else
+				{
+					pData->scrollTicks = totalclock + (kMsgScrollStartDelay>>1);
+					pData->scrollDir = 1;
+				}
+			}
+			else if (pData->textPos)
+			{
+				pData->textPos = ClipLow(pData->textPos - 1, 0);
+				pData->scrollTicks = totalclock + kMsgScrollDelay;
+			}
+			else
+			{
+				pData->scrollTicks = totalclock + (kMsgScrollStartDelay>>2);
+				pData->scrollDir = 0;
+			}
+		}
+		else
+		{
+			pData->scrollTicks = 0;
+		}
+	}
+	
+	printextShadowL(x1 + t, y1+((hg>>1)-(8>>1)), tcol, &pData->message[pData->textPos]);
 }
 
 void MAPEDIT_HUD::PrintCoords() {
@@ -516,7 +618,7 @@ void MAPEDIT_HUD::PrintCoords() {
 		gfxFillBox(x1+1, y1+1, x2-1, y2-1);
 	}
 	
-	len *= 8; wh = x2 - x1, hg = y2 - y1;
+	len<<=3; wh = x2 - x1, hg = y2 - y1;
 	printextShadowL(x1+((wh>>1)-(len>>1)), y1+((hg>>1)-(8>>1)), colors.cordfr, strupr(tmp));
 }
 
@@ -602,20 +704,70 @@ void MAPEDIT_HUD::PrintStats() {
 		gfxFillBox(x1+1, y1+1, x2-1, y2-1);
 	}
 	
-	len*=8; wh = x2 - x1, hg = y2 - y1;
+	len<<=3; wh = x2 - x1, hg = y2 - y1;
 	printextShadowL(x1+((wh>>1)-(len>>1)), y1+((hg>>1)-(8>>1)), colors.statfr, strupr(tmp));
+}
+
+void MAPEDIT_HUD::DrawEditScreen()
+{
+	int x1, x2, y1, y2;
+	GetWindowCoords(&editScrBox, &x1, &y1, &x2, &y2);
+	
+	gfxSetColor(colors.scrlin1);
+	gfxVLine(x1, y1, y2);
+	gfxHLine(y1, x1, x2);
+	
+	gfxVLine(x2, y1, y2);
+	gfxHLine(y2, x1, x2);
+	
+	if (gMapLoaded)
+	{
+		SCREEN2D* pScr = &editScr.screen2D;
+		
+		if (qsetmode == 200)
+		{
+			pScr->data.camx	= posx;
+			pScr->data.camy	= posy;
+			pScr->data.ang	= ang;
+			
+			gfxBackupClip();
+			gfxSetClip(pScr->view.wx1, pScr->view.wy1, pScr->view.wx2, pScr->view.wy2);
+			
+			pScr->ScreenClear();
+			pScr->ScreenDraw();
+			
+			gfxRestoreClip();
+		}
+		else if (cursectnum >= 0)
+		{
+			int bwx1 = windowx1;
+			int bwx2 = windowx2;
+			int bwy1 = windowy1;
+			int bwy2 = windowy2;
+			
+			setview(pScr->view.wx1, pScr->view.wy1, pScr->view.wx2, pScr->view.wy2);
+			processDrawRooms();
+			setview(bwx1, bwy1, bwx2, bwy2);
+			
+			if (gPreviewMode)
+			{
+				memset(show2dsprite, 0, sizeof(show2dsprite));
+				memset(show2dsector, 0, sizeof(show2dsector));
+				memset(show2dwall, 	 0, sizeof(show2dwall));
+			}
+		}
+	}
 }
 
 void MAPEDIT_HUD::DrawTile()
 {
 	char buf[32];
 	int nTile, nPlu, nShade, tis, r;
-	int x, y, x1, x2, y1, y2, hmr, ln;
+	int x, y, x1, x2, y1, y2, ln;
 	GetWindowCoords(&tilebox, &x1, &y1, &x2, &y2);
 
 	nTile = tileInfo.nTile; nPlu = tileInfo.nPlu; nShade = tileInfo.nShade;
 	tis   = tileInfo.size;
-	hmr   = tileInfo.marg1>>1;
 	r 	  = tileInfo.marg2;
 	
 	if (!tileInfo.inside)
@@ -624,11 +776,12 @@ void MAPEDIT_HUD::DrawTile()
 		gfxFillBox(x1+r, y1+r, x2-r, y2-r);
 	}
 	
-	x = x1+hmr; y = y1+hmr;
+	x = x1+r; y = y1+r;
+	
 	gfxSetColor(colors.tilbg);
 	gfxFillBox(x, y, x+tis, y+tis);
-	gfxVLine(x-r, y-r, y+tis+r);	gfxVLine(x+tis+r, y-r, y+tis+r);
-	gfxHLine(y-r, x-r, x+tis+r);	gfxHLine(y+tis+r, x-r, x+tis+r);
+	gfxVLine(x1, y1, y2);	gfxVLine(x2, y1, y2);
+	gfxHLine(y1, x1, x2);	gfxHLine(y2, x1, x2);
 
 	gfxSetColor(colors.line2);
 	gfxVLine(x+(tis>>1), y+r, y+tis-r);
@@ -639,7 +792,6 @@ void MAPEDIT_HUD::DrawTile()
 		x = tileInfo.dx; y = tileInfo.dy;
 		if (tilesizx[nTile])
 		{
-			//tileDrawTile(x+1, y+1, nTile, tileInfo.size, 0, 0x02, 32); // shadow
 			tileDrawTile(x, y, nTile, tileInfo.size, nPlu, 0x02, nShade);
 		}
 		else
@@ -647,7 +799,7 @@ void MAPEDIT_HUD::DrawTile()
 			printextShadowL(x, y, colors.tilblk, "<BLANK>");
 		}
 		
-		x = x1+hmr; y = y1+hmr;
+		x = x1+r; y = y1+r;
 		sprintf(buf, "%d", nTile);
 		printextShadowL(x, y, colors.tilnum, buf);
 		
@@ -663,19 +815,18 @@ void MAPEDIT_HUD::DrawTile()
 			printextShadowL(x+tis-ln, y, colors.tilshd, buf);
 		}
 		
-		y += tis-6;
+		y += tis-4-r;
 		ln = sprintf(buf, surfNames[surfType[nTile]])<<2;
 		printextShadowS(x, y, colors.tilsrf, strupr(buf));
 		
-		ln = sprintf(buf, "%dx%d", tilesizx[nTile], tilesizy[nTile])<<2; x += tis-ln;
+		ln = sprintf(buf, "%dx%d", tilesizx[nTile], tilesizy[nTile])<<2; x += tis-ln-(r>>1);
 		printextShadowS(x, y, colors.tilsiz, buf);
-		
 	}
 }
 
 void MAPEDIT_HUD::SetTile(int nTile, int nPlu, int nShade)
 {
-	int nTile2, x, y, x1, x2, y1, y2, tis, tiw, tih, mr, hmr, ln, wh, hg;
+	int nTile2, x, y, x1, x2, y1, y2, tis, tiw, tih, mr, ln, wh, hg;
 	GetWindowCoords(&tilebox, &x1, &y1, &x2, &y2);
 	wh = x2-x1, hg = y2-y1; nTile2 = tileInfo.nTile;
 	
@@ -692,16 +843,12 @@ void MAPEDIT_HUD::SetTile(int nTile, int nPlu, int nShade)
 		}
 	}
 	
-	tis = hg;
-	if ((mr = perc2val(tis, 20)) % 2 != 0)
-		mr--;
-	
-	tis -= mr; hmr = mr>>1;
-		
+	mr = 4;
+	tis = hg - (mr <<1);
 	tileInfo.size  = tis;
 	tileInfo.marg1 = mr;
-	tileInfo.marg2 = perc2val(tis, 6);
-
+	tileInfo.marg2 = mr;
+	
 	if (nTile >= 0)
 	{
 		if (tilesizx[nTile])
@@ -713,8 +860,8 @@ void MAPEDIT_HUD::SetTile(int nTile, int nPlu, int nShade)
 		else
 		{
 			ln = strlen("<BLANK>")<<3;
-			tileInfo.dx = x1+hmr+abs((tis>>1)-(ln>>1));
-			tileInfo.dy = y1+hmr+abs((tis>>1)-(8>>1));
+			tileInfo.dx = x1+abs((wh>>1)-(ln>>1));
+			tileInfo.dy = y1+abs((hg>>1)-(8>>1));
 		}
 	}
 }
@@ -727,7 +874,8 @@ void MAPEDIT_HUD::SetComment(MAP_COMMENT* cmt)
 void hudSetLayout(MAPEDIT_HUD* pHud, int layoutType, MOUSE* pMouse)
 {
 	int hg, x1, y1, x2, y2;
-	switch (layoutType) {
+	switch (layoutType)
+	{
 		case kHudLayoutNone:
 			x1 = 0;
 			y1 = 0;
@@ -736,24 +884,24 @@ void hudSetLayout(MAPEDIT_HUD* pHud, int layoutType, MOUSE* pMouse)
 			break;
 		case kHudLayoutFull:
 		case kHudLayoutDynamic:
-			hg = kHudHeighNormal;
+			hg = kHudHeighNormal+1;
 			x1 = 0;	
 			y1 = ydim-hg;
-			x2 = xdim;
-			y2 = ydim;
+			x2 = xdim-1;
+			y2 = ydim-1;
 			break;
 		case kHudLayoutCompact:
-			hg = kHudHeighCompact;
+			hg = kHudHeighCompact+1;
 			x1 = 0;	
-			x2 = xdim;
 			y1 = ydim-hg;
-			y2 = ydim;
+			x2 = xdim-1;
+			y2 = ydim-1;
 			break;
 		case kHudLayoutSlim:
-			hg = kHudHeighSlim;
+			hg = kHudHeighSlim+1;
 			x1 = 0;	
-			y1 = ydim-hg-1;
-			x2 = xdim;
+			y1 = ydim-hg;
+			x2 = xdim-1;
 			y2 = ydim-1;
 			break;
 		default:
@@ -761,8 +909,6 @@ void hudSetLayout(MAPEDIT_HUD* pHud, int layoutType, MOUSE* pMouse)
 	}
 
 	pHud->UpdateView(x1, y1, x2, y2);
-	//ydim16 = ydim;
-	ydim16 = (y1 <= 0 && y2 == y1) ? ydim : pHud->main.y1+pHud->tw;
 	
 	if (pMouse)
 	{

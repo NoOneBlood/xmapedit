@@ -35,7 +35,7 @@
 #include "seq.h"
 #include "xmpmisc.h"
 #include "nnextsif.h"
-#include "nnextstr.h"
+#include "xmpstr.h"
 
 BOOL gEventRedirectsUsed = FALSE;
 IDLIST gProxySpritesList(false);	// list of additional sprites which can be triggered by Proximity

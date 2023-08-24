@@ -41,7 +41,6 @@ static void RemoveSpecial( int nSprite ) {
 
 void FlareBurst(int nSprite)
 {
-    dassert(nSprite >= 0 && nSprite < kMaxSprites);
     spritetype *pSprite = &sprite[nSprite];
     int nAngle = getangle(xvel[nSprite], yvel[nSprite]);
     int nRadius = 0x55555;
@@ -77,7 +76,6 @@ void FlareBurst(int nSprite)
 
 void CounterCheck(int nSector) // 12
 {
-    dassert(nSector >= 0 && nSector < kMaxSectors);
     if (sector[nSector].type != kSectorCounter) return;
     if (sector[nSector].extra <= 0) return;
     

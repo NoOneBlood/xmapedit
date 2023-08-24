@@ -21,6 +21,8 @@ void PutSpriteOnFloor( spritetype *pSprite, int );
 void PutSpriteOnCeiling( spritetype *pSprite, int );
 
 
-void SetFirstWall( int nSector, int nWall );
 void ProcessKeys3D();
 void processMouseLook3D(BOOL readMouse = FALSE);
+
+void AutoAlignWalls(int nWall0, int ply = 0);
+char dlgSpriteText();

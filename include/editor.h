@@ -35,7 +35,7 @@ extern char names[MAXTILES][25];
 
 //extern int buildkeys[NUMBUILDKEYS];
 
-extern int ydim16, halfxdim16, midydim16, xdimgame, ydimgame, bppgame, xdim2d, ydim2d, forcesetup;
+extern int xdim2d, ydim2d, xdimgame, ydimgame, bppgame, forcesetup;
 
 extern void (*customtimerhandler)(void);
 
@@ -55,23 +55,12 @@ extern void ExtPreLoadMap(void);
 extern void ExtLoadMap(const char *mapname);
 extern void ExtPreSaveMap(void);
 extern void ExtSaveMap(const char *mapname);
-extern char *ExtGetSectorCaption(short sectnum);
-extern char *ExtGetWallCaption(short wallnum);
-extern char *ExtGetSpriteCaption(short spritenum);
-extern void ExtShowSectorData(short sectnum);
-extern void ExtShowWallData(short wallnum);
-extern void ExtShowSpriteData(short spritenum);
-extern void ExtEditSectorData(short sectnum);
-extern void ExtEditWallData(short wallnum);
-extern void ExtEditSpriteData(short spritenum);
 
 
 int loadsetup(const char *fn);	// from config.c
 int writesetup(const char *fn);	// from config.c
 
 void printmessage16(char name[82]);
-
-void getpoint(int searchxe, int searchye, int *x, int *y);
 
 #ifdef __cplusplus
 }

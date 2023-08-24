@@ -74,6 +74,7 @@ static PREVIEW_MODE_KEYS gPreviewKeys[] = {
 	{KEY_G,				FALSE, FALSE, FALSE,			1},
 	{KEY_S,				FALSE, FALSE, FALSE,			2},
 	{KEY_PAD5,			FALSE, FALSE, FALSE,			2},
+	{KEY_F11,			FALSE, FALSE, FALSE,			1},
 	
 };
 
@@ -443,7 +444,6 @@ void previewInitGameLite() {
 void previewStart() {
 	
 	gPreviewMode = TRUE;
-	grshUnhgltObjects(-1, FALSE);
 	previewSaveState();
 	
 	updatesector(posx, posy, &cursectnum);
@@ -549,8 +549,6 @@ void previewStop() {
 	
 	gPreviewMode = FALSE;
 	gTimers.autosave = gFrameClock;
-	if (!gResetHighlight)
-		grshHgltObjects(-1);
 	
 	RestoreMirrorPic();
 	

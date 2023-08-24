@@ -68,7 +68,7 @@ void seqeditStart(char* seqFile) {
 
 	short sect;
 	BOOL showMenu = TRUE;
-	int i, yd16 = ydim16, screenMode = qsetmode;
+	int i, screenMode = qsetmode;
 
 	updatesector(posx, posy, &sect);
 	
@@ -157,8 +157,10 @@ void seqeditStart(char* seqFile) {
 	Resource::Free(pSeq);
 	pSeq = NULL;
 	
-	if (screenMode != 200) qsetmodeany(xdim, ydim);
-	ydim16 = yd16; gScreen.msg[0].time = 0;
+	if (screenMode != 200)
+		qsetmodeany(xdim, ydim);
+	
+	gScreen.msg[0].time = 0;
 	artedUninit();
 
 }
@@ -661,7 +663,7 @@ void seqeditProcess( void ) {
 				sprintf(buffer, "Tile#%d view type", nTile);
 				if ((i = showButtons(viewNames, LENGTH(viewNames), buffer)) < mrUser) break;
 				viewType[nTile] = (BYTE)(i - mrUser);
-				if (!extVoxelPath[nTile])
+				if (!isExternalModel(nTile))
 					panm[nTile].view = viewType[nTile];
 				artedArtDirty(nTile, kDirtyPicanm);
 				gSeqEd.asksave = TRUE;

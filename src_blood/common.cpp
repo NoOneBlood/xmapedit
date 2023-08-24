@@ -115,8 +115,6 @@ void ChangeExtension(char *pzFile, const char *pzExt)
 bool FileLoad(char *fname, void *buffer, unsigned int size)
 {
 	int hFile, n;
-
-	dassert(buffer != NULL);
 	if ((hFile = open(fname, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) < 0)
 		return FALSE;
 	
@@ -129,8 +127,6 @@ bool FileLoad(char *fname, void *buffer, unsigned int size)
 bool FileSave(char *fname, void *buffer, unsigned int size)
 {
 	int hFile, n;
-
-	dassert(buffer != NULL);
 	if ((hFile = open(fname, O_CREAT|O_WRONLY|O_BINARY|O_TRUNC, S_IREAD|S_IWRITE)) < 0)
 		return FALSE;
 

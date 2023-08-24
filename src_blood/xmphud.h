@@ -60,6 +60,7 @@ struct MAPEDIT_HUD_COLORS {
 	char tilsiz,	tilsrf;
 	char tilblk,	tilbg,		tilshd;
 	char cmtbg,		cmtfr;
+	char scrlin1,	scrlin2;
 	
 };
 
@@ -93,8 +94,11 @@ struct MAPEDIT_HUD_LOGO {
 struct MAPEDIT_HUD_MSG {
 	
 	char message[256];
-	signed   int ticks;
-	
+	signed   int showTicks;
+	unsigned int scrollTicks;
+	unsigned int scrollDir;
+	unsigned int textPos;
+	unsigned int textLen;
 };
 
 struct MAPEDIT_HUD_TILE
@@ -111,23 +115,22 @@ struct MAPEDIT_HUD_TILE
 	
 };
 
-/* struct MAPEDIT_HUD_DIALOG {
-	
-	DIALOG_ITEM* dialog;
-	DIALOG_ITEM* control;
-	void Edit();
-	void Draw();
-	void DrawItem();
-	
-}; */
+struct MAPEDIT_HUD_SCREEN
+{
+	SCREEN2D screen2D;
+	unsigned int draw			: 1;
+};
 
 struct MAPEDIT_HUD {
 	
-	unsigned int draw	:  1;
-	unsigned int wide	:  1;
-	unsigned int slim	:  1;
-	unsigned int lgw	: 10;
-	unsigned int tw		: 10;
+	unsigned int draw		: 1;
+	unsigned int wide		: 1;
+	unsigned int wide800	: 1;
+	unsigned int wide1024	: 1;
+	unsigned int slim		: 1;
+	unsigned int compact	: 1;
+	unsigned int lgw		: 10;
+	unsigned int tw			: 10;
 	MAPEDIT_HUD_WINDOW main;
 	MAPEDIT_HUD_WINDOW message;
 	MAPEDIT_HUD_WINDOW content;
@@ -139,12 +142,13 @@ struct MAPEDIT_HUD {
 	MAPEDIT_HUD_WINDOW grid2d;
 	MAPEDIT_HUD_WINDOW zoom2d;
 	MAPEDIT_HUD_WINDOW comment;
-	//MAPEDIT_HUD_WINDOW keystatus;
+	MAPEDIT_HUD_WINDOW editScrBox;
 	MAPEDIT_HUD_COLORS colors;
 	MAPEDIT_HUD_LOGO logoPrefs;
 	MAPEDIT_HUD_MSG msgData;
 	MAPEDIT_HUD_TILE tileInfo;
-	//MAPEDIT_HUD_DIALOG dialog;
+	MAPEDIT_HUD_SCREEN editScr;
+	
 	MAP_COMMENT* pComment;
 	void InitColors();
 	BOOL WindowInside(MAPEDIT_HUD_WINDOW* w1, MAPEDIT_HUD_WINDOW* w2);
@@ -166,6 +170,7 @@ struct MAPEDIT_HUD {
 	void DrawLines(MAPEDIT_HUD_WINDOW* around);
 	void DrawEditDialogHints(DIALOG_ITEM* dialog, DIALOG_ITEM* control);
 	void DrawTile();
+	void DrawEditScreen();
 	void ClearMessageArea();
 	void ClearContent();
 	void PrintGrid2d();

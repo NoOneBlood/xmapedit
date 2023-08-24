@@ -156,9 +156,10 @@ typedef unsigned int	uint32;
 #define kPal3 3
 #define kPalMax kPal3 + 1
 
-#define kPatNormal 0xFFFFFFFF
-#define kPatDotted 0xCCCCCCCC
-#define kPatDashed 0xFFFF
+#define kPatNormal		0xFFFFFFFF
+#define kPatDotted		0xCCCCCCCC
+#define kPatDotted2		0xBBBBBBBB
+#define kPatDashed		0xFFFF
 
 #define kTicRate 120
 #define kTicsPerFrame 4
@@ -177,6 +178,7 @@ OBJ_MASKED					= 4,
 OBJ_FLATSPRITE				= 5,	// for tilePick()
 OBJ_SECTOR					= 6,	// for gSearchStatNames
 OBJ_COMMENT					= 7,
+OBJ_NONE					= 255,
 };
 
 // rotatesprite flags /////////////////////////////////////////////////////
@@ -217,6 +219,7 @@ kColorWhite					= 15,
 enum {
 kSectParallax				= 0x01,
 kSectSloped					= 0x02,
+kSectSwapXY					= 0x04,
 kSectExpand   				= 0x08,
 kSectFlipX    				= 0x10,
 kSectFlipY    				= 0x20,
@@ -828,6 +831,7 @@ inline int mulscale30r(int a, int b)
     return (int)(acc>>30);
 }
 
+inline int exactDist(int dx, int dy) { return ksqrt(dx*dx+dy*dy); }
 inline int approxDist(int dx, int dy)
 {
     dx = klabs(dx);

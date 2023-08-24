@@ -64,7 +64,7 @@ NAMED_TYPE gImportOptions[] = {
 
 void QAVEDIT::Start(char* filename)
 {
-	int i, yd16 = ydim16, screenMode = qsetmode;
+	int i, screenMode = qsetmode;
 
 	AnimNew();
 	if (filename)
@@ -122,9 +122,11 @@ void QAVEDIT::Start(char* filename)
 	Quit();
 	
 	gTileView.bglayers--;
-	if (screenMode != 200) qsetmodeany(xdim, ydim);
+	if (screenMode != 200)
+		qsetmodeany(xdim, ydim);
+	
 	if (gMapLoaded) previewStop();
-	ydim16 = yd16; gScreen.msg[0].time = 0;
+	gScreen.msg[0].time = 0;
 	artedUninit();
 	
 }
@@ -1021,7 +1023,7 @@ void QAVEDIT::LayerHighlight(int nFrame, int nLayer)
 	int x0 = 0, 					x1 = tilesizx[pLayer->picnum] + 2;
 	int y0 = 0, 					y1 = tilesizy[pLayer->picnum] + 2;
 	int wh = x1-x0,					hg = y1-y0;
-	int nTile = gSysTiles.hglt2d;
+	int nTile = gSysTiles.drawBuf;
 	int nShade, xoffs, yoffs;
 	
 	if (pLayer->stat & kRSCorner) xoffs = yoffs = 0;

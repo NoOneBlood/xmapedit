@@ -79,7 +79,7 @@ o=obj
 # ---------------------------------------------------------------
 LF=/nologo /opt:ref /LIBPATH:$(AUDIOLIBROOT)\third-party\msvc\lib$(PLATFORM)
 RF=/i$(BUILDINC) /i$(XMAPEDSRC)
-CF=/nologo /EHsc /MT /wd4996
+CF=/nologo /EHsc /MT /MP /wd4996
 AF=/nologo /coff
 
 
@@ -202,8 +202,6 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\fire.$o \
 	$(XMAPEDSRC)\callback.$o \
 	$(XMAPEDSRC)\eventq.$o \
-	$(XMAPEDSRC)\enumstr.$o \
-	$(XMAPEDSRC)\nnextstr.$o \
 	$(XMAPEDSRC)\nnexts.$o \
 	$(XMAPEDSRC)\nnextsif.$o \
 	$(XMAPEDSRC)\grdshd.$o \
@@ -214,6 +212,8 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\preview.$o \
 	$(XMAPEDSRC)\img2tile.$o \
 	$(XMAPEDSRC)\mapcmt.$o \
+	$(XMAPEDSRC)\xmpstr.$o \
+	$(XMAPEDSRC)\xmp2dscr.$o \
 	$(XMAPEDSRC)\xmphud.$o \
 	$(XMAPEDSRC)\xmphudlg.$o \
 	$(XMAPEDSRC)\xmpror.$o \
@@ -234,6 +234,7 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\xmpqav.$o \
 	$(XMAPEDSRC)\xmpqaved.$o \
 	$(XMAPEDSRC)\xmpsky.$o \
+	$(XMAPEDSRC)\xmpdoorwiz.$o \
 	$(XMAPEDSRC)\xmpinput.$o \
 	$(XMAPEDSRC)\buildres.$(res) \
 	$(BUILDSRC)\$(EDITORLIB) \

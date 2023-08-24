@@ -26,7 +26,7 @@
 #include "edit2d.h"
 #include "aadjust.h"
 #include "mapcmt.h"
-#include "enumstr.h"
+#include "xmpstr.h"
 #include "xmpmisc.h"
 #include "xmpstub.h"
 #include "gui.h"
@@ -684,13 +684,13 @@ void MAP_COMMENT_MGR::FormatGetByZoom(MAP_COMMENT* cmt, int zoome, int *wh, int 
 		if (wh) *wh = cmt->width[0];
 		if (hg) *hg = cmt->heigh[0];
 	}
-	else if (zoom <= 0x0100)
+	else if (zoome <= 0x0100)
 	{
 		if (font) *font = kFontSmall;
 		if (wh) *wh = cmt->width[0];
 		if (hg) *hg = cmt->heigh[0];
 	}
-	else if (zoom >= 0x1000)
+	else if (zoome >= 0x1000)
 	{
 		if (font) *font = kFontLarge;
 		if (wh) *wh = cmt->width[2];
@@ -723,37 +723,7 @@ void MAP_COMMENT_MGR::Format(MAP_COMMENT* cmt)
 		pFont = qFonts[cmt->fontID];
 		cmt->width[0] = gfxGetTextLen(cmt->text, pFont);
 		cmt->heigh[0] = pFont->height;
-	}
-
-/* 	int j, k = 0;
-	int lines = 0;
-	int wh = 0, hg = 0;
-	char *text = cmt->text, *text2 = cmt->text2, c; int len = strlen(text);
-	
-	text2 = (char*)malloc(len+1); sprintf(text2, text);
-	
-	for (i = 0; i < len; i++, k++)
-	{
-		c = text[i];
-		QFONTCHAR* info =& qFonts[5]->info[c];
-		wh+=info->w;
-		
-		if (wh >= kMaxWidth)
-		{
-			lines++;
-			text2 = (char*)realloc(text2, len+lines+1);
-			
-			text2[k++] = '?';
-			memcpy(&text2[k], &text[i], len - i);
-			wh = 0;
-
-		}
-	} */
-	
-	
-	//Alert(text2);
-	//int wh = gfxGetTextLen(cmt->text, qFonts[5]);
-	
+	}	
 }
 
 void MAP_COMMENT_MGR::SetXYBody(int cmtID, int x, int y)
@@ -1033,21 +1003,26 @@ int MAP_COMMENT_MGR::ShowBindMenu(int cmtID, int xpos, int ypos)
 }
 
 
-void MAP_COMMENT_MGR::Draw(int x, int y, int zoom) {
-	
+void MAP_COMMENT_MGR::Draw(SCREEN2D* pScr)
+{
 	MAP_COMMENT* cmt;
 	int i, x1, y1, x2, y2, objType, objIdx;
-	int fontID, foreColor, backColor, pat, wh, hg;
+	int fontID, foreColor, backColor, wh, hg;
+	int nZoom = pScr->data.zoom;
 	
 	for (i = 0; i < commentsCount; i++)
 	{
 		cmt = &comments[i];
-		FormatGetByZoom(cmt, zoom, &wh, &hg, &fontID);
+		FormatGetByZoom(cmt, nZoom, &wh, &hg, &fontID);
 		
-		x1 = x2 = halfxdim16 + mulscale14(cmt->cx - x, zoom);
-		y1 = y2 = midydim16  + mulscale14(cmt->cy - y, zoom);
-		backColor = cmt->backColor; foreColor = cmt->foreColor;
-		objType = cmt->objType; objIdx = cmt->objIdx;
+		x1 = x2 = pScr->cscalex(cmt->cx);
+		y1 = y2 = pScr->cscaley(cmt->cy);
+		
+		backColor 	= cmt->backColor;
+		foreColor	= cmt->foreColor;
+		
+		objType		= cmt->objType;
+		objIdx		= cmt->objIdx;
 		
 		if ((cmthglt == i || (cmthglt & 0x3FFF) == i))
 			foreColor = fade();
@@ -1057,39 +1032,19 @@ void MAP_COMMENT_MGR::Draw(int x, int y, int zoom) {
 			if (objType >= 0)
 				UpdateTailCoords(cmt);
 			
-			x2 = halfxdim16 + mulscale14(cmt->tx - x, zoom);
-			y2 = midydim16  + mulscale14(cmt->ty - y, zoom);
+			x2 = pScr->cscalex(cmt->tx);
+			y2 = pScr->cscaley(cmt->ty);
 			if (y2 > y1)
 			{
 				y1+=hg>>1;
 				y2-=hg>>1;
 			}
-			draw2dArrowMarker(x1, y1, x2, y2, foreColor, zoom >> 3, (objType < 0) ? 130 : 0, cmt->thickTail, kPatDotted);
+			
+			pScr->DrawArrow(x1, y1, x2, y2, foreColor, nZoom >> 2, (objType < 0) ? 130 : 0, cmt->thickTail, kPatDotted);
 		}
 		
-		DrawText(cmt->text, foreColor, backColor, qFonts[fontID], x1, y1, x, y, wh, hg, zoom, 1);
+		pScr->CaptionPrint(cmt->text, x1, y1, kPad, foreColor, backColor, (backColor < 0), qFonts[fontID]);
 	}
-	
-}
-
-void MAP_COMMENT_MGR::DrawText(char* text, int foreCol, int backCol, QFONT* font, int cx, int cy, int x, int y, int wh, int hg, int zoome, int shadofs)
-{
-
-	wh >>= 1; hg >>= 1;
-	int x1 = cx - wh - kPad,	x2 = cx + wh + kPad;
-	int y1 = cy - hg - kPad,	y2 = cy + hg + kPad;
-	if (backCol >= 0)
-	{
-		gfxSetColor(backCol);
-		gfxFillBox(x1, y1, x2, y2);
-		shadofs = 0;
-	}
-	
-	if (shadofs)
-		gfxPrinTextShadow(x1+kPad, y1+kPad, foreCol, text, font);
-	else
-		gfxDrawText(x1+kPad, y1+kPad, foreCol, text, font);
-
 }
 
 void MAP_COMMENT_MGR::UpdateTailCoords(MAP_COMMENT* cmt)

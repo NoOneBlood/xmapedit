@@ -858,7 +858,9 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 	
 	gSkyCount       = ClipHigh(1 << pskybits, MAXPSKYTILES);
 	nSkySize        = gSkyCount*sizeof(tpskyoff[0]);
-	gFogMode &= ~0x02;
+	boardWidth		= MET2PIX(384);
+	boardHeight 	= MET2PIX(384);
+	gFogMode 		&= ~kXmpFlagFog;
 	
 	if (ver7)
 	{
@@ -866,11 +868,20 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 		dbCrypt((char*)&extra, sizeof(extra), numwalls);
 	
 		// XMAPEDIT specific info
-		if (memcmp(kXMPHeadSig, extra.xmpsign, sizeof(kXMPHeadSig)-1) == 0 && extra.xmpheadver == kXMPHeadVer)
+		if (memcmp(kXMPHeadSig, extra.xmpsign, sizeof(kXMPHeadSig)-1) == 0)
 		{
-			gCustomSkyBits = (bool)(extra.xmpmapflags & 0x01);
-			if (extra.xmpmapflags & 0x02)
-				gFogMode |= 0x02;
+			if (irngok(extra.xmpheadver, kXMPHeadVer1, kXMPHeadVer2))
+			{
+				gCustomSkyBits = (bool)(extra.xmpMapFlags & kXmpFlagCustomSkyBits);
+				if (extra.xmpMapFlags & kXmpFlagFog)
+					gFogMode |= kXmpFlagFog;
+				
+				if (extra.xmpheadver == kXMPHeadVer2)
+				{
+					boardWidth	= MET2PIX(extra.xmpBoardWidth);
+					boardHeight = MET2PIX(extra.xmpBoardHeight);
+				}
+			}
 		}
 		
 		pIo->read(tpskyoff, nSkySize);
@@ -1228,11 +1239,15 @@ int dbSaveMap(char *filename, BOOL ver7)
 	// -----------------------------------------------------------------------
 	// add some XMAPEDIT specific info
 	sprintf(extra.xmpsign, kXMPHeadSig);
-	extra.xmpheadver    = kXMPHeadVer;
+	extra.xmpheadver    = kXMPHeadVer2;
 	if (gCustomSkyBits)
-		extra.xmpmapflags |= 0x01;
+		extra.xmpMapFlags |= kXmpFlagCustomSkyBits;
 	if (gFogMode)
-		extra.xmpmapflags |= 0x02;
+		extra.xmpMapFlags |= kXmpFlagFog;
+	
+	extra.xmpBoardWidth		= PIX2MET(boardWidth);
+	extra.xmpBoardHeight	= PIX2MET(boardHeight);
+	extra.xmpPalette		= 0;
 	
 	// -----------------------------------------------------------------------
 	extra.xsprSiz       = kXSpriteDiskSize;

@@ -113,17 +113,22 @@ struct ROMFONT
 extern QFONT* qFonts[kMaxQFonts];
 extern ROMFONT vFonts[kMaxVFonts];
 extern QBITMAP* pBitmaps[kMaxBitmaps];
+extern char gStdColor[32];
+extern const char* gStdColorNames[LENGTH(gStdColor)];
 extern char gColor;
-
-
+#define clr2std(a) gStdColor[a]
+#define gfxSetColor(a) gColor = a
 void gfxDrawBitmap(QBITMAP* qbm, int x, int y);
 void gfxDrawBitmap(int id, int x, int y);
 void gfxPixel(int x, int y);
 void gfxHLine(int y, int x0, int x1);
 void gfxVLine(int x, int y0, int y1);
+void gfxLine(int x1, int y1, int x2, int y2);
 void gfxFillBox(int x0, int y0, int x1, int y1);
 void gfxSetClip(int x0, int y0, int x1, int y1);
-int gfxGetTextLen(char* pzText, QFONT* pFont, int a3 = 0);
+void gfxBackupClip();
+void gfxRestoreClip();
+int gfxGetTextLen(char* pzText, QFONT* pFont, int a3 = -1);
 int gfxGetLabelLen(char* pzLabel, QFONT* pFont);
 int gfxFindTextPos(char* pzText, QFONT* pFont, int a3);
 void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont = NULL, bool label = false);
@@ -131,5 +136,4 @@ void gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont = NULL, b
 void gfxDrawLabel(int, int, int, char*, QFONT* pFont = NULL);
 void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade = 0, int nPLU = 0, int nAlign = 0);
 void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup );
-void gfxSetColor(char color);
 void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags = 0x0);

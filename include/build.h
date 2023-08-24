@@ -314,24 +314,25 @@ extern const char *build_version, *build_date, *build_time;
 extern int fpgrouscan;
 
 //////////////////////////
-EXTERN unsigned char gStdColor[256]; // temporary std colors for overheadeditor()...
-EXTERN long clipmovemask2d, clipmovemask3d;
+
+EXTERN int clipmovemask2d, clipmovemask3d;
 EXTERN char gPreviewMode, gMapLoaded;
 EXTERN int numsprites;
-EXTERN short grid, gridlock, showtags;
+EXTERN short grid, gridlock;
 EXTERN int zoom;
 EXTERN short asksave;
 EXTERN short defaultspritecstat;
 EXTERN short ang;
 EXTERN int vel, hvel, svel, angvel, doubvel;
 EXTERN int posx, posy, posz;
-EXTERN int editorgridextent;
+EXTERN int boardWidth;
+EXTERN int boardHeight;
 
 EXTERN short highlightsectorcnt;
 EXTERN short highlight[MAXWALLS + MAXSPRITES];
 EXTERN short highlightsector[MAXSECTORS];
 
-EXTERN int ydim16, startposx, startposy, startposz;
+EXTERN int startposx, startposy, startposz;
 EXTERN short startang, startsectnum;
 EXTERN short pointhighlight, linehighlight, highlightcnt;
 
@@ -341,7 +342,6 @@ EXTERN char gSectorDrawing, gNoclip;
 EXTERN int clipmoveboxtracenum;
 EXTERN int newnumwalls;
 
-unsigned char clr2std(char color);
 void fixrepeats(short i);
 unsigned char changechar(unsigned char dachar, int dadir, unsigned char smooshyalign, unsigned char boundcheck);
 void fixspritesectors( void );
@@ -351,10 +351,10 @@ void copysector(short soursector, short destsector, short deststartwall, unsigne
 void updatenumsprites( void );
 short whitelinescan(short dalinehighlight);
 int clockdir(short wallstart);
+int movewalls(int start, int offs);
 void deletepoint(short point);
 void insertpoint(short linehighlight, int dax, int day);
 int deletesector(short sucksect);
-void getclosestpointonwall(int x, int y, int dawall, int *nx, int *ny);
 int adjustmark(int *xplc, int *yplc, short danumwalls);
 int checkautoinsert(int dax, int day, short danumwalls);
 //////////////////////////
@@ -461,7 +461,6 @@ OTHER VARIABLES:
 			you call the loadboard function.
 ***************************************************************************/
 EXTERN int(*animateoffs_replace)(short tilenum, short fakevar);
-EXTERN void(*setvgapalette_replace)(void);
 EXTERN void(*loadpalette_replace)(void);
 EXTERN int(*getpalookup_replace)(int davis, int dashade);
 EXTERN void(*setbrightness_replace)(unsigned char *dapal, unsigned char *dapalgamma);
@@ -471,7 +470,6 @@ EXTERN int(*deletesprite_replace)(short spritenum);
 EXTERN int(*changespritesect_replace)(short spritenum, short newsectnum);
 EXTERN int(*changespritestat_replace)(short spritenum, short newstatnum);
 EXTERN void(*loadvoxel_replace)(int voxindex);
-EXTERN void(*draw2dscreen_replace)(int posxe, int posye, short ange, int zoome, short gride);
 EXTERN void(*loadtile_replace)(short tilenume);
 EXTERN void(*printmessage16_replace)(char name[82]);
 
@@ -486,7 +484,6 @@ int   qloadkvx(int voxindex, char *filename);
 int   allocatepermanenttile(short tilenume, int xsiz, int ysiz);
 void   copytilepiece(int tilenume1, int sx1, int sy1, int xsiz, int ysiz, int tilenume2, int sx2, int sy2);
 int    makepalookup(int palnum, unsigned char *remapbuf, signed char r, signed char g, signed char b, unsigned char dastat);
-void   setvgapalette(void);
 void   setbrightness(int dabrightness, unsigned char *dapal, char noapply);
 void   setpalettefade(unsigned char r, unsigned char g, unsigned char b, unsigned char offset);
 void   squarerotatetile(short tilenume);
@@ -507,11 +504,9 @@ void   completemirror(void);
 void   drawrooms(int daposx, int daposy, int daposz, short daang, int dahoriz, short dacursectnum);
 void   drawmasks(void);
 void drawsprite(int snum);
-void   clearview(int dacol);
 void   clearallviews(int dacol);
-void   drawmapview(int dax, int day, int zoome, short ang);
+void   drawmapview(int dax, int day, int zoome, short ang, int scrX, int scrY, char flags);
 void   rotatesprite(int sx, int sy, int z, short a, short picnum, signed char dashade, unsigned char dapalnum, unsigned char dastat, int cx1, int cy1, int cx2, int cy2);
-void   drawline256(int x1, int y1, int x2, int y2, unsigned char col);
 void   printext(int xpos, int ypos, short col, short backcol, const char *name, char fontsize);
 
 int   clipmove(int *x, int *y, int *z, short *sectnum, int xvect, int yvect, int walldist, int ceildist, int flordist, unsigned int cliptype);
@@ -534,7 +529,6 @@ int   ksqrt(int num);
 int   getangle(int xvect, int yvect);
 void   rotatepoint(int xpivot, int ypivot, int x, int y, short daang, int *x2, int *y2);
 int   lastwall(short point);
-int   nextsectorneighborz(short sectnum, int thez, short topbottom, short direction);
 int   getceilzofslope(short sectnum, int dax, int day);
 int   getflorzofslope(short sectnum, int dax, int day);
 void   getzsofslope(short sectnum, int dax, int day, int *ceilz, int *florz);
@@ -550,19 +544,7 @@ int   changespritestat(short spritenum, short newstatnum);
 int   setsprite(short spritenum, int newx, int newy, int newz);
 int   setspritez(short spritenum, int newx, int newy, int newz);
 
-#define STATUS2DSIZ 144
-#if 0
-void   qsetmode640350(void);
-void   qsetmode640480(void);
-#endif
 void   qsetmodeany(int,int);
-void   clear2dscreen(void);
-void   draw2dscreen(int posxe, int posye, short ange, int zoome, short gride);
-void   drawline16(int x1, int y1, int x2, int y2, unsigned char col);
-#if 0
-void   drawcircle16(int x1, int y1, int r, unsigned char col);
-#endif
-
 #if USE_POLYMOST
 int   setrendermode(int renderer);
 int   getrendermode(void);

@@ -23,8 +23,8 @@
 
 struct AUTODATA {	
 	int     group;
-	BOOL    exception;  // do not auto-set some of properties
-	BOOL    xsprite;	// requires xsprite?
+	unsigned int exception 		: 1; 	// do not auto-set some of properties
+	unsigned int  xsprite		: 1;	// requires xsprite?
 	short	type;
 	short   seq;		// use seq info instead of info from fields below
 	short	picnum;

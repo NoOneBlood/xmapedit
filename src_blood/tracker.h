@@ -1,8 +1,7 @@
 /**********************************************************************************
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 1997: Originally written by Nick Newhard.
-// Copyright (C) 2019: Reverse engineered & edited by Nuke.YKT.
-// Copyright (C) 2021: Additional changes by NoOne.
+// Copyright (C) 2023: Originally written by NoOne.
+// X-object tracker for xmapedit.
 //
 // This file is part of XMAPEDIT.
 //
@@ -24,28 +23,19 @@
 
 #ifndef _TRACKER_H_
 #define _TRACKER_H_
-#include "db.h"
-
-class CXTracker {
-public:
-    char m_type;
-    short m_nSector;
-    short m_nWall;
-    short m_nSprite;
-    sectortype* m_pSector;
-    walltype* m_pWall;
-    spritetype* m_pSprite;
-    XSECTOR* m_pXSector;
-    XWALL* m_pXWall;
-    XSPRITE* m_pXSprite;
-    CXTracker();
-    void TrackClear();
-    void TrackSector(short a1, char a2);
-    void TrackWall(short a1, char a2);
-    void TrackSprite(short a1, char a2);
-    void Draw(int a1, int a2, int a3);
+#include "xmpmisc.h"
+#include "xmp2dscr.h"
+class CXTracker
+{
+	private:
+		static unsigned char tx;
+		static OBJECT_LIST *pList;
+		static OBJECT src;
+	public:
+		static int Track(int nType, int nID, char send);
+		static char HaveObjects();
+		static void Draw(SCREEN2D* pScreen);
+		static void Cleanup();
+		static void Clear();
 };
-
-extern CXTracker gXTracker;
-
 #endif

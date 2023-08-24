@@ -27,19 +27,15 @@
 #include "common_game.h"
 
 struct STATUS_BIT1 { int ok : 1; };
-struct SYSTEM_TILES {
+struct SYSTEM_TILES{
 	unsigned int tileViewBg			: 17;
 	unsigned int gameMirrorStart	: 17;
 	unsigned int gameMirrorEnd		: 17;
-	unsigned int grdshdBg			: 17;
 	unsigned int angArrow			: 17;
-	unsigned int hglt2d				: 17;
-	unsigned int xmpIco				: 17;
-	unsigned int noTileIco			: 17;
 	unsigned int wallHglt			: 17;
-	unsigned int pixel				: 17;
-	unsigned int sectfil			: 17;
-	unsigned int hgltQav			: 17;
+	unsigned int drawBuf			: 17;
+	unsigned int icoNoTile			: 17;
+	unsigned int icoXmp				: 17;
 	unsigned int icoVer1			: 17;
 	unsigned int icoVer2			: 17;
 	STATUS_BIT1 busy[kMaxTiles];

@@ -271,25 +271,33 @@ void MISC_PREFS::Init(IniFile* pIni, char* section)
 	this->forceSetup		= pIni->GetKeyBool(section, "ForceSetup", 1);
 	this->externalModels	= ClipHigh(pIni->GetKeyInt(section, "ShowExternalModels", 2), 2);
 	this->zlockAvail		= !pIni->GetKeyBool(section, "SkipZStepMode", TRUE);
-	this->useTranslucency	= pIni->GetKeyBool(section,	"UseTranslucentEffects", TRUE);
-	
-	sprintf(this->tilesBaseName, (!fileExists("TILES000.ART")) ? "SHARE" : "TILES");
-	if ((this->ambShowRadius = pIni->GetKeyInt(section, "ShowAmbientRadius", 4)) == 4)
-	{
-		this->ambShowRadiusHglt	= 1;
-		this->ambShowRadius		= 3;
-	}
-	
+
 	this->autoLoadMap	 	= pIni->GetKeyBool(section, "AutoLoadMap", FALSE); 
 	this->editMode			= pIni->GetKeyBool(section, "EditMode", FALSE);
+	this->circlePoints		= 6;
+	this->forceEditorPos	= pIni->GetKeyBool(section, "ForceEditorStartPos", FALSE);
 	
+	SCREEN2D* pScr = &gScreen2D;
+	pScr->prefs.useTransluc			= pIni->GetKeyBool(section,	"UseTranslucentEffects", TRUE);
+	pScr->prefs.showMap				= pIni->GetKeyInt(section, "ShowMap2d", 0);
+	pScr->prefs.showTags			= pIni->GetKeyInt(section, "CaptionStyle", kCaptionStyleMapedit);
+	pScr->prefs.ambRadius			= pIni->GetKeyInt(section, "ShowAmbientRadius", 4);
+	if (pScr->prefs.ambRadius == 4)
+	{
+		pScr->prefs.ambRadiusHover	= 1;
+		pScr->prefs.ambRadius		= 3;
+	}
+		
 	usevoxels 				= (!externalModels || externalModels == 2) ? 0 : 1;
 	grid 					= (short)ClipHigh(pIni->GetKeyInt(section, "GridSize", 4), kMaxGrids - 1);
 	kensplayerheight 		= pIni->GetKeyInt(section, "EyeHeight", 58) << 8;
 	zmode 					= ClipHigh(pIni->GetKeyInt(section, "ZMode", 0), 3);
 	zoom 					= ClipRange(pIni->GetKeyInt(section, "Zoom", 768), 24, 8192);
-	showtags				= pIni->GetKeyInt(section, "CaptionStyle", kCaptionStyleMapedit);
-	editorgridextent		= ClipRange(196608, kDefaultBoardSize >> 1, kDefaultBoardSize << 2);
+
+	boardWidth				= 196608;
+	boardHeight				= boardWidth;
+	
+	sprintf(this->tilesBaseName, (!fileExists("TILES000.ART")) ? "SHARE" : "TILES");
 	
 }
 
@@ -302,11 +310,14 @@ void MISC_PREFS::Save(IniFile* pIni, char* section)
 	pIni->PutKeyInt(section, "GridSize", grid);
 	pIni->PutKeyInt(section, "Zoom", zoom);
 	pIni->PutKeyInt(section, "Beep", beep);
-	pIni->PutKeyInt(section, "ShowAmbientRadius", ambShowRadius + ambShowRadiusHglt);
 	pIni->PutKeyInt(section, "ForceSetup", forceSetup);
-	pIni->PutKeyInt(section, "CaptionStyle", showtags);
-	pIni->PutKeyInt(section, "EyeHeight", kensplayerheight >> 8);
 
+	pIni->PutKeyInt(section, "EyeHeight", kensplayerheight >> 8);
+	
+	SCREEN2D* pScr = &gScreen2D;
+	pIni->PutKeyInt(section, "ShowAmbientRadius", pScr->prefs.ambRadius + pScr->prefs.ambRadiusHover);
+	pIni->PutKeyInt(section, "ShowMap2d", pScr->prefs.showMap);
+	pIni->PutKeyInt(section, "CaptionStyle", pScr->prefs.showTags);
 }
 
 void MOUSE_LOOK::Init(IniFile* pIni, char* section)

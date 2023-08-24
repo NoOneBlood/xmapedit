@@ -35,6 +35,8 @@
 #include "mapcmt.h"
 #include "xmparted.h"
 #include "preview.h"
+#include "hglt.h"
+#include "aadjust.h"
 #include "db.h"
 
 
@@ -46,8 +48,15 @@ NAMED_TYPE gSuppBakFiles[] = {
 	
 };
 
+NAMED_TYPE gReverseSectorErrors[] =
+{
+	{ -1,	"Only sliders with non-angled markers and rotate sectors supported" },
+	{ -11, 	"No sector found" },
+	{-999, NULL},
+};
 
-struct PREVIEW_PLU {
+
+/*struct PREVIEW_PLU {
 	
 	int id;
 	BYTE* data;
@@ -87,7 +96,7 @@ struct PREVIEW_PLU {
 		data = NULL;
 	}
 	
-};
+};*/
 
 BYTE fileExists(char* filename, RESHANDLE* rffItem) {
 
@@ -340,7 +349,6 @@ BOOL obsoleteXObject(int otype, int oxindex) {
 	
 	if (otype == OBJ_WALL)
 	{
-		dassert(oxindex > 0 && oxindex < kMaxXWalls);
 		if (gCommentMgr.IsBind(OBJ_WALL, oxindex) >= 0)
 			return FALSE;
 		
@@ -350,7 +358,6 @@ BOOL obsoleteXObject(int otype, int oxindex) {
 	}
 	else if (otype == OBJ_SPRITE)
 	{
-		dassert(oxindex > 0 && oxindex < kMaxXSprites);
 		XSPRITE pXModel; memset(&pXModel, 0, sizeof(XSPRITE));
 		pXModel.reference = xsprite[oxindex].reference;
 		
@@ -358,7 +365,6 @@ BOOL obsoleteXObject(int otype, int oxindex) {
 	}
 	else if (otype == OBJ_SECTOR || otype == OBJ_CEILING || otype == OBJ_FLOOR)
 	{
-		dassert(oxindex > 0 && oxindex < kMaxXSectors);
 		if (gCommentMgr.IsBind(OBJ_SECTOR, oxindex) >= 0)
 			return FALSE;
 		
@@ -373,31 +379,57 @@ BOOL obsoleteXObject(int otype, int oxindex) {
 	return FALSE;
 }
 
-int getDataOf(BYTE idata, short objType, short objIndex) {
-	
-	switch (objType) {
+int getDataOf(int nData, int nType, int nID)
+{
+	switch (nType)
+	{
 		case OBJ_SPRITE:
-			dassert(sprite[objIndex].extra > 0 && sprite[objIndex].extra < kMaxXSprites);
-			switch (idata) {
-				case 0:  return xsprite[sprite[objIndex].extra].data1;
-				case 1:  return xsprite[sprite[objIndex].extra].data2;
-				case 2:  return xsprite[sprite[objIndex].extra].data3;
-				case 3:  return xsprite[sprite[objIndex].extra].data4;
+			switch (nData)
+			{
+				case 0:  return xsprite[sprite[nID].extra].data1;
+				case 1:  return xsprite[sprite[nID].extra].data2;
+				case 2:  return xsprite[sprite[nID].extra].data3;
+				case 3:  return xsprite[sprite[nID].extra].data4;
 			}
 			break;
 		case OBJ_WALL:
 		case OBJ_MASKED:
-			dassert(wall[objIndex].extra > 0 && wall[objIndex].extra < kMaxXWalls);
-			return xwall[wall[objIndex].extra].data;
+			return xwall[wall[nID].extra].data;
 		case OBJ_FLOOR:
 		case OBJ_CEILING:
-			dassert(sector[objIndex].extra > 0 && sector[objIndex].extra < kMaxXSectors);
-			return xsector[sector[objIndex].extra].data;
+		case OBJ_SECTOR:
+			return xsector[sector[nID].extra].data;
 	}
 	
-	ThrowError("Wrong object type %d", objType);
 	return -1;
 	
+}
+
+char setDataOf(int nData, int nVal, int nType, int nID)
+{
+	switch (nType)
+	{
+		case OBJ_SPRITE:
+			switch (nData)
+			{
+				case 0:	xsprite[sprite[nID].extra].data1 = nVal; break;
+				case 1:	xsprite[sprite[nID].extra].data2 = nVal; break;
+				case 2:	xsprite[sprite[nID].extra].data3 = nVal; break;
+				case 3:	xsprite[sprite[nID].extra].data4 = nVal; break;
+			}
+			return 1;
+		case OBJ_WALL:
+		case OBJ_MASKED:
+			xwall[wall[nID].extra].data = nVal;
+			return 1;
+		case OBJ_FLOOR:
+		case OBJ_CEILING:
+		case OBJ_SECTOR:
+			xsector[sector[nID].extra].data = nVal;
+			return 1;
+	}
+	
+	return 0;
 }
 
 char nextEffectivePlu(int nTile, signed char nShade, unsigned char nPlu, BOOL dir, int minPerc)
@@ -550,7 +582,8 @@ int getHighlightedObject() {
 	
 	if (qsetmode == 200)
 	{
-		switch (searchstat) {
+		switch (searchstat)
+		{
 			case OBJ_SPRITE:
 				return 200;
 			case OBJ_WALL:
@@ -578,28 +611,6 @@ int getHighlightedObject() {
 	}
 	else if (linehighlight >= 0)
 	{
-/* 		if (pointhighlight >= 0 && (pointhighlight & 0xc000) == 16384)
-		{
-			int i = (pointhighlight & 0x3FFF);
-			int nDist1, nDist2;
-			BOOL wallSprite = ((sprite[i].cstat & kSprRelMask) == kSprWall);
-			if (!wallSprite)
-			{
-				int sprx = sprite[i].x, spry = sprite[i].y, walx, waly, x, y;
-				getclosestpointonwall(mousxplc, mousyplc, linehighlight, &walx, &waly);
-				nDist1 = approxDist(mousxplc - sprx, mousyplc - spry);
-				nDist2 = approxDist(mousxplc - walx, mousyplc - waly);
-			}
-
-			if (wallSprite || nDist1 < nDist2)
-			{
-				searchstat = OBJ_SPRITE;
-				searchwall = (short) i;
-				return 200;
-			}
-
-		} */
-		
 		searchstat 		= OBJ_WALL;
 		searchwall 		= linehighlight;
 		searchindex 	= searchwall;
@@ -689,15 +700,20 @@ void playSound(int sndId, int showMsg) {
 	}
 }
 
-void doGridCorrection(int* x, int* y, int nGrid) {
 
-	if ((nGrid = ClipRange(nGrid, 0, kMaxGrids)) > 0) { 
-		
-		*x = (*x+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
-		*y = (*y+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
-		
+
+void doGridCorrection(int* x, int* y, int nGrid)
+{
+	if ((nGrid = ClipRange(nGrid, 0, kMaxGrids)) > 0)
+	{ 
+		if (x) *x = (*x+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
+		if (y) *y = (*y+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
 	}
-	
+}
+
+void doGridCorrection(int* x, int nGrid)
+{
+	doGridCorrection(x, NULL, nGrid);
 }
 
 void doWallCorrection(int nWall, int* x, int* y, int shift)
@@ -737,7 +753,7 @@ void hit2pos(int* rtx, int* rty, int* rtz, int32_t clipmask) {
 	else
 	{
 		int x2d, y2d;
-		getpoint(searchx,searchy,&x2d,&y2d);
+		gScreen2D.GetPoint(searchx,searchy,&x2d,&y2d);
 		updatesector(x2d, y2d, &sect);
 		if (sect >= 0)
 		{
@@ -771,7 +787,7 @@ void hit2sector(int *rtsect, int* rtx, int* rty, int* rtz, int gridCorrection, i
 	else
 	{
 		int x2d, y2d;
-		getpoint(searchx,searchy,&x2d,&y2d);
+		gScreen2D.GetPoint(searchx,searchy,&x2d,&y2d);
 		updatesector(x2d, y2d, &sectorhighlight);
 		if (sectorhighlight >= 0) {
 			hitx = x2d; hity = y2d; hitz = getflorzofslope(sectorhighlight, x2d, y2d);
@@ -840,6 +856,20 @@ void avePointSector(int nSector, int *x, int *y) {
 
 }
 
+void avePointWall(int nWall, int* x, int* y, int* z)
+{
+	int nSect = sectorofwall(nWall);
+	avePointWall(nWall, x, y);
+	
+	*z = 0;
+	if (nSect >= 0)
+	{
+		int cz, fz;
+		getzsofslope(nSect, *x, *y, &cz, &fz);
+		*z = fz - klabs((cz-fz)>>1);
+	}
+}
+
 void avePointWall(int nWall, int* x, int* y)
 {
 	*x = ((wall[nWall].x + wall[wall[nWall].point2].x) >> 1);
@@ -850,6 +880,15 @@ void getSectorWalls(int nSect, int* swal, int *ewal)
 {
 	*swal = sector[nSect].wallptr;
 	*ewal = *swal + sector[nSect].wallnum - 1;
+}
+
+double getWallLength(int nWall, int nGrid)
+{
+	int nLen = getWallLength(nWall);
+	if (nGrid)
+		return (double)(nLen / (2048>>nGrid));
+	
+	return (double)nLen;
 }
 
 BOOL isModernMap() {
@@ -878,7 +917,7 @@ BOOL multiTxGetRange(int nSpr, int out[4])
 {
 	register int j;
 	XSPRITE* pXSpr = &xsprite[sprite[nSpr].extra];
-	memset(out, 0, sizeof(out));
+	memset(out, 0, sizeof(int)*4);
 	
 	if (chlRangeIsFine(pXSpr->data1) && pXSpr->data2 == 0 && pXSpr->data3 == 0 && chlRangeIsFine(pXSpr->data4))
 	{
@@ -1248,12 +1287,18 @@ short getSector() {
 
 void TranslateWallToSector( void )
 {
-	switch (searchstat) {
+	switch (searchstat)
+	{
 		case OBJ_WALL:
-			if ((searchsector = wall[searchwall2].nextsector) >= 0) break;
+			if ((searchsector = wall[searchwall2].nextsector) >= 0)
+			{
+				searchindex = searchsector;
+				break;
+			}
 			// no break
 		case OBJ_MASKED:
 			searchsector = sectorofwall(searchwall);
+			searchindex = searchsector;
 			break;
 	}
 	
@@ -1514,6 +1559,13 @@ void swapValues(int *nSrc, int *nDest)
 	nTmp = *nSrc, *nSrc = *nDest, *nDest = nTmp;
 }
 
+int revertValue(int nVal)
+{
+	if (nVal < 0) return klabs(nVal);
+	else if (nVal > 0) return -nVal;
+	else return nVal;
+}
+
 int scaleZ(int sy, int hz)
 {
 	// i don't know why hitscan is buggy on widescreen
@@ -1559,11 +1611,13 @@ void toggleResolution(int fs, int xres, int yres, int bpp)
 	if (mode != 200)
 		qsetmodeany(xdim, ydim);
 	
-	if (tileLoadTile(gSysTiles.sectfil))
+	if (tileLoadTile(gSysTiles.drawBuf))
 	{
-		tileFreeTile(gSysTiles.sectfil);
-		tileAllocTile(gSysTiles.sectfil, xdim, ydim);
+		tileFreeTile(gSysTiles.drawBuf);
+		tileAllocTile(gSysTiles.drawBuf, xdim, ydim);
 	}
+	
+	gScreen2D.SetView(0, 0, xdim-1, ydim-1);
 }
 
 int DlgSaveChanges(char* text, BOOL askForArt) {
@@ -1754,7 +1808,84 @@ int formatMapInfo(char* str)
 	return i;
 }
 
+/*int getChannelOf(int nType, int nID, char tx)
+{
+	int nRetn = -1;
+	switch(nType)
+	{
+		case OBJ_SPRITE:
+			if (sprite[nID].extra > 0)
+				nRetn = (tx) ? xsprite[sprite[nID].extra].txID : xsprite[sprite[nID].extra].rxID;
+			
+			break;
+		case OBJ_WALL:
+		case OBJ_MASKED:
+			if (wall[nID].extra > 0)
+				nRetn = (tx) ? xwall[wall[nID].extra].txID : xwall[wall[nID].extra].rxID;
+			
+			break;
+		case OBJ_FLOOR:
+		case OBJ_CEILING:
+		case OBJ_SECTOR:
+			if (sector[nID].extra > 0)
+				nRetn = (tx) ? xsector[sector[nID].extra].txID : xsector[sector[nID].extra].rxID;
+			
+			break;
+	}
+	
+	return nRetn;
+}*/
 
+
+void collectUsedChannels(unsigned char used[1024])
+{
+	memset(used, 0, 1024);
+	int i, s, e;
+	int tx[4];
+	
+	i = numsectors;
+	while(--i >= 0)
+	{
+		XSECTOR* pXObj = GetXSect(&sector[i]);
+		if (pXObj)
+		{
+			used[pXObj->txID] = 1;
+			used[pXObj->rxID] = 1;
+		}
+		
+		getSectorWalls(i, &s, &e);
+		while(s <= e)
+		{
+			XWALL* pXObj = GetXWall(&wall[s++]);
+			if (pXObj)
+			{
+				used[pXObj->txID] = 1;
+				used[pXObj->rxID] = 1;
+			}
+		}
+		
+		for (s = headspritesect[i]; s >= 0; s = nextspritesect[s])
+		{
+			XSPRITE* pXObj = GetXSpr(&sprite[s]);
+			if (pXObj)
+			{
+				used[pXObj->txID] = 1;
+				used[pXObj->rxID] = 1;
+				if (isMultiTx(s))
+				{
+					if (multiTxGetRange(s, tx))
+					{
+						for (e = tx[0]; e <= tx[1]; e++) used[e] = 1;
+					}
+					else
+					{
+						for (e = 0; e < 4; e++) used[tx[e]] = 1;
+					}
+				}
+			}
+		}
+	}
+}
 
 int collectObjectsByChannel(int nChannel, BOOL rx, OBJECT_LIST* pOut, char flags)
 {
@@ -1868,8 +1999,8 @@ int getPicOf(int oType, int oIdx) {
 	return -1;
 }
 
-int getShadeOf(int oType, int oIdx) {
-	
+int getShadeOf(int oType, int oIdx)
+{
 	switch (oType)
 	{
 		case OBJ_WALL:
@@ -1880,6 +2011,26 @@ int getShadeOf(int oType, int oIdx) {
 	}
 	
 	return -1;
+}
+
+void setShadeOf(int nShade, int oType, int oIdx)
+{
+	switch (oType)
+	{
+		case OBJ_WALL:
+		case OBJ_MASKED:
+			wall[oIdx].shade = (signed char)ClipRange(nShade, -128, 63);
+			break;
+		case OBJ_FLOOR:
+			sector[oIdx].floorshade = (signed char)ClipRange(nShade, -128, 63);
+			break;
+		case OBJ_CEILING:
+			sector[oIdx].ceilingshade = (signed char)ClipRange(nShade, -128, 63);
+			break;
+		case OBJ_SPRITE:
+			sprite[oIdx].shade = (signed char)ClipRange(nShade, -128, 63);
+			break;
+	}
 }
 
 void setPluOf(int nPlu, int oType, int oIdx)
@@ -1967,7 +2118,11 @@ int pluPickAdvanced(int nTile, int nShade, int nPlu, char* titleArg)
 	}
 	
 	if (gPluPrefs.mostEfficentInTop)
-		qsort(&arg.pluInfo[2], arg.pluCnt-2, sizeof(arg.pluInfo[0]), (int(*)(const void*,const void*))cmpPluEfficency);
+	{
+		int nCnt = arg.pluCnt - 2;
+		if (nCnt > 3)
+			qsort(&arg.pluInfo[2], arg.pluCnt-2, sizeof(arg.pluInfo[0]), (int(*)(const void*,const void*))cmpPluEfficency);
+	}
 	
 	arg.nCols = (widescreen) ? 6 : 5;
 	arg.nRows = 3;
@@ -2150,6 +2305,334 @@ BOOL isSearchSector()
 	return (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING);
 }
 
+void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* zt, int* zb, char flags)
+{
+	int t, cx, cy, xoff = 0;
+	int nPic = pSpr->picnum, nAng = pSpr->ang;
+	int xrep = pSpr->xrepeat, wh = tilesizx[nPic];
+	
+	*x1 = *x2 = pSpr->x;
+	*y1 = *y2 = pSpr->y;
+	
+	if (flags & 0x01)
+	{
+		xoff = panm[nPic].xcenter;
+	}
+	
+	if (flags & 0x02)
+	{
+		xoff += pSpr->xoffset;
+	}
+	
+	if (pSpr->cstat & kSprFlipX)
+		xoff = -xoff;
+	
+	cx = sintable[nAng & kAngMask] * xrep;
+	cy = sintable[(nAng + kAng90 + kAng180) & kAngMask] * xrep;
+	t = (wh>>1)+xoff;
+	
+	*x1 -= mulscale16(cx, t);	*x2 = *x1 + mulscale16(cx, wh);
+	*y1 -= mulscale16(cy, t);	*y2 = *y1 + mulscale16(cy, wh);
+	
+	if (zt || zb)
+	{
+		int tzt, tzb;
+		GetSpriteExtents(pSpr, &tzt, &tzb);
+		if (zt)
+			*zt = tzt;
+		
+		if (zb)
+			*zb = tzb;
+	}
+}
+
+
+void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, char flags)
+{
+	int t, i, cx, cy, xoff = 0, yoff = 0;
+	int nPic = pSpr->picnum, nAng = pSpr->ang & kAngMask;
+	int xrep = pSpr->xrepeat, wh = tilesizx[nPic];
+	int yrep = pSpr->yrepeat, hg = tilesizy[nPic];
+	int nCos = sintable[(nAng + kAng90) & kAngMask];
+	int nSin = sintable[nAng];
+	
+	*x1 = *x2 = *x3 = *x4 = pSpr->x;
+	*y1 = *y2 = *y3 = *y4 =  pSpr->y;
+	
+	if (flags & 0x01)
+	{
+		xoff = panm[nPic].xcenter;
+		yoff = panm[nPic].ycenter;
+	}
+	
+	if (flags & 0x02)
+	{
+		xoff += pSpr->xoffset;
+		yoff += pSpr->yoffset;
+	}
+	
+	if (pSpr->cstat & kSprFlipX)
+		xoff = -xoff;
+	
+	if (pSpr->cstat & kSprFlipY)
+		yoff = -yoff;
+	
+	if (!(flags & 0x04))
+	{
+		if (wh % 2) wh++;
+		if (hg % 2) hg++;
+	}
+	
+	cx = ((wh>>1)+xoff)*xrep;
+	cy = ((hg>>1)+yoff)*yrep;
+		
+	*x1 += dmulscale16(nSin, cx, nCos, cy);
+	*y1 += dmulscale16(nSin, cy, -nCos, cx);
+	
+	t = wh*xrep;
+	*x2 = *x1 - mulscale16(nSin, t);
+	*y2 = *y1 + mulscale16(nCos, t);
+	
+	t = hg*yrep;
+	i = -mulscale16(nCos, t);	*x3 = *x2 + i; *x4 = *x1 + i;
+	i = -mulscale16(nSin, t);	*y3 = *y2 + i; *y4 = *y1 + i;
+}
+
+void performRotate(int* x, int* y, int nAng, int ax, int ay, BOOL rpoint)
+{
+	int dx = *x, dy = *y;
+	
+	if (rpoint)			RotatePoint(&dx, &dy, nAng, ax, ay);
+	else if (nAng > 0)	dx = ax + ay - *y, dy = ay + *x - ax; // Ken's four side rotation
+	else if (nAng < 0)	dx = ax + *y - ay, dy = ay + ax - *x; // Ken's four side rotation
+	*x = dx, *y = dy;
+	
+} 
+
+void loopGetWalls(int nStartWall, int* swal, int *ewal)
+{
+	int i;
+	*swal = *ewal = i = nStartWall;
+	while(wall[i].point2 != nStartWall) 
+	{
+		if (wall[i].point2 < *swal) *swal = wall[i].point2;
+		if (wall[i].point2 > *ewal) *ewal = wall[i].point2;
+		i = wall[i].point2;
+	}
+
+}
+
+void loopGetEdgeWalls(int nFirst, short* lw, short* rw, short* tw, short* bw)
+{
+	register int i; int swal, ewal;
+	
+	*lw = *rw = *tw = *bw = nFirst;
+	loopGetWalls(nFirst, &swal, &ewal);
+	for (i = swal; i <= ewal; i++)
+	{
+		if (wall[i].x < wall[*lw].x) *lw = i;
+		if (wall[i].x > wall[*rw].x) *rw = i;
+		if (wall[i].y < wall[*tw].y) *tw = i;
+		if (wall[i].y > wall[*bw].y) *bw = i;
+	}
+}
+
+
+void avePointLoop2(int nFirst, int* ax, int* ay)
+{
+	short lw, rw, bw, tw;
+	loopGetEdgeWalls(nFirst, &lw, &rw, &tw, &bw);
+	*ax = wall[lw].x + ((wall[rw].x - wall[lw].x) >> 1);
+	*ay = wall[tw].y + ((wall[bw].y - wall[tw].y) >> 1);
+}
+
+void avePointLoop(int nFirst, int* ax, int* ay)
+{
+	*ax = *ay = 0;
+	int i, swal, ewal, cnt = 0;
+	
+	loopGetWalls(nFirst, &swal, &ewal);
+	for (i = swal; i <= ewal; i++)
+	{
+		*ax+=wall[i].x;
+		*ay+=wall[i].y;
+		cnt++;
+	}
+	
+	cnt = ClipLow(cnt, 1);
+	*ax /= cnt;
+	*ay /= cnt;
+}
+
+void loopRotateWalls(int nFirst, int nAng, int ax, int ay, char flags)
+{
+	int i, swal, ewal;
+	loopGetWalls(nFirst, &swal, &ewal);
+	for (i = swal; i <= ewal; i++)
+	{
+		performRotate(&wall[i].x, &wall[i].y, nAng, ax, ay, (flags & kFlagRotateRpoint));
+		if (flags & kFlagRotateGrid)
+			doGridCorrection(&wall[i].x, &wall[i].y, grid);
+	}
+
+}
+
+void loopRotateWalls(int nFirst, int nAng, char flags)
+{
+	int ax, ay;
+	avePointLoop2(nFirst, &ax, &ay);
+	loopRotateWalls(nFirst, nAng, ax, ay, flags);
+}
+
+// get max grid size for XY at which it could be created
+int getXYGrid(int x, int y, int min, int max)
+{
+	int g, dx = x, dy = y;
+	for (g = min; g < max; g++)
+	{
+		doGridCorrection(&x, &y, g);
+		if (x == dx && y == dy)
+			break;
+		
+		x = dx;
+		y = dy;
+	}
+	
+	return g;
+}
+
+void rotateSector(int nSector, int nAng, int ax, int ay, char flags)
+{
+	int i, swal, ewal, nwal, g = grid;
+	BOOL hglt = (flags & kFlagRotateSide2) ? (hgltCheck(OBJ_SECTOR, nSector) >= 0) : FALSE;
+	
+	if (!(flags & kFlagRotateRpoint))
+		nAng = (nAng < 0) ? -512 : 512;
+
+	if (hglt)
+		sectorAttach(nSector);
+	
+	getSectorWalls(nSector, &swal, &ewal);
+	for (i = swal; i <= ewal; i++)
+	{
+		nwal = wall[i].nextwall;
+		performRotate(&wall[i].x, &wall[i].y, nAng, ax, ay, (flags & kFlagRotateRpoint));		
+		if (flags & kFlagRotateGrid)
+		{
+			g = getXYGrid(wall[i].x, wall[i].y);
+			doGridCorrection(&wall[i].x, &wall[i].y, g);
+		}
+		
+		if ((flags & kFlagRotateSide2) && nwal >= 0)
+		{
+			performRotate(&wall[nwal].x, &wall[nwal].y, nAng, ax, ay, (flags & kFlagRotateRpoint));
+			if (flags & kFlagRotateGrid)
+				doGridCorrection(&wall[nwal].x, &wall[nwal].y, g);
+		}
+	}
+	
+	if (hglt)
+		sectorDetach(nSector);
+	
+	if (flags & kFlagRotateSprites)
+	{
+		for (i = headspritesect[nSector]; i >= 0; i = nextspritesect[i])
+		{
+			performRotate(&sprite[i].x, &sprite[i].y, nAng, ax, ay, (flags & kFlagRotateRpoint));
+			if (flags & kFlagRotateGrid)
+				doGridCorrection(&sprite[i].x, &sprite[i].y, g);
+			
+			if (sprite[i].statnum != kStatMarker)
+				sprite[i].ang = (sprite[i].ang + nAng) & kAngMask;
+		}
+	}
+}
+
+void sectorDetach(int nSector)
+{
+	int x1, y1, x2, y2;
+	int sw, ew, sw2, ew2, i, j, k, sect;
+	getSectorWalls(nSector, &sw, &ew); i = sw;
+
+	 // first white out walls from the both sides
+	while(i <= ew)
+	{
+		if (wall[i].nextwall >= 0)
+		{
+			wallDetach(wall[i].nextwall);
+			wallDetach(i);
+		}
+		
+		i++;
+	}
+	
+	// restore red walls if sibling sectors stay highlight
+	if (highlightsectorcnt > 0)
+	{
+		while(--i >= sw)
+		{
+			getWallCoords(i, &x1, &y1, &x2, &y2);
+			
+			j = highlightsectorcnt;
+			while(j--)
+			{
+				sect = highlightsector[j];
+				getSectorWalls(sect, &sw2, &ew2);
+				for (k = sw2; k <= ew2; k++)
+				{
+					if (wall[wall[k].point2].x != x1 || wall[k].x != x2) continue;
+					if (wall[wall[k].point2].y != y1 || wall[k].y != y2) continue;
+					
+					wall[i].nextsector = sect;		wall[i].nextwall = k;
+					wall[k].nextsector = nSector;	wall[k].nextwall = i;
+				}
+			}
+		}
+	}
+	
+}
+
+void sectorAttach(int nSector)
+{
+	register int i, j, sw, ew;
+	getSectorWalls(nSector, &sw, &ew); i = sw;
+	
+	while(i <= ew)
+	{
+		checksectorpointer(i++, nSector);
+	}
+
+	// if near sectors stay highlighted
+	while (--i >= sw)
+	{
+		if (wall[i].nextwall < 0) continue;
+		for (j = 0; j < highlightsectorcnt; j++)
+		{
+			if (highlightsector[j] != wall[i].nextsector) continue;
+			wall[wall[i].nextwall].nextwall = wall[wall[i].nextwall].nextsector = -1;
+			wall[i].nextwall = wall[i].nextsector = -1;
+		}
+	}
+}
+
+int isMarkerSprite(int nSpr)
+{
+	spritetype* pSpr = &sprite[nSpr];
+	switch(pSpr->type)
+	{
+		case kMarkerAxis:
+		case kMarkerOn:
+		case kMarkerOff:
+			if (pSpr->statnum != kStatMarker || !rngok(pSpr->owner, 0, numsectors)) break;
+			// no break
+		case kMarkerPath:
+			return pSpr->type;
+	}
+	
+	return 0;
+}
+
+
 char removeQuotes(char* str)
 {
 	if (str)
@@ -2169,13 +2652,605 @@ char removeQuotes(char* str)
 	return 0;
 }
 
-/* void getSpriteExtents2(spritetype* pSpr, int* x1, int* y1)
+void nnExtOffsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z)
 {
-	int nAng, i;
-	i = mulscale6(tilesizx[pSpr->picnum], pSpr->xrepeat);
-	*x1 = pSpr->x + ((sintable[(pSpr->ang + kAng180) & kAngMask] * i) / 0x1000);
-	*y1 = pSpr->y + ((sintable[(pSpr->ang + kAng90)  & kAngMask] * i) / 0x1000);
-} */
+    // left, right
+    if (oX)
+    {
+        if (x) *x -= mulscale30(oX, Cos(nAng + kAng90));
+        if (y) *y -= mulscale30(oX, Sin(nAng + kAng90));
+    }
+
+    // forward, backward
+    if (oY)
+    {
+        if (x) *x += mulscale30r(Cos(nAng), oY);
+        if (y) *y += mulscale30r(Sin(nAng), oY);
+    }
+
+    // top, bottom
+    if (oZ && z)
+        *z += oZ;
+
+}
+
+char sectorHasMoveRObjects(int nSect)
+{
+	int s, e;
+	getSectorWalls(nSect, &s, &e);
+	while(s <= e)
+	{
+		if (wall[s++].cstat & kWallMoveReverse)
+			return true;
+	}
+		
+	for (s = headspritesect[nSect]; s >= 0; s = nextspritesect[s])
+	{
+		if (sprite[s].cstat & kSprMoveReverse)
+			return true;
+	}
+	
+	return false;
+}
+
+int reverseSectorPosition(int nSect, char flags)
+{
+	sectortype* pSect = &sector[nSect];
+	if (!rngok(pSect->extra, 1, kMaxXSectors))
+		return -1;
+	
+	XSECTOR* pXSect = &xsector[pSect->extra];
+	spritetype* pMark0, *pMark1 = NULL;
+	
+	if (pXSect->marker0 < 0)
+		return -1;
+	
+	if (pSect->type == kSectorRotateStep)
+		flags &= ~0x03;
+	
+
+	switch(pSect->type)
+	{
+		case kSectorSlideMarked:
+		case kSectorSlide:
+			if (pXSect->marker1 < 0) return -1;
+			pMark1 = &sprite[pXSect->marker1];
+			// no break
+		case kSectorRotate:
+		case kSectorRotateMarked:
+		case kSectorRotateStep:
+			pMark0 = &sprite[pXSect->marker0];
+			
+			// !!!
+			// don't know why sliders can't return to the rest
+			// state once rotated, so for now end with an error
+			if (pMark1 && (pMark0->ang || pMark1->ang))
+				return -1;
+			
+			trBasePointInit();
+			if (pMark1) TranslateSector(nSect, 0, -65536, pMark0->x, pMark0->y, pMark0->x, pMark0->y, pMark0->ang, pMark1->x, pMark1->y, pMark1->ang, pSect->type == kSectorSlide);
+			else TranslateSector(nSect, 0, -65536, pMark0->x, pMark0->y, pMark0->x, pMark0->y, 0, pMark0->x, pMark0->y, pMark0->ang, pSect->type == kSectorRotate);
+			
+			setBaseWallSect(nSect);
+			setBaseSpriteSect(nSect);
+			
+			if (pMark1)
+			{
+				//TranslateSector(nSect, 0, 65536, pMark0->x, pMark0->y, pMark0->x, pMark0->y, pMark0->ang, pMark1->x, pMark1->y, pMark1->ang, pSect->type == kSectorSlide);
+				if (flags & 0x02)
+				{
+					swapValues(&pMark1->x, &pMark0->x);
+					swapValues(&pMark1->y, &pMark0->y);
+				}
+				
+				//int ta = pMark1->ang;
+				//pMark1->ang = pMark0->ang;
+				//pMark0->ang = ta;
+				
+				//pMark1->ang = revertValue(pMark1->ang);
+				//pMark0->ang = revertValue(pMark0->ang);
+			}
+			else if (flags & 0x02)
+			{
+				pMark0->ang = revertValue(pMark0->ang);
+			}
+			
+			if (flags & 0x01)
+			{
+				pXSect->state = !pXSect->state;
+			}
+			break;
+		default:
+			return -1;
+	}
+	
+	return 1;
+}
+
+int countSpritesOfSector(int nSect)
+{
+	int c = 0;
+	for (int i = headspritesect[nSect]; i >= 0; i = nextspritesect[i])
+		c++;
+	
+	return c;
+}
+
+void ceilGetEdgeZ(int nSector, int* zBot, int* zTop)
+{
+	int s, e, x, y, z;
+	sectortype* pSect = &sector[nSector];
+	
+	*zTop = *zBot = pSect->ceilingz;
+	if ((pSect->ceilingstat & kSectSloped) && pSect->ceilingslope)
+	{
+		getSectorWalls(nSector, &s, &e);
+		
+		while(s <= e)
+		{
+			getWallCoords(s++, &x, &y);
+			z = getceilzofslope(nSector, x, y);
+			if (zBot && z < *zBot) *zBot = z;
+			if (zTop && z > *zTop) *zTop = z;
+		}
+	}
+}
+
+
+void floorGetEdgeZ(int nSector, int* zBot, int* zTop)
+{
+	int s, e, x, y, z;
+	sectortype* pSect = &sector[nSector];
+	
+	
+	*zTop = *zBot = pSect->floorz;
+	if ((pSect->floorstat & kSectSloped) && pSect->floorslope)
+	{
+		getSectorWalls(nSector, &s, &e);
+		
+		while(s <= e)
+		{
+			getWallCoords(s++, &x, &y);
+			z = getflorzofslope(nSector, x, y);
+			if (zBot && z > *zBot) *zBot = z;
+			if (zTop && z < *zTop) *zTop = z;
+		}
+	}
+	
+	//Alert("FLOOR %d:  %d / %d", nSector, *zTop, *zBot);
+}
+
+void sectGetEdgeZ(int nSector, int* fz, int* cz)
+{
+	int s, e, x, y, z;
+	getSectorWalls(nSector, &s, &e);
+	
+	*fz = sector[nSector].floorz;
+	*cz = sector[nSector].ceilingz;
+	while(s <= e)
+	{
+		getWallCoords(s++, &x, &y);
+		if (fz && (z = getflorzofslope(nSector, x, y)) > *fz)
+			*fz = z;
+		
+		if (cz && (z = getceilzofslope(nSector, x, y)) < *cz)
+			*cz = z;
+	}
+}
+
+int getSectorHeight(int nSector)
+{
+	int fz, cz;
+	sectGetEdgeZ(nSector, &fz, &cz);
+	return fz-cz;
+}
+
+void flipWalls(int nStart, int nOffs)
+{
+	int e = nStart + ((nOffs-nStart)>>1);
+	int s = nStart, t;
+	
+	while(s < e)
+	{ 
+		t = nStart + nOffs - s - 1;
+		swapValues(&wall[s].x, &wall[t].x);
+		swapValues(&wall[s].y, &wall[t].y);
+		s++;
+	}
+}
+
+void setFirstWall(int nSect, int nWall)
+{
+	int start, length, shift;
+	int i, j, k;
+	walltype tempWall;
+
+	// rotate the walls using the shift copy algorithm
+
+	start = sector[nSect].wallptr;
+	length = sector[nSect].wallnum;
+
+	dassert(nWall >= start && nWall < start + length);
+	shift = nWall - start;
+
+	if (shift == 0)
+		return;
+
+	i = k = start;
+
+	for (int n = length; n > 0; n--)
+	{
+		if (i == k)
+			tempWall = wall[i];
+
+		j = i + shift;
+		while (j >= start + length)
+			j -= length;
+
+		if (j == k)
+		{
+			wall[i] = tempWall;
+			i = ++k;
+			continue;
+		}
+		wall[i] = wall[j];
+		i = j;
+	}
+
+	for (i = start; i < start + length; i++)
+	{
+		if ( (wall[i].point2 -= shift) < start )
+			wall[i].point2 += length;
+
+		if ( wall[i].nextwall >= 0 )
+			wall[wall[i].nextwall].nextwall = (short)i;
+	}
+
+	CleanUp();
+}
+
+char loopInside(int nSect, POINT2D* pPoint, int nCount, char full)
+{
+	int nPrev, nAng, nLen, i, r;
+	POINT2D *a = pPoint, *b;
+	POSOFFS pos;
+
+	for (i = 0; i < nCount; i++)
+	{
+		if (!inside(a[i].x, a[i].y, nSect))
+			return 0;
+	}
+	
+	if (full)
+	{
+		for (i = 0; i < nCount-1; i++)
+		{
+			a = &pPoint[i]; b = &pPoint[i+1];
+			nAng = (getangle(b->x - a->x, b->y - a->y) + kAng90) & kAngMask;
+			nLen = exactDist(b->x - a->x, b->y - a->y);
+			pos.New(nAng, a->x, a->y);
+			
+			while(pos.Distance() < nLen)
+			{
+				if (!inside(pos.x, pos.y, nSect))
+					return 0;
+				
+				r = ClipLow(nLen >> 4, 2);
+				if (r % 2)
+					r++;
+				
+				nPrev = pos.Distance();
+				while(nPrev == pos.Distance())
+					pos.Right(r+=2);
+			}
+		}
+	}
+	
+	return 1;
+}
+
+int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pModel)
+{
+	walltype* pWall;
+	int nStartWall = (nSect >= 0) ? sector[nSect].wallptr : numwalls;
+	int nWall = nStartWall, i = 0;
+	int t;
+	
+	movewalls(nWall, nCount); // increases numwalls automatically
+	
+	while(i < nCount)
+	{
+		pWall = &wall[nWall++];
+		
+		if (pModel)
+			memcpy(pWall, pModel, sizeof(walltype));
+		
+		pWall->point2		= nWall;
+		pWall->nextwall		= -1;
+		pWall->nextsector	= -1;
+		
+		pWall->x			= pInfo[i].x;
+		pWall->y			= pInfo[i].y;
+		i++;
+	}
+	
+	pWall->point2 = nStartWall;
+	
+	if (nSect >= 0)
+	{
+		t = nSect;
+		sector[t].wallnum += nCount;
+		while(t++ < numsectors)
+			sector[t].wallptr += nCount;
+		
+		if (clockdir(nStartWall) == 0)
+			flipWalls(nStartWall, nStartWall + nCount);
+		
+		for (i = headspritesect[nSect]; i >= 0; i = nextspritesect[i])
+		{
+			spritetype* pSpr = &sprite[i]; t = nSect;
+			if (FindSector(pSpr->x, pSpr->y, pSpr->z, &t) && t != nSect)
+			{
+				ChangeSpriteSect(pSpr->index, t);
+				i = headspritesect[nSect];
+			}
+		}
+	}
+	
+	
+	return nStartWall;
+}
+
+void insertPoints(WALLPOINT_INFO* pInfo, int nCount)
+{
+	for (int i = 0; i < nCount; i++)
+		insertpoint(pInfo[i].w, pInfo[i].x, pInfo[i].y);
+}
+
+int redSectorCanMake(int nStartWall)
+{
+	
+	int addwalls = -1;
+	if (wall[nStartWall].nextwall >= 0) return -1;
+	else if (numsectors >= kMaxSectors) return -4;
+	else if ((addwalls = whitelinescan(nStartWall)) < numwalls) return -2;
+	else if (addwalls >= kMaxWalls) return -3;
+	else return addwalls;
+}
+
+
+int redSectorMake(int nStartWall)
+{
+	dassert(nStartWall >= 0 && nStartWall < numwalls);
+	
+	int i, addwalls, swal, ewal;
+	if ((addwalls = redSectorCanMake(nStartWall)) <= 0)
+		return addwalls;
+
+	for (i = numwalls; i < addwalls; i++)
+	{
+		wall[wall[i].nextwall].nextwall = i;
+		wall[wall[i].nextwall].nextsector = numsectors;
+	}
+		
+	sectortype* pSect =& sector[numsectors];
+	getSectorWalls(numsectors, &swal, &ewal);
+	
+	// we for sure don't need cstat inheriting for walls
+	for (i = swal; i <= ewal; i++)
+		wall[i].cstat = wall[wall[i].nextwall].cstat = 0;
+
+	numwalls = addwalls;
+	numsectors++;
+	return 0;
+}
+
+int redSectorMerge(int nThis, int nWith)
+{
+	int i, j, k, f, m, swal, ewal, tmp, nwalls = numwalls;
+	short join[2]; join[0] = nThis, join[1] = nWith;
+
+	for(i = 0; i < 2; i++)
+	{
+		getSectorWalls(join[i], &swal, &ewal);
+		for(j = swal; j <= ewal; j++)
+		{
+			if (wall[j].cstat == 255)
+				continue;
+			
+			tmp = i;
+			if (wall[j].nextsector == join[1-tmp])
+			{
+				wall[j].cstat = 255;
+				continue;
+			}
+
+			f = j;
+			k = nwalls;
+			do
+			{
+				memcpy(&wall[nwalls],&wall[f],sizeof(walltype));
+				wall[nwalls].point2 = nwalls+1;
+				nwalls++;
+				wall[f].cstat = 255;
+
+				f = wall[f].point2;
+				if (wall[f].nextsector == join[1-tmp])
+				{
+					f = wall[wall[f].nextwall].point2;
+					tmp = 1 - tmp;
+				}
+			}
+			while ((wall[f].cstat != 255) && (wall[f].nextsector != join[1 - tmp]));
+			wall[nwalls - 1].point2 = k;
+		}
+	}
+	
+	if (nwalls <= numwalls)
+		return 0;
+
+	memcpy(&sector[numsectors], &sector[join[0]], sizeof(sectortype));
+	sector[numsectors].wallnum = nwalls - numwalls;
+	sector[numsectors].wallptr = numwalls;
+
+	for(i = numwalls;i < nwalls; i++)
+	{
+		if (wall[i].nextwall < 0) continue;
+		wall[wall[i].nextwall].nextsector = numsectors;
+		wall[wall[i].nextwall].nextwall = i;
+	}
+
+	for(i = 0; i < 2; i++)
+	{
+		getSectorWalls(join[i], &swal, &ewal);
+		for(j = swal; j <= ewal; j++)
+			wall[j].nextwall = wall[j].nextsector = -1;
+
+		j = headspritesect[join[i]];
+		while (j != -1)
+		{
+			k = nextspritesect[j];
+			ChangeSpriteSect(j, numsectors);
+			j = k;
+		}
+	}
+	
+	numwalls = nwalls, numsectors++;
+	if (join[0] < join[1])
+		join[1]--;
+	
+	deletesector(join[0]);
+	deletesector(join[1]);
+	return 0;
+}
+
+char scanWallOfSector(SCANWALL* pIn, SCANWALL* pOut)
+{
+	sectortype* pSect = &sector[pIn->s];
+	short* pWallCstat = (short*)malloc(pSect->wallnum*(sizeof(short)+1));
+	short* pSprCstat = NULL;
+	int nSect = pIn->s, i, j, s, e;
+	int hx, hy, hz;
+	short hsp;
+
+	
+	int backSlope[2]	= {pSect->floorslope, pSect->ceilingslope};
+	int backGoal[2]		= {hitscangoalx, hitscangoaly};
+
+	pOut->w = -1;
+	if (pWallCstat)
+	{
+		getSectorWalls(nSect, &s, &e);
+		for (i = s, j = 0; i <= e; i++)
+		{
+			pWallCstat[j++] = wall[i].cstat;
+			wall[i].cstat = kWallBlock;
+		}
+	}
+	
+	if ((i = countSpritesOfSector(nSect)) > 0)
+	{
+		if ((pSprCstat = (short*)malloc(i*sizeof(short))) != NULL)
+		{
+			for (i = headspritesect[nSect], j = 0; i >= 0; i = nextspritesect[i])
+			{
+				pSprCstat[j++] = sprite[i].cstat;
+				sprite[i].cstat = kSprFloor;
+			}
+		}
+	}
+	
+	pSect->floorslope = pSect->ceilingslope = 0;
+	hitscangoalx = hitscangoaly = 0x1fffffff;
+	
+	hitscan
+	(
+		pIn->pos.x, pIn->pos.y, pIn->pos.z, nSect,
+		Cos(pIn->pos.a)>>16, Sin(pIn->pos.a)>>16, 0,
+		&pOut->s, &pOut->w, &hsp,
+		&hx, &hy, &hz,
+		BLOCK_MOVE
+	);
+	
+	hitscangoalx = backGoal[0];
+	hitscangoaly = backGoal[1];
+	
+	pSect->floorslope	= backSlope[0];
+	pSect->ceilingslope = backSlope[1];
+	
+	if (pWallCstat)
+	{
+		for (i = s, j = 0; i <= e; i++)
+			wall[i].cstat = pWallCstat[j++];
+		
+		free(pWallCstat);
+	}
+	
+	if (pSprCstat)
+	{
+		for (i = headspritesect[nSect], j = 0; i >= 0; i = nextspritesect[i])
+			sprite[i].cstat = pSprCstat[j++];
+		
+		free(pSprCstat);
+	}
+	
+	if (pOut->w >= 0)
+	{
+		pOut->pos.New((GetWallAngle(pOut->w) + kAng90) & kAngMask, hx, hy, hz);
+		return 1;
+	}
+	
+	return 0;
+}
+
+BOOL testXSectorForLighting(int nXSect)
+{
+	int sum = 0;
+	XSECTOR* sc = &xsector[nXSect];
+	if (obsoleteXObject(OBJ_FLOOR, nXSect))
+		return FALSE;
+
+	sum  = sc->state + sc->txID + sc->rxID + sc->command + sc->triggerOn + sc->triggerOff;
+	sum += sc->decoupled + sc->triggerOnce + sc->locked + sc->interruptable + sc->dudeLockout;
+	sum += sc->triggerOn + sc->busyTimeA + sc->busyWaveA + sc->reTriggerA;
+	sum += sc->waitTimeA + sc->triggerOff + sc->busyTimeB + sc->busyWaveB + sc->reTriggerB;
+	sum += sc->waitTimeB + sc->triggerPush + sc->triggerWallPush + sc->triggerEnter + sc->triggerExit;
+	sum += sc->key + sc->Depth + sc->underwater + sc->crush + sc->data;
+	return (BOOL)(sum == 0);
+}
+
+int roundAngle(int nAng, int nAngles)
+{
+	int i, a = 0;
+	int16_t *angles = new int16_t [nAngles];
+	int n = 2048 / nAngles;
+	
+	for (i = 0; i < nAngles; i++)
+	{
+		angles[i] = a;
+		a+=n;
+	}
+
+	while(--i >= 0 && !rngok(nAng, angles[i], angles[i]+n))
+	delete [] angles;
+	return angles[i];
+}
+
+
+XSPRITE* GetXSpr(spritetype* pSpr)
+{
+	return (pSpr->extra > 0) ? &xsprite[pSpr->extra] : NULL;
+}
+
+XSECTOR* GetXSect(sectortype* pSect)
+{
+	return (pSect->extra > 0) ? &xsector[pSect->extra] : NULL;
+}
+
+XWALL* GetXWall(walltype* pWall)
+{
+	return (pWall->extra > 0) ? &xwall[pWall->extra] : NULL;
+}
 
 /* 
 
