@@ -40,7 +40,8 @@ enum BUSYID {
     BUSYID_7,
 };
 
-#define kMaxBusyCount 128
+#define kMaxBusyCountVanilla 128
+#define kMaxBusyCount kMaxXSectors >> 2
 struct BUSY {
     int at0;
     int at4;

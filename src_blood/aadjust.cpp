@@ -42,6 +42,7 @@
 #include "mapcmt.h"
 #include "xmpror.h"
 #include "tracker.h"
+#include "xmpstr.h"
 
 BYTE markerDB[6][3] = {
 	
@@ -54,203 +55,15 @@ BYTE markerDB[6][3] = {
 	
 };
 
-AUTODATA autoData[] = {
-
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerSPStart,				-1,		2522,		56,	56,	0,	kPlu0 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerMPStart,				-1,		2522,		56,	56,	0,  kPlu5 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerDudeSpawn,			-1,		2077,		40,	40,	0,	kPluAny },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerEarthquake,			-1,		2072,		40,	40,	0,	kPlu0 },
-	{	kOGrpMarker,	FALSE,	TRUE,	kGenDripBlood,				-1,		2028,		-1, -1, -1, kPlu2 },
-	{	kOGrpMarker,	FALSE,	TRUE,	kGenDripWater,				-1,		2028,		-1, -1, -1, kPlu10 },
-	{	kOGrpMarker,	FALSE,	TRUE,	kGenBubble,					-1,		1128,		40,	40,	-1,	kPluAny },
-	{	kOGrpMarker,	FALSE,	TRUE,	kGenBubbleMulti,			-1,		1132,		40,	40,	-1,	kPluAny },
-	{	kOGrpMarker,	FALSE,	TRUE,	kGenSound,					-1,		2519,		32,	24,	-1,	kPlu6 },
-	{	kOGrpMarker,	FALSE,	TRUE,	kSoundSector,				-1,		2520,		32,	24,	-1,	kPlu9 },
-	{	kOGrpMarker,	FALSE,	TRUE,	kSoundAmbient,				-1,		2521,		32,	24,	-1,	kPlu0 },
-	{	kOGrpMarker,	FALSE,	TRUE,	kSoundPlayer,				-1,		2519,		32,	24,	-1,	kPlu5 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerUpWater,				-1,		2332,		64,	64,	0,	kPlu0 },
-	{   kOGrpNone,		FALSE,	TRUE,	kMarkerLowWater,			-1,		2331,		64,	64, 0,	kPlu0 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerUpStack,				-1,		2332,		64,	64, 0,	kPlu2 },
-	{   kOGrpNone,		FALSE,	TRUE,	kMarkerLowStack,			-1,		2331,		64,	64, 0,	kPlu2 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerUpLink,				-1,		2332,		64,	64, 0,	kPlu6 },
-	{   kOGrpNone,		FALSE,	TRUE,	kMarkerLowLink,				-1,		2331,		64,	64, 0,	kPlu6 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerUpGoo,				-1,		2332,		64,	64, 0,	kPlu5 },
-	{   kOGrpNone,		FALSE,	TRUE,	kMarkerLowGoo,				-1,		2331,		64,	64, 0,	kPlu5 },
-	{   kOGrpMarker,	FALSE,	TRUE,	kMarkerPath,				-1,		2319,		144, 144, 0, kPlu0 },
-
-	{   kOGrpMisc,		TRUE,	TRUE,	kSwitchToggle,				-1,		1072,		40,	40,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	TRUE,	kSwitchToggle,				-1,		1074,		40,	40,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	TRUE,	kSwitchToggle,				-1,		1076,		40,	40,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	TRUE,	kSwitchToggle,				-1,		1070,		40,	40,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	TRUE,	kSwitchToggle,				-1,		1078,		40,	40,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	TRUE,	kSwitchToggle,				-1,		1048,		40,	40,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	TRUE,	kSwitchToggle,				-1,		1046,		40,	40,	-1,	kPluAny },
-
-	{   kOGrpNone,		TRUE,	TRUE,	kSwitchOneWay,				-1,		1072,		40,	40,	-1,	kPluAny },
-	{   kOGrpNone,		TRUE,	TRUE,	kSwitchOneWay,				-1,		1074,		40,	40,	-1,	kPluAny },
-	{   kOGrpNone,		TRUE,	TRUE,	kSwitchOneWay,				-1,		1076,		40,	40,	-1,	kPluAny },
-	{   kOGrpNone,		TRUE,	TRUE,	kSwitchOneWay,				-1,		1070,		40,	40,	-1,	kPluAny },
-	{   kOGrpNone,		TRUE,	TRUE,	kSwitchOneWay,				-1,		1078,		40,	40,	-1,	kPluAny },
-	{   kOGrpNone,		TRUE,	TRUE,	kSwitchOneWay,				-1,		1048,		40,	40,	-1,	kPluAny },
-	{   kOGrpNone,		TRUE,	TRUE,	kSwitchOneWay,				-1,		1046,		40,	40,	-1,	kPluAny },
-
-	{   kOGrpMisc,		TRUE,	TRUE,	kSwitchCombo,				-1,		1161,		40,	40,	-1,	kPluAny },
-	{	kOGrpMisc,		TRUE,	TRUE,	kThingWallCrack,			-1,		1127,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpMisc,		FALSE,	TRUE,	kThingSpiderWeb,			-1,		1069,		-1,	-1,	1,	kPluAny },
-	{	kOGrpMisc,		FALSE,	TRUE,	kThingWoodBeam,				-1,		1142,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpMisc,		FALSE,	TRUE,	kThingFlammableTree,		-1,		3355,		-1, -1, -1,	kPluAny },
-	{	kOGrpMisc,		FALSE,	TRUE,	kThingFlammableTree,		-1,		3363,		-1, -1, -1,	kPluAny },
-	{	kOGrpMisc,		FALSE,	TRUE,	kThingCrateFace,			-1,		462,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpMisc,		FALSE,	TRUE,	kThingFluorescent,			-1,		796,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpMisc,		FALSE,	TRUE,	kThingMetalGrate,			-1,		483,		-1, -1, -1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	FALSE,	kDecorationCandle,			-1,		938,		-1,	-1,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	FALSE,	kDecorationTorch,			-1,		550,		-1,	-1,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	FALSE,	kDecorationTorch,			-1,		572,		-1,	-1,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	FALSE,	kDecorationTorch,			-1,		560,		-1,	-1,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	FALSE,	kDecorationTorch,			-1,		564,		-1,	-1,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	FALSE,	kDecorationTorch,			-1,		570,		-1,	-1,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	FALSE,	kDecorationTorch,			-1,		554,		-1,	-1,	-1,	kPluAny },
-	{   kOGrpMisc,		TRUE,	TRUE,   kSwitchPadlock,				37,		948,		-1,	-1,	-1,	kPluAny },
-
-	{   kOGrpWeapon,	FALSE,	TRUE,	kItemWeaponFlarePistol,		-1,		524,		48,	48,	0,	kPluAny },
-	{   kOGrpWeapon,	FALSE,	TRUE,	kItemWeaponSawedoff,		-1,		559,		48,	48,	0,	kPluAny },
-	{   kOGrpWeapon,	FALSE,	TRUE,	kItemWeaponTommygun,		-1,		558,		48,	48,	0,	kPluAny },
-	{   kOGrpWeapon,	FALSE,	TRUE,	kItemWeaponNapalmLauncher,	-1,		526,		48,	48,	0,	kPluAny },
-	{   kOGrpWeapon,	FALSE,	TRUE,	kItemWeaponTeslaCannon,		-1,		539,		48,	48,	0,	kPluAny },
-	{   kOGrpWeapon,	FALSE,	TRUE,	kItemWeaponLifeLeech,		-1,		800,		48,	48,	0,	kPluAny },
-
-	{	kOGrpAmmo,		FALSE,	TRUE,	kItemAmmoFlares,			-1,		816,		48,	48,	0,	kPluAny },
-	{	kOGrpAmmoMix,	FALSE,	TRUE,	kItemAmmoTNTBox,			-1,		809,		48,	48,	0,	kPluAny },
-	{	kOGrpAmmoMix,	FALSE,	TRUE,	kItemAmmoTNTBundle,			-1,		589,		48,	48,	0,	kPluAny },
-	{	kOGrpAmmoMix,	FALSE,	TRUE,	kItemAmmoProxBombBundle,	-1,		811,		40,	40,	0,	kPluAny },
-	{	kOGrpAmmoMix,	FALSE,	TRUE,	kItemAmmoRemoteBombBundle,	-1,		810,		40,	40,	0,	kPluAny },
-	{	kOGrpAmmoMix,	FALSE,	TRUE,	kItemAmmoSprayCan,			-1,		618,		40,	40,	0,	kPluAny },
-	{	kOGrpAmmo,		FALSE,	TRUE,	kItemAmmoSawedoffBox,		-1,		812,		48,	48,	0,	kPluAny },
-	{	kOGrpAmmo,		FALSE,	TRUE,	kItemAmmoSawedoffFew,		-1,		619,		48,	48,	0,	kPluAny },
-	{	kOGrpAmmo,		FALSE,	TRUE,	kItemAmmoTommygunDrum,		-1,		817,		48,	48,	0,	kPluAny },
-	{	kOGrpAmmo,		FALSE,	TRUE,	kItemAmmoTommygunFew,		-1,		813,		48,	48,	0,	kPluAny },
-	{	kOGrpAmmo,		FALSE,	TRUE,	kItemAmmoGasolineCan,		-1,		801,		48,	48,	0,	kPluAny },
-	{	kOGrpAmmo,		FALSE,	TRUE,	kItemAmmoTeslaCharge,		-1,		548,		24,	24,	0,	kPluAny },
-	{	kOGrpAmmo,		FALSE,	TRUE,	kItemAmmoTrappedSoul,		-1,		820,		24,	24,	0,	kPluAny },
-	{	kOGrpAmmoMix,	FALSE,	TRUE,	kItemAmmoVoodooDoll,		-1,		525,		48,	48,	0,	kPluAny },
-
-	{	kOGrpItem,		FALSE,	TRUE,	kItemKeySkull,				-1,		2552,		32,	32,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemKeyEye,				-1,		2553,		32,	32,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemKeyFire,				-1,		2554,		32,	32,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemKeyDagger,				-1,		2555,		32,	32,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemKeySpider,				-1,		2556,		32,	32,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemKeyMoon,				-1,		2557,		32,	32,	0,	kPluAny },
-	{	kOGrpItem,		TRUE,	TRUE,	kItemKey7,					-1,		2558,		32,	32,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemHealthRedPotion,		-1,		517,		40,	40,	0,	kPlu2 },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemHealthLifeEssense,		-1,		2169,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemHealthMedPouch,		-1,		822,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemHealthLifeSeed,		-1,		2433,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemHealthDoctorBag,		-1,		519,		48,	48,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemFeatherFall,			-1,		783,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemShadowCloak,			-1,		896,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemDeathMask,				-1,		825,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemJumpBoots,				-1,		827,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemTwoGuns,				-1,		829,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemGasMask,				-1,		831,		56,	56,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemDivingSuit,			-1,		830,		80,	64,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemArmorAsbest,			-1,		837,		72,	72,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemReflectShots,			-1,		2428,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemBeastVision,			-1,		839,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemCrystalBall,			-1,		760,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemDoppleganger,			-1,		853,		56,	56,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemShroomDelirium,		-1,		841,		48,	48,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemShroomGrow,			-1,		842,		48,	48,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemShroomShrink,			-1,		843,		48,	48,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemArmorBasic,			-1,		2628,		64,	64,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemArmorBody,				-1,		2586,      	64,	64,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemArmorFire,				-1,		2578,      	64,	64,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemArmorSpirit,			-1,		2602,		64,	64,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemArmorSuper,			-1,		2594,		64,	64,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemTome,					-1,		518,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemBlackChest,			-1,		522,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	kItemWoodenChest,			-1,		523,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		FALSE,	TRUE,	40,							-1,		832,		40,	40,	0,	kPluAny },
-	{	kOGrpItem,		TRUE,	TRUE,	150,						-1,		833,		40,	40,	0,	kPluAny },
-
-	{	kOGrpDude,		FALSE,	TRUE,	kDudeCultistShotgun,		11520,	2825,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeCultistShotgunProne,	11534,	3375,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeCultistTommy,			4102,	2820,		40,	40,	1,	kPlu3 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeCultistTommyProne, 	4113,	3385,		40,	40,	1,	kPlu3 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeCultistTesla,			12809,	2875,		40,	40,	1,	kPlu11 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeCultistTNT, 			13063,	2830,		40,	40,	1,	kPlu13 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeZombieAxeNormal,		4352,	1224,		40, 40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeZombieAxeBuried,		4361,	3048,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeZombieAxeLaying,		4362,	1209,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeZombieButcher,			4608,	1370,		48,	48,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeGargoyleFlesh,			4864,	1470,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeGargoyleStatueFlesh,	11013,	1530,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudePhantasm,				5376,	3060,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeHellHound,     		5632,	1270,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeGillBeast,				7168,	1570,		48,	48,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudePodGreen,				8192,	1792,		32,	32,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeTentacleGreen,			8454,	1797,		32,	32,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudePodFire,				8709,	1793,		48,	48,	1,	kPlu2 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeTentacleFire, 			8965,	1797,		48,	48,	1,	kPlu2 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeHand,					5888,	1980,		32,	32,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeRat,					7936,	1745,		24,	24,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeBoneEel,				7424,	1870,		32,	32,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeBat,					7686,	1950,		32,	32,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeSpiderBrown, 			6144,	1920,		16,	16,	1,	kPlu7 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeSpiderRed,				6407,	1925,		24,	24,	1,	kPlu4 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeSpiderBlack,			6662,	1930,		32,	32,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeInnocent,				12544,	3798,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeTinyCaleb,				13568,	3870,		16,	16,	1,	kPlu12 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeGargoyleStone, 		5120,	2595,		64,	64,	1,	kPlu0 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeGargoyleStatueStone,	11269,  1530,		48,	48,	1,	kPlu0 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeSpiderMother,			6663,	1930,		40,	40,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeCerberusTwoHead,		9728, 	2680,		64,	64,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeCerberusOneHead, 		9984,	2749,		64,	64,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeTchernobog,			10240, 	3140,		-1,	-1,	1,	kPluAny },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeCultistBeast,			13312,	2825,		48,	48,	1,	kPlu12 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeBeast,					10752,	2960,		48,	48,	1,	kPlu12 },
-	{	kOGrpDude,		FALSE,	TRUE, 	kDudeModernCustom, 			-1,		2925,		-1,	-1,	1,	kPluAny },
-	{	kOGrpDude,		TRUE,	TRUE,  	225,  						-1,		3949,		-1, -1, 1, 	kPluAny },
-
-	{	kOGrpHazard,	FALSE,	TRUE,	kThingTNTBarrel,			-1,		907,		-1,	-1,	1,	kPluAny },
-	{	kOGrpHazard,	FALSE,	TRUE, 	kTrapMachinegun,			38,		2182,		-1,	-1,	0,	kPluAny },
-	{	kOGrpHazard,	FALSE,	TRUE, 	kTrapFlame,					39,		2183,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpHazard,	TRUE,	TRUE,	kGenMissileFireball,		-1,		249,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpHazard,	TRUE,	TRUE,	kGenMissileEctoSkull,		-1,		226,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpHazard,	FALSE,	TRUE,	kTrapExploder,				-1,		908,	 	4,	-1,	-1,	kPluAny },
-	{	kOGrpHazard,	FALSE,	TRUE,	kTrapSawCircular,			-1,		655,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpHazard,	FALSE,	TRUE,	kTrapPendulum,				-1,		1080,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpHazard,	FALSE,	TRUE,	kTrapGuillotine,			-1,		835,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpHazard,	FALSE,	TRUE,	kTrapZapSwitchable,			-1,		1156,		-1,	-1,	-1,	kPluAny },
-	{	kOGrpHazard,	TRUE,	TRUE,	kThingArmedSpray,			-1,		3467,		32,	32,	1,	kPluAny },
-	{	kOGrpHazard,	FALSE,	TRUE,	kThingArmedProxBomb,		-1,		3444,		40,	40,	1,	kPluAny },
-	{	kOGrpHazard,	FALSE,	TRUE,	kThingArmedRemoteBomb,		-1,		3457,		40,	40,	1,	kPluAny },
-	{	kOGrpHazard,	TRUE,	TRUE,	kThingArmedTNTStick,		-1,		3422,		32,	32,	1,	kPluAny },
-	{	kOGrpHazard,	TRUE,	TRUE,	428,						-1,		3295,		40, 40, -1, kPluAny },
-	{	kOGrpHazard,	TRUE,	TRUE,	430,						-1,		3633,		40, 40, -1, kPluAny },
-	{	kOGrpHazard,	TRUE,	TRUE,	431,						-1,		3317,		24, 24, -1, kPluAny },
-
-	{	kOGrpNone,		FALSE,	TRUE,	kThingFallingRock,			-1,		-1,			-1,	-1,	1,	kPluAny },
-	{	kOGrpNone,		FALSE,	TRUE,	kThingKickablePail,			-1,		-1,			-1,	-1,	1,	kPluAny },
-	{	kOGrpNone,		FALSE,	TRUE,	kThingObjectGib,			-1,		-1,			-1,	-1,	-1,	kPluAny },
-	{	kOGrpNone,		FALSE,	TRUE,	kThingObjectExplode,		-1,		-1,			-1,	-1,	-1,	kPluAny },
-	{	kOGrpNone,		FALSE,	TRUE,	kThingZombieHead,			-1,		-1,			-1, -1, 1,  kPluAny },
-
-	{	kOGrpModern,	FALSE,	TRUE,	kModernCustomDudeSpawn,		-1,		2077,		-1, -1, -1, kPluAny },
-	{   kOGrpModern,	FALSE,	TRUE,	kMarkerWarpDest,			-1,		3193,		255, 255, -1, kPlu9 },
-	{   kOGrpModern,	FALSE,	TRUE,	16,							-1,		3193,		128, 128, -1, kPluAny },
-	{	kOGrpModern,	FALSE,	TRUE,	kModernCondition,			-1,		4127,		160, 160, 0, kPlu10 },
-	{	kOGrpModern,	FALSE,	TRUE,	kModernConditionFalse,		-1,		4127,		160, 160, 1, kPlu7 },
-
-};
-
-const short autoDataLength = LENGTH(autoData);
+AUTODATA* autoData = NULL;
+int autoDataLength = 0;
 
 unsigned short markers[]  = { kMarkerOff, kMarkerOn, kMarkerAxis, kMarkerWarpDest };
 unsigned short misc[]     = { kMarkerSPStart, kMarkerMPStart, kMarkerDudeSpawn, kMarkerEarthquake, kGenSound, kSoundSector, kSoundPlayer };
 unsigned short cond[] 	  = { kModernCondition, kModernConditionFalse };
 
-SYS_STATNUM_GROUP sysStatData[] = {
-
+SYS_STATNUM_GROUP sysStatData[] =
+{
 	{ 0x02,		kStatMarker,					0,							0, 					markers, LENGTH(markers) },
 	{ 0x03,		kStatPathMarker,				kMarkerPath,				0,					NULL, 0 },
 	{ 0x03,		kStatDude,						kDudeBase, 					kDudeMax - 1,		NULL, 0 },
@@ -263,7 +76,6 @@ SYS_STATNUM_GROUP sysStatData[] = {
 	{ 0x03,		kStatModernStealthRegion,		kModernStealthRegion,		0,					NULL, 0 },
 	{ 0x03,		kStatModernDudeTargetChanger,	kModernDudeTargetChanger,	0,					NULL, 0 },
 	{ 0x03,		kStatModernCondition,			0,							0, 					cond, LENGTH(cond) },
-	
 };
 
 char isSysStatnum(int nStat)
@@ -279,8 +91,131 @@ char isSysStatnum(int nStat)
 	return false;
 }
 
-void AutoAdjustSprites(void) {
 
+enum
+{
+	kAutoAdjustParGroup,
+	kAutoAdjustParSeq,
+	kAutoAdjustParTile,
+	kAutoAdjustParSizeX,
+	kAutoAdjustParSizeY,
+	kAutoAdustParPal,
+	kAutoAdjustParHit,
+	kAutoAdjustParFlags,
+	
+};
+static NAMED_TYPE gNTAutoAdjustParams[] =
+{
+	{kAutoAdjustParGroup,		"Group"},
+	{kAutoAdjustParSeq,			"Seq"},
+	{kAutoAdjustParTile,		"Tile"},
+	{kAutoAdjustParSizeX,		"SizeX"},
+	{kAutoAdjustParSizeY,		"SizeY"},
+	{kAutoAdustParPal,			"Pal"},
+	{kAutoAdjustParHit,			"Hit"},
+	{kAutoAdjustParFlags,		"Flags"},
+};
+
+enum
+{
+	kAutoAdjustParFlagsException	= 0x01,
+	kAutoAdjustParFlagsXSprite		= 0x02,
+};
+static NAMED_TYPE gAutoAdjustFlags[] =
+{
+	{kAutoAdjustParFlagsException,	"Exception"},
+	{kAutoAdjustParFlagsXSprite,	"XSprite"},
+};
+
+void AutoAdjustSpritesInit(void)
+{
+	char key[256], val[256], *pKey, *pVal;
+	int nPar, nType, nVal, nPrevNode = -1, o;
+	short pic, xr, yr, plu;
+	RESHANDLE hIni;
+	
+	AUTODATA model, tmp;
+	model.group		= kOGrpNone;	model.exception		= 0;
+	model.xsprite	= 0;			model.type			= -1;
+	model.seq		= -1;			model.picnum		= -1;
+	model.xrepeat	= -1;			model.yrepeat		= -1;
+	model.hitBit	= -1;			model.plu			= kPluAny;
+	
+	if (autoData)
+		free(autoData);
+	
+	autoDataLength = 0; autoData = NULL;
+	if ((hIni = gGuiRes.Lookup((unsigned int)4, "INI")) == NULL)
+		return;
+	
+	IniFile* pIni = new IniFile((BYTE*)gGuiRes.Load(hIni), hIni->size);
+	while(pIni->GetNextString(NULL, &pKey, &pVal, &nPrevNode, "AutoAdjustSprites"))
+	{
+		if (isIdKeyword(pKey, "Type", &nType) && rngok(nType, 0, 1024))
+		{
+			o = 0;
+			memcpy(&tmp, &model, sizeof(AUTODATA));
+			while((o = enumStr(o, pVal, key, val)) > 0)
+			{
+				switch(nPar = findNamedID(key, gNTAutoAdjustParams, LENGTH(gNTAutoAdjustParams)))
+				{
+					case kAutoAdjustParGroup:
+						tmp.group = words2flags(val, gGameObjectGroupNames, LENGTH(gGameObjectGroupNames));
+						break;
+					case kAutoAdjustParFlags:
+						nVal = words2flags(val, gAutoAdjustFlags, LENGTH(gAutoAdjustFlags));
+						tmp.exception	= ((nVal & kAutoAdjustParFlagsException) > 0);
+						tmp.xsprite		= ((nVal & kAutoAdjustParFlagsXSprite) > 0);
+						break;
+					default:
+						if (isfix(val) && (nVal = atoi(val)) >= -1)
+						{
+							switch(nPar)
+							{
+								case kAutoAdjustParTile:	if (nVal < kMaxTiles)	tmp.picnum = nVal;		break;
+								case kAutoAdjustParSeq:		if (nVal < 65536)		tmp.seq = nVal;			break;
+								case kAutoAdjustParSizeX:	if (nVal < 256)			tmp.xrepeat = nVal;		break;
+								case kAutoAdjustParSizeY:	if (nVal < 256)			tmp.yrepeat = nVal;		break;
+								case kAutoAdustParPal:		if (nVal < 256)			tmp.plu = nVal;			break;
+								case kAutoAdjustParHit:		if (nVal < 2)			tmp.hitBit = nVal;		break;
+							}
+						}
+						break;
+				}
+			}
+			
+			// now check if it's worthy
+			if (memcmp(&tmp, &model, sizeof(AUTODATA)) != 0)
+			{
+				autoData = (AUTODATA*)realloc(autoData, sizeof(AUTODATA) * (autoDataLength + 1));
+				dassert(autoData != NULL);
+				tmp.type = nType;
+				
+				memcpy(&autoData[autoDataLength], &tmp, sizeof(AUTODATA));
+				autoDataLength++;
+			}
+		}
+	}
+	
+	delete(pIni);
+	
+	for (o = 0; o < autoDataLength; o++)
+	{
+		AUTODATA* pData = &autoData[o];
+		// override appearance by info from first frame of seq animation
+		if (pData->seq >= 0 && getSeqPrefs(pData->seq, &pic, &xr, &yr, &plu))
+		{
+			pData->picnum  = pic;
+			pData->xrepeat = xr;
+			pData->yrepeat = yr;
+			pData->plu     = plu;
+			pData->xsprite = 1; // if it have seq, then it must be xsprite
+		}
+	}
+}
+
+void AutoAdjustSprites(void)
+{
 	if (gPreviewMode || !gAutoAdjust.enabled)
 		return;
 
@@ -299,10 +234,6 @@ void AutoAdjustSprites(void) {
 			int iPicnum = -1, iType = -1, nXSprite = -1, otype = pSprite->type;
 			
 			CleanUpStatnum(nSprite);
-	#if 0
-		if ((pSprite->cstat & kSprRelMask) == kSprVoxel)
-			pSprite->cstat &= ~kSprRelMask;
-	#endif
 
 			i = -1;
 			iPicnum = adjIdxByTileInfo(pSprite->picnum, 0); 	// search by pic
@@ -344,7 +275,8 @@ void AutoAdjustSprites(void) {
 					pXSprite = &xsprite[pSprite->extra];
 				}
 
-				switch (type) {
+				switch (type)
+				{
 					case 16:
 						pSprite->cstat &= ~kSprBlock & ~kSprHitscan;
 						pSprite->cstat |= kSprInvisible;
@@ -361,17 +293,13 @@ void AutoAdjustSprites(void) {
 					case kModernCustomDudeSpawn:
 						cdGetSeq(pSprite);
 						break;
-					case kDudeGillBeast:
-						if (pSprite->sectnum >= 0 && sector[pSprite->sectnum].extra > 0 && xsector[sector[pSprite->sectnum].extra].underwater)
-							pSprite->picnum = 1600;
-						break;
 					case kDudeCerberusOneHead:
 						if (pXSprite->rxID || pXSprite->triggerProximity || pXSprite->triggerTouch || pXSprite->triggerSight) break;
 						pXSprite->rxID = 7;
 						break;
 					case kMarkerSPStart:
 					case kMarkerMPStart:
-						pXSprite->data1 &= 8 - 1;
+						pXSprite->data1 &= 7;
 						pSprite->picnum = (short)(2522 + pXSprite->data1);
 						if (!gModernMap || pSprite->type != kMarkerMPStart) break;
 						else if (pXSprite->data2 > 0)
@@ -502,7 +430,7 @@ void adjSetApperance(spritetype* pSprite, int idx) {
 int adjIdxByType(int nType) {
 
 	int i;
-	for (i = 0; i < LENGTH(autoData); i++)
+	for (i = 0; i < autoDataLength; i++)
 	{
 		if (nType != autoData[i].type) continue;
 		return i;
@@ -551,24 +479,18 @@ int adjIdxByTileInfo(int pic, int skip) {
 
 }
 
-int adjFillTilesArray(int objectGroup) {
-
+int adjFillTilesArray(int objectGroup)
+{
 	int i = 0, j = 0;
 	for (j = 0, tileIndexCount = 0; j < autoDataLength; j++)
 	{
-		if (autoData[j].picnum < 0 || !(autoData[j].group & objectGroup))
+		if (autoData[j].picnum < 0 || !(autoData[j].group & objectGroup)) continue;
+		if (!gSpriteNames[autoData[j].type])
 			continue;
 		
-		for (i = 0; i < spriteNamesLength; i++)
-		{
-			if (spriteNames[i].id != autoData[j].type) continue;
-			else if (gMisc.showTypes < spriteNames[i].compt)
-				break;
-			
-			tileIndex[tileIndexCount] 	 = (short)autoData[j].picnum;
-			tilePluIndex[tileIndexCount] = (char)ClipRange(autoData[j].plu, 0, kPluMax);
-			tileIndexCount++;
-		}
+		tileIndex[tileIndexCount] 	 = (short)autoData[j].picnum;
+		tilePluIndex[tileIndexCount] = (char)ClipRange(autoData[j].plu, 0, kPluMax);
+		tileIndexCount++;
 	}
 
 	return tileIndexCount;
@@ -680,6 +602,7 @@ void CleanUp() {
 	InitSectorFX();
 	gCommentMgr.Cleanup();
 	CXTracker::Cleanup();
+	MapStats::Collect();
 	
 	if (gMisc.pan)
 		AlignSlopes();

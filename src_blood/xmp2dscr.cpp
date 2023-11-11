@@ -26,13 +26,32 @@
 #define kMinWallLengthG		64
 #define kMinWallLengthA		32
 
-
-struct PREF_GROUP
+enum
 {
-	int id;
-	char* name;
-	int paramsLength;
-	NAMED_TYPE* pParams;
+kColorTypeRGB	= 0,
+};
+
+static NAMED_TYPE gColorType[] =
+{
+	{kColorTypeRGB, "RGB"},
+};
+
+enum
+{
+kPrefClrBase	= 0,
+kPrefClrWal,
+kPrefClrSpr,
+kPrefClrSec,
+kPrefClrMax,
+};
+
+static NAMED_TYPE gColorSections[] = 
+{
+	{kPrefClrBase,	"Main"},
+	{kPrefClrWal, 	"Wall"},
+	{kPrefClrSpr, 	"Sprite"},
+	{kPrefClrSec, 	"Sector"},
+	{-1,			NULL},
 };
 
 enum
@@ -41,209 +60,66 @@ kMarkWallFirst	= 0,
 kMarkWallAlign,
 };
 
-enum
-{
-kColorTypeRGB	= 0,
-};
-
-enum
-{
-kPrefClrMain	= 0,
-kPrefClrWal,
-kPrefClrSpr,
-kPrefClrSec,
-kPrefClrMax,
-};
-
-static NAMED_TYPE gColorType[] =
-{
-	{kColorTypeRGB, "RGB"},
-	{-1, NULL},
-};
-
-static NAMED_TYPE gColorsMain[] =
-{
-	{kClrBgd,			"Background"},
-	{kClrGrd,			"Grid"},
-	{kClrEdCurPos,		"CurrentPositionMarker"},
-	{kClrEdStartPos,	"StartPositionMarker"},
-	{kClrSprCountUnder,	"SpritesUnderCursorText"},
-	{kClrHgltPointB,	"HighlightPointBorder"},
-	{kClrHgltPointF,	"HighlightPointBackground"},
-	{kClrHgltSectB,		"HighlightSectorBorder"},
-	{kClrHgltSectF,		"HighlightSectorBackground"},
-	{kClrCircleFill,	"CircleWallBackground"},
-	{kClrCircleCenter,	"CircleWallCenter"},
-	{-1,				NULL},
-};
-
-static NAMED_TYPE gColorsWall[] =
-{
-	{kClrWal,			"Common"},
-	{kClrWalNext,		"TwoSided"},
-	{kClrWalHscn,		"Hitscan"},
-	{kClrWalMveF,		"MovesForward"},
-	{kClrWalMveR,		"MovesReverse"},
-	{kClrEdWalNew,		"New"},
-	{kClrCaptWalT,		"CaptionText"},
-	{kClrCaptWalB,		"CaptionBackground"},
-	{kClrCaptWalNewT,	"CaptionEditText"},
-	{kClrCaptWalNewB,	"CaptionEditBackground"},
-	{kClrCaptWalFT,		"MarkFirstWallText"},
-	{kClrCaptWalFB,		"MarkFirstWallBackground"},
-	{kClrCaptWalAT,		"MarkAutoAlignText"},
-	{kClrCaptWalAB,		"MarkAutoAlignBackground"},
-	{kClrVtxBord,		"PointBorder"},
-	{kClrVtxFill,		"PointBackground"},
-	{kClrTracerWal,		"TracerChannel"},
-	{-1,				NULL},
-};
-
-static NAMED_TYPE gColorsSpr[] =
-{
-	{kClrSpr, 			"Common"},
-	{kClrSprHscn, 		"Hitscan"},
-	{kClrSprInvs, 		"Invisible"},
-	{kClrSprMveF, 		"MovesForward"},
-	{kClrSprMveR, 		"MovesReverse"},
-	{kClrSprDude, 		"Dude"},
-	{kClrSprItem, 		"Item"},
-	{kClrSprMark, 		"Marker"},
-	{kClrSprMarkOwn, 	"MarkerOwnerHover"},
-	{kClrSprMarkWarp, 	"MarkerTeleport"},
-
-	{kClrSprMarkPath, 	"PathMarker"},
-	{kClrSprStealMore, 	"StealthMore"},
-	{kClrSprStealLess, 	"StealthLess"},
-	{kClrSprMissile1, 	"Projectile1"},
-	{kClrSprMissile2, 	"Projectile2"},
-	
-	{kClrSprAmbOff, 	"AmbientOff"},
-	{kClrSprAmbOn, 		"AmbientOn"},
-	{kClrAmbRad1On, 	"AmbientRadius1On"},
-	{kClrAmbRad2On, 	"AmbientRadius2On"},
-	{kClrAmbRad1Off, 	"AmbientRadius1Off"},
-	{kClrAmbRad2Off, 	"AmbientRadius2Off"},
-	
-	{kClrPly1, 			"Player1"},
-	{kClrPly2, 			"Player2"},
-	{kClrPly3, 			"Player3"},
-	{kClrPly4, 			"Player4"},
-	{kClrPly5, 			"Player5"},
-	{kClrPly6, 			"Player6"},
-	{kClrPly7, 			"Player7"},
-	{kClrPly8, 			"Player8"},
-	
-	{kClrLinePath, 		"TracerPathMarker"},
-	{kClrTracerSlide, 	"TracerSlide"},
-	{kClrTracerSlideR, 	"TracerSlideReverse"},
-	{kClrTracerWarp, 	"TracerTeleport"},
-	{kClrTracerSpr,		"TracerChannel"},
-	{kClrExpRad,		"ExplosionRadius"},
-	
-	{kClrCaptSprT,		"CaptionText"},
-	{kClrCaptSprTHscn,	"CaptionTextHitscan"},
-	{kClrCaptSprTMveF,	"CaptionTextMovesForward"},
-	{-1,				NULL},
-};
-
-static NAMED_TYPE gColorsSec[] =
-{
-	{kClrSectFillHovr,	"BackgroundHover"},
-	{kClrSectFillHglt,	"BackgroundHighlight"},
-	{kClrSectFillMerg,	"BackgroundMerge"},
-	{kClrCaptSectT,		"CaptionText"},
-	{kClrCaptSectB,		"CaptionBackground"},
-	{kClrPrvSectOff,	"GoesOffState"},
-	{kClrPrvSectOn,		"GoesOnState"},
-	{kClrPrvSectMotFx,	"HasContiniousMotion"},
-	{kClrTracerSec,		"TracerChannel"},
-	{-1,				NULL},
-};
-
-static PREF_GROUP gPrefGroup[] =
-{
-	{kPrefClrMain,		"Colors.Main",		LENGTH(gColorsMain),	gColorsMain},
-	{kPrefClrWal,		"Colors.Wall",		LENGTH(gColorsWall),	gColorsWall},
-	{kPrefClrSpr,		"Colors.Sprite",	LENGTH(gColorsSpr),		gColorsSpr},
-	{kPrefClrSec,		"Colors.Sector",	LENGTH(gColorsSec),		gColorsSec},
-	{-1,				NULL},
-};
-
-
 SCREEN2D gScreen2D;
-
-int FindStdColor(const char* str)
-{
-	for (int i = 0; i < LENGTH(gStdColorNames); i++)
-	{
-		const char* pColor = gStdColorNames[i];
-		if (Bstrcasecmp(str, pColor) == 0)
-			return i;
-	}
-	
-	return -1;
-};
-
-int FindPref(const char* str, NAMED_TYPE* pDb)
-{
-    NAMED_TYPE* ptr = pDb;
-    while (ptr->id != -1)
-    {
-        if (Bstrcasecmp(str, ptr->name) == 0)
-            return ptr->id;
-
-        ptr++;
-    }
-
-    return -1;
-}
 
 void SCREEN2D::ColorInit(IniFile* pIni)
 {
-	char key[256], val[256];
+	char key[256], val[256], group[32], *pKey, *pVal;
+	NAMED_TYPE* pColors = gColorSections;
 	unsigned char rgb[3];
-	char* pVal;
-	int i, t;
-		
-	PREF_GROUP* pGroup = gPrefGroup;
-	NAMED_TYPE* pPref;
+	int nBase, nID, nPrevNode;
+	int t, i;
+	int o;
 	
-	while(pGroup->name)
+	while(pColors->name)
 	{
-		pPref = pGroup->pParams;
-		while(pPref->name)
+		if (rngok(pColors->id, kPrefClrBase, kPrefClrMax))
 		{
-			pVal = pIni->GetKeyString(pGroup->name, pPref->name, NULL);
-			if (pVal)
-			{				
-				i = 0;
-				while(i < LENGTH(colors[0]) && enumStr(i, pVal, key, val))
+			sprintf(group, "Colors.%s", pColors->name);
+			nPrevNode = -1; pKey = NULL; pVal = NULL;
+			
+			switch(pColors->id)
+			{
+				case kPrefClrBase:	nBase = kClrEdBase;		break;
+				case kPrefClrWal:	nBase = kClrWalBase;	break;
+				case kPrefClrSpr:	nBase = kClrSprBase;	break;
+				case kPrefClrSec:	nBase = kClrSectBase;	break;
+			}
+			
+			while(pIni->GetNextString(NULL, &pKey, &pVal, &nPrevNode, group))
+			{
+				if (!isufix(pKey))
+					continue;
+				
+				nID = atoi(pKey) + nBase;
+				if (!rngok(nID, kClrBase, kClrMax))
+					continue;
+				
+				o = i = 0;
+				while(i < LENGTH(colors[0]) && (o = enumStr(o, pVal, key, val)) > 0)
 				{
-					if ((t = FindPref(key, gColorType)) == kColorTypeRGB)
+					if ((t = findNamedID(key, gColorType, LENGTH(gColorType))) == kColorTypeRGB)
 					{
 						if (parseRGBString(val, rgb))
-							ColorFill(pPref->id, countBestColor(gamepal, rgb[0], rgb[1], rgb[2]), i);
+							ColorFill(nID, countBestColor(gamepal, rgb[0], rgb[1], rgb[2]), i);
 					}
-					else if ((t = FindStdColor(key)) >= 0)
+					else if ((t = gfxGetStdColor(key)) >= 0)
 					{
 						if (t < LENGTH(gStdColor))
-							ColorFill(pPref->id, gStdColor[t], i);
+							ColorFill(nID, gStdColor[t], i);
 					}
 					else if (isufix(key))
 					{
 						if ((t = atoi(key)) < 256)
-							ColorFill(pPref->id, t, i);
+							ColorFill(nID, t, i);
 					}
 					
 					i++;
 				}
 			}
-			
-			pPref++;
 		}
 		
-		pGroup++;
+		pColors++;
 	}
 }
 
@@ -549,7 +425,7 @@ char SCREEN2D::GetWallColor(int nWall, char hover)
 	walltype* pWall = &wall[nWall];
 	if (pWall->cstat & kWallMoveForward)		nColor = kClrWalMveF;
 	else if (pWall->cstat & kWallMoveReverse)	nColor = kClrWalMveR;
-	else if (pWall->nextwall < 0)				nColor = kClrWal;
+	else if (pWall->nextwall < 0)				nColor = kClrWalBase;
 	else if (pWall->cstat & kWallHitscan)		nColor = kClrWalHscn;
 	else										nColor = kClrWalNext;
 	
@@ -558,13 +434,13 @@ char SCREEN2D::GetWallColor(int nWall, char hover)
 
 char SCREEN2D::GetSpriteColor(spritetype* pSpr, char hover)
 {
-	char nColor = kClrSpr;
+	char nColor = kClrSprBase;
 	if (pSpr->cstat & kSprHitscan)			nColor = kClrSprHscn;
 	if (pSpr->cstat & kSprInvisible)		nColor = kClrSprInvs;
 	if (pSpr->cstat & kSprMoveForward)		nColor = kClrSprMveF;
 	else if (pSpr->cstat & kSprMoveReverse)	nColor = kClrSprMveR;
 	
-	if (nColor == kClrSprHscn || nColor == kClrSpr)
+	if (nColor == kClrSprHscn || nColor == kClrSprBase)
 	{
 		switch(pSpr->statnum)
 		{
@@ -720,13 +596,13 @@ void SCREEN2D::MarkWall(int nWall, int nMarkType)
 	switch(nMarkType)
 	{
 		case kMarkWallFirst:
-			fc = ColorGet(kClrCaptWalFT);
-			bc = ColorGet(kClrCaptWalFB);
+			fc = ColorGet(kClrEdCaptWalFT);
+			bc = ColorGet(kClrEdCaptWalFB);
 			m[0] = 'F';
 			break;
 		case kMarkWallAlign:
-			fc = ColorGet(kClrCaptWalAT);
-			bc = ColorGet(kClrCaptWalAB);
+			fc = ColorGet(kClrEdCaptWalAT);
+			bc = ColorGet(kClrEdCaptWalAB);
 			m[0] = 'A';
 			break;
 		default:
@@ -748,8 +624,8 @@ void SCREEN2D::CaptionPrintWallEdit(int nWall, char fc, char bc, QFONT* pFont)
 	int x1, y1, x2, y2, cx, cy;
 	getWallCoords(nWall, &x1, &y1, &x2, &y2);
 	
-	float nGrid, t;
-	float nLen = approxDist(x2 - x1, y2 - y1);
+	double nGrid, t;
+	double nLen = approxDist(x2 - x1, y2 - y1);
 	char buf1[32] = "\0", buf2[32] = "\0";
 	int nNext, nAng;
 	
@@ -757,7 +633,7 @@ void SCREEN2D::CaptionPrintWallEdit(int nWall, char fc, char bc, QFONT* pFont)
 	{
 		if (data.grid)
 		{
-			nGrid = (float)(nLen / (2048>>data.grid));
+			nGrid = (double)(nLen / (2048>>data.grid));
 			if (modf(nGrid, &t))
 			{
 				sprintf(buf1, "%2.1fG", nGrid);
@@ -849,25 +725,21 @@ void SCREEN2D::DrawWall(int nWall)
 	getWallCoords(nWall, &x1, &y1, &x2, &y2);
 	x1 = cscalex(x1); y1 = cscaley(y1);
 	x2 = cscalex(x2); y2 = cscaley(y2);
-	
-	color = GetWallColor(nWall, false);
 	THICK = 0;
 	
+	if (nWall == linehighlight)
+		color = GetWallColor(nWall, h);
+	else
+		color = GetWallColor(nWall, 0);
+
 	if (nNext >= 0)
 	{
 		flags = wall[nNext].cstat;
 		
-		if (linehighlight >= 0)
+		if (linehighlight >= 0 && nNext == linehighlight)
 		{
-			if (nWall == linehighlight)
-			{
-				color = GetWallColor(nWall, h);
-			}
-			else if (nNext == linehighlight)
-			{
-				color = GetWallColor(nNext, h);
-				flags = wall[nNext].cstat;
-			}
+			color = GetWallColor(nNext, h);
+			flags = wall[nNext].cstat;
 		}
 		
 		THICK = ((flags & kWallBlock) > 0);
@@ -998,7 +870,7 @@ void SCREEN2D::CaptionPrintSprite(int nSpr, char hover, QFONT* pFont)
 		dark = !bh;
 	}
 	else if (flags & kSprMoveReverse)		bc = ColorGet(kClrSprMveR, 		(hover) ? h : !bh);
-	else									bc = ColorGet(kClrSpr, 			(hover) ? h :  bh);
+	else									bc = ColorGet(kClrSprBase, 		(hover) ? h :  bh);
 		
 	if (flags & kSprHitscan)				fc = ColorGet(kClrCaptSprTHscn, (hover && h));
 	else if (dark)							fc = ColorGet(kClrCaptSprTMveF, (hover && h));
@@ -1042,7 +914,7 @@ void SCREEN2D::SetView(int x1, int y1, int x2, int y2)
 
 void SCREEN2D::ScreenClear()
 {
-	gfxSetColor(ColorGet(kClrBgd));
+	gfxSetColor(ColorGet(kClrEdBgd));
 	gfxFillBox(view.wx1, view.wy1, view.wx2, view.wy2);
 }
 
@@ -1154,13 +1026,20 @@ void SCREEN2D::ScreenDraw(void)
 		if (gridlock)
 			doGridCorrection(&x1, &y1, data.grid);
 		
-		x1 = cscalex(x1);
-		y1 = cscaley(y1);
-		DrawIconCross(x1, y1, GetWallColor(linehighlight, false), 2);
+		getWallCoords(linehighlight, &x2, &y2, &x3, &y3);
+		if ((x1 != x2 && x1 != x3) || (y1 != y2 && y1 != y3))
+		{
+			x1 = cscalex(x1); y1 = cscaley(y1);
+			DrawIconCross(x1, y1, GetWallColor(linehighlight, false), 2);
+		}
 	}
+	
+
 	
 	/* draw walls */
 	////////////////////////////
+	fc = ColorGet(kClrVtxBord);
+	bc = ColorGet(kClrVtxFill);
 	for (i = 0; i < numwalls; i++)
 	{
 		if (wall[i].nextwall > i || wall[i].point2 >= numwalls)
@@ -1169,8 +1048,21 @@ void SCREEN2D::ScreenDraw(void)
 		DrawWall(i);
 		if (data.zoom >= kZoomVertexAll && vertexSize)
 		{
-			if (OnScreen(x1, y1, vertexSize))	DrawVertex(x1, y1, ColorGet(kClrVtxBord), ColorGet(kClrVtxFill), vertexSize);
-			if (OnScreen(x2, y2, vertexSize))	DrawVertex(x2, y2, ColorGet(kClrVtxBord), ColorGet(kClrVtxFill), vertexSize);
+			if (OnScreen(x1, y1, vertexSize))	DrawVertex(x1, y1, fc, bc, vertexSize);
+			if (OnScreen(x2, y2, vertexSize))	DrawVertex(x2, y2, fc, bc, vertexSize);
+		}
+	}
+	
+	/* draw sector highlight box */
+	////////////////////////////
+	if (highlightsectorcnt > 0)
+	{
+		hgltSectGetBox(&x1, &y1, &x2, &y2);
+		if (irngok(mousxplc, x1, x2) && irngok(mousyplc, y1, y2))
+		{
+			x1 = cscalex(x1);	x2 = cscalex(x2);
+			y1 = cscaley(y1);	y2 = cscaley(y2);
+			DrawRect(x1, y1, x2, y2, ColorGet(kClrEdHgltSectBox), 0, kPatDashed);
 		}
 	}
 	
@@ -1178,22 +1070,32 @@ void SCREEN2D::ScreenDraw(void)
 	////////////////////////////
 	if (h && data.zoom >= kZoomVertexHglt && vertexSize)
 	{
+		fc = ColorGet(kClrVtxBord, h);
+		bc = ColorGet(kClrVtxFill, h);
+		
 		for (i = 0; i < numwalls; i++)
 		{
 			x1 = cscalex(wall[i].x);
 			y1 = cscaley(wall[i].y);
-			
-			if (i != pointhighlight)
+			if (OnScreen(x1, y1, vertexSize))
 			{
 				if (highlightcnt <= 0 || !TestBitString(show2dwall, i))
 				{
 					if (!InHighlight(x1, y1))
 						continue;
 				}
+				
+				DrawVertex(x1, y1, fc, bc, vertexSize);
 			}
-			
+		}
+		
+		if (pointhighlight >= 0 && (pointhighlight & 0xC000) == 0)
+		{
+			i = pointhighlight;
+			x1 = cscalex(wall[i].x);
+			y1 = cscaley(wall[i].y);
 			if (OnScreen(x1, y1, vertexSize))
-				DrawVertex(x1, y1, ColorGet(kClrVtxBord, h), ColorGet(kClrVtxFill, h), vertexSize);
+				DrawVertex(x1, y1, fc, bc, vertexSize);
 		}
 	}
 	
@@ -1223,7 +1125,7 @@ void SCREEN2D::ScreenDraw(void)
 						
 						x2 = cscalex(pSpr2->x);
 						y2 = cscaley(pSpr2->y);
-						color = ColorGet(kClrTracerSlide, HOVER);
+						color = ColorGet(kClrEdTracerSlide, HOVER);
 						DrawArrow(x1, y1, x2, y2, color, data.zoom, kAng30, 0, kPatNormal);
 						
 						/*if (sectorHasMoveRObjects(pSpr->owner))
@@ -1243,7 +1145,7 @@ void SCREEN2D::ScreenDraw(void)
 						
 						x2 = cscalex(x2);
 						y2 = cscaley(y2);
-						color = ColorGet(kClrTracerWarp, HOVER);
+						color = ColorGet(kClrEdTracerWarp, HOVER);
 						DrawArrow(x2, y2, x1, y1, color, data.zoom, kAng30, 0, kPatDotted);
 					}
 					break;
@@ -1303,18 +1205,18 @@ void SCREEN2D::ScreenDraw(void)
 			DrawLine(x1, y1, x2, y2, color);
 			DrawWallMidPoint(i, color, 0x02);
 			if (i == newnumwalls - 1 && x1 != x2 && y1 != y2)
-				DrawLine(x1, y1, x2, y2, clr2std(kColorBlack), 0, kPatDotted);
+				DrawLine(x1, y1, x2, y2, ColorGet(kClrEdWallAngled), 0, kPatDotted);
 
 			if (data.zoom >= kZoomEditCaption)
 			{
-				fc = ColorGet(kClrCaptWalNewT);
-				bc = ColorGet(kClrCaptWalNewB);
+				fc = ColorGet(kClrEdCaptWalNewT);
+				bc = ColorGet(kClrEdCaptWalNewB);
 				CaptionPrintWallEdit(i, fc, (unsigned char)bc, pEditFont);
 			}
 		}
 		
 		// draw first point
-		DrawVertex(x1, y1, clr2std(kColorYellow), clr2std(kColorBlack), 6);
+		DrawVertex(x1, y1, ColorGet(kClrEdFirstVtxBrd), ColorGet(kClrEdFirstVtxBgd), 6);
 		
 		// draw midpoints on all walls of a sector
 		if ((i = sectorhighlight) >= 0)
@@ -1332,7 +1234,7 @@ void SCREEN2D::ScreenDraw(void)
 	{
 		DrawWallMidPoint(linehighlight, GetWallColor(linehighlight, h));
 	}
-		
+
 	if (prefs.showTags)
 	{
 		/* draw object captions */
@@ -1340,14 +1242,14 @@ void SCREEN2D::ScreenDraw(void)
 		if (data.zoom >= kZoomTags)
 		{
 			for (i = 0; i < numsectors; i++)
-			{
 				CaptionPrintSector(i, (sectorhighlight == i), pCaptFont);
-				
-				getSectorWalls(i, &j, &e);
-				while(j <= e)
-					CaptionPrintWall(j, TestBitString(show2dwall, j++), pCaptFont);
-				
-				if (prefs.showSprites)
+			
+			for (i = 0; i < numwalls; i++)
+				CaptionPrintWall(i, TestBitString(show2dwall, i), pCaptFont);
+			
+			if (prefs.showSprites)
+			{
+				for (i = 0; i < numsectors; i++)
 				{
 					for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
 						CaptionPrintSprite(j, TestBitString(show2dsprite, j), pCaptFont);
@@ -1403,12 +1305,12 @@ void SCREEN2D::ScreenDraw(void)
 		switch(hgltType)
 		{
 			case kHgltPoint:
-				fc = ColorGet(kClrHgltPointB);
-				bc = ColorGet(kClrHgltPointF);
+				fc = ColorGet(kClrEdHgltPointB);
+				bc = ColorGet(kClrEdHgltPointF);
 				break;
 			default:
-				fc = ColorGet(kClrHgltSectB);
-				bc = ColorGet(kClrHgltSectF);
+				fc = ColorGet(kClrEdHgltSectB);
+				bc = ColorGet(kClrEdHgltSectF);
 				break;
 		}
 		
@@ -1435,7 +1337,7 @@ void SCREEN2D::ScreenDraw(void)
 			if (data.zoom >= kZoomSpritesUnder && data.sprUnderCursor > 1)
 			{
 				pFont = qFonts[0];
-				color = ColorGet(kClrSprCountUnder);
+				color = ColorGet(kClrEdSprCountUnder);
 				sprintf(buffer, "[%d]", data.sprUnderCursor);
 				
 				i = gfxGetTextLen(buffer, pFont);
@@ -1446,8 +1348,8 @@ void SCREEN2D::ScreenDraw(void)
 		////////////////////////////
 		else if (pointdrag >= 0 && data.zoom >= kZoomEditCaption)
 		{
-			fc = ColorGet(kClrCaptWalNewT);
-			bc = ColorGet(kClrCaptWalNewB);
+			fc = ColorGet(kClrEdCaptWalNewT);
+			bc = ColorGet(kClrEdCaptWalNewB);
 			getWallCoords(pointdrag, &x3, &y3);
 			for (i = 0; i < numwalls; i++)
 			{
@@ -1498,7 +1400,7 @@ void SCREEN2D::DrawSpritePathMarker(void)
 				continue;
 			
 			x2 = cscalex(pSpr2->x); y2 = cscaley(pSpr2->y);
-			DrawLine(x1, y1, x2, y2, ColorGet(kClrLinePath, BLINK), HOVER, kPatDotted);
+			DrawLine(x1, y1, x2, y2, ColorGet(kClrEdTracerPath, BLINK), HOVER, kPatDotted);
 		}
 	}
 	
@@ -1668,7 +1570,7 @@ void SCREEN2D::DrawSpriteAmbient(void)
 			r[0] = (prefs.ambRadius & 0x02) ? mulscale10(pXSpr->data2, data.zoom) : 0;
 			r[1] = (prefs.ambRadius & 0x01) ? mulscale10(pXSpr->data1, data.zoom) : 0;
 			
-			c = (pXSpr->state) ? kClrAmbRad2On : kClrAmbRad2Off;
+			c = (pXSpr->state) ? kClrEdAmbRad2On : kClrEdAmbRad2Off;
 			
 			i = 0;
 			while(i < 2)
@@ -1724,7 +1626,7 @@ void SCREEN2D::DrawSpriteExplosion(void)
 	if (rngok(pSpr->type, 0, kExplosionMax))
 	{
 		r = mulscale10(explodeInfo[pSpr->type].radius, data.zoom);
-		c = ColorGet(kClrExpRad, h);
+		c = ColorGet(kClrEdExpRad, h);
 		DrawCircle(x1, y1, r, c);
 		DrawIconCross(x1, y1, c, 4);
 		return;
@@ -1741,7 +1643,7 @@ void SCREEN2D::DrawSpriteProjectile(void)
 
 void SCREEN2D::DrawSpritePlayer(void)
 {
-	char c = kClrPly1;
+	char c = kClrSprPly1;
 	if (pXSpr)
 		c += ClipHigh(pXSpr->data1, 8);
 	
@@ -1795,7 +1697,7 @@ void SCREEN2D::DrawGrid()
 	int i, cx, cy, xp, yp;
 	int dst;
 	
-	gfxSetColor(ColorGet(kClrGrd));
+	gfxSetColor(ColorGet(kClrEdGrd));
 	x1 = cscalex(-boardWidth);	y1 = cscaley(-boardHeight);
 	x2 = cscalex(boardWidth);	y2 = cscaley(boardHeight);
 	

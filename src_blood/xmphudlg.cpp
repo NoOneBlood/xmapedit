@@ -10,6 +10,7 @@
 #include "xmpstub.h"
 #include "xmpconf.h"
 #include "xmpmisc.h"
+#include "xmpstr.h"
 
 #include "editor.h"
 #include "edit2d.h"
@@ -978,7 +979,7 @@ void ShowSectorData(int nSector, BOOL xFirst, BOOL showDialog)
 	char buf[256], *pBuf = buf;
 	int i;
 	
-	pBuf += sprintf(pBuf, "Sector #%d: Area = %d", nSector, AreaOfSector(pSect));
+	pBuf += sprintf(pBuf, "Sector #%d: Height = %d, Area = %d", nSector, klabs(pSect->floorz-pSect->ceilingz), AreaOfSector(pSect));
 	if (pSect->alignto)
 		pBuf += sprintf(pBuf, ", Auto-align to wall = #%d", pSect->wallptr + pSect->alignto);
 	
@@ -1030,7 +1031,7 @@ void ShowWallData(int nWall, BOOL xFirst, BOOL showDialog)
 	walltype* pWall =& wall[nWall];
 	int nSect = sectorofwall(nWall);
 	char buf[256], *pBuf = buf;
-	float nLen, t;
+	double nLen, t;
 	int nAng, i;
 	
 	int x1, y1, x2, y2;
@@ -1061,7 +1062,7 @@ void ShowWallData(int nWall, BOOL xFirst, BOOL showDialog)
 	pBuf += sprintf(pBuf, " #%d: Length = %d", nWall, (int)nLen);
 	if (grid)
 	{
-		float nGrid = (float)(nLen / (2048>>grid));
+		double nGrid = (double)(nLen / (2048>>grid));
 		if (modf(nGrid, &t))
 		{
 			pBuf += sprintf(pBuf, " (%2.1fG)", nGrid);
@@ -1091,6 +1092,117 @@ void ShowWallData(int nWall, BOOL xFirst, BOOL showDialog)
 	
 	gMapedHud.SetTile((searchstat == OBJ_MASKED) ? pWall->overpicnum : pWall->picnum, pWall->pal, pWall->shade);
 	gMapedHud.SetMsg(buf);
+}
+
+void ShowMapStatistics(void)
+{
+	char buf[64], *pBuf;
+	int x1, y1, x2, y2, x3, y3, x4, y4, x, y;
+	int nLongest = 0, i = LENGTH(gMapStatsNames), t;
+	int nStat, nSkill, nPerc, nMode = gPreview.mode;
+	int nCurVal, nTotVal;
+	
+	const char kColorNormalText 	= clr2std(kColorLightCyan);
+	const char kColorHeaderText 	= clr2std(kColorWhite);
+	const char kColorHeaderBack 	= clr2std(kColorGreen);
+	const char kColorProgRectLine	= clr2std(kColorCyan);
+	const char kColorProgPercText	= clr2std(19);
+	const char kColorProgTextZero	= clr2std(20);
+	const char kColorProgPercFull	= clr2std(kColorBlue);
+	const char kColorProgPerc		= clr2std(kColorMagenta);
+	const int  kProgWidth			= 54;
+	
+	gMapedHud.GetWindowCoords(&gMapedHud.content, &x1, &y1, &x2, &y2);
+	gMapedHud.ClearContent();
+	
+	while(--i >= 0) // get longest string
+	{
+		if ((t = strlen(gMapStatsNames[i])) > nLongest)
+			nLongest = t;
+	}
+	
+	t = sprintf(buf, "TOTAL SPRITES:")<<3;
+	
+	gfxSetColor(kColorHeaderBack);
+	gfxFillBox(x1, y1, x1+t, y1+8);
+	printextShadowL(x1, y1, kColorHeaderText, buf);
+	
+	y = y1 + 8;
+	for (i = 0; i < kMapStatMax; i++)
+	{
+		pBuf = buf;
+		pBuf += sprintf(pBuf, "%s", gMapStatsNames[i]);
+		t = nLongest-strlen(gMapStatsNames[i]);
+		while(--t >= 0)
+			*pBuf = '.', pBuf++;
+		
+		sprintf(pBuf, ".:%03d", ClipHigh(MapStats::Get(nMode, i), 999));
+		printextShadowL(x1, y, kColorNormalText, buf);
+		y+=8;
+	}
+	
+	x = x1 + 128, y = y1 + 8;
+	for (nSkill = 0; nSkill < 5; nSkill++, x+=104, y = y1 + 8)
+	{
+		pBuf = buf;
+		if (gPreview.difficulty >= 5 || nSkill == gPreview.difficulty)
+			*pBuf = '*', pBuf++; // mark current difficulty
+		
+		sprintf(pBuf, "D%d", nSkill + 1);
+		
+		t = strlen(buf)<<3;
+		gfxSetColor(kColorHeaderBack);
+		gfxFillBox(x, y1, x + t, y1 + 8);
+		printextShadowL(x, y1, kColorHeaderText, buf);
+		
+		for (nStat = 0; nStat < kMapStatMax; nStat++)
+		{
+			x3 = x;		x4 = x3 + kProgWidth;
+			y3 = y;		y4 = y3 + 8;
+
+			gfxSetColor(kColorProgRectLine);
+			gfxRect(x3, y3, x4, y4);
+			
+			nTotVal = MapStats::Get(nMode, nStat);
+			nCurVal = MapStats::Get(nMode, nSkill, nStat);
+			if ((nPerc = (100 * nCurVal)/ClipLow(nTotVal, 1)) > 0)
+			{
+				gfxSetColor(nPerc >= 100 ? kColorProgPercFull : kColorProgPerc);
+				t = x3 + perc2val(nPerc, kProgWidth) - 1;
+				while(t > x3)
+					gfxVLine(t, y3+1, y4-1), t-=3;
+				
+				t = sprintf(buf, "%d%%", nPerc)<<3;
+				printextShadowL(x3 + ((kProgWidth>>1) - (t>>1)), y, kColorProgPercText, buf);
+			}
+			else
+			{
+				gfxSetColor(clr2std(30));
+				
+				t = x4 - 1;
+				while(t > x3)
+					gfxVLine(t, y3+1, y4-1), t-=3;
+				
+				t = sprintf(buf, "---")<<3;
+				printextShadowL(x3 + ((kProgWidth>>1) - (t>>1)), y, kColorProgTextZero, buf);
+			}
+			
+			t = sprintf(buf, "%03d", ClipHigh(nCurVal, 999));
+			printextShadowL(x4+4, y, kColorNormalText, buf);
+			y+=8;
+		}
+	}
+	
+	i = LENGTH(gGameNames);
+	while(--i >= 0)
+	{
+		if (gGameNames[i].id == nMode)
+		{
+			t = sprintf(buf, "Showing statistics for game mode: %s", gGameNames[i].name) << 3;
+			printextShadowL(x1+((x2-x1>>1)) - (t>>1), y2-14, kColorNormalText, buf);
+			break;
+		}
+	}
 }
 
 void ShowSpriteData(int nSprite, BOOL xFirst, BOOL showDialog)
@@ -1369,13 +1481,11 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 int helperPickTypeHelper(int nGroup, char* title)
 {
 	int retn = -1;
+	scrSave();
 	
 	if (adjFillTilesArray(nGroup))
 	{
 		int i, j;
-		BYTE* scrSave = (BYTE*)Resource::Alloc(xdim*ydim);
-		memcpy(scrSave, (void*)frameplace, xdim*ydim);
-		
 		if ((j = tilePick(-1, -1, OBJ_CUSTOM, title)) >= 0)
 		{
 			for (i = 0; i < autoDataLength; i++)
@@ -1385,11 +1495,9 @@ int helperPickTypeHelper(int nGroup, char* title)
 				break;
 			}
 		}
-		
-		memcpy((void*)frameplace, scrSave, xdim*ydim);
-		Resource::Free(scrSave);
 	}
 	
+	scrRestore();
 	return retn;
 }
 
@@ -1422,26 +1530,23 @@ char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key)
 	if (key != KEY_F10)
 		return key;
 
+	char messages[kMaxMessages][kMaxMessageLength], tmpbuf[BMAX_PATH];
 	NAMED_TYPE iniMessages[kMaxMessages];
-	char messages[kMaxMessages][kMaxMessageLength], tmpbuf[256];
-	IniFile* pEpisode = gPreview.pEpisode; char *tmp = NULL; char *iniFile = NULL;
-	int i, j, len;
+	char *pName, *pKey, *pVal;
+	IniFile* pEpisode = NULL;
+	int nID, nPrevNode;
+	int i, n;
 
-	BYTE* scrSave = (BYTE*)Resource::Alloc(xdim*ydim);
-	memcpy(scrSave, (void*)frameplace, xdim*ydim);
 	sprintf(tmpbuf, gPaths.episodeIni);
-
-	while ( 1 )
+	while ((pName = dirBrowse("Select file", tmpbuf, ".INI", kDirExpTypeOpen, kDirExpNone)) != NULL)
 	{
-		iniFile = dirBrowse("Select INI File", tmpbuf, ".ini", kDirExpTypeOpen, kDirExpNone);
-		if (iniFile == NULL)
-			break;
-
-		delete(pEpisode);
-		pEpisode = new IniFile(iniFile);
+		if (pEpisode)
+			delete(pEpisode);
+		
+		pEpisode = new IniFile(pName);
 		if (!pEpisode->SectionExists("Episode1"))
 		{
-			getFilename(iniFile, buffer);
+			getFilename(pName, buffer);
 			Alert("%s is not an episode INI.", buffer);
 			continue;
 		}
@@ -1449,37 +1554,48 @@ char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key)
 		getFilename(gPaths.maps, buffer);
 		if (!pEpisode->SectionExists(buffer))
 		{
-			Alert("There is no section with map name %s.", buffer);
+			Alert("No map section %s found!", buffer);
 			continue;
 		}
 
-		memset(messages, 0, kMaxMessages*kMaxMessageLength);
-		for (i = 1, j = 0; i < kMaxMessages; i++) {
-			sprintf(buffer2, "message%d", i);
-			if ((tmp = pEpisode->GetKeyString(buffer, buffer2, NULL)) == NULL)
-				continue;
-
-			len = strlen(tmp);
-			sprintf(messages[i], "%0.44s%s", (len) ? tmp : "<empty message>", (len > 44) ? "..." : "");
-			iniMessages[j].name = messages[i];
-			iniMessages[j].id = i - 1;
-			j++;
-		}
-
-		if (j == 0) Alert("No messages in %s found.", tmpbuf);
-		else if ((i = showButtons(iniMessages, j, "Pick INI message")) >= mrUser)
+		nPrevNode = -1, i = 0;
+		while(pEpisode->GetNextString(&pKey, &pVal, &nPrevNode, buffer))
 		{
-
-			i-=mrUser;
-			control->value = i;
-			sprintf(gPaths.episodeIni, tmpbuf);
-			break;
+			if (pVal && isIdKeyword(pKey, "Message", &nID))
+			{
+				n = strlen(pVal);
+				sprintf(messages[i], "%0.60s", (n) ? pVal : "<empty>");
+				if (n >= 60)
+					strcat(messages[i], "...");
+				
+				iniMessages[i].name = messages[i];
+				iniMessages[i].id = nID;
+				i++;
+			}
 		}
-
+		
+		if (i > 0)
+		{
+			if ((i = showButtons(iniMessages, i, "Pick message")) >= mrUser)
+			{
+				sprintf(gPaths.episodeIni, tmpbuf);
+				if (gPreview.pEpisode)
+					delete(gPreview.pEpisode);
+				
+				gPreview.pEpisode = new IniFile(gPaths.episodeIni);
+				control->value = i - mrUser;
+				break;
+			}
+		}
+		else
+		{
+			Alert("No messages found in %s.", tmpbuf);
+		}
 	}
-
-	memcpy((void*)frameplace, scrSave, xdim*ydim);
-	Resource::Free(scrSave);
+	
+	if (pEpisode)
+		delete(pEpisode);
+	
 	return key;
 
 }

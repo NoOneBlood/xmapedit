@@ -25,6 +25,7 @@
 #include "cache1d.h"
 #include "qheap.h"
 #include "xmpmisc.h"
+#include "xmpstr.h"
 
 #ifdef USE_QHEAP
 QHeap *Resource::heap;
@@ -66,14 +67,13 @@ Resource::~Resource(void)
     }
 }
 
-void Resource::Init(const char *filename)
+void Resource::Init(const char *filename, const char* external)
 {
-    RFFHeader header;
+	int i = 0;
+	RFFHeader header;
 #ifdef USE_QHEAP
     dassert(heap != NULL);
 #endif
-
-    initcrc32table();
 
     if (filename)
     {
@@ -157,60 +157,59 @@ void Resource::Init(const char *filename)
 #if 0
     if (external)
     {
-        char fname[BMAX_PATH];
-        char type[BMAX_PATH];
-        BDIR *dirr;
-        struct Bdirent *dirent;
-        dirr = Bopendir("./");
-        if (dirr)
+		char drv[BMAX_PATH], dir[BMAX_PATH];
+		char fil[BMAX_PATH], ext[BMAX_PATH];
+		char msk[BMAX_PATH], pth[BMAX_PATH];
+		char tmp[BMAX_PATH];
+		Bdirent *dirent;
+		BDIR *dirr;
+				
+		_splitpath(external, drv, dir, NULL, NULL);
+		i += strlen(drv) + strlen(dir);
+		sprintf(msk, &external[i]);
+		
+		_makepath(pth, drv, dir, NULL, NULL);
+		if (!pth[0])
+			sprintf(pth, "./");
+		
+        if ((dirr = Bopendir(pth)) != NULL)
         {
-            while (dirent = Breaddir(dirr))
+			while (dirent = Breaddir(dirr))
             {
-                if (!Bwildmatch(dirent->name, external))
-                    continue;
-                _splitpath(dirent->name, NULL, NULL, fname, type);
-                if (type[0] == '.')
-                {
-                    AddExternalResource(fname, &type[1], dirent->size);
-                }
-                else
-                {
-                    AddExternalResource(fname, "", dirent->size);
-                }
+				i = 0;
+				while(msk[0])
+				{
+					if (enumStrGetChar(i, tmp, msk, ' '))
+					{
+						i++;
+						if (Bwildmatch(dirent->name, tmp))
+							break;
+					}
+					else
+					{
+						i = -1;
+						break;
+					}
+				}
+				
+				if (i >= 0)
+				{
+					_splitpath(dirent->name, NULL, NULL, fil, ext);
+					AddExternalResource(fil, (ext[0] == '.') ? &ext[1] : &ext[0], 0, 0, pth);
+				}
             }
+			
             Bclosedir(dirr);
         }
-#if 0
-        _splitpath2(external, out, &dir, &node, NULL, NULL);
-        _makepath(ext, dir, node, NULL, NULL);
-        int status = _dos_findfirst(external, 0, &info);
-        while (!status)
-        {
-            _splitpath2(info.name, out, NULL, NULL, &fname, &type);
-            if (*type == '.')
-            {
-                AddExternalResource(*fname, (char*)(type + 1), info.size);
-            }
-            else
-            {
-                AddExternalResource(*fname, "", info.size);
-            }
-            status = _dos_findnext(&info);
-        }
-        _dos_findclose(&info);
-#endif
     }
 #endif
-    for (unsigned int i = 0; i < count; i++)
+    for (i = 0; i < count; i++)
     {
         if (dict[i].flags & DICT_LOCK)
         {
             Lock(&dict[i]);
         }
-    }
-    for (unsigned int i = 0; i < count; i++)
-    {
-        if (dict[i].flags & DICT_LOAD)
+        else if (dict[i].flags & DICT_LOAD)
         {
             Load(&dict[i]);
         }
@@ -658,64 +657,6 @@ DICTNODE *Resource::Lookup(unsigned int id, const char *type)
     return *Probe(id, type2);
 }
 
-DICTNODE *Resource::Lookup(char *name)
-{
-    int i = 0, len;
-	char tmp[_MAX_PATH]; DICTNODE* retn = NULL; char *fname = NULL, *ext = NULL;
-	pathSplit2(name, tmp, NULL, NULL, &fname, &ext);
-	if (ext[0] == '.')
-		ext =& ext[1];
-
-	// filename in RFF?
-	if ((retn = Lookup(fname, ext)) == NULL && (len = strlen(fname)) > 0)
-	{
-		// all symbols are digits?
-		while(i < len && isdigit(fname[i]));
-		if (i >= len)
-			retn = Lookup((unsigned int)atoi(fname), ext); // fileID in RFF?
-	}
-	
-	return retn;
-}
-
-bool Resource::Extract(char *name, char* out)
-{
-	int hFile; BYTE* pFile; DICTNODE* hEntry; char path[_MAX_PATH];
-	if ((hEntry = Lookup(name)) != NULL && (pFile = (BYTE*)Load(hEntry)) != NULL)
-	{
-		_makepath(path, NULL, NULL, hEntry->name, hEntry->type);
-		if ((hFile = open((out) ? out : path, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, S_IWRITE)) >= 0)
-		{
-			write(hFile, pFile, Size(hEntry));
-			close(hFile);
-			return true;
-		}
-	}
-	
-	return false;
-}
-
-bool Resource::Extract(char *name, const char *type, char* out) {
-	
-	int i = 0; char path[_MAX_PATH];
-	dassert(name != NULL);
-	dassert(type != NULL);
-	
-	i += sprintf(&path[0], name);
-	i += sprintf(&path[i], ".");
-	i += sprintf(&path[i], type);
-
-	return Extract(path, out);
-
-}
-
-bool Resource::Extract(unsigned int id, const char *type, char* out)
-{
-	DICTNODE* hEntry;
-	if ((hEntry = Lookup(id, type)) != NULL) return Extract(hEntry->name, hEntry->type, out);
-	return false;
-}
-
 
 void Resource::Read(DICTNODE *n)
 {
@@ -948,32 +889,6 @@ void Resource::RemoveMRU(CACHENODE *h)
 
 }
 
-
-
-#if 0
-void Resource::FNAddFiles(fnlist_t * fnlist, const char *pattern)
-{
-    char filename[BMAX_PATH];
-    for (unsigned int i = 0; i < count; i++)
-    {
-        DICTNODE *pNode = &dict[i];
-        if (pNode->flags & DICT_EXTERNAL)
-            continue;
-        sprintf(filename, "%s.%s", pNode->name, pNode->type);
-        if (!Bwildmatch(filename, pattern))
-            continue;
-        switch (klistaddentry(&fnlist->findfiles, filename, BUILDVFS_FIND_FILE, BUILDVFS_SOURCE_GRP))
-        {
-        case -1:
-            return;
-        case 0:
-            fnlist->numfiles++;
-            break;
-        }
-    }
-}
-#endif
-
 void Resource::PurgeCache(void)
 {
 #ifndef USE_QHEAP
@@ -1031,42 +946,4 @@ void Resource::RemoveNode(DICTNODE* pNode)
         pNode->next->prev = pNode;
     }
     Reindex();
-}
-
-void *ResReadLine(char *buffer, unsigned int nBytes, void **pRes)
-{
-    unsigned int i;
-    char ch;
-    if (!pRes || !*pRes || *((char*)*pRes) == 0)
-        return NULL;
-    for (i = 0; i < nBytes; i++)
-    {
-        ch = *((char*)*pRes);
-        if(ch == 0 || ch == '\n')
-            break;
-        buffer[i] = ch;
-        *pRes = ((char*)*pRes)+1;
-    }
-    if (*((char*)*pRes) == '\n' && i < nBytes)
-    {
-        ch = *((char*)*pRes);
-        buffer[i] = ch;
-        *pRes = ((char*)*pRes)+1;
-        i++;
-    }
-    else
-    {
-        while (true)
-        {
-            ch = *((char*)*pRes);
-            if (ch == 0 || ch == '\n')
-                break;
-            *pRes = ((char*)*pRes)+1;
-        }
-        if (*((char*)*pRes) == '\n')
-            *pRes = ((char*)*pRes)+1;
-    }
-    if (i < nBytes)
-        buffer[i] = 0;
-    return *pRes;
 }

@@ -84,14 +84,15 @@ struct BLMHEADER_EXTRA
 	int32_t xsecSiz;
 	// XMAPEDIT specific
 	// ------------------
-	char  	xmpsign[3];		// xmp signature
-	int8_t  xmpheadver;		// xmp header version
-	int8_t	xmpMapFlags;	// various global map flags
-	int16_t xmpBoardWidth;	// 2D board size
-	int16_t xmpBoardHeight; // 2D board size
-	int8_t  xmpPalette;		// global screen palette
+	char  	xmpsign[3];			// xmp signature
+	int8_t  xmpheadver;			// xmp header version
+	int8_t	xmpMapFlags;		// various global map flags
+	int16_t xmpBoardWidth;		// 2D board size
+	int16_t xmpBoardHeight; 	// 2D board size
+	int8_t  xmpPalette;			// global screen palette
+	int8_t	xmpSkyRepeatCnt;	// how many times to repeat sky tiles (0 = auto)
 	// ------------------
-	char  pad2[42];
+	char  pad2[41];
 };
 
 struct XSPRITE {
@@ -357,9 +358,9 @@ struct SPRITE6 {
 };
 #pragma pack(pop)
 
-extern int gMapRev, gSkyCount;
+extern int gMapRev;
 extern int gSuppMapVersions[5];
-extern bool gModernMap, gCustomSkyBits;
+extern bool gModernMap;
 extern unsigned short gStatCount[kMaxStatus + 1];
 extern short numxsprites, numxwalls, numxsectors;
 

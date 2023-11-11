@@ -80,12 +80,12 @@ struct THINGINFO
     signed   int elastic					: 32;
 	signed   int dmgResist					: 32;
     unsigned int cstat						: 16;
-    unsigned int picnum						: 16;
+    signed 	 int picnum						: 16;
     signed   int shade						: 8;
     unsigned int pal						: 8;
     unsigned int xrepeat					: 8;
     unsigned int yrepeat					: 8;
-    unsigned char dmgControl[kDamageMax];
+    unsigned short dmgControl[kDamageMax];
 };
 
 struct SPRITEHIT

@@ -24,6 +24,7 @@
 #include "tracker.h"
 #include "xmpstub.h"
 #include "nnexts.h"
+#include "preview.h"
 
 unsigned char CXTracker::tx;
 OBJECT_LIST* CXTracker::pList;
@@ -122,8 +123,8 @@ void CXTracker::Draw(SCREEN2D* pScr)
 	
 	char h = (gFrameClock & 16);
 	int x1, y1, x2, y2;
-	char color;
-	
+	char color, draw;
+
 	switch(src.type)
 	{
 		case OBJ_SECTOR:
@@ -133,6 +134,7 @@ void CXTracker::Draw(SCREEN2D* pScr)
 			avePointWall(src.index, &x1, &y1);
 			break;
 		case OBJ_SPRITE:
+			if (gPreviewMode && previewSpriteRemoved(&sprite[src.index])) return;
 			x1 = sprite[src.index].x;
 			y1 = sprite[src.index].y;
 			break;
@@ -147,6 +149,7 @@ void CXTracker::Draw(SCREEN2D* pScr)
 	
 	while(pDb->type != OBJ_NONE)
 	{
+		draw = 1;
 		if (pDb->type != src.type || pDb->index != src.index)
 		{
 			switch(pDb->type)
@@ -160,17 +163,32 @@ void CXTracker::Draw(SCREEN2D* pScr)
 					color = pScr->ColorGet(kClrTracerWal, h);
 					break;
 				case OBJ_SPRITE:
-					x2 = sprite[pDb->index].x;
-					y2 = sprite[pDb->index].y;
-					color = pScr->ColorGet(kClrTracerSpr, h);
+					if (gPreviewMode && previewSpriteRemoved(&sprite[pDb->index]))
+					{
+						draw = 0;
+					}
+					else
+					{
+						color = pScr->ColorGet(kClrTracerSpr, h);
+						x2 = sprite[pDb->index].x;
+						y2 = sprite[pDb->index].y;
+					}
 					break;
 			}
 			
-			x2 = pScr->cscalex(x2);
-			y2 = pScr->cscaley(y2);
-						
-			if (!tx)	pScr->DrawArrow(x2, y2, x1, y1, color, pScr->data.zoom, kAng15 + kAng5, 0);
-			else		pScr->DrawArrow(x1, y1, x2, y2, color, pScr->data.zoom, kAng15 + kAng5, 0);
+			if (draw)
+			{
+				x2 = pScr->cscalex(x2);
+				y2 = pScr->cscaley(y2);
+				
+				if (!tx)
+				{
+					swapValues(&x1, &x2);
+					swapValues(&y1, &y2);
+				}
+				
+				pScr->DrawArrow(x1, y1, x2, y2, color, pScr->data.zoom, kAng15 + kAng5, 0);
+			}
 		}
 		
 		pDb++;

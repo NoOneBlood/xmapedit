@@ -722,16 +722,15 @@ static spritetype* InsertModernSpriteType(int nSector, int x, int y, int z, int 
 
 	register int i, length = 0;
 	NAMED_TYPE modernTypes[128];
-	if (!length)
+	OBJECT* pObj = gModernTypes.Ptr();
+	while(pObj->type != OBJ_NONE)
 	{
-		for (i = 0; i < spriteNamesLength; i++)
-		{
-			if (spriteNames[i].compt != MO) continue;
-			modernTypes[length].id = spriteNames[i].id;
-			modernTypes[length].name = spriteNames[i].name;
-			length++;
-		}
+		modernTypes[length].name = gSpriteNames[pObj->index];
+		modernTypes[length].id = pObj->index;
+		length++;
+		pObj++;
 	}
+	
 
 	if (!length || (i = showButtons(modernTypes, length, "Modern types")) < mrUser)
 		return NULL;
@@ -965,6 +964,10 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
 			i = GetXSprite(pSpr->index);
 			xsprite[i].data1 = ClipLow(findUnusedPath(), 0);
 			xsprite[i].data2 = ClipLow(findUnusedPath(), 0);
+			break;
+		case kSoundAmbient:
+			i = GetXSprite(pSpr->index);
+			xsprite[i].state = 1;
 			break;
 		default:
 			if (pSpr->type != kMarkerWarpDest && pSpr->type >= kMarkerLowLink && pSpr->type <= kMarkerLowGoo)
@@ -1253,17 +1256,20 @@ static void ProcessHighlightSectors( HSECTORFUNC FloorFunc, int nData ) {
 			{
 				case OBJ_FLOOR:
 				case OBJ_CEILING:
-					if (!i)
+					if (!IsSectorHighlight(pDb->index))
 					{
-						if (pDb->index == searchsector)
+						if (!i)
 						{
-							pDb = gListGrd.Ptr(); i = 1;
-							continue;
+							if (pDb->index == searchsector)
+							{
+								pDb = gListGrd.Ptr(); i = 1;
+								continue;
+							}
 						}
-					}
-					else
-					{
-						FloorFunc(pDb->index, nData);
+						else
+						{
+							FloorFunc(pDb->index, nData);
+						}
 					}
 					break;
 			}
@@ -1277,7 +1283,7 @@ static void ProcessHighlightSectors( HSECTORFUNC FloorFunc, int nData ) {
 		for (i = 0; i < highlightsectorcnt; i++)
 			FloorFunc(highlightsector[i], nData);
 	}
-	else
+	else if (i == 0)
 	{
 		FloorFunc(searchsector, nData);
 	}
@@ -1486,7 +1492,7 @@ int spriteText(const char* text, TILEFONT* pFont, unsigned char nSize, int nSpac
 char dlgSpriteText()
 {
 	static int nFont = 1;
-	TILEFONT userFont = {48, 0, gMaxTiles};
+	TILEFONT userFont = {48, 0, (unsigned int)gMaxTiles};
 	TILEFONT* pFont;
 	
 	static int nSize = 64, nSpace = 32;
@@ -2649,6 +2655,16 @@ void ProcessKeys3D( void )
 					sectChgVisibility(searchsector, gStep);
 					scrSetMessage("sector[%d] visibility: %i (%s)", searchsector, sector[searchsector].visibility, buffer);
 				}
+				
+				// to make changes noticeable
+				if (100 - IVAL2PERC(visibility, 4095) > 95)
+					visibility = 4095 - perc2val(95, 4095);
+			}
+			else if (keystatus[KEY_D])
+			{
+				gStep = (key == KEY_MINUS) ? 32 : -32;
+				visibility = ClipRange(visibility + gStep, 0, 4096);
+				scrSetMessage("Global visibility %d (%s)", visibility, buffer);
 			}
 			else if (ctrl || shift)
 			{
@@ -3051,7 +3067,7 @@ void ProcessKeys3D( void )
 				{
 					if (isSkySector(searchindex, searchstat))
 					{
-						Sky::SetPal(searchindex, searchstat, nPlu, FALSE);
+						Sky::SetPal(searchindex, searchstat, nPlu, ctrl);
 						break;
 					}
 				}

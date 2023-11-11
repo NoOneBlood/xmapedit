@@ -26,34 +26,25 @@
 #include "xmpevox.h"
 #include "xmpmisc.h"
 #include "tile.h"
+#include "xmpstr.h"
+
+char* extVoxelPath[kMaxTiles]; // these are dynamically allocated!
 
 void extVoxInit()
 {
-	int voxid = kMaxVoxels - 1;
-	int i, j; 
+	int i, j; short voxid = kMaxVoxels - 1;
+	int nView, nPrevNode = -1;
+	char* key, *value;
 	
 	extVoxUninit();
 	
 	// read external voxels info
 	if (gMisc.externalModels && fileExists(gPaths.voxelEXT))
 	{
-		IniFile* pExtVox = new IniFile(gPaths.voxelEXT);
-		char saved = '\0'; ININODE* prev = NULL;
-		char* key = NULL; char* value; char* end = NULL;
-		char tileTok[] = "tile"; int keylen = strlen(tileTok);
-		int nView;
-		
-		while (pExtVox->GetNextString(NULL, &key, &value, &prev))
+		IniFile* pExtVox = new IniFile(gPaths.voxelEXT, INI_SKIPCM|INI_SKIPZR);		
+		while (pExtVox->GetNextString(NULL, &key, &value, &nPrevNode))
 		{
-			if (!key || !value || strlen(key) <= keylen)
-				continue;
-
-			end =& key[keylen], saved = *end, *end = '\0';
-			if (stricmp(tileTok, key) != 0)
-				continue;
-				
-			*end = saved, key =& key[keylen];
-			if ((i = atoi(key)) < 0 || i >= kMaxTiles) continue;
+			if (!isIdKeyword(key, "Tile", &i) || !rngok(i, 0, kMaxTiles)) continue;
 			else if (!tilesizx[i] || !tilesizy[i]) continue;
 			else
 			{
@@ -68,10 +59,12 @@ void extVoxInit()
 					nView = kSprViewVox;
 				}
 
-				if (!fileExists(value))
-					continue;
+				if (!fileExists(value)) continue;
+				if ((extVoxelPath[i] = (char*)malloc(strlen(value)+1)) == NULL)
+					break;
 				
-				panm[i].view = nView;
+				sprintf(extVoxelPath[i], "%s", value);
+				panm[i].view	= nView;
 			}
 			
 			for (j = 0; j < kMaxTiles; j++)
@@ -81,7 +74,6 @@ void extVoxInit()
 					voxid--, j = 0;
 			}
 			
-			gSysRes.AddExternalResource(value, voxid);
 			voxelIndex[i] = voxid;  // overrides RFF voxels
 			tiletovox[i]  = voxid;
 		}
@@ -89,14 +81,20 @@ void extVoxInit()
 		delete(pExtVox);
 	}
 }
+	
 
 
 void extVoxUninit()
 {
-	int i = kMaxTiles;
-	while(--i >= 0)
+	for (int i = 0; i < kMaxTiles; i++)
 	{
 		panm[i].view = viewType[i];
 		tiletovox[i] = -1;
-	}	
+		
+		if (extVoxelPath[i])
+		{		
+			free(extVoxelPath[i]);
+			extVoxelPath[i] = NULL;
+		}
+	}
 }

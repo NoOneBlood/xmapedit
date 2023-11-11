@@ -21,45 +21,36 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
-
+#ifndef SCREEN_H
+#define SCREEN_H
 #pragma pack(push, 1)
 struct RGB
 {
     unsigned char r, g, b;
 };
-
-
 #pragma pack(pop)
 typedef RGB PALETTE[256];
+
+
 extern PALETTE gamepal;
 extern RGB *palTable[5];
-
-extern bool DacInvalid;
-extern RGB curDAC[256];
 extern RGB baseDAC[256];
-extern int gGammaLevels;
 extern char gFogMode;
-extern int32_t gBrightness;
-void scrCreateStdColors(void);
-void scrResetPalette(void);
-void gSetDacRange(int start, int end, RGB *pPal);
-void scrLoadPLUs(void);
+
+void scrInit(void);
 void scrLoadPalette(void);
+void scrLoadPLUs(void);
+void scrSetPalette(int palId);
+void scrSetGamma(int nGamma);
+void scrSetDac(unsigned char* dapal, unsigned char* dapalgamma);
+void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits = 8);
+
+char scrFindClosestColor(int red, int green, int blue);
+void scrCreateStdColors(void);
 void scrSetMessage(char *__format, ...);
 void scrDisplayMessage();
-void scrSetPalette(int palId, bool updDac = true);
-void scrSetGamma(int nGamma);
-void scrSetupFade(char red, char green, char blue);
-void scrSetupUnfade(void);
-void scrFadeAmount(int amount);
-void scrSetDac(void);
-void scrSetDac2(unsigned char* dapal, unsigned char* dapalgamma);
-void scrInit(void);
-void scrUnInit(bool engineUninit = true);
-void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits = 8);
-char scrFindClosestColor(int red, int green, int blue);
-void scrNextPage(void);
+
 
 void scrSave();
 void scrRestore(char freeIt = 1);
+#endif

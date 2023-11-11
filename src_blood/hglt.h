@@ -20,6 +20,10 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
+#ifndef _HGLT_H_
+#define _HGLT_H_
+#include "nnexts.h"
+
 
 typedef void HSECTORFUNC(int nSector, int nData);
 typedef void HSECTORFUNC2(int nSector, int arg1, int arg2, int arg3, int arg4);
@@ -32,6 +36,9 @@ kHgltPoint			= 0x0002,
 kHgltGradient		= 0x0004,
 };
 
+void hgltSprGetEdges2(int* x1, int* y1, int* x2, int* y2, int* zt, int* zb, int* zto = NULL, int* zbo = NULL);
+
+extern NAMED_TYPE gHgltSectAutoRedWallErrors[];
 extern int hgltx1, hgltx2, hglty1, hglty2;
 extern short hgltType;
 
@@ -51,6 +58,7 @@ void sectChgVisibility(int nSect, int nVis);
 void sectChgShade(int nSect, int nOf, int nShade, int a3=0, int a4=0);
 void sectDelete(int nSector, int a1=0, int a2=0, int a3=0, int a4=0);
 void sectChgXY(int nSector, int bx, int by, int a3=0, int a4=0);
+void sectSetupZOffset(int nSect, int nParentOld, int nParentNew, int flags, int);
 int hgltSectCallFunc(HSECTORFUNC2 SectorFunc, int arg1 = 0, int arg2 = 0, int arg3 = 0, int arg4 = 0);
 
 
@@ -94,10 +102,17 @@ inline BOOL sprInHglt(int idx) {
 int hgltWallCount(int* whicnt = NULL, int* redcnt = NULL);
 int hgltWallsCheckStat(int nStat, int which = 0x03, int nMask = 0x0);
 
-void hgltSectGetEdgeWalls(short* lw, short* rw, short* tw, short* bw);
-void hgltSectGetEdges(int* left, int* right, int* top, int* bot);
-void hgltSectAvePoint(int* ax, int* ay);
+void hgltSectGetBox(int* x1, int* y1, int* x2, int *y2);
+void hgltSectMidPoint(int* ax, int* ay);
+char hgltSectInsideBox(int x, int y);
+int hgltSectFlip(int flags);
+int hgltSectRotate(int flags, int nAng);
+int hgltSectAutoRedWall();
+
+
 void hgltDetachSectors();
 
+char hgltListOuterLoops(int* nStart, int* s, int* e, IDLIST* pDone, char which);
 void hgltIsolateChannels(char which);
 void hgltIsolateRorMarkers(int which);
+#endif

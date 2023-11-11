@@ -20,19 +20,24 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
+#ifndef _XMPSKY_H_
+#define _XMPSKY_H_
 #include "common_game.h"
+#include "nnexts.h"
 
 class Sky
 {
 	typedef BOOL (*MATCHFUNC)(int, int);
 	
 	private:
-	static void CollectSectors(BOOL done[kMaxSectors], MATCHFUNC CheckFunc, int nSect, int nFor, int globcnt);
-	static int CollectSectors(unsigned short sorted[kMaxSectors], MATCHFUNC CheckFunc, int nSect, int nFor, BOOL global);
+	static int CollectSectors(IDLIST* pList, MATCHFUNC CheckFunc, int nSect, int nFor, int globcnt);
 	static char* GlobalOrLocal(BOOL global) { return (global) ? "Global" : "Local"; }
 	static char* RightOrLeft(BOOL right) { return (right) ? "Right" : "Left"; }
 	//------------------------------------------------------------------------------------
 	public:
+	static int pieces;
+	static unsigned char customBitsFlag;
+	static unsigned char tileRepeatCount;
 	static int Setup(int nSect, int nFor, int nShade, int nPal, int nNewPic, int panX, int panY, BOOL global);
 	static BOOL RotateRecursive(int dir);
 	static BOOL Rotate(BOOL right);
@@ -43,7 +48,9 @@ class Sky
 	static int ToggleFloorShade(int nSect, BOOL global);
 	static int FixPan(int nSect, int nFor, BOOL global);
 	static int MakeSimilar(int nSect, int nFor, BOOL global);
-	static void ToggleBits(int nPic);
 	//------------------------------------------------------------------------------------
 	static int GetMostUsed(int nSect, int nFor, BOOL global, int* nPic = NULL, int* nPal = NULL, int* nShade = NULL, int* nPy = NULL);
+	static void SetBits(int nPic, int* nUnique = NULL);
 };
+
+#endif

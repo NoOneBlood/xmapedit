@@ -115,3 +115,10 @@ void previewPickupItem(spritetype* pSprite, XSPRITE* pXSprite);
 #define kHiddenSpriteLoc 196608 << 5
 void hideSprite(spritetype *pSprite);
 void unhideSprite(spritetype* pSprite);
+
+inline char previewSpriteRemoved(spritetype* pSpr)
+{
+	if (pSpr->statnum >= kMaxStatus)										return 1;
+	else if (pSpr->x == kHiddenSpriteLoc && pSpr->y == kHiddenSpriteLoc)	return 2;
+	else																	return 0;
+}

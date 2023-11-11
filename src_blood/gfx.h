@@ -114,16 +114,17 @@ extern QFONT* qFonts[kMaxQFonts];
 extern ROMFONT vFonts[kMaxVFonts];
 extern QBITMAP* pBitmaps[kMaxBitmaps];
 extern char gStdColor[32];
-extern const char* gStdColorNames[LENGTH(gStdColor)];
 extern char gColor;
 #define clr2std(a) gStdColor[a]
 #define gfxSetColor(a) gColor = a
+int gfxGetStdColor(const char* str);
 void gfxDrawBitmap(QBITMAP* qbm, int x, int y);
 void gfxDrawBitmap(int id, int x, int y);
 void gfxPixel(int x, int y);
 void gfxHLine(int y, int x0, int x1);
 void gfxVLine(int x, int y0, int y1);
 void gfxLine(int x1, int y1, int x2, int y2);
+void gfxRect(int x1, int y1, int x2, int y2);
 void gfxFillBox(int x0, int y0, int x1, int y1);
 void gfxSetClip(int x0, int y0, int x1, int y1);
 void gfxBackupClip();

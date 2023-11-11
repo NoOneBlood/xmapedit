@@ -137,7 +137,7 @@ void CIRCLEWALL::Draw(SCREEN2D* pScr)
 	lines[count].x2 = lines[0].x1;
 	lines[count].y2 = lines[0].y1;		
 	
-	fc = pScr->ColorGet(kClrCircleFill, h);
+	fc = pScr->ColorGet(kClrEdCircleFill, h);
 	if (pScr->prefs.useTransluc)
 	{
 		pScr->LayerOpen();
@@ -164,7 +164,7 @@ void CIRCLEWALL::Draw(SCREEN2D* pScr)
 	}
 		
 	x1 = pScr->cscalex(cenx); y1 = pScr->cscaley(ceny);
-	fc = pScr->ColorGet(kClrCircleCenter, 0);
+	fc = pScr->ColorGet(kClrEdCircleCenter, 0);
 	pScr->DrawIconCross(x1, y1, fc, 6);
 
 }
@@ -647,11 +647,11 @@ void ProcessKeys2D( void )
 				{
 					// a hack to keep sectors panning correctly
 					// see fixupPan() function to understand it
-					if (!gridlock || !grid || grid > 6)
+					if (!shift && (!gridlock || !grid || grid > 6))
 						doGridCorrection(&x, &y, 6);
 					
 					x-=capx, y-=capy; capx+=x, capy+=y;
-					hgltSectCallFunc(sectChgXY, x, y);
+					hgltSectCallFunc(sectChgXY, x, y, !shift);
 					
 					for (i = 0; i < gCommentMgr.commentsCount; i++)
 					{
@@ -692,16 +692,17 @@ void ProcessKeys2D( void )
 						y -= wall[searchwall].y;
 					}
 					
-					for (i = 0; i < numsectors; i++)
+					if (!shift)
 					{
-						if (allWallsOfSectorInHglt(i))
+						// a hack to keep sectors panning correctly
+						// see fixupPan() function to understand it
+						if (!gridlock || !grid || grid > 6)
+							doGridCorrection(&x, &y, 6);
+
+						for (i = 0; i < numsectors; i++)
 						{
-							// a hack to keep sectors panning correctly
-							// see fixupPan() function to understand it
-							if (!gridlock || !grid || grid > 6)
-								doGridCorrection(&x, &y, 6);
-							
-							sectChgXY(i, x, y);
+							if (allWallsOfSectorInHglt(i))
+								sectChgXY(i, x, y);
 						}
 					}
 					
@@ -711,7 +712,7 @@ void ProcessKeys2D( void )
 						if ((j & 0xc000) == 0)
 						{
 							sect = sectorofwall(j);
-							if (!allWallsOfSectorInHglt(sect))
+							if (shift || (!shift && !allWallsOfSectorInHglt(sect)))
 							{
 								wall[j].x += x;
 								wall[j].y += y;
@@ -724,7 +725,7 @@ void ProcessKeys2D( void )
 							
 							if (pSpr->statnum < kMaxStatus)
 							{
-								if (!allWallsOfSectorInHglt(pSpr->sectnum))
+								if (shift || (!shift && !allWallsOfSectorInHglt(pSpr->sectnum)))
 								{
 									pSpr->x += x, pSpr->y += y;
 									
@@ -910,10 +911,13 @@ void ProcessKeys2D( void )
 			
 			pointdrag = -1;
 		}
-
-		if (alt & 0x02) hgltReset(kHgltPoint), hgltType = kHgltSector, keyhold = 1;
-		else if (shift & 0x02)
-			hgltReset(kHgltSector), hgltType = kHgltPoint, keyhold = 1;
+		
+		if (pointdrag < 0)
+		{
+			if (alt & 0x02) hgltReset(kHgltPoint), hgltType = kHgltSector, keyhold = 1;
+			else if (shift & 0x02)
+				hgltReset(kHgltSector), hgltType = kHgltPoint, keyhold = 1;
+		}
 
 		if (hgltType)
 		{
@@ -1168,6 +1172,38 @@ void ProcessKeys2D( void )
 				break;
 			}
 			break;
+		case KEY_X:
+		case KEY_Y:
+			if (ctrl)
+			{
+				int flags = (key == KEY_X);
+				int s, e, cx, cy;
+				
+				i = -1;
+				if (hgltSectInsideBox(mousxplc, mousyplc))
+				{
+					flags |= 0x04; // flip with highlight outer loops
+					i = hgltSectFlip(flags);
+				}
+				else if (sectorhighlight >= 0)
+				{
+					if (isIslandSector(sectorhighlight))
+					{
+						flags |= 0x02; // flip with outer loop of red sector
+						getSectorWalls(sectorhighlight, &s, &e); midPointLoop(s, e, &cx, &cy);
+						sectFlip(sectorhighlight, cx, cy, flags, 0);
+						i = 1;
+					}
+					else
+					{
+						scrSetMessage("You cannot flip sectors with connections");
+					}
+				}
+				
+				if (Beep(i > 0))
+					scrSetMessage("%d sectors were flipped-%s", i, (flags & 0x01) ? "X" : "Y");
+			}
+			break;
 		case KEY_ENTER:
 			if (!type)
 			{
@@ -1261,6 +1297,7 @@ void ProcessKeys2D( void )
 				{
 					sect = highlightsector[i];
 					copysector(sect, nsects, nwalls, 1);
+					sectChgXY(nsects, 2048>>4, 2048>>4);
 					nwalls += sector[sect].wallnum;
 					nsects++;
 				}
@@ -1275,7 +1312,18 @@ void ProcessKeys2D( void )
 						checksectorpointer(j, sect);
 					}
 					
-					highlightsector[i] = numsectors+i;
+					j = swal;
+					sect = numsectors + i;
+					highlightsector[i] = sect;
+					getSectorWalls(sect, &swal, &ewal);
+					sectorDetach(sect);
+					
+					while(swal <= ewal)
+					{
+						gNextWall[swal] = wall[j].nextwall;
+						swal++;
+						j++;
+					}
 				}
 				
 				numsectors = nsects, numwalls = nwalls;
@@ -1414,6 +1462,34 @@ void ProcessKeys2D( void )
 		{
 			if (alt)
 			{
+				if
+				(
+					highlightsectorcnt > 0 
+					&& hgltSectInsideBox(mousxplc, mousyplc)
+					/*&& Confirm("Try to create red loops for sectors in a highlight?")*/
+				)
+				{
+					int nTrials = 3, nLoops	= 0;
+					while(--nTrials >= 0 && (i = hgltSectAutoRedWall()) >= 0)
+						nLoops+=i;
+					
+					if (nLoops >= 0)
+					{
+						scrSetMessage("%d inner loops created.", nLoops);
+						if (Beep(nLoops > 0))
+							hgltReset(kHgltSector);
+					}
+					else if (i < 0)
+					{
+						BeepFail();
+						char* errMsg = retnCodeCheck(i, gHgltSectAutoRedWallErrors);
+						if (errMsg)
+							Alert("Auto-inner loop error #%d: %s", klabs(i), errMsg);
+					}
+					
+					break;
+				}
+
 				if (type != 100)
 					break;
 				

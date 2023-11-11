@@ -236,22 +236,41 @@ void tileIdxFillFull() {
 
 void qloadvoxel(int nVoxel)
 {
-	int i; static int nLastVoxel = 0;
-	RESHANDLE hVox;
-	char *pVox;
-	
-	dassert(nVoxel >= 0 && nVoxel < kMaxVoxels);
-
 	// this voxel already loaded
-	if (voxoff[nVoxel] && voxoff[nVoxel][0] != 0) return;
-	else if ((hVox = gSysRes.Lookup(nVoxel, "KVX")) == NULL)
+	if (voxoff[nVoxel] && voxoff[nVoxel][0] != 0)
 		return;
+
+	char *pVox = NULL;
+	RESHANDLE hVox;
+	int i;
 	
-	if (hVox->lockCount == 0)
-		voxoff[nLastVoxel][0] = 0;
-	
-	nLastVoxel = nVoxel;
-	pVox = (char *)gSysRes.Lock(hVox);
+	// search voxels in the RFF
+	if ((hVox = gSysRes.Lookup(nVoxel, "KVX")) != NULL)
+	{
+		pVox = (char *)gSysRes.Lock(hVox);
+	}
+	else if (gMisc.externalModels >= 1)	// search external voxels on the disk
+	{
+		i = kMaxTiles;
+		while(--i >= 0)
+		{
+			if (tiletovox[i] == nVoxel && extVoxelPath[i])
+			{
+				if (fileLoadHelper(extVoxelPath[i], (BYTE**)&pVox) <= 0)
+				{
+					ThrowError("Error loading external model '%s'", extVoxelPath[i]);
+					return;
+				}
+				
+				break;
+			}
+		}
+	}
+	else
+	{
+		return;
+	}
+
     
 	for (i = 0; i < MAXVOXMIPS; i++)
     {
@@ -487,18 +506,25 @@ int tileInitFromIni() {
 	
 	nArtFiles = nFile;
 
+	// load extra info from DAT files
+	FileLoad(gPaths.surfDAT, surfType, sizeof(surfType));
+	FileLoad(gPaths.shadeDAT, tileShade, sizeof(tileShade));
+	FileLoad(gPaths.voxelDAT, voxelIndex, sizeof(voxelIndex));
+
 	for (i = 0; i < kMaxTiles; i++)
 	{
 		CalcPicsiz(i, tilesizx[i], tilesizy[i]); // setup the tile size log 2 array for internal engine use
+		if (panm[i].view == kSprViewVox || panm[i].view == kSprViewVoxSpin)
+		{
+			if (voxelIndex[i] < 0 || !gSysRes.Lookup(voxelIndex[i], "KVX"))
+				panm[i].view = kSprViewSingle;
+		}
+	
 		viewType[i] = (BYTE)panm[i].view;
 		tileNode[i].ptr = NULL;
 		waloff[i] = NULL;
 	}
 	
-	// load extra info from DAT files
-	FileLoad(gPaths.surfDAT, surfType, sizeof(surfType));
-	FileLoad(gPaths.shadeDAT, tileShade, sizeof(tileShade));
-	FileLoad(gPaths.voxelDAT, voxelIndex, sizeof(voxelIndex));
 	return nArtFiles;
 
 }
@@ -780,7 +806,10 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 		}
 		
 		if (gArtEd.mode != kArtEdModeNone)
-			sprintf(title, gArtEdModeNames[gArtEd.mode]);
+		{
+			i = strlen(title);
+			sprintf(&title[i], " - %s", gArtEdModeNames[gArtEd.mode]);
+		}
 	}
 	
 	if (tileIndexCount == 0) tileIdxFillFull();
@@ -1393,7 +1422,7 @@ void tileDrawGetSize(short pic, int size, int* width, int* height, uint32_t* du,
 	*width = uSize, *height = vSize;
 	*du = *dv = 0;
 	
-	if (uSize > 0 && vSize > 0)
+	if (uSize > 0 && vSize > 0 && size > 0)
 	{
 		int32_t nShift = 30 - max(picsiz[pic] >> 4, picsiz[pic] & 15);
 		

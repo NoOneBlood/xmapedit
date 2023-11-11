@@ -78,27 +78,6 @@ static PREVIEW_MODE_KEYS gPreviewKeys[] = {
 	
 };
 
-NAMED_TYPE gDifficNames[6] = {
-
-	{0,						"Still Kicking"},
-	{1,						"Pink On The Inside"},
-	{2,						"Lighty Broiled"},
-	{3,						"Well Done"},
-	{4,						"Extra Crispy"},
-	{5,						"All"},
-	
-};
-
-NAMED_TYPE gGameNames[5] = {
-
-	{kGameModeSingle,		"Single"},
-	{kGameModeCoop,			"Cooperative"},
-	{kGametModeDeathmatch,	"BloodBath"},
-	{kGameModeFlags,		"Teams"},
-	{4,						"All"},
-	
-};
-
 void PREVIEW_MODE::Init(IniFile* pIni, char* section)
 {
 	triggerFlags		= pIni->GetKeyBool(section, "TriggerFlagsRequired", 0);

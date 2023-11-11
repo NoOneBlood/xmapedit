@@ -89,7 +89,7 @@ public:
     Resource(void);
     ~Resource(void);
 
-    void Init(const char *filename);
+    void Init(const char *filename, const char* external = NULL);
     static void Flush(CACHENODE *h);
     void Purge(void);
     DICTNODE **Probe(const char *fname, const char *type);
@@ -103,11 +103,6 @@ public:
     static void Free(void *p);
     DICTNODE *Lookup(const char *name, const char *type);
     DICTNODE *Lookup(unsigned int id, const char *type);
-	DICTNODE *Lookup(char *name);
-	bool Extract(char *name, char* out = NULL);
-	bool Extract(char *name, const char *type, char* out = NULL);
-	bool Extract(unsigned int id, const char *type, char* out = NULL);
-	
     void Read(DICTNODE *n);
     void Read(DICTNODE *n, void *p);
     void *Load(DICTNODE *h);
@@ -140,4 +135,3 @@ public:
 };
 
 typedef DICTNODE *RESHANDLE;
-void *ResReadLine(char *buffer, unsigned int nBytes, void **pRes);

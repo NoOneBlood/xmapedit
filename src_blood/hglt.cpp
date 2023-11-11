@@ -39,6 +39,13 @@
 int hgltx1 = 0, hgltx2 = 0, hglty1 = 0, hglty2 = 0;
 short hgltType = 0;
 
+NAMED_TYPE gHgltSectAutoRedWallErrors[] =
+{
+	{-1, "Unable to find parent sector"},
+	{-2, "Wall limits exceeded while tracing outer loop"},
+	{-3, "Internal error while tracing outer loop: Didn't reach refwall"},
+	{-999, NULL},
+};
 
 void sprFixSector(spritetype* pSprite, int) {
 	
@@ -239,9 +246,24 @@ int hgltAdd(int type, int idx) {
 		case OBJ_FLOOR:
 		case OBJ_CEILING:
 		case OBJ_SECTOR:
+		{
 			retn = highlightsectorcnt = (short)ClipLow(highlightsectorcnt, 0);
 			highlightsector[highlightsectorcnt++] = (short)idx;
+			
+			int s, e;
+			getSectorWalls(idx, &s, &e);
+			while(s <= e)
+			{
+				if (wall[s].nextwall >= 0)
+					gNextWall[wall[s].nextwall] = wall[wall[s].nextwall].nextwall;
+				
+				gNextWall[s] = wall[s].nextwall;
+				s++;
+			}
+			
 			break;
+		}
+			
 	}
 	
 	return retn;
@@ -1048,41 +1070,459 @@ int hgltWallsCheckStat(int nStat, int which, int nMask)
 	return 0;
 }
 
-void hgltSectGetEdgeWalls(short* lw, short* rw, short* tw, short* bw) {
+void hgltSectGetBox(int* x1, int* y1, int* x2, int *y2)
+{
+	int nFirst = sector[highlightsector[0]].wallptr;
+	int i = highlightsectorcnt;
+	int tx1, ty1, tx2, ty2;
+	int s, e;
 	
-	int i, j, swal, ewal; short dlw, drw, dtw, dbw;
+	*x1 = *x2 = wall[nFirst].x;
+	*y1 = *y2 = wall[nFirst].y;
 	
-	getSectorWalls(highlightsector[0], &swal, &ewal);
-	*lw = *rw = *tw = *bw = swal;
-	
-	for(i = 0; i < highlightsectorcnt; i++)
+	while(--i >= 0)
 	{
-		j = highlightsector[i];
-		loopGetEdgeWalls(sector[j].wallptr, &dlw, &drw, &dtw, &dbw);
-		if (wall[*lw].x > wall[dlw].x) *lw = dlw;
-		if (wall[*rw].x < wall[drw].x) *rw = drw;
-		if (wall[*tw].y > wall[dtw].y) *tw = dtw;
-		if (wall[*bw].y < wall[dbw].y) *bw = dbw;
+		getSectorWalls(highlightsector[i], &s, &e);
+		loopGetBox(s, e, &tx1, &ty1, &tx2, &ty2);
+		if (tx1 < *x1) *x1 = tx1;
+		if (tx2 > *x2) *x2 = tx2;
+		
+		if (ty1 < *y1) *y1 = ty1;
+		if (ty2 > *y2) *y2 = ty2;
 	}
 }
 
-void hgltSectGetEdges(int* left, int* right, int* top, int* bot) {
+void hgltSectMidPoint(int* ax, int* ay)
+{
+	int x1, y1, x2, y2;
+	hgltSectGetBox(&x1, &y1, &x2, &y2);
 	
-	short lw, rw, bw, tw;
-	hgltSectGetEdgeWalls(&lw, &rw, &bw, &tw);
-	*left = wall[lw].x; *right = wall[rw].x;
-	*top  = wall[tw].y; *bot   = wall[bw].y;
-
+	*ax = x1 + ((x2 - x1) >> 1);
+	*ay = y1 + ((y2 - y1) >> 1);
 }
 
-void hgltSectAvePoint(int* ax, int* ay) {
+char hgltSectInsideBox(int x, int y)
+{
+	if (highlightsectorcnt < 0)
+		return 0;
 	
-	short lw, rw, bw, tw;
-	hgltSectGetEdgeWalls(&lw, &rw, &bw, &tw);
-	*ax = wall[lw].x + ((wall[rw].x - wall[lw].x) >> 1);
-	*ay = wall[tw].y + ((wall[bw].y - wall[tw].y) >> 1);
+	int x1, y1, x2, y2;
+	hgltSectGetBox(&x1, &y1, &x2, &y2);
+	return (irngok(x, x1, x2) && irngok(y, y1, y2));
 }
 
+int hgltSectFlip(int flags)
+{
+	int cx, cy;
+	hgltSectMidPoint(&cx, &cy);
+
+	if (flags & 0x04)
+	{
+		IDLIST done(true);
+		int nSect = 0;
+		int s, e;
+		
+		// first flip outer loops of whole highlight
+		while(hgltListOuterLoops(&nSect, &s, &e, &done, kHgltSector))
+			loopFlip(s, e, cx, cy, flags);
+	}
+	
+
+	// flip sectors inside highlight
+	return hgltSectCallFunc(sectFlip, cx, cy, flags);
+}
+
+int hgltSectRotate(int flags, int nAng)
+{
+	int cx, cy;
+	hgltSectMidPoint(&cx, &cy);
+
+	if (flags & 0x04)
+	{
+		IDLIST done(true);
+		int nSect = 0;
+		int s, e;
+		
+		// first rotate outer loops of whole highlight
+		while(hgltListOuterLoops(&nSect, &s, &e, &done, kHgltSector))
+			loopRotate(s, e, cx, cy, nAng, flags);
+	}
+	
+	// rotate sectors inside highlight
+	return hgltSectCallFunc(sectRotate, cx, cy, nAng, flags);
+}
+
+char hgltListOuterLoops(int* nStart, int* s, int* e, IDLIST* pDone, char which)
+{
+	int i, j, k, ts, te;
+	int nNext, nSect;
+
+	for (i = *nStart; i < highlightsectorcnt; i++)
+	{
+		nSect = highlightsector[i];
+		getSectorWalls(nSect, &ts, &te);
+		
+		for (j = ts; j <= te; j++)
+		{
+			// attempt to find outer loop pointer here...
+			////////////////////////////////////////////////
+			
+			if (wall[j].nextwall >= 0)					continue;	// must be solid because sectors detached
+			else if (pDone->Exists(j))					continue;	// visited
+			else if ((nNext = findNextWall(j)) < 0)		continue;	// not detached
+			else if ((nSect = sectorofwall(nNext)) < 0)	continue;	// corrupted wall?
+			else if (hgltCheck(OBJ_SECTOR, nSect) >= 0)	continue;	// inside highlight
+			
+			loopGetWalls(nNext, s, e); // got some outer loop
+			
+			// must have no connections outside highlight
+			// so all nextwalls must be part of sectors
+			// which is inside
+			
+			for (k = *s; k <= *e; k++)
+			{
+				if ((nNext = findNextWall(k)) < 0)			break;	// not detached
+				else if ((nSect = sectorofwall(nNext)) < 0)	break;	// corrupted wall?
+				else if (hgltCheck(OBJ_SECTOR, nSect) < 0)	break;	// outside highlight
+			}
+			
+			if (pDone)
+			{
+				for (j = *s; j <= *e; j++)
+					pDone->Add(j); // mark as done to meet once
+			}
+			
+			if (k > *e)
+			{
+				*nStart	= i+1; // looks like a correct loop
+				return 1;
+			}
+			
+			break;
+		}
+	}
+	
+	*nStart = 0;
+	return 0;
+}
+
+char ED32_insideExclude(int x, int y, int nSect, OBJECT_LIST* pExclude)
+{
+    return (rngok(nSect, 0, kMaxSectors) && !pExclude->Exists(OBJ_SECTOR, nSect) && inside(x, y, nSect));
+}
+
+void ED32_updateSectorExclude(int x, int y, int* nSect, OBJECT_LIST* pExclude)
+{
+    int nNext, nHigh, nLow;
+	int s, e;
+	
+	if (!ED32_insideExclude(x, y, *nSect, pExclude))
+	{
+		if (rngok(*nSect, 0, numsectors))
+		{
+			getSectorWalls(*nSect, &s, &e);
+			
+			while(s <= e)
+			{
+				nNext = wall[s].nextsector;
+				if (ED32_insideExclude(x, y, nNext, pExclude))
+				{
+					*nSect = nNext;
+					return;
+				}
+				
+				s++;
+			}
+		}
+		
+		s = (*nSect < 0) ? (numsectors >> 1) : *nSect;
+		nHigh = nLow = s;
+
+		while(s < numsectors)
+		{
+			if (nHigh < numsectors - 1 && ED32_insideExclude(x, y, ++nHigh, pExclude))
+			{
+				*nSect = nHigh;
+				return;
+			}
+			else if (nLow > 0 && ED32_insideExclude(x, y, --nLow, pExclude))
+			{
+				*nSect = nLow;
+				return;
+			}
+			
+			s++;
+		}
+		
+		*nSect = -1;
+	}
+}
+
+
+
+// returns:
+//  0: continue
+// >0: newnumwalls
+// <0: error
+// ignore_ret and refsect_ret are for the 'auto-red-wall' feature
+
+int ED32_traceLoop(int j, OBJECT_LIST* pExclude, char *ignore_ret, int *refsect_ret)
+{
+    int refsect, ignore;
+    int k, n, refwall;
+	
+    if (wall[j].nextwall>=0 || pExclude->Exists(OBJ_WALL, j))
+        return 0;
+
+    n=2*kMaxWalls;  // simple inf loop check
+    refwall = j;
+    k = numwalls;
+
+    ignore = 0;
+
+    if (ignore_ret)
+    {
+        refsect = -1;
+		ED32_updateSectorExclude(wall[j].x, wall[j].y, &refsect, pExclude);
+        if (refsect<0)
+            return -1;
+    }
+
+    do
+    {
+        if (j!=refwall && pExclude->Exists(OBJ_WALL, j))
+            ignore = 1;
+        
+		pExclude->Add(OBJ_WALL, j);
+
+        if (ignore_ret)
+        {
+            if (inside(wall[j].x, wall[j].y, refsect) != 1)
+				ignore = 1;
+        }
+
+        if (!ignore)
+        {
+            if (k>=kMaxWalls)
+                return -2;
+			
+          //if (ignore_ret)  // auto-red wall feature
+              // gNextWall[k] = gNextWall[j];
+				
+            memcpy(&wall[k], &wall[j], sizeof(walltype));
+            wall[k].point2 = k+1;
+// TODO: protect lotag/extra; see also hl-sector copying stuff
+            wall[k].nextsector = wall[k].nextwall = wall[k].extra = -1;
+            k++;
+        }
+
+        j = wall[j].point2;
+        n--;
+
+        while (wall[j].nextwall>=0 && n>0)
+        {
+            j = wall[wall[j].nextwall].point2;
+            n--;
+        }
+    }
+    while (j!=refwall && n>0);
+
+    if (j!=refwall)
+        return -3;
+
+    if (ignore_ret)
+    {
+        *ignore_ret = ignore;
+        if (refsect_ret)
+            *refsect_ret = refsect;
+    }
+
+    return k;
+}
+
+int ED32_hgltSectAutoRedWall()
+{
+	int nWall, nNewWalls = -1, nMove, nNext, nParentNew, nParentOld;
+	int nSect, nRef = -1, i, j, s, e, n, t = 0, c = 0;
+	sectortype* pRef; walltype *pTmpWall, *pWalls;
+	char ignore, zOffsetsDone = 0;
+	OBJECT_LIST skipObjects;
+		
+	// !!! have no idea why gNextWall gets wrong indexes, so let's just save a
+	// whole thing and restore with proper order after finishing inner loop
+	// creation process.
+	pWalls = (walltype*)malloc(numwalls*sizeof(walltype));
+	dassert(pWalls != NULL);
+	
+	for (i = 0; i < highlightsectorcnt; i++)
+	{
+		nSect = highlightsector[i];
+		getSectorWalls(nSect, &s, &e);
+
+		while(s <= e)
+		{
+			if (wall[s].nextwall >= 0)
+			{
+				// walls are red, so they are inside highlight?
+				skipObjects.Add(OBJ_WALL, wall[s].nextwall);
+				skipObjects.Add(OBJ_WALL, s);
+			}
+			else
+			{
+				if ((nNext = gNextWall[s]) >= 0 && nNext < numwalls)
+				{
+					pWalls[t] = wall[nNext];						// use existing old next wall	
+					pWalls[t].nextsector = sectorofwall(nNext);		// for easy parent sector search
+				}
+				else
+				{
+					pWalls[t] = wall[s];							// well, use internal wall as next wall
+					pWalls[t].nextsector = nSect;					// for easy parent sector search
+				}
+				
+				t++;
+			}
+			
+			s++;
+		}
+		
+		// mark as visited sector inside
+		skipObjects.Add(OBJ_SECTOR, nSect);
+	}
+	
+	for (i = 0; i < highlightsectorcnt && nNewWalls >= -1; i++)
+	{
+		nSect = highlightsector[i];
+		getSectorWalls(nSect, &s, &e);
+
+		for (j = s; j <= e; j++)
+		{
+			nNewWalls = ED32_traceLoop(j, &skipObjects, &ignore, &nRef);
+			if (nNewWalls == -1 || nNewWalls == 0 || ignore) continue;
+			else if (nNewWalls < 0)
+				break;
+			
+			// done tracing one outer loop, finish it
+			wall[nNewWalls-1].point2 = numwalls;
+			if (clockdir(numwalls) != 0)
+				continue;
+		
+			pRef = &sector[nRef];
+			nMove = pRef->wallptr + pRef->wallnum;
+			n = (nNewWalls - numwalls); // number of walls in just constructed loop
+			
+			flipWalls(numwalls, nNewWalls);
+			
+			pRef->wallnum += n;
+			if (nRef != numsectors - 1)
+			{
+				pTmpWall = (walltype*)malloc(n * sizeof(wall[0]));
+				dassert(pTmpWall != NULL);
+
+				for (t = 0; t < numwalls; t++)
+				{
+					if (wall[t].nextwall >= nMove)
+						wall[t].nextwall += n;
+				}
+
+				for (t = nRef + 1; t < numsectors; t++)	sector[t].wallptr += n;
+				for (t = nMove; t < numwalls; t++)		wall[t].point2 += n;
+				for (t = numwalls; t < nNewWalls; t++)	wall[t].point2 += (nMove-numwalls);
+				
+				memcpy(pTmpWall, &wall[numwalls],						n * sizeof(walltype));
+				memmove(&wall[nMove + n], &wall[nMove],					(numwalls-nMove) * sizeof(walltype));
+				memcpy(&wall[nMove], pTmpWall,							n * sizeof(walltype));
+				
+				free(pTmpWall);
+			}
+			
+			numwalls = nNewWalls, c++;
+		}
+	}
+	
+	if (c)
+	{
+		// copy properties from old nextwalls with a
+		// proper order here
+		//////////////////////////////////////////////
+		
+		for (i = 0, t = 0; i < highlightsectorcnt; i++)
+		{
+			nSect = highlightsector[i];
+			getSectorWalls(nSect, &s, &e);
+			
+			while(s <= e)
+			{
+				walltype* pWall = &wall[s];
+				
+				gNextWall[s] = pWall->nextwall;
+				if (pWall->nextwall < 0 && (nNext = findNextWall(s)) >= 0)
+				{
+					gNextWall[s] = nNext;
+					gNextWall[nNext] = s;
+					
+					walltype* pDst = &wall[nNext];
+					walltype* pSrc = &pWalls[t++];
+
+					pDst->picnum		= pSrc->picnum;
+					pDst->overpicnum 	= pSrc->overpicnum;
+					pDst->pal			= pSrc->pal;
+					pDst->shade			= pSrc->shade;
+					pDst->cstat			= pSrc->cstat;
+					
+					pDst->xpanning		= pSrc->xpanning;
+					pDst->ypanning		= pSrc->ypanning;
+					pDst->xrepeat		= pSrc->xrepeat;
+					pDst->yrepeat		= pSrc->yrepeat;
+					
+					pDst->type			= pSrc->type;
+					pDst->extra			= pSrc->extra;
+					pDst->hitag			= pSrc->hitag;
+					
+					nParentNew			= sectorofwall(nNext);
+					nParentOld			= pSrc->nextsector;
+					
+					pWall->nextsector	= nParentNew;
+					pWall->nextwall		= nNext;
+					
+					pDst->nextsector	= nSect;
+					pDst->nextwall		= s;
+					
+					if (!zOffsetsDone && nParentOld != nSect && nParentOld != nParentNew)
+					{
+						hgltSectCallFunc(sectSetupZOffset, nParentOld, nParentNew, 0x03);
+						zOffsetsDone = 1;
+					}
+					
+					for (j = headspritesect[nParentNew]; j >= 0; j = nextspritesect[j])
+					{
+						spritetype* pSpr = &sprite[j];
+						if (inside(pSpr->x, pSpr->y, nSect))
+						{
+							ChangeSpriteSect(pSpr->index, nSect);
+							clampSprite(pSpr);
+						}
+					}
+				}
+				
+				s++;
+			}
+		}
+	}
+		
+	free(pWalls);
+	
+	if (c)
+		return c;
+	
+	return nNewWalls;
+}
+
+
+int hgltSectAutoRedWall()
+{
+	return ED32_hgltSectAutoRedWall();
+}
 
 unsigned char fixupPanCountShift(int nPicSiz)
 {
@@ -1153,18 +1593,21 @@ void fixupPan(int nSect, int nStat, int tx, int ty)
 	}
 }
 
-void sectChgXY(int nSector, int bx, int by, int, int)
+void sectChgXY(int nSector, int bx, int by, int flags, int)
 {
 	int s, e;
 	sectortype* pSect = &sector[nSector];
 	getSectorWalls(nSector, &s, &e);
 	
-	if (!(pSect->floorstat & kSectRelAlign) && !(pSect->floorstat & kSectParallax))
-		fixupPan(nSector, OBJ_FLOOR, bx, by);
+	if ((flags & 0x01))
+	{
+		if (!(pSect->floorstat & kSectRelAlign) && !(pSect->floorstat & kSectParallax))
+			fixupPan(nSector, OBJ_FLOOR, bx, by);
+		
+		if (!(pSect->ceilingstat & kSectRelAlign) && !(pSect->ceilingstat & kSectParallax))
+			fixupPan(nSector, OBJ_CEILING, bx, by);
+	}
 	
-	if (!(pSect->ceilingstat & kSectRelAlign) && !(pSect->ceilingstat & kSectParallax))
-		fixupPan(nSector, OBJ_CEILING, bx, by);
-
 	while(s <= e)
 	{
 		wall[s].x += bx;
@@ -1355,4 +1798,101 @@ void sectDelete(int nSector, int arg1, int arg2, int arg3, int arg4) {
 		deletesector(nSector);
 	}
 	
+}
+
+void sectSetupZOffset(int nSect, int nParentOld, int nParentNew, int flags, int)
+{
+	sectortype* pSect	 = &sector[nSect];
+	sectortype* pOParent = &sector[nParentOld];
+	sectortype* pNParent = &sector[nParentNew];
+	XSECTOR* pXSect		 = GetXSect(pSect);
+	
+	int nFOffs = 0, nCOffs = 0;
+	int z1, z2, z3, i;
+	
+	if (flags & 0x01)
+	{
+		z1  = pOParent->floorz;
+		z2  = pNParent->floorz;
+		z3  = pSect->floorz;
+		
+		nFOffs = (z3-z2) + (z1-z3);
+		if (z2 < 0)
+		{
+			nFOffs = (z2 > z1) ? klabs(nFOffs) : -nFOffs;
+		}
+		else
+		{
+			nFOffs = (z2 < z1) ? -nFOffs : klabs(nFOffs);
+		}
+
+		if (pXSect)
+		{
+			pXSect->offFloorZ += nFOffs;
+			pXSect->onFloorZ += nFOffs;
+		}
+		
+		pSect->floorz += nFOffs;
+		if (pSect->floorz < pNParent->ceilingz)
+			pSect->ceilingz -= (pNParent->ceilingz - pSect->floorz);
+		
+		// offset relative to floor
+		for (i = headspritesect[nSect]; i >= 0; i = nextspritesect[i])
+		{
+			spritetype* pSpr = &sprite[i];
+			pSpr->z += nFOffs;
+		}
+	
+	}
+	else if (flags & 0x04)
+	{
+		pSect->floorz			= pNParent->floorz;
+		pSect->floorslope		= pNParent->floorslope;
+		pSect->floorpicnum		= pNParent->floorpicnum;
+		pSect->floorshade		= pNParent->floorshade;
+		pSect->floorstat		= pNParent->floorstat;
+		pSect->floorpal			= pNParent->floorpal;
+		
+		pSect->floorxpanning	= pNParent->floorxpanning;
+		pSect->floorypanning	= pNParent->floorypanning;
+	}
+	
+	if (flags & 0x02)
+	{
+		z1 = pOParent->ceilingz;
+		z2 = pNParent->ceilingz;
+		z3 = pSect->ceilingz;
+		
+		nCOffs = (z3-z2) + (z1-z3);
+		if (z2 < 0)
+		{
+			nCOffs = (z2 > z1) ? klabs(nCOffs) : -nCOffs;
+		}
+		else
+		{
+			nCOffs = (z2 < z1) ? -nCOffs : klabs(nCOffs);
+		}
+	
+		if (pXSect)
+		{
+			pXSect->offCeilZ += nCOffs;
+			pXSect->onCeilZ += nCOffs;
+		}
+	
+		pSect->ceilingz += nCOffs;
+		if (pSect->ceilingz > pNParent->floorz)
+			pSect->floorz -= (pNParent->floorz - pSect->ceilingz);
+	}
+	else if (flags & 0x08)
+	{
+		pSect->ceilingz			= pNParent->ceilingz;
+		pSect->ceilingslope		= pNParent->ceilingslope;
+		pSect->ceilingpicnum	= pNParent->ceilingpicnum;
+		pSect->ceilingshade		= pNParent->ceilingshade;
+		pSect->ceilingstat		= pNParent->ceilingstat;
+		pSect->ceilingpal		= pNParent->ceilingpal;
+		
+		pSect->ceilingxpanning	= pNParent->ceilingxpanning;
+		pSect->ceilingypanning	= pNParent->ceilingypanning;
+	}
 }

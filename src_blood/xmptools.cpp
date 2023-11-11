@@ -41,6 +41,7 @@
 #include "xmpexplo.h"
 #include "xmpmisc.h"
 #include "img2tile.h"
+#include "xmpsky.h"
 
 XMPTOOL gTool;
 
@@ -1833,7 +1834,7 @@ int IMPORT_WIZARD::ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg)
 					if (cNoDuplicate->checked)	artFlags |= kFlgCompareTiles;
 					if (!cTileMap->checked)		artFlags |= kFlgNoTileMap;
 					
-					i = toolMapArtGrabber(pArtFiles, nArtFiles, pal, nStartTile, gSkyCount, artFlags);
+					i = toolMapArtGrabber(pArtFiles, nArtFiles, pal, nStartTile, Sky::pieces, artFlags);
 					if (i < 0)
 						Alert("ART Import Error #%d: %s.", abs(i), retnCodeCheck(i, gMapArtImportErrors));
 					else
@@ -1844,13 +1845,27 @@ int IMPORT_WIZARD::ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg)
 				pPage = pageError;
 				if (selmap && (retn & 0x01))
 				{
+					Sky::customBitsFlag		= 0;
+					Sky::tileRepeatCount	= 1;
 					MapClipPicnums();
 					CleanUp();
+					
+					i = numsectors;
+					while(--i >= 0) // try to adjust the sky better
+					{
+						if (isSkySector(i, OBJ_CEILING))
+						{
+							if (Sky::GetMostUsed(i, OBJ_CEILING, true, &k) && tileLoadTile(k))
+							{
+								Sky::SetPic(i, OBJ_CEILING, k, TRUE);
+								break;
+							}
+						}
+					}
 					
 					processDrawRooms();
 					if (!cImpArt->checked || (retn & 0x02))
 						pPage = pageDone;
-					
 				}
 				DlgDisableButton(bNext);
 				dialog.Insert(pPage);

@@ -42,14 +42,6 @@
 #define IVAL2PERC(val, full) 	((val * 100) / full)
 #define DELETE_AND_NULL(x) 		delete(x), x = NULL;
 
-enum {
-kFlagRotateSide1		= 0x00,
-kFlagRotateSide2		= 0x01,
-kFlagRotateSprites		= 0x02,
-kFlagRotateRpoint		= 0x04,
-kFlagRotateGrid			= 0x08,
-};
-
 
 enum {
 kSurfNone = 0,
@@ -69,6 +61,29 @@ kSurfGoo,
 kSurfLava,
 kSurfMax,
 };
+
+enum
+{
+kMapStatDudes		= 0,
+kMapStatSpawn,
+//kMapStatItems,
+kMapStatWeapons,
+kMapStatAmmo,
+kMapStatPowerup,
+kMapStatHealth,
+kMapStatArmor,
+kMapStatInventory,
+kMapStatMax,
+};
+
+extern const char* gMapStatsNames[kMapStatMax];
+
+BOOL rngok(int val, int rngA, int rngB);
+BOOL irngok(int val, int rngA, int rngB);
+XSPRITE* GetXSpr(spritetype* pSpr);
+XSECTOR* GetXSect(sectortype* pSect);
+XWALL* GetXWall(walltype* pWall);
+
 
 void nnExtOffsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z);
 class POSOFFS
@@ -121,8 +136,22 @@ class POSOFFS
 		int  Angle()										{ return getangle(x - bx, y - by); }
 };
 
+
+class MapStats
+{
+	private:
+		static uint16_t stats[5][5][kMapStatMax];
+		static int16_t  total[5][kMapStatMax];
+		static void IncItemType(int nType, XSPRITE* pXSpr);
+		static char Inc(XSPRITE* pXSpr, int nWhat);
+	public:
+		static int Get(int nMode, int nWhat);
+		static int Get(int nMode, int nSkill, int nWhat);
+		static void Collect();
+		static void Clear(char which = 0x03);
+};
+
 #pragma pack(push, 1)
-struct NAMED_TYPE;
 struct FUNCT_LIST
 {
 	int funcType;
@@ -240,15 +269,15 @@ class OBJECT_LIST
 };
 
 char scanWallOfSector(SCANWALL* pIn, SCANWALL* pOut);
-NAMED_TYPE gReverseSectorErrors[];
+extern NAMED_TYPE gReverseSectorErrors[3];
+extern int gNextWall[kMaxWalls];
+
 
 void Delay(int time);
 BOOL Beep(BOOL cond);
 void BeepOk( void );
 void BeepFail( void );
 int scanBakFile(char* file);
-BOOL rngok(int val, int rngA, int rngB);
-BOOL irngok(int val, int rngA, int rngB);
 BYTE fileExists(char* filename, RESHANDLE* rffItem = NULL);
 int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom = NULL);
 void updateClocks();
@@ -369,18 +398,24 @@ int getShadeOf(int oType, int oIdx);
 void setShadeOf(int nShade, int oType, int oIdx);
 void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* zt = NULL, int* zb = NULL, char flags = 0x07);
 void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, char flags = 0x07);
+void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, int* zt, int* zb, char flags = 0x07);
 BOOL isSearchSector();
 char removeQuotes(char* str);
 
-void performRotate(int* x, int* y, int nAng, int ax, int ay, BOOL rpoint = TRUE);
+void posChg(int* x, int* y, int bx, int by, char chgRel);
+void posFlip(int* x, int* y, int cx, int cy, char flipX);
+void posRotate(int* x, int* y, int rAng, int cx, int cy, char rPoint);
+
+void loopGetEdgeWalls(int nFirst, int nLast, int* l, int* r, int* t, int* b);
 void loopGetWalls(int nStartWall, int* swal, int *ewal);
-void loopGetEdgeWalls(int nFirst, short* lw, short* rw, short* tw, short* bw);
-void avePointLoop2(int nFirst, int* ax, int* ay);
-void avePointLoop(int nFirst, int* ax, int* ay);
-void loopRotateWalls(int nFirst, int nAng, int ax, int ay, char flags = kFlagRotateRpoint);
-void loopRotateWalls(int nFirst, int nAng, char flags = kFlagRotateRpoint);
+void loopGetBox(int nFirst, int nLast, int* x1, int* y1, int* x2, int *y2);
+void loopChgPos(int s, int e, int bx, int by, int flags);
+void loopRotate(int s, int e, int cx, int cy, int nAng, int flags);
+void loopFlip(int s, int e, int cx, int cy, int flags);
+void loopDelete(int s, int e);
+
+void midPointLoop(int nFirst, int nLast, int* ax, int *ay);
 int getXYGrid(int x, int y, int min = 1, int max = 7);
-void rotateSector(int nSector, int nAng, int ax, int ay, char flags = kFlagRotateSprites);
 void sectorDetach(int nSector);
 void sectorAttach(int nSector);
 int isMarkerSprite(int nSpr);
@@ -394,6 +429,8 @@ int countSpritesOfSector(int nSect);
 void sectGetEdgeZ(int nSector, int* fz, int* cz);
 void ceilGetEdgeZ(int nSector, int* zBot, int* zTop);
 void floorGetEdgeZ(int nSector, int* zBot, int* zTop);
+void sectRotate(int nSect, int cx, int cy, int nAng, int flags);
+void sectFlip(int nSect, int cx, int cy, int flags, int);
 int getSectorHeight(int nSector);
 void flipWalls(int nStart, int nOffs);
 
@@ -408,11 +445,14 @@ int redSectorMerge(int nThis, int nWith);
 
 int roundAngle(int nAng, int nAngles);
 BOOL testXSectorForLighting(int nXSect);
-XSPRITE* GetXSpr(spritetype* pSpr);
-XSECTOR* GetXSect(sectortype* pSect);
-XWALL* GetXWall(walltype* pWall);
+
 
 void collectUsedChannels(unsigned char used[1024]);
+char isIslandSector(int nSect);
+char isNextWallOf(int nSrc, int nDest);
+int findNextWall(int nWall);
+int findNamedID(const char* str, NAMED_TYPE* pDb, int nLen);
+int words2flags(const char* str, NAMED_TYPE* pDb, int nLen);
 
 //BOOL ss2obj(int* objType, int* objIdx, BOOL asIs = FALSE);
 //BOOL dosboxRescan();

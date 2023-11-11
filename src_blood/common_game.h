@@ -57,7 +57,11 @@ void __dassert(const char* pzExpr, const char* pzFile, int nLine);
 
 #ifndef fallthrough__
 # if defined _MSC_VER
-#  define fallthrough__ __fallthrough
+#	if _MSC_VER <= 1310
+#		define fallthrough__
+#	else
+#  		define fallthrough__ __fallthrough
+#	endif
 # else
 #  define fallthrough__
 # endif
@@ -305,6 +309,7 @@ kGameModeSingle				= 0,
 kGameModeCoop				= 1,
 kGametModeDeathmatch		= 2,
 kGameModeFlags				= 3,
+kGameModeMax,
 };
 
 
@@ -658,6 +663,8 @@ enum {
     kSectorMax = 620,
 };
 
+#define kMaxObjectType 1024
+
 extern int gFrameClock;
 extern int gFrameTicks;
 extern int gFrame;
@@ -666,6 +673,13 @@ extern int gGamma;
 extern Resource gSysRes;
 
 extern int costable[2048];
+
+#pragma pack(push, 1)
+struct NAMED_TYPE
+{
+    signed int id;
+    char* name;
+};
 
 struct PICANM {
 	unsigned frames 	: 5;
@@ -691,6 +705,7 @@ struct POINT2D {
 struct POINT3D {
     int x, y, z;
 };
+#pragma pack(pop)
 
 unsigned int qrand(void);
 void ChangeExtension(char *pzFile, const char *pzExt);

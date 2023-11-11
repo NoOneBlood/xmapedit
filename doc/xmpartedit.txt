@@ -36,7 +36,7 @@
  ==================================================================
  1. IMAGES:
  ----------
-   The image resolution can be up to 640x640px. It does NOT have to be converted
+   The image resolution can be up to 32768x32768px. It does NOT have to be converted
    in to Blood palette before importing since XMP ARTEDIT is smart enough to convert it
    to the closest game colors for you.
 		

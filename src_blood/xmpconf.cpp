@@ -73,21 +73,6 @@ void AUTOADJUST::Init(IniFile* pIni, char* section)
 		setHitscan			= pIni->GetKeyBool(section, "SetHitscan",			TRUE);	
 		setStatnum 			= pIni->GetKeyBool(section, "SetStatnum",			TRUE);
 		setStatnumThings	= pIni->GetKeyBool(section, "SetStatnumForThings",	TRUE);
-
-		// modify autoData array
-		short pic, xr, yr, plu;
-		for (int i = 0; i < autoDataLength; i++)
-		{
-			if (autoData[i].seq < 0) continue;
-			else if (getSeqPrefs(autoData[i].seq, &pic, &xr, &yr, &plu))
-			{
-				autoData[i].picnum  = pic;
-				autoData[i].xrepeat = xr;
-				autoData[i].yrepeat = yr;
-				autoData[i].plu     = plu;
-				autoData[i].xsprite = TRUE; // if it have seq, then it must be xsprite
-			}
-		}
 	}
 }
 
@@ -438,7 +423,7 @@ void SCREEN::Init(IniFile* pIni, char* section)
 	msgFont						= 0;
 	msgTime						= 160;
 	
-	gGamma 						= ClipRange(pIni->GetKeyInt(section, "Gamma", 0), 0, gGammaLevels - 1);
+	gGamma 						= ClipRange(pIni->GetKeyInt(section, "Gamma", 0), 0, 10);
 	xdim2d = xdimgame			= ClipLow(pIni->GetKeyInt(section, "Width", xdimgame), 640);
 	ydim2d = ydimgame			= ClipLow(pIni->GetKeyInt(section, "Height", ydimgame), 480);
 	fullscreen					= pIni->GetKeyBool(section, "Fullscreen", 0);

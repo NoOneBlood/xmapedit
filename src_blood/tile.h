@@ -107,6 +107,9 @@ void tileUninitSystemTiles();
 void CalcPicsiz( int nTile, int x, int y );
 void qloadtile(short nTile);
 void qloadvoxel( int nVoxel );
-/* void tileDrawTile2(int x, int y, int ang, short pic, int size, short plu, char flags, schar shade); */
+inline char isPow2X(int nTile) { return (pow2long[picsiz[nTile] & 15] == tilesizx[nTile]); }
+inline char isPow2Y(int nTile) { return (pow2long[picsiz[nTile] >> 4] == tilesizy[nTile]); }
+inline char isPow2(int nTile) { return (isPow2X(nTile) && isPow2Y(nTile)); }
+
 #endif
 

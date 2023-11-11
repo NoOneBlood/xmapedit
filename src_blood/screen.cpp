@@ -36,18 +36,17 @@ extern "C" {
 #include "xmpmisc.h"
 
 PALETTE gamepal;
-bool DacInvalid = true;
-static char(*gammaTable)[256];
-RGB curDAC[256];
 RGB baseDAC[256];
-static RGB fromDAC[256];
-static RGB toRGB;
 RGB *palTable[5];
+
+extern "C" unsigned char *transluc;
+static char(*gammaTable)[256];
 static int curPalette;
 static int curGamma;
-int gGammaLevels;
 char gFogMode = 0;
-int32_t gBrightness;
+
+unsigned char* pScrSave = NULL;
+unsigned int nScrSaveSiz = 0;
 
 char scrFindClosestColor(int red, int green, int blue)
 {
@@ -71,53 +70,48 @@ char scrFindClosestColor(int red, int green, int blue)
 
 void scrCreateStdColors(void)
 {
-	int i = 0, j = 0; RESHANDLE hRes = NULL;
-	ININODE* prev = NULL; char* key = NULL, *value = NULL;
-	IniFile* colors = NULL;
-	RGB rgb;
-		
+	char* key, *val; unsigned char rgb[3];
+	int i = 0, j, nPrev = -1;
+	IniFile* colors;
+	RESHANDLE hRes;
+
 	memset(gStdColor, 0, sizeof(gStdColor));
-
-	if (fileExists(kStdPalDB)) colors = new IniFile(kStdPalDB);
-	else if ((hRes = gGuiRes.Lookup((unsigned int)2, "INI")) != NULL)
-		colors = new IniFile((BYTE*)gGuiRes.Load(hRes), hRes->size, kStdPalDB);
-	else
-		ThrowError("Standard color palette is not found!");
-	
-
-	while (i < LENGTH(gStdColor) && colors->GetNextString(NULL, &key, &value, &prev, "StandardColors"))
+	if ((hRes = gGuiRes.Lookup((unsigned int)2, "INI")) != NULL)
 	{
-		if (!key || !value || (j = atoi(key)) < 0 || j >= LENGTH(gStdColor))
-			continue;
+		colors = new IniFile((BYTE*)gGuiRes.Load(hRes), gGuiRes.Size(hRes));
+		while (i < LENGTH(gStdColor) && colors->GetNextString(NULL, &key, &val, &nPrev, "StandardColors"))
+		{
+			if (isufix(key) && rngok(j = atoi(key), 0, LENGTH(gStdColor)))
+			{
+				if (parseRGBString(val, rgb))
+					gStdColor[j] = scrFindClosestColor(rgb[0], rgb[1], rgb[2]);
+			}
+			
+			i++;
+		}
 		
-		rgb.r = (uint8_t)enumStrGetInt(0, value);
-		rgb.g = (uint8_t)enumStrGetInt(1);
-		rgb.b = (uint8_t)enumStrGetInt(2);
-		gStdColor[j] = scrFindClosestColor(rgb.r, rgb.g, rgb.b);
-		i++;
+		delete colors;
+		return;
 	}
 	
-	delete colors;
-
+	ThrowError("Standard color palette is not found!");
 }
 
 void gSetDacRange(int start, int end, RGB *pPal)
 {
-    // UNREFERENCED_PARAMETER(start);
-    // UNREFERENCED_PARAMETER(end);
 #if USE_POLYMOST
     if (getrendermode() == 0)
         return;
 #endif
-    {
-        for (int i = start; i < start + end; i++)
-        {
-            palette[i*3+0] = pPal[i].r >> 2;
-            palette[i*3+1] = pPal[i].g >> 2;
-            palette[i*3+2] = pPal[i].b >> 2;
-        }
-        setbrightness(/*gBrightness >> 2*/0, palette, 0);
-    }
+    
+	for (int i = start; i < start + end; i++)
+	{
+		palette[i*3+0] = pPal[i].r >> 2;
+		palette[i*3+1] = pPal[i].g >> 2;
+		palette[i*3+2] = pPal[i].b >> 2;
+	}
+	
+	setbrightness(0, palette, 0);
 }
 
 void scrLoadPLUs(void)
@@ -153,8 +147,6 @@ void scrLoadPLUs(void)
 	}
 }
 
-extern "C" unsigned char *transluc;
-
 void scrLoadPalette(void)
 {
 	int i; RESHANDLE hFile = NULL;
@@ -187,9 +179,10 @@ void scrLoadPalette(void)
 void scrSetMessage(char *__format, ...)
 {
 	SCRMESSAGE* pMsg = &gScreen.msg[0];
-	register int i = LENGTH(gScreen.msg); char buffer[sizeof(pMsg->text)];
+	int i = LENGTH(gScreen.msg); char buffer[sizeof(pMsg->text)];
 	
-	va_list argptr; va_start(argptr, __format);
+	va_list argptr;
+	va_start(argptr, __format);
 	vsprintf(buffer, __format, argptr);
 	va_end(argptr);
 	
@@ -199,7 +192,7 @@ void scrSetMessage(char *__format, ...)
 		while(--i > 0)
 			gScreen.msg[i] = gScreen.msg[i-1];
 		
-		sprintf(pMsg->text, buffer);
+		sprintf(pMsg->text, "%s", buffer);
 	//}
 	
 	pMsg->time = totalclock+(gScreen.msgShowCur<<3)+gScreen.msgTime;
@@ -210,7 +203,7 @@ void scrDisplayMessage()
 	if (!gScreen.msgShowCur)
 		return;
 		
-	register int i; register int y = windowy1 + 1;
+	int i; int y = windowy1 + 1;
 	QFONT* pFont = qFonts[gScreen.msgFont]; SCRMESSAGE* pMsg; 
 	char nColor = kColorWhite;
 	
@@ -231,72 +224,31 @@ void scrDisplayMessage()
 	}
 }
 
-void scrSetPalette(int palId, bool updDac)
+void scrSetPalette(int palId)
 {
     if (palId >= 0)
-	{
 		curPalette = palId;
-		scrSetGamma(0);
-	}
 	
-	if (updDac)
-		scrSetDac();
+	scrSetGamma(0);
+	gSetDacRange(0, 256, baseDAC);
 }
 
 void scrSetGamma(int nGamma)
 {
     curGamma = nGamma;
-    for (int i = 0; i < 256; i++)
+	for (int i = 0; i < 256; i++)
     {
-        baseDAC[i].r = gammaTable[curGamma][palTable[curPalette][i].r];
+		baseDAC[i].r = gammaTable[curGamma][palTable[curPalette][i].r];
         baseDAC[i].g = gammaTable[curGamma][palTable[curPalette][i].g];
         baseDAC[i].b = gammaTable[curGamma][palTable[curPalette][i].b];
     }
-    DacInvalid = 1;
 }
 
-void scrSetupFade(char red, char green, char blue)
-{
-    memcpy(fromDAC, curDAC, sizeof(fromDAC));
-    toRGB.r = red;
-    toRGB.g = green;
-    toRGB.b = blue;
-}
 
-void scrSetupUnfade(void)
+void scrSetDac(unsigned char* dapal, unsigned char* dapalgamma)
 {
-    memcpy(fromDAC, baseDAC, sizeof(fromDAC));
-}
-
-void scrFadeAmount(int amount)
-{
-	for (int i = 0; i < 256; i++)
-	{
-		curDAC[i].r = interpolate(fromDAC[i].r, toRGB.r, amount);
-        curDAC[i].g = interpolate(fromDAC[i].g, toRGB.g, amount);
-        curDAC[i].b = interpolate(fromDAC[i].b, toRGB.b, amount);
-	}
-	gSetDacRange(0, 256, curDAC);
-}
-
-void scrSetDac(void)
-{
-	if (DacInvalid)
-		gSetDacRange(0, 256, baseDAC);
-	DacInvalid = 0;
-}
-
-void scrSetDac2(unsigned char* dapal, unsigned char* dapalgamma)
-{
-    for (int i = 0; i < 256; i++)
-    {
-        dapal[i*3+0] = palTable[curPalette][i].r;
-        dapal[i*3+1] = palTable[curPalette][i].g;
-        dapal[i*3+2] = palTable[curPalette][i].b;
-        dapalgamma[i*3+0] = baseDAC[i].r;
-        dapalgamma[i*3+1] = baseDAC[i].g;
-        dapalgamma[i*3+2] = baseDAC[i].b;
-    }
+	memcpy(dapal,		palTable[curPalette],	sizeof(PALETTE));
+	memcpy(dapalgamma,	baseDAC,				sizeof(PALETTE));
 }
 
 void scrInit(void)
@@ -307,63 +259,35 @@ void scrInit(void)
     if (!pGamma)
         ThrowError("Gamma table not found");
 	
-    gGammaLevels = pGamma->size / 256;
     gammaTable = (char(*)[256])gSysRes.Lock(pGamma);
-}
-
-void scrUnInit(bool engineUninit)
-{
-    memset(palookup, 0, sizeof(palookup));
-	transluc = NULL;
-    if (engineUninit)
-        uninitengine();
 }
 
 
 void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits)
 {
-    resetvideomode();
-    if (setgamemode(vidMode, XRes, YRes, nBits) < 0)
-    {
-        buildprintf("Failure setting video mode %dx%dx%d %s! Trying next mode...\n", XRes, YRes,
-                    nBits, vidMode ? "fullscreen" : "windowed");
-
-        int resIdx = 0;
-
-        for (int i=0; i < validmodecnt; i++)
-        {
-            if (validmode[i].xdim == XRes && validmode[i].ydim == YRes)
-            {
-                resIdx = i;
-                break;
-            }
-        }
-
-        int const savedIdx = resIdx;
-        int bpp = nBits;
-
-        while (setgamemode(0, validmode[resIdx].xdim, validmode[resIdx].ydim, bpp) < 0)
-        {
-            buildprintf("Failure setting video mode %dx%dx%d windowed! Trying next mode...\n",
-                        validmode[resIdx].xdim, validmode[resIdx].ydim, bpp);
-
-            if (++resIdx == validmodecnt)
-            {
-                if (bpp == 8)
-                    ThrowError("Fatal error: unable to set any video mode!");
-
-                resIdx = savedIdx;
-                bpp = 8;
-            }
-        }
-    }
-    
-    scrSetPalette(curPalette);
+    int nSafe = -1;
+	int wh, hg;
+	int i;
+	
+	i = validmodecnt;
+	while(--i >= 0)
+	{
+		wh = validmode[i].xdim;
+		hg = validmode[i].ydim;
+		
+		if (wh == XRes && hg == YRes && setgamemode(vidMode, wh, hg, bpp) == 0) break;
+		if (nSafe < 0 && (wh == 640 && (hg == 480 || hg == 400)))
+			nSafe = i;
+	}
+	
+	if (i < 0)
+	{
+		if (nSafe < 0 || setgamemode(vidMode, validmode[nSafe].xdim, validmode[nSafe].ydim, bpp) < 0)
+			ThrowError("Unable to set any video mode!");
+	}
+	
     gfxSetClip(windowx1, windowy1, windowx2, windowy2);
 }
-
-unsigned char* pScrSave = NULL;
-unsigned int nScrSaveSiz = 0;
 
 void scrSave()
 {
@@ -394,7 +318,3 @@ void scrRestore(char freeIt)
 		nScrSaveSiz = 0;
 }
 
-void scrNextPage(void)
-{
-    nextpage();
-}

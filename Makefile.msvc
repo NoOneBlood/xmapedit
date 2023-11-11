@@ -10,28 +10,41 @@ USE_ASM=0
 USE_OPENGL=1
 
 
-# Right now we only allow x86
-# ---------------------------------------------------------------
-!if "$(PLATFORM)" == "X64" || "$(PLATFORM)" == "x64" || "$(PLATFORM)" == "ARM"
-!error This application designed for x86 platforms!
-!endif
-
-
 # Release options
 # ---------------------------------------------------------------
 # 0 = Debugging
 # 1 = Release with /O2
-# 2 = Release with different optimisation
-RELEASE=1
+# 2 = Release with /O1 /GA /GL /GF and /LTCG
+RELEASE=2
+
+
+# Attempt to auto-detect target platform
+# ---------------------------------------------------------------
+!if "$(PLATFORM)" == ""
+!if "$(PROCESSOR_ARCHITECTURE)" == "x86"
+PLATFORM=x86
+!elseif "$(PROCESSOR_ARCHITECTURE)" == "AMD64" || "$(PROCESSOR_ARCHITECTURE)" == "x64" || "$(PROCESSOR_ARCHITECTURE)" == "X64" 
+PLATFORM=x64
+!endif
+!else if "$(PLATFORM)" == "AMD64" || "$(PLATFORM)" == "amd64" || "$(PLATFORM)" == "X64"
+PLATFORM=x64
+!endif
 
 
 # Windows compatibility
 # ---------------------------------------------------------------
-# 0 = WVista or higher................ (VC2005 - 19 tested)
+!if "$(PLATFORM)" == "x86"
+# 0 = WVista or higher................ (VC2005 - 22 tested)
 # 1 = WXP or higher................... (VC2005 - 17 tested)
 # 2 = W98 or higher................... (VC2003 - 05 tested)
 # 3 = W95 or higher................... (Experimental, VC2003 tested only)
 WINCOMPAT=2
+!else if "$(PLATFORM)" == "x64"
+# At least Windows Vista
+WINCOMPAT=0
+!else
+!error "$(PLATFORM)" - not correct target platform value!
+!endif
 
 
 # Mouse compatibility
@@ -41,24 +54,6 @@ WINCOMPAT=2
 # Note that WINCOMPAT=3 forced to use Direct Input since W95 does
 # not have standard mouse wheel events support.
 USE_STANDARD_MOUSE_EVENTS=1
-
-
-# Libs that are required by default
-# ---------------------------------------------------------------
-REQLIBS=user32.lib gdi32.lib shell32.lib
-
-
-# Default constants that must be defined
-# ---------------------------------------------------------------
-DEFINE=/DUSE_ASM=$(USE_ASM) /DUSE_OPENGL=$(USE_OPENGL) /DWITHOUT_GTK=1
-
-
-# Definitions of building tools
-# ---------------------------------------------------------------
-C_COMPILER=cl
-A_COMPILER=ml
-R_COMPILER=rc
-LINKER=link
 
 
 # Input and output paths
@@ -71,15 +66,34 @@ AUDIOLIBROOT=jfaudiolib
 LIBSQUISH=libsquish
 ENGINELIB=engine.lib
 EDITORLIB=build.lib
+DXLIBS=dxsdk\lib\$(PLATFORM)
 res=res
 o=obj
 
 
+# Definitions of building tools
+# ---------------------------------------------------------------
+C_COMPILER=cl
+A_COMPILER=ml
+R_COMPILER=rc
+LINKER=link
+
+
+# Libs that are required by default
+# ---------------------------------------------------------------
+REQLIBS=user32.lib shell32.lib gdi32.lib "$(DXLIBS)\dsound.lib" "$(DXLIBS)\dxguid.lib"
+
+
+# Default constants that must be defined
+# ---------------------------------------------------------------
+DEFINE=/DUSE_ASM=$(USE_ASM) /DUSE_OPENGL=$(USE_OPENGL) /DWITHOUT_GTK=1
+
+
 # Default compiler and linker flags
 # ---------------------------------------------------------------
-LF=/nologo /opt:ref /LIBPATH:$(AUDIOLIBROOT)\third-party\msvc\lib$(PLATFORM)
+LF=/nologo /opt:ref
 RF=/i$(BUILDINC) /i$(XMAPEDSRC)
-CF=/nologo /EHsc /MT /MP /wd4996
+CF=/nologo /EHsc /MT /wd4996
 AF=/nologo /coff
 
 
@@ -104,12 +118,10 @@ LF=$(LF) /DEBUG
 # ---------------------------------------------------------------
 SUBSYSTEM=/SUBSYSTEM:WINDOWS,6.00
 DEFINE=$(DEFINE) /DSUBSYS=600
-REQLIBS=$(REQLIBS) shell32.lib
 !elseif $(WINCOMPAT) == 1
 # ---------------------------------------------------------------
 SUBSYSTEM=/SUBSYSTEM:WINDOWS,5.01
 DEFINE=$(DEFINE) /DSUBSYS=501
-REQLIBS=$(REQLIBS) shell32.lib
 !elseif $(WINCOMPAT) == 2
 # ---------------------------------------------------------------
 SUBSYSTEM=/SUBSYSTEM:WINDOWS,4.00
@@ -119,7 +131,6 @@ DEFINE=$(DEFINE) /DSUBSYS=401
 SUBSYSTEM=/SUBSYSTEM:WINDOWS,4.00
 DEFINE=$(DEFINE) /DSUBSYS=400
 !else
-# ---------------------------------------------------------------
 !error Must select Windows version compatibility!
 !endif
 
@@ -130,13 +141,15 @@ DEFINE=$(DEFINE) /DMOUSETYPE=0
 !elseif $(WINCOMPAT) >= 2
 # ---------------------------------------------------------------
 DEFINE=$(DEFINE) /DMOUSETYPE=1
-REQLIBS=$(REQLIBS) "dxsdk\lib\dinput.lib"
+REQLIBS=$(REQLIBS) "$(DXLIBS)\dinput.lib"
 !else
 # ---------------------------------------------------------------
 DEFINE=$(DEFINE) /DMOUSETYPE=2
 !endif
 # ---------------------------------------------------------------
 
+HAVE_START_WINDOW=0
+USE_POLYMOST=0
 
 !include $(AUDIOLIBROOT)/Makefile.msvcshared
 ENGINEOBJS=$(BUILDSRC)\a-c.$o \
@@ -147,6 +160,7 @@ ENGINEOBJS=$(BUILDSRC)\a-c.$o \
 	$(BUILDSRC)\crc32.$o \
 	$(BUILDSRC)\defs.$o \
 	$(BUILDSRC)\engine.$o \
+!if $(USE_POLYMOST)
 	$(BUILDSRC)\polymost.$o \
 	$(BUILDSRC)\polymost_fs.$o \
 	$(BUILDSRC)\polymost_vs.$o \
@@ -157,18 +171,21 @@ ENGINEOBJS=$(BUILDSRC)\a-c.$o \
 	$(BUILDSRC)\polymosttexcompress.$o \
 	$(BUILDSRC)\hightile.$o \
 	$(BUILDSRC)\mdsprite.$o \
+	$(BUILDSRC)\scriptfile.$o \
+!endif
+!if $(USE_OPENGL)
 	$(BUILDSRC)\glbuild.$o \
 	$(BUILDSRC)\glbuild_fs.$o \
 	$(BUILDSRC)\glbuild_vs.$o \
+!endif
 	$(BUILDSRC)\kplib.$o \
 	$(BUILDSRC)\osd.$o \
 	$(BUILDSRC)\pragmas.$o \
-	$(BUILDSRC)\scriptfile.$o \
 	$(BUILDSRC)\textfont.$o \
 	$(BUILDSRC)\smalltextfont.$o \
 	$(BUILDSRC)\winlayer.$o
 
-!if "$(USE_POLYMOST)" > "0"
+!if $(USE_POLYMOST)
 LIBSQUISHOBJS=$(LIBSQUISH)\alpha.$o $(LIBSQUISH)\clusterfit.$o \
 	      $(LIBSQUISH)\colourblock.$o $(LIBSQUISH)\colourfit.$o \
 	      $(LIBSQUISH)\colourset.$o $(LIBSQUISH)\maths.$o \
@@ -177,10 +194,10 @@ LIBSQUISHOBJS=$(LIBSQUISH)\alpha.$o $(LIBSQUISH)\clusterfit.$o \
 !endif
 
 EDITOROBJS=$(BUILDSRC)\build.$o \
-!if "$(HAVE_START_WINDOW)" > "0"
+!if $(HAVE_START_WINDOW)
 	$(BUILDSRC)\startwin_editor.$o \
 !endif
-	$(BUILDSRC)\config.$o
+	#$(BUILDSRC)\config.$o
 
 EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\xmpstub.$o \
@@ -245,8 +262,14 @@ ENGINEOBJS=$(ENGINEOBJS) $(BUILDSRC)\a.$o
 !endif
 
 RF=$(RF) $(DEFINE)
-CF=$(CF) $(DEFINE)
-CF=$(CF) /I$(BUILDINC) /I$(LIBSQUISH) /I$(BUILDSRC) /I$(XMAPEDSRC) /I$(AUDIOLIBROOT)\include /I$(AUDIOLIBROOT)\src
+!if "$(PLATFORM)" == "x64"
+RF=$(RF) /d_M_AMD64
+!endif
+
+CF=$(CF) $(DEFINE) /I$(BUILDINC) /I$(BUILDSRC) /I$(XMAPEDSRC) /I$(AUDIOLIBROOT)\include /I$(AUDIOLIBROOT)\src
+!if $(USE_POLYMOST)
+CF=$(CF) /I$(LIBSQUISH)
+!endif
 
 # Source-control version stamping
 !if [git --version >nul] == 0
@@ -300,7 +323,7 @@ $(BUILDSRC)\$(EDITORLIB): $(EDITOROBJS)
 	lib $(SUBSYSTEM) /out:$@ /nologo $**
 
 $(XMAPEDOUT)\xmapedit.exe: $(EDITOREXEOBJS) $(AUDIOLIBROOT)\$(JFAUDIOLIB)
-	$(LINKER) /OUT:$@ $(SUBSYSTEM) $(LF) "/LIBPATH:$(DXROOT)\lib" /MAP $** $(REQLIBS) $(JFAUDIOLIB_LINKFLAGS)
+	$(LINKER) /OUT:$@ $(SUBSYSTEM) $(LF) /MAP $** $(REQLIBS) $(JFAUDIOLIB_LINKFLAGS)
 
 bin2c.exe: $(BUILDSRC)\bin2c.$o
 	$(LINKER) /OUT:$@ /SUBSYSTEM:CONSOLE $(LF) /MAP $**
@@ -319,7 +342,7 @@ $(AUDIOLIBROOT)\$(JFAUDIOLIB): jfaudiolib ;
 
 # PHONIES
 clean:
-	-del /q $(ENGINEOBJS) $(LIBSQUISHOBJS) $(EDITOROBJS) $(EDITOREXEOBJS)
+	-del /q $(ENGINEOBJS) $(LIBSQUISHOBJS) $(EDITOROBJS) $(EDITOREXEOBJS) $(XMAPEDOUT)\xmapedit.pdb
 	cd "$(AUDIOLIBROOT)"
 	$(MAKE) /f Makefile.msvc $@
 	cd "$(MAKEDIR)"

@@ -519,7 +519,8 @@ void evPost(int nIndex, int nType, unsigned int nDelta, COMMAND_ID command) {
 	dassert(command != kCmdCallback);
 	if (command == kCmdState) command = evGetSourceState(nType, nIndex) ? kCmdOn : kCmdOff;
 	else if (command == kCmdNotState) command = evGetSourceState(nType, nIndex) ? kCmdOff : kCmdOn;
-	EVENT evn = {};
+	
+	EVENT evn;
 	evn.index = nIndex;
 	evn.type = nType;
 	evn.cmd = command;
@@ -527,7 +528,7 @@ void evPost(int nIndex, int nType, unsigned int nDelta, COMMAND_ID command) {
 }
 
 void evPost(int nIndex, int nType, unsigned int nDelta, CALLBACK_ID callback) {
-	EVENT evn = {};
+	EVENT evn;
 	evn.index = nIndex;
 	evn.type = nType;
 	evn.cmd = kCmdCallback;

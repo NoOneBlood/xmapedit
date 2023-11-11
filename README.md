@@ -38,12 +38,12 @@ Minimum system requirements
 
 Compilation
 -----------
-XMAPEDIT for x86 platforms can be compiled under
-Windows using Microsoft Visual C++ 2005 or higher
+XMAPEDIT for x86 and x64 platforms can be compiled for Windows
+using Microsoft Visual C++ 2003 or higher
 and NMAKE tool:
 
-1. Clone this repository or unpack the source archive (you may need to do the same for jfaudiolib).
-2. Open the command-line build prompt. e.g. x86 Native Tools Command Prompt for VS 2005 or higher.
+1. Clone this repository or unpack the source archive.
+2. Open the command-line build prompt. e.g. x86 (or x64) Native Tools Command Prompt for VS 2005 or higher.
 3. Change into the xmapedit source code folder, then compile with: `nmake /f Makefile.msvc`
 4. Once you got it compiled, you may find the xmapedit binary in the `mapedit-data` directory.
 

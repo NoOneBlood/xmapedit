@@ -34,7 +34,6 @@
 #define kColorHighlight		gStdColor[16]
 #define kColorShadow		gStdColor[24]
 
-struct NAMED_TYPE;
 extern QFONT* pFont;
 
 // modal result codes

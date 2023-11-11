@@ -87,8 +87,8 @@
 # define longlong(x) x##i64
 #elif defined(_MSC_VER)
 # define inline __inline
-# define int64 __int64
-# define uint64 unsigned __int64
+# define int64 int64_t
+# define uint64 unsigned int64_t
 # define longlong(x) x##i64
 #endif
 

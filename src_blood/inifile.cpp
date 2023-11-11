@@ -1,9 +1,6 @@
 /**********************************************************************************
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 1996: Originally written by Peter Freese.
-// Copyright (C) 2019: Reverse engineered & edited by Nuke.YKT.
-// Copyright (C) 2021: Additional changes by NoOne.
-// Note: This module is based on the sirlemonhead's work
+// Copyright (C) 2023: Originally written by NoOne.
 // This file is part of XMAPEDIT.
 //
 // XMAPEDIT is free software; you can redistribute it and/or
@@ -25,484 +22,504 @@
 #include "common_game.h"
 #include "inifile.h"
 #include "xmpmisc.h"
-#include "gui.h"
+#include "xmpstr.h"
 
-
-IniFile::IniFile(char *fileName)
+enum
 {
-    head.next = &head;
-    strcpy(this->fileName, fileName);
-    Load();
-}
+	kIniNodeEmpty	= 0,
+	kIniNodeComment = 1,
+	kIniNodeSection = 2,
+	kIniNodeKeyStr	= 3,
+	kIniNodeKeySep	= 4,
+};
 
-IniFile::IniFile(BYTE *res, int nLength, char* saveName)
+
+void IniFile::Init()
 {
-    memset(this->fileName, 0, sizeof(this->fileName));	
-	BYTE* pResNew = (BYTE*)malloc(nLength + 1);
-	int i, j, c;
-	
-	
-	head.next = &head;
-	if (saveName)
-		strcpy(this->fileName, saveName);
-	
-	if (pResNew)
-	{
-		memset(pResNew, 0, nLength + 1);
-		for (i = 0, j = 0; i < nLength; i++)
-		{
-			c = res[i];
-			if (c == '\r' || c == '\n')
-			{
-				pResNew[j++] = '\n';
-
-				if (c == '\r')
-				{
-					if (i + 1 < nLength && res[i + 1] == '\n')
-						i++;
-				}
-			}
-			else
-			{
-				pResNew[j++] = c;
-			}
-		}
-		
-		LoadRes(pResNew);
-		free(pResNew);
-		return;
-	}
-	
-    LoadRes(res);
-}
-
-void IniFile::LoadRes(void *res)
-{
-	char buffer[256];
-	char *ch, *start;
-	int lineLen;
-
-    curNode = &head;
-
-    while (ResReadLine(buffer, sizeof(buffer), &res) != 0)
-    {
-		if ((ch = strchr(buffer,'\r')) != NULL) *ch = '\0';
-		if ((ch = strchr(buffer,'\n')) != NULL) *ch = '\0';
-        
-		start = buffer;
-		
-		// ignore leading spaces
-		while (isspace(*start))
-			start++;
-		
-		// ignore ending spaces
-		lineLen = strlen(start);
-		while(lineLen > 0 && isspace(start[lineLen - 1]))
-			start[--lineLen] = '\0'; 
-		
-
-        curNode->next = (ININODE*)malloc(lineLen + sizeof(ININODE));
-        dassert(curNode->next != NULL);
-
-        anotherNode = curNode;
-        curNode = curNode->next;
-
-        strcpy(curNode->name, start);
-
-        /*
-            check for:
-            ; - comment line. continue and grab a new line  (59)
-            [ - start of section marker                     (91)
-            ] - end of section marker                       (93)
-            = - key and value seperator                     (61)
-        */
-
-        switch (*start) {
-			case '\0':
-			case ';': // comment line
-				break;
-			case '[':
-				if (strchr(start, ']')) break;
-				free(curNode);
-				curNode = anotherNode;
-				continue;
-			default:
-				if (strchr(start, '=') <= start)
-				{
-					free(curNode);
-					curNode = anotherNode;
-				}
-				break;
-        }
-    }
-
-    curNode->next = &head;
-}
-
-void IniFile::Load()
-{	
-	curNode = &head;
-	BYTE *pAllocFile, *pFile; int hFile, len = 0;
-	if ((hFile = open(fileName, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
-	{
-		len = filelength(hFile);
-		pAllocFile = (BYTE*)malloc(len+1);
-		memset(pAllocFile, 0, len+1);
-		pFile = pAllocFile;
-		
-		if (len > 0)
-			read(hFile, pAllocFile, len);
-		
-		close(hFile);
-		LoadRes(pFile);
-		free(pAllocFile);
-	}
-	else
-	{
-		 curNode->next = &head;
-	}
-}
-
-void IniFile::Save(void)
-{
-    if (!strlen(fileName))
-		return;
-	
-	int hFile; char buffer[256];
-	fileAttrSetWrite(fileName);
-	hFile = open(fileName, O_CREAT | O_WRONLY | O_TEXT | O_TRUNC, S_IREAD | S_IWRITE);
-	dassert(hFile >= 0);
-    
-	curNode = head.next;
-    while (curNode != &head)
-    {
-        sprintf(buffer, "%s\n", curNode->name);
-        write(hFile, buffer, strlen(buffer));
-        curNode = curNode->next;
-    }
-    
-	close(hFile);
-}
-
-bool IniFile::FindSection(char *section)
-{
-    char buffer[256];
-    curNode = anotherNode = &head;
-    if (section)
-    {
-        sprintf(buffer, "[%s]", section);
-        do
-        {
-            anotherNode = curNode;
-            curNode = curNode->next;
-            if (curNode == &head)
-                return false;
-        }
-		while(stricmp(curNode->name, buffer) != 0);
-    }
-    return true;
-}
-
-bool IniFile::SectionExists(char *section)
-{
-    return FindSection(section);
-}
-
-bool IniFile::FindKey(char *key)
-{
-    anotherNode = curNode;
-    curNode = curNode->next;
-    while (curNode != &head)
-    {
-        char c = curNode->name[0];
-
-        if (c == ';' || c == '\0') {
-            anotherNode = curNode;
-            curNode = curNode->next;
-            continue;
-        }
-
-        if (c == '[') {
-            return 0;
-        }
-
-        char *pEqual = strchr(curNode->name, '=');
-        char *pEqualStart = pEqual;
-        dassert(pEqual != NULL);
-
-        // remove whitespace
-        while (isspace(*(pEqual - 1))) {
-            pEqual--;
-        }
-
-        c = *pEqual;
-        *pEqual = '\0';
-		
-		// make it no sensetive to case
-        if (stricmp(key, curNode->name) == 0)
-        {
-            // strings match
-            *pEqual = c;
-            _13 = ++pEqualStart;
-            while (isspace(*_13)) {
-                _13++;
-            }
-
-            return true;
-        }
-        *pEqual = c;
-        anotherNode = curNode;
-        curNode = curNode->next;
-    }
-    
-    return false;
-}
-
-void IniFile::AddSection(char *section)
-{
-    char buffer[256];
-
-    if (anotherNode != &head)
-    {
-        ININODE *newNode = (ININODE*)malloc(sizeof(ININODE));
-        dassert(newNode != NULL);
-
-        newNode->name[0] = 0;
-        newNode->next = anotherNode->next;
-        anotherNode->next = newNode;
-        anotherNode = newNode;
-    }
-
-    sprintf(buffer, "[%s]", section);
-    ININODE *newNode = (ININODE*)malloc(strlen(buffer) + sizeof(ININODE));
-    dassert(newNode != NULL);
-
-    strcpy(newNode->name, buffer);
-
-    newNode->next = anotherNode->next;
-    anotherNode->next = newNode;
-    anotherNode = newNode;
-}
-
-void IniFile::AddKeyString(char *key, char *value)
-{
-    char buffer[256];
-
-    sprintf(buffer, "%s=%s", key, value);
-
-    ININODE *newNode = (ININODE*)malloc(strlen(buffer) + sizeof(ININODE));
-    dassert(newNode != NULL);
-
-    strcpy(newNode->name, buffer);
-
-    newNode->next = anotherNode->next;
-    anotherNode->next = newNode;
-    curNode = newNode;
-}
-
-void IniFile::ChangeKeyString(char *key, char *value)
-{
-    char buffer[256];
-
-    sprintf(buffer, "%s=%s", key, value);
-
-    ININODE *newNode = (ININODE*)realloc(curNode, strlen(buffer) + sizeof(ININODE));
-    dassert(newNode != NULL);
-
-    strcpy(newNode->name, buffer);
-
-    anotherNode->next = newNode;
-}
-
-bool IniFile::KeyExists(char *section, char *key)
-{
-    if (FindSection(section) && FindKey(key))
-        return true;
-
-    return false;
-}
-
-void IniFile::PutKeyString(char *section, char *key, char *value)
-{
-    if (FindSection(section))
-    {
-        if (FindKey(key))
-        {
-            ChangeKeyString(key, value);
-            return;
-        }
-    }
-    else
-    {
-        AddSection(section);
-    }
-
-    AddKeyString(key, value);
-}
-
-char* IniFile::GetKeyString(char *section, char *key, char *defaultValue)
-{
-    if (FindSection(section) && FindKey(key))
-        return _13;
-    return defaultValue;
-}
-
-void IniFile::PutKeyInt(char *section, char *key, int value)
-{
-    char buffer[256];
-
-    // convert int to string
-    sprintf(buffer,"%d",value);
-
-    PutKeyString(section, key, buffer);
-}
-
-int IniFile::GetKeyInt(char *section, char *key, int defaultValue)
-{
-    if (FindSection(section) && FindKey(key))
-    {
-        // convert string to int int
-        return strtol(_13, NULL, 0);
-    }
-    return defaultValue;
-}
-
-void IniFile::PutKeyHex(char *section, char *key, int value)
-{
-    char buffer[256] = "0x";
-
-    // convert int to string
-    sprintf(buffer,"%x",value);
-
-    PutKeyString(section, key, buffer);
-}
-
-int IniFile::GetKeyHex(char *section, char *key, int defaultValue)
-{
-    return GetKeyInt(section, key, defaultValue);
-}
-
-bool IniFile::GetKeyBool(char *section, char *key, int defaultValue)
-{
-    return (bool)GetKeyInt(section, key, defaultValue);
-}
-
-void IniFile::RemoveKey(char *section, char *key)
-{
-    if (FindSection(section) && FindKey(key))
-    {
-        anotherNode->next = curNode->next;
-        free(curNode);
-        curNode = anotherNode->next;
-    }
-}
-
-void IniFile::RemoveSection(char *section)
-{
-    if (FindSection(section))
-    {
-        anotherNode = curNode;
-
-        curNode = curNode->next;
-
-        while (curNode != &head)
-        {
-            if (curNode->name[0] == '[') {
-                return;
-            }
-
-            anotherNode->next = curNode->next;
-            free(curNode);
-            curNode = anotherNode->next;
-        }
-    }
-}
+	node = NULL;
+	numnodes = numgroups = 0;
+	memset(filename, 0, sizeof(filename));
+};
 
 IniFile::~IniFile()
 {
-	curNode = head.next;
-	if (fileExists(fileName))
-		fileAttrSetWrite(fileName);
+	int i = numnodes;
+	while(--i >= 0)
+	{
+		ININODE* pNode = &node[i];
+		if (pNode->hiWord) free(pNode->hiWord);
+		if (pNode->loWord) free(pNode->loWord);
+	}
 	
-    while (curNode != &head)
-    {
-        anotherNode = curNode;
-        curNode = curNode->next;
-        free(anotherNode);
-    }
+	if (node)
+		free(node);
 }
 
-bool IniFile::GetNextString(char* out, char** key, char** value, ININODE** prev, char *sSection) {
-
-	*key = NULL, *value = NULL;
-	int len, i, j;
-
-	curNode = anotherNode = &head;
-	if (*prev == NULL)
+IniFile::IniFile(char* fileName, char flags)
+{
+	int nLength, hFil;
+	BYTE* pRaw;
+	Init();
+	
+	if (!isempty(fileName))
 	{
-		if (sSection != NULL && !FindSection(sSection))
-			return FALSE;
+		if ((hFil = open(fileName, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
+		{
+			if ((nLength = filelength(hFil)) > 0 && (pRaw = (BYTE*)malloc(nLength+1)) != NULL)
+			{
+				read(hFil, pRaw, nLength); pRaw[nLength] = '\0';
+				Load(pRaw, nLength+1);
+				close(hFil);
+				free(pRaw);
+			}
+		}
 		
-		curNode = curNode->next;
-	} 
+		sprintf(filename, "%s", fileName);
+	}
+}
+
+IniFile::IniFile(BYTE* pBytes, int nLength, char flags)
+{
+	BYTE* pRaw;
+	Init();
+	
+	if (nLength > 0 && (pRaw = (BYTE*)malloc(nLength+1)) != NULL)
+	{
+		memcpy(pRaw, pBytes, nLength);
+		pRaw[nLength] = '\0';
+		Load(pRaw, nLength+1);
+		free(pRaw);
+	}
+}
+
+void IniFile::Load(BYTE* pRaw, int nLength, char flags)
+{
+	char *ss, *se, *hi, *lo;
+	ININODE newNode;
+	BYTE c; int n;
+
+	if (!pRaw || nLength <= 0)
+		return;
+	
+	n = 0;
+	while(n < nLength)
+	{
+		c = pRaw[n];
+		if (c == '\r' || c == '\n')
+		{
+			if (c == '\r')
+			{
+				if (n+1 < nLength && pRaw[n+1] == '\n')
+				{
+					memmove(&pRaw[n], &pRaw[n+1], nLength - n);
+					nLength--;
+				}
+			}
+			
+			pRaw[n] = '\0';
+		}
+		
+		n++;
+	}
+	
+	n = 0;
+	while(n < nLength)
+	{
+		ss = (char*)&pRaw[n]; n+=strlen(ss)+1;
+		memset(&newNode, 0, sizeof(newNode));
+		hi = NULL; lo = NULL;
+		strTrim(ss);
+
+		switch(*ss)
+		{
+			case '\0':
+				if (flags & INI_SKIPZR) continue;
+				newNode.type = kIniNodeEmpty;
+				break;
+			case ';':
+			case '#':
+				if (flags & INI_SKIPCM) continue;
+				newNode.type = kIniNodeComment;
+				hi = ss;
+				break;
+			case '[':
+				if ((se = strchr(ss, ']')) > ss)
+				{
+					// section
+					hi = &ss[1], *se = '\0'; strTrim(hi);
+					newNode.type = kIniNodeSection;
+					numgroups++;
+					break;
+				}
+				// allow it to be a key?
+			default:
+				if ((se = strchr(ss, '=')) <= ss)
+				{
+					// simple string key
+					newNode.type = kIniNodeKeyStr;
+					hi = ss;
+				}
+				else
+				{
+					// key / value separated
+					newNode.type = kIniNodeKeySep;
+					hi = ss; *se = '\0'; strTrim(hi);
+					se++; lo = se; strTrim(lo);
+				}
+				break;
+		}
+		
+		if (hi) NodeSetWord(&newNode.hiWord, hi);
+		if (lo) NodeSetWord(&newNode.loWord, lo);
+		NodeAdd(&newNode, -1);
+	}
+	
+}
+
+char IniFile::Save(char* saveName)
+{
+	char* pSaveName = (saveName) ? saveName : filename;
+	int hFil, i; char c[1];
+	ININODE* pNode;
+	
+	if (numnodes <= 0)
+		return 0;
+	
+	if (isempty(pSaveName))
+		pSaveName = "inifile.ini";
+	
+	if ((hFil = open(pSaveName, O_CREAT|O_WRONLY|O_TEXT|O_TRUNC, S_IREAD|S_IWRITE)) >= 0)
+	{
+		i = 0;
+		while( 1 )
+		{
+			pNode =& node[i];
+			switch(pNode->type)
+			{
+				case kIniNodeEmpty:
+					break;
+				case kIniNodeSection:
+					c[0] = '[';	write(hFil, c, 1);
+					write(hFil, pNode->hiWord, strlen(pNode->hiWord));
+					c[0] = ']';	write(hFil, c, 1);
+					break;
+				case kIniNodeKeySep:
+					write(hFil, pNode->hiWord, strlen(pNode->hiWord));
+					c[0] = '=';	write(hFil, c, 1);
+					write(hFil, pNode->loWord, strlen(pNode->loWord));
+					break;
+				default:
+					write(hFil, pNode->hiWord, strlen(pNode->hiWord));
+					break;
+			}
+			
+			if (++i == numnodes)
+				break;
+			
+			c[0] = '\n';	write(hFil, c, 1);
+		}
+		
+		close(hFil);
+		return 1;
+	}
+	
+	return 0;
+	
+}
+
+char* IniFile::GetKeyString(char* section, char *key, char* defValue)
+{
+	int nID;
+	if ((nID = KeyFind(section, key)) >= 0)
+	{
+		ININODE* pNode = &node[nID];
+		return (pNode->type == kIniNodeKeySep) ? pNode->loWord : pNode->hiWord;
+	}
+	
+	return defValue;
+}
+
+int IniFile::GetKeyInt(char *section, char *key, int32_t nRetn)
+{
+	char* pVal;
+	if ((pVal = GetKeyString(section, key)) != NULL)
+		nRetn = (int32_t)strtol(pVal, NULL, 0);
+
+	return nRetn;
+}
+
+char IniFile::GetNextString(char* out, char** pKey, char** pVal, int* prevNode, char *section)
+{
+	ININODE* pNode;
+	int i = 0;
+	
+	if (*prevNode < 0 && section)
+	{
+		*prevNode = SectionFind(section);
+		if (!rngok(*prevNode, 0, numnodes))
+			return 0;
+	}
+	
+	while( 1 )
+	{
+		*prevNode = *prevNode + 1;
+		if (!rngok(*prevNode, 0, numnodes))
+			return 0;
+		
+		pNode = &node[*prevNode];
+		if (section && pNode->type == kIniNodeSection) return 0;
+		else if (pNode->type == kIniNodeEmpty) continue;
+		else break;
+	}
+
+	if (out)
+	{
+		if (pKey)
+		{
+			*pKey = &out[i]; i+=sprintf(&out[i], pNode->hiWord)+1;
+		}
+		
+		if (pVal)
+		{
+			if (pNode->loWord)
+			{
+				*pVal = &out[i]; i+=sprintf(&out[i], pNode->loWord)+1;
+			}
+			else
+			{
+				*pVal = NULL;
+			}
+		}
+	}
 	else
 	{
-		curNode = *prev;
+		if (pKey) *pKey = pNode->hiWord;
+		if (pVal) *pVal = pNode->loWord;
 	}
+	
+	return 1;
+}
 
-	// true while next node available
-	while (curNode != &head)
+char IniFile::GetNextString(char** pKey, char** pVal, int* prevNode, char *section)
+{
+	return GetNextString(NULL, pKey, pVal, prevNode, section);
+}
+
+void IniFile::NodeSetWord(char** wordPtr, char* string)
+{
+	if (*wordPtr)
+		free(*wordPtr);
+	
+	*wordPtr = NULL;
+	if (!string)
+		return;
+	
+	// empty strings allowed!
+	*wordPtr = (char*)malloc(strlen(string)+1);
+	dassert(*wordPtr != NULL);
+	sprintf(*wordPtr, "%s", string);
+}
+
+int IniFile::NodeAdd(ININODE* pNode, int nPos)
+{
+	node = (ININODE*)realloc(node, sizeof(ININODE)*(numnodes + 1));
+	dassert(node != NULL);
+	
+	if (!rngok(nPos, 0, numnodes)) nPos = numnodes;
+	else memmove(&node[nPos+1], &node[nPos], sizeof(ININODE)*(numnodes-nPos));
+	
+	memcpy(&node[nPos], pNode, sizeof(ININODE));
+	numnodes++;
+	return nPos;
+}
+
+int IniFile::NodeAddEmpty(int nPos)
+{
+	ININODE newNode;
+	memset(&newNode, 0, sizeof(newNode));
+	newNode.type = kIniNodeEmpty;
+	return NodeAdd(&newNode, nPos);
+}
+
+void IniFile::NodeRemove(int nID)
+{
+	if (nID < numnodes - 1)
+		memmove(&node[nID], &node[nID+1], sizeof(ININODE)*(numnodes-nID));
+	
+	numnodes--;
+	node = (ININODE*)realloc(node, sizeof(ININODE)*numnodes);
+	dassert(node != NULL);
+}
+
+char IniFile::NodeComment(int nID, char hashChr)
+{
+	char c = (hashChr) ? '#' : ';';
+	ININODE* pNode = &node[nID];
+	char* buf;
+	int n;
+	
+	n = 1;
+	if (pNode->hiWord)
 	{
-		anotherNode = curNode;
-		
-		*key = NULL, *value = NULL;
-		if (*prev == NULL || curNode == *prev)
+		switch(*pNode->hiWord)
 		{
-			*prev = anotherNode->next;
-			switch (curNode->name[0])
-			{
-				case ';':
-				case '\0':
-				case '\r':
-				case '\n':
-					continue;
-				case '[':
-					if (sSection == NULL) continue;
-					*prev = NULL;
-					return FALSE;
-			}
-			
-			if (out == NULL) out = curNode->name;
-			else sprintf(out, curNode->name);
-			
-			if ((len = strlen(out)) > 0)
-			{
-				i = 0;
-				do { i++; } while(i < len && out[i] != '=');
-				if (i < len) // found '=' - split key and value
-				{
-					j = i, out[i] = '\0';
-					while(++i < len && isspace(out[i])); // ignore spaces after '='
-					*value = (i < len) ? &out[i] : NULL;
-
-					i = j;
-					while(--i > 0 && isspace(out[i])) out[i] = '\0'; // ignore spaces before '='
-					*key = (i >= 0) ? out : NULL;
-				}
-				else // '=' is not found - allow to use key as value
-				{
-					while(--i > 0 && isspace(out[i])) out[i] = '\0';
-					*key = ((i >= 0) ? out : NULL), value = key;
-				}
-			}
-			
-			return TRUE;
+			case '#':
+			case ';':
+				*pNode->hiWord = c;
+				return 1;
 		}
-
-		curNode = anotherNode->next;
+	
+		n += strlen(pNode->hiWord);
 	}
 	
-	*prev = NULL;
-	return FALSE;
+	if (pNode->loWord)
+		n += strlen(pNode->loWord);
 	
+	if ((buf = (char*)malloc(n+8)) != NULL)
+	{
+		buf[0] = c;
+		switch(pNode->type)
+		{
+			case kIniNodeEmpty:
+				buf[1] = '\0';
+				break;
+			case kIniNodeKeySep:
+				sprintf(&buf[1], "%s=%s", pNode->hiWord, pNode->loWord);
+				break;
+			case kIniNodeSection:
+				sprintf(&buf[1], "[%s]", pNode->hiWord);
+				break;
+			default:
+				sprintf(&buf[1], "%s", pNode->hiWord);
+				break;
+		}
+		
+		NodeSetWord(&pNode->hiWord, buf);
+		NodeSetWord(&pNode->loWord, NULL);
+		pNode->type = kIniNodeComment;
+		free(buf);
+		return 1;
+	}
+	
+	return 0;
+}
+
+int IniFile::SectionFind(char* name)
+{
+	int i = numnodes;
+	while(--i >= 0)
+	{
+		ININODE* pNode = &node[i];
+		if (pNode->type == kIniNodeSection && Bstrcasecmp(pNode->hiWord, name) == 0)
+			break;
+	}
+	
+	return i;
+}
+
+int IniFile::SectionAdd(char* section)
+{
+	int nID;
+	if ((nID = SectionFind(section)) >= 0)
+		return nID;
+	
+	if (numnodes > 0
+		&& node[numnodes-1].type != kIniNodeEmpty)
+			NodeAddEmpty(-1);
+	
+	ININODE newNode;
+	memset(&newNode, 0, sizeof(newNode));
+	NodeSetWord(&newNode.hiWord, section);
+	newNode.type = kIniNodeSection;
+	return NodeAdd(&newNode, -1);
+}
+
+void IniFile::SectionRemove(char* section)
+{
+	int nID;
+	while((nID = SectionFind(section)) >= 0)
+	{
+		do
+		{
+			NodeRemove(nID);
+		}
+		while(nID < numnodes
+			&& node[nID].type != kIniNodeSection);
+	}
+}
+
+int IniFile::KeyFind(char* section, char* key)
+{
+	int nID;
+	if ((nID = SectionFind(section)) >= 0)
+	{
+		while(++nID < numnodes && node[nID].type != kIniNodeSection)
+		{
+			switch(node[nID].type)
+			{
+				case kIniNodeKeySep:
+				case kIniNodeKeyStr:
+					if (Bstrcasecmp(node[nID].hiWord, key) == 0) return nID;
+					break;
+			}
+		}
+	}
+	
+	return -1;
+}
+
+int IniFile::KeyAdd(char* section, char* hiWord, char* loWord)
+{
+	ININODE newNode, *pNode;
+	int nID;
+	
+	if ((nID = KeyFind(section, hiWord)) >= 0)
+	{
+		pNode = &node[nID];
+		NodeSetWord(&pNode->hiWord, hiWord);
+		NodeSetWord(&pNode->loWord, loWord);
+		pNode->type = (pNode->loWord) ? kIniNodeKeySep : kIniNodeKeyStr;
+		return nID;
+	}
+		
+	memset(&newNode, 0, sizeof(newNode));
+	NodeSetWord(&newNode.hiWord, hiWord);
+	NodeSetWord(&newNode.loWord, loWord);
+	newNode.type = (newNode.loWord) ? kIniNodeKeySep : kIniNodeKeyStr;
+	if ((nID = SectionFind(section)) >= 0)
+	{
+		while(++nID < numnodes
+			&& node[nID].type != kIniNodeEmpty && node[nID].type != kIniNodeSection);
+	}
+	else
+	{
+		SectionAdd(section);
+	}
+	
+	return NodeAdd(&newNode, nID);
+}
+
+void IniFile::KeyRemove(char* section, char* hiWord)
+{
+	int nID;
+	while((nID = KeyFind(section, hiWord)) >= 0)
+		NodeRemove(nID);
+}
+
+char IniFile::PutKeyInt(char* section, char* key, const int nVal)
+{
+	char buf[32]; sprintf(buf, "%d", nVal);
+	if (!key)
+		return (KeyAdd(section, buf, NULL) >= 0);
+	
+	return (KeyAdd(section, key, buf) >= 0);
+}
+
+char IniFile::PutKeyHex(char* section, char* key, const int nVal)
+{
+	char buf[32]; sprintf(buf, "0x%d", nVal);
+	if (!key)
+		return (KeyAdd(section, buf, NULL) >= 0);
+	
+	return (KeyAdd(section, key, buf) >= 0);
 }

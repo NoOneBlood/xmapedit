@@ -154,7 +154,8 @@ void AddBusy(int a1, BUSYID a2, int nDelta)
 	}
 	if (i == gBusyCount)
 	{
-        if (gBusyCount >= kMaxBusyCount)
+        
+        if ((!gModernMap && gBusyCount >= kMaxBusyCountVanilla) || gBusyCount >= kMaxBusyCount)
         {
             previewMessage("Failed to AddBusy for #%d! Max busy reached (%d)", a1, gBusyCount);
             return;

@@ -31,13 +31,12 @@
 
 //#define I2TDEBUG 1
 #define USE_KPLIB 1
-#define kMaxImageWidth 640
-#define kMaxImageHeight 640
+#define kMaxImageWidth 32768
+#define kMaxImageHeight 32768
 
 typedef int (*IMG2TILEFUNC)(unsigned char* pBuf, int bufLen, int nTile);
 
 #pragma pack(push, 1)
-struct NAMED_TYPE;
 struct PCX_HEADER {
 
 	int8_t manufacturer;

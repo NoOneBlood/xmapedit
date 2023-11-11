@@ -33,12 +33,11 @@
 #include "xmpstub.h"
 #include "xmpror.h"
 #include "xmpmisc.h"
-
-#include "gui.h"
+#include "xmpsky.h"
 
 int gSuppMapVersions[] = { 4, 6, 7, 8, 9, };
-bool gModernMap = false, gCustomSkyBits = false;
-int gMapRev = 0, gSkyCount = 1;
+bool gModernMap = false;
+int gMapRev = 0;
 
 unsigned short gStatCount[kMaxStatus + 1];
 unsigned short nextXSprite[kMaxXSprites];
@@ -594,8 +593,8 @@ int dbLoadBuildMap(IOBuffer* pIo) {
 	SECTOR6 sector6; WALL6 wall6; SPRITE6 sprite6;
 
 	gModernMap          = FALSE;
-	gCustomSkyBits      = TRUE;
-	gSkyCount           = 1;
+	Sky::customBitsFlag	= TRUE;
+	Sky::pieces			= 1;
 	pskybits            = 0;
 	pskyoff[0]          = 0;
 	parallaxtype        = 0;
@@ -856,8 +855,8 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 	numsprites      = B_LITTLE16(header.numsprites);
 	parallaxtype    = header.skyType;
 	
-	gSkyCount       = ClipHigh(1 << pskybits, MAXPSKYTILES);
-	nSkySize        = gSkyCount*sizeof(tpskyoff[0]);
+	Sky::pieces     = ClipHigh(1 << pskybits, MAXPSKYTILES);
+	nSkySize        = Sky::pieces*sizeof(tpskyoff[0]);
 	boardWidth		= MET2PIX(384);
 	boardHeight 	= MET2PIX(384);
 	gFogMode 		&= ~kXmpFlagFog;
@@ -872,14 +871,15 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 		{
 			if (irngok(extra.xmpheadver, kXMPHeadVer1, kXMPHeadVer2))
 			{
-				gCustomSkyBits = (bool)(extra.xmpMapFlags & kXmpFlagCustomSkyBits);
+				Sky::customBitsFlag = (bool)(extra.xmpMapFlags & kXmpFlagCustomSkyBits);
 				if (extra.xmpMapFlags & kXmpFlagFog)
 					gFogMode |= kXmpFlagFog;
 				
-				if (extra.xmpheadver == kXMPHeadVer2)
+				if (extra.xmpheadver >= kXMPHeadVer2)
 				{
 					boardWidth	= MET2PIX(extra.xmpBoardWidth);
-					boardHeight = MET2PIX(extra.xmpBoardHeight);
+					boardHeight	= MET2PIX(extra.xmpBoardHeight);
+					Sky::tileRepeatCount = extra.xmpSkyRepeatCnt;
 				}
 			}
 		}
@@ -902,7 +902,7 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 	#endif
 	
 	i = 0;
-	while (i < gSkyCount)
+	while (i < Sky::pieces)
 		pskyoff[i] = B_LITTLE16(tpskyoff[i++]);
 	
 	gModernMap  = (ver7 && (magic.version & 0x00FF) == 0x001); // do the map use modern features?
@@ -1240,7 +1240,7 @@ int dbSaveMap(char *filename, BOOL ver7)
 	// add some XMAPEDIT specific info
 	sprintf(extra.xmpsign, kXMPHeadSig);
 	extra.xmpheadver    = kXMPHeadVer2;
-	if (gCustomSkyBits)
+	if (Sky::customBitsFlag)
 		extra.xmpMapFlags |= kXmpFlagCustomSkyBits;
 	if (gFogMode)
 		extra.xmpMapFlags |= kXmpFlagFog;
@@ -1248,6 +1248,7 @@ int dbSaveMap(char *filename, BOOL ver7)
 	extra.xmpBoardWidth		= PIX2MET(boardWidth);
 	extra.xmpBoardHeight	= PIX2MET(boardHeight);
 	extra.xmpPalette		= 0;
+	extra.xmpSkyRepeatCnt	= Sky::tileRepeatCount;
 	
 	// -----------------------------------------------------------------------
 	extra.xsprSiz       = kXSpriteDiskSize;

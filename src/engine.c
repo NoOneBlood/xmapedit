@@ -4491,7 +4491,7 @@ void drawsprite(int snum)
 		{
 			int ispow2, x;
 			int vis, l, shinc, shoffs, y1, m1, m2, shy1, shy2;
-			int *mptr1, *mptr2;
+			intptr_t *mptr1, *mptr2;
 			float tmp_x, tmp_y, bzinc;
 			intptr_t fj;
 			x = picsiz[globalpicnum]; y = ((x>>4)&15); x &= 15;
@@ -4545,7 +4545,7 @@ void drawsprite(int snum)
 				y1 = uwall[x]+1; y2 = dwall[x]-1;
 				if (y1 <= y2)
 				{
-					int *nptr1, *nptr2, *slopalptr;
+					intptr_t *nptr1, *nptr2, *slopalptr;
 					float bz, sg_f3_x, sg_f3_y;
 					int cnt;
 					int u0, v0;
@@ -4579,7 +4579,7 @@ void drawsprite(int snum)
 					sg_f3_y = sg_f2_y*(1.f/1024.f)*1048576.f;
 					bz = (y2*sgzd)*(1.f/65536.f) + sgzx*(1.f/64.f);
 					p = (unsigned char*)(ylookup[y2]+x+frameoffset);
-					slopalptr = (int*)nptr2;
+					slopalptr = nptr2;
 					cnt = y2-y1+1;
 					u0 = (int)(sg_f3_x/bz);
 					v0 = (int)(sg_f3_y/bz);

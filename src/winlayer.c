@@ -1107,10 +1107,10 @@ void dinputReadMouse()
 
 		switch (od.dwOfs) {
 			case DIMOFS_X:
-				mousex = od.dwData;
+				mousex += od.dwData;
 				break;
 			case DIMOFS_Y:
-				mousey = od.dwData;
+				mousey += od.dwData;
 				break;
 			case DIMOFS_Z:
 				i = (signed int)od.dwData;

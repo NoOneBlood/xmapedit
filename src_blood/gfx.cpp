@@ -38,7 +38,7 @@ QFONT* qFonts[kMaxQFonts];
 QBITMAP* pBitmaps[kMaxBitmaps];
 char gColor = 0, gStdColor[32];
 
-const char* gStdColorNames[] =
+static const char* gStdColorNames[] =
 {
 "Black"				,	// kColorBlack
 "Blue"				,	// kColorBlue
@@ -72,6 +72,18 @@ const char* gStdColorNames[] =
 "Grey29"			,
 "Grey30"			,
 "Grey31"			,
+};
+
+int gfxGetStdColor(const char* str)
+{
+	for (int i = 0; i < LENGTH(gStdColorNames); i++)
+	{
+		const char* pColor = gStdColorNames[i];
+		if (Bstrcasecmp(str, pColor) == 0)
+			return i;
+	}
+	
+	return -1;
 };
 
 void gfxBlitM2V(char* src, int bpl, int width, int height, int x, int y)
@@ -330,6 +342,15 @@ void gfxLine(int x1, int y1, int x2, int y2)
 		y1++;
 	}
 
+}
+
+void gfxRect(int x1, int y1, int x2, int y2)
+{
+	gfxHLine(y1, x1, x2);
+	gfxHLine(y2, x1, x2);
+	
+	gfxVLine(x1, y1, y2);
+	gfxVLine(x2, y1, y2);
 }
 
 void gfxFillBox(int x0, int y0, int x1, int y1)

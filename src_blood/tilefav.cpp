@@ -41,10 +41,10 @@ IniFile FavoriteTilesIni(kFavTilesFileName);
 void favoriteTileInit() {
 
 	char tmp[255];
-	int j, nType, nPic;
-	ININODE* prev = NULL; char* key = NULL; char* value;
+	int j, nType, nPic, nPrevNode = -1;
+	char* key = NULL; char* value;
 	memset(gFavTiles, -1, sizeof(gFavTiles)); gFavTilesC = 0;
-	while (FavoriteTilesIni.GetNextString(tmp, &key, &value, &prev, "Favorites"))
+	while (FavoriteTilesIni.GetNextString(tmp, &key, &value, &nPrevNode, "Favorites"))
 	{
 		if ((nPic = enumStrGetInt(0, value)) <= 0 || nPic >= kMaxTiles) continue;
 		else if ((nType = enumStrGetInt(1, NULL)) < 0 || nType >= 1024) continue;
@@ -64,7 +64,7 @@ void favoriteTileInit() {
 void favoriteTileSave() {
 
 	if (FavoriteTilesIni.SectionExists("Favorites"))
-		FavoriteTilesIni.RemoveSection("Favorites");
+		FavoriteTilesIni.SectionRemove("Favorites");
 	
 	char key[4]; char value[32];
 	if (gFavTilesC > 0) {

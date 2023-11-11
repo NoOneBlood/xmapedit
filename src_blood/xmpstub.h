@@ -30,6 +30,7 @@
 #include "inifile.h"
 #include "gfx.h"
 #include "edit2d.h"
+#include "xmpmisc.h"
 
 #define kPlayerRadius		32
 #define kTabWall  kMaxWalls
@@ -40,7 +41,7 @@
 #define kTabXSect kMaxXSectors
 #define kHClock 32
 
-
+extern OBJECT_LIST gModernTypes;
 extern IniFile* gHints; // editor hints
 
 enum {
@@ -52,32 +53,19 @@ extern char buffer[kBufferSize];
 extern char buffer2[kBufferSize];
 extern char buffer3[kBufferSize];
 
-struct NAMED_TYPE {
-	int id;
-	char *name;
-};
-
-struct NAMED_XOBJECT {
-	BYTE compt;			// Vanilla Classic, Vanilla Additional, Modern Only
-	short id;
-	char *caption;		// For captions in 2d mode. Can be used for shorter version of name
-	char *name;
-	char *dataOvr[4]; 	// This allows to change names of data fields depending on object type
-};
-
-struct SPECIAL_DATA_NAMES {
+struct SPECIAL_DATA_NAMES
+{
 	int var1;
 	char *dataOvr[4];
 };
 
-extern NAMED_XOBJECT spriteNames[];
 extern SPECIAL_DATA_NAMES pCtrlDataNames[32];
 
 extern char h;
 extern BYTE key, ctrl, alt, shift;
 extern short gHighSpr, gHovSpr;
 extern short gHovWall, gHovStat;
-extern short temptype, tempidx, spriteNamesLength;
+extern short temptype, tempidx;
 extern char tempvisibility;
 extern short tempang, tempslope;
 
@@ -94,6 +82,7 @@ extern walltype cpywall[kMaxWalls + 1];
 extern XWALL cpyxwall[kMaxXWalls + 1];
 
 extern char *gSpriteNames[1024];
+extern char *gSpriteCaptions[1024];
 extern char *gSpriteDataNames[1024][4];
 
 extern char *gWallNames[1024];
@@ -112,6 +101,9 @@ extern char *gSearchStatNames[8];
 extern char *gZModeNames[4];
 extern char* gDepthNames[8];
 extern char* gDamageNames[7];
+extern NAMED_TYPE gDifficNames[6];
+extern NAMED_TYPE gGameNames[5];
+extern NAMED_TYPE gGameObjectGroupNames[10];
 
 enum {
 kCaptionStyleNone			= 0,
@@ -181,11 +173,11 @@ kOGrpModern     				= 0x0001,
 kOGrpWeapon						= 0x0002,
 kOGrpAmmo						= 0x0004,
 kOGrpAmmoMix 					= 0x0008,
-kOGrpItem						= 0x0400,
-kOGrpDude						= 0x0800,
-kOGrpHazard						= 0x2000,
-kOGrpMisc						= 0x4000,
-kOGrpMarker						= 0x8000,
+kOGrpItem						= 0x0010,
+kOGrpDude						= 0x0020,
+kOGrpHazard						= 0x0040,
+kOGrpMisc						= 0x0080,
+kOGrpMarker						= 0x0100,
 };
 
 /// !!!

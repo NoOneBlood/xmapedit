@@ -1,9 +1,6 @@
 /**********************************************************************************
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 1996: Originally written by Peter Freese.
-// Copyright (C) 2019: Reverse engineered & edited by Nuke.YKT.
-// Copyright (C) 2021: Additional changes by NoOne.
-// Note: This module is based on the sirlemonhead's work
+// Copyright (C) 2023: Originally written by NoOne.
 // This file is part of XMAPEDIT.
 //
 // XMAPEDIT is free software; you can redistribute it and/or
@@ -25,46 +22,65 @@
 #include "compat.h"
 #include "common_game.h"
 
+#pragma pack(push, 1)
 struct ININODE
 {
-    ININODE *next;
-    char name[1];
+	char    type;
+	char *hiWord;
+	char *loWord;
+};
+#pragma pack(pop)
+
+enum
+{
+	INI_NORMAL		= 0x00,
+	INI_SKIPCM		= 0x01,
+	INI_SKIPZR		= 0x02,
 };
 
-// 161 bytes
 class IniFile
 {
-public:
-    IniFile(char *fileName);
-    IniFile(BYTE *res, int nLength, char *saveName = NULL);
-    ~IniFile();
-
-    void Save(void);
-    bool FindSection(char *section);
-    bool SectionExists(char *section);
-    bool FindKey(char *key);
-    void AddSection(char *section);
-    void AddKeyString(char *key, char *value);
-    void ChangeKeyString(char *key, char *value);
-    bool KeyExists(char *section, char *key);
-    void PutKeyString(char *section, char *key, char *value);
-    char* GetKeyString(char *section, char *key, char *defaultValue);
-    void PutKeyInt(char *section, char *key, const int value);
-    int GetKeyInt(char *section, char *key, int defaultValue);
-    void PutKeyHex(char *section, char *key, int value);
-    int GetKeyHex(char *section, char *key, int defaultValue);
-    bool GetKeyBool(char *section, char *key, int defaultValue);
-    void RemoveKey(char *section, char *key);
-    void RemoveSection(char *section);
-	bool GetNextString(char* out, char** key, char** value, ININODE** prev, char *sSection = NULL);
-
-private:
-    ININODE head;
-    ININODE *curNode;
-    ININODE *anotherNode;
-
-    char *_13;
-    char fileName[BMAX_PATH]; // watcom maxpath
-    void LoadRes(void *);
-    void Load();
+	private:
+		ININODE* node;
+		int numgroups;
+		int numnodes;
+	public:
+		char filename[BMAX_PATH];
+		//---------------------------------------------------------------
+		IniFile(BYTE* pRaw, int nLength, char flags = INI_NORMAL);
+		IniFile(char* fileName, char flags = INI_NORMAL);
+		~IniFile();
+		//---------------------------------------------------------------
+		void Init();
+		void Load(BYTE* pRaw, int nLength, char flags = INI_NORMAL);
+		char Save(char* saveName = NULL);
+		//---------------------------------------------------------------
+		int  NodeAdd(ININODE* pNode, int nPos);
+		int  NodeAddEmpty(int nPos);
+		void NodeSetWord(char** wordPtr, char* string);
+		void NodeRemove(int nID);
+		char NodeComment(int nID, char hashChr);
+		//---------------------------------------------------------------
+		int  SectionFind(char* name);
+		int  SectionAdd(char* section);
+		void SectionRemove(char* section);
+		//---------------------------------------------------------------
+		int  KeyFind(char* section, char* key);
+		int  KeyAdd(char* section, char* hiWord, char* loWord);
+		void KeyRemove(char* section, char* hiWord);
+		//---------------------------------------------------------------
+		char* GetKeyString(char* section, char* key, char* pRetn = NULL);
+		int   GetKeyInt(char* section, char* key, const int32_t nRetn = -1);
+		char  GetNextString(char* out, char** pKey, char** pVal, int* prevNode, char *section = NULL);
+		char  GetNextString(char** pKey, char** pVal, int* prevNode, char *section = NULL);
+		//---------------------------------------------------------------
+		char  PutKeyInt(char* section, char* hiWord, const int nVal);
+		char  PutKeyHex(char* section, char* hiWord, const int nVal);
+		//---------------------------------------------------------------
+		inline char PutKeyString(char* section, char* hiWord, char* loWord = NULL)	{ return (KeyAdd(section, hiWord, loWord) >= 0); }
+		inline char GetKeyBool(char *section, char *key, int32_t nRetn)				{ return (GetKeyInt(section, key, nRetn) != 0); }
+		inline int  GetKeyHex(char *section, char *key, int32_t nRetn)				{ return GetKeyInt(section, key, 0); }
+		inline char KeyExists(char* section, char* key)								{ return (KeyFind(section, key) >= 0); }
+		inline char SectionExists(char* name)										{ return (SectionFind(name) >= 0); }
+		inline void RemoveSection(char* name)										{ SectionRemove(name); }
 };

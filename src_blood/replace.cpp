@@ -26,6 +26,7 @@
 
 #include "tile.h"
 #include "screen.h"
+#include "xmphud.h"
 
 int qanimateoffs(short a1, short a2)
 {
@@ -75,23 +76,26 @@ int qgetpalookup(int a1, int a2)
 void qsetbrightness(unsigned char *dapal, unsigned char *dapalgamma)
 {
 	scrSetGamma(gGamma);
-    scrSetDac2(dapal, dapalgamma);
+    scrSetDac(dapal, dapalgamma);
+}
+
+void qprintmessage16(char name[82])
+{
+	gMapedHud.SetMsgImp(128, name);
 }
 
 void HookReplaceFunctions(void)
 {
-    void qinitspritelists(void);
-    int qinsertsprite(short nSector, short nStat);
-    int qdeletesprite(short nSprite);
-    int qchangespritesect(short nSprite, short nSector);
-    int qchangespritestat(short nSprite, short nStatus);
-    animateoffs_replace = qanimateoffs;
-    loadpalette_replace = qloadpalette;
-    getpalookup_replace = qgetpalookup;
-    initspritelists_replace = qinitspritelists;
-    insertsprite_replace = qinsertsprite;
-    deletesprite_replace = qdeletesprite;
-    changespritesect_replace = qchangespritesect;
-    changespritestat_replace = qchangespritestat;
-    loadvoxel_replace = qloadvoxel;
+    animateoffs_replace			= qanimateoffs;
+    loadpalette_replace			= qloadpalette;
+    getpalookup_replace			= qgetpalookup;
+    initspritelists_replace		= qinitspritelists;
+    insertsprite_replace		= qinsertsprite;
+    deletesprite_replace		= qdeletesprite;
+    changespritesect_replace	= qchangespritesect;
+    changespritestat_replace	= qchangespritestat;
+    loadvoxel_replace			= qloadvoxel;
+	setbrightness_replace 		= qsetbrightness;
+	printmessage16_replace 		= qprintmessage16;
+	loadtile_replace 			= qloadtile;
 }

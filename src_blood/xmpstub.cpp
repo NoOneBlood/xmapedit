@@ -54,6 +54,8 @@
 #include "xmpview.h"
 #include "xmpsky.h"
 #include "edit3d.h"
+#include "xmpstr.h"
+#include "crc32.h"
 
 IniFile* gHints = NULL;
 
@@ -64,7 +66,7 @@ short gHovWall = -1, gHovStat = -1;
 int bpsx, bpsy, bpsz, bang, bhorz;
 //int bsrcwall, bsrcsector, bsrcstat, bsrchit;
 
-short temptype = 0, tempslope = 0, tempidx = -1, spriteNamesLength = 0;
+short temptype = 0, tempslope = 0, tempidx = -1;
 char tempvisibility = 0;
 short tempang = 0;
 
@@ -95,273 +97,170 @@ char *gSectorNames[1024];
 char *gSectorCaptions[1024];
 char *gSectorDataNames[1024][1];
 
-char *gCommandNames[256];
 char buffer[kBufferSize]  = "";
 char buffer2[kBufferSize] = "";
 char buffer3[kBufferSize] = "";
 
-char *gCaptionStyleNames[] = {
-	
+OBJECT_LIST gModernTypes;
+
+char *gCaptionStyleNames[] =
+{
 	"Disabled",
 	"Mapedit style",
 	"BUILD style",
-	
 };
 
-char* gShowMapNames[] = {
-	
+char* gShowMapNames[] =
+{
 	"Disabled",
 	"Floors",
 	"Ceilings",
 };
 
-
-static char* sharedTxt[] = {
-
-	"Player", 			// 0
-	"Upper ID", 		// 1
-	"Lower ID", 		// 2
-	"Gib1", 			// 3
-	"Gib2",				// 4
-	"Gib3", 			// 5
-	"On Snd",			// 6
-	"Off Snd",			// 7
-	"Sound",			// 8
-	"Rand Mul",			// 9
-	"Stopping",			// 10
-	"TG Swch",			// 11
-	"1W Swch",			// 12
-	"Toggle Switch",	// 13
-	"1-Way Switch",		// 14
-	"NML",				// 15
-	"Normal",			// 16
-	"None",				// 17
-	"Sine",				// 18
-	"Unnamed",			// 19
-	"Path",				// 20
-	"Ammo",				// 21
-	"OFF",				// 22
-	"ON",				// 23
-	"*Velocity",		// 24
-	"*Enemy",			// 25
-	"Item",				// 26
-	"Palette",			// 27
-	"*Amount",			// 28
-	"*Health",			// 29
-	"*Ammo",			// 30
-	"TXID",				// 31
-	"TXID",				// 32
-	"TXID",				// 33
-	"TXID",				// 34
-	"SEQ ID",			// 35
-	"Where",			// 36
-	"Data1",			// 37
-	"Data2",			// 38
-	"Data3",			// 39
-	"Data4",			// 40
-	"Weapon",			// 41
-	"Max",				// 42
-	"Condition",		// 43
-	"Argument1",		// 44
-	"Argument2",		// 45
-	"Argument3",		// 46
-	"~",				// 47
-	"*Sound",			// 48
-
+char* gBoolNames[2] =
+{
+	"OFF",		// 0
+	"ON",		// 1
 };
 
-NAMED_XOBJECT spriteNames[] = {
+char* gIsNotNames[2] =
+{
+	"is not",			// 0
+	"is",				// 1
+};
 
-	VC,	kDecoration,				sharedTxt[15],		"Decoration", 					{NULL, NULL, NULL, NULL},
-	VC,	kMarkerSPStart,		 		NULL,				"Player Start",					{sharedTxt[0], NULL, NULL},
-	VC,	kMarkerMPStart, 			NULL,				"Bloodbath Start",				{sharedTxt[0], "*Team", NULL, NULL},
-	VC,	kMarkerLowLink,				NULL,				"Lower link",					{sharedTxt[1], NULL, NULL, NULL},
-	VC,	kMarkerUpLink,				NULL,				"Upper link",					{sharedTxt[2], NULL, NULL, NULL},
-	VC,	kMarkerLowWater,			NULL,				"Lower water",					{sharedTxt[1], NULL, NULL, NULL},
-	VC,	kMarkerUpWater,				NULL,				"Upper water",					{sharedTxt[2], sharedTxt[27], NULL, NULL},
-	VC,	kMarkerLowStack,			NULL,				"Lower stack",					{sharedTxt[1], NULL, NULL, NULL},
-	VC,	kMarkerUpStack,				NULL,				"Upper stack",					{sharedTxt[2], NULL, NULL, NULL},
-	VC,	kMarkerLowGoo,				NULL,				"Lower goo",					{sharedTxt[1], NULL, NULL, NULL},
-	VC,	kMarkerUpGoo,				NULL,				"Upper goo",					{sharedTxt[2], sharedTxt[27], NULL, NULL},
-	VC,	kMarkerPath,				"P",				"Path marker",					{"Id", "Next Id", NULL, NULL},
-	VC,	kMarkerDudeSpawn,       	NULL,				"Dude Spawn",					{"Enemy", sharedTxt[25], sharedTxt[25], sharedTxt[25]},
-	VC,	kMarkerEarthquake,      	NULL,				"Earthquake",					{"Strength", NULL, NULL, NULL},
-	VC,	kSwitchToggle,				sharedTxt[11],		sharedTxt[13],					{sharedTxt[6], sharedTxt[7], NULL, NULL},
-	VC,	kSwitchOneWay,				sharedTxt[12],		sharedTxt[14],					{sharedTxt[6], sharedTxt[7], NULL, NULL},
-	VC,	kSwitchCombo,				"CM Swch",			"Combination Switch",			{"Current", "Goal", sharedTxt[42], sharedTxt[8]},
-	VC,	kSwitchPadlock,				NULL,				"Padlock",						{NULL, NULL, NULL, NULL},
-	MO,	kMarkerWarpDest,			"Teleport",			"Teleport target", 				{sharedTxt[0], "*Angle", sharedTxt[24], sharedTxt[48]},
-	MO,	kDudeModernCustom,			NULL,				"Custom Dude",					{NULL, NULL, NULL, sharedTxt[29]},
-	MO, kModernCustomDudeSpawn,		NULL,				"Custom Dude Spawn",			{NULL, NULL, NULL, sharedTxt[29]},
-	MO, kModernSpriteDamager,		NULL,				"Damager",						{"TargetID", "DamageType", "Damage", NULL},
-	MO,	kGenMissileEctoSkull,		NULL,				"Missile Gen", 					{"Missile", sharedTxt[24], "Slope", "Burst time"},
-	MO,	kModernPlayerControl,		"Player Ctrl",		"Player Control",				{sharedTxt[0],  sharedTxt[47], sharedTxt[47], sharedTxt[47]},
-	MO, kModernObjPropertiesChanger,"CHG Properties",	"Properties Changer",			{sharedTxt[37], sharedTxt[38], sharedTxt[39], sharedTxt[40]},
-	MO, kModernObjDataChanger,		"CHG Data",			"Data Changer",					{"New data1", "New data2", "New data3", "New data4"},
-	MO,	kModernObjDataAccumulator,	NULL,				"Inc - Dec",					{"For data", "Start", "End", "Step" },
-	MO, kModernObjPicnumChanger,	"CHG Picture",		"Picture Changer",				{sharedTxt[37], sharedTxt[38], sharedTxt[39], sharedTxt[40]},
-	MO, kModernSectorFXChanger,		"Sector Lighting",	"Sector Lighting Changer", 		{"FX Wave", "Amplitude", "Frequency", "Phase"},
-	MO, kModernEffectSpawner,		NULL,				"Effect Gen",					{sharedTxt[9], "Effect", "Range", sharedTxt[36]},
-	MO,	kModernWindGenerator,		"Wind Gen",			"Sector Wind Gen",				{"Randomness",	sharedTxt[24], "Enable pan", NULL},
-	MO,	kModernCondition,			NULL,				"IF",							{sharedTxt[43], sharedTxt[44], sharedTxt[45], sharedTxt[46]},
-	MO,	kModernConditionFalse,		NULL,				"IF NOT",						{sharedTxt[43], sharedTxt[44], sharedTxt[45], sharedTxt[46]},
-	MO, kModernRandomTX,			NULL,				"RandomTX",						{sharedTxt[31], sharedTxt[32], sharedTxt[33], sharedTxt[34]},
-	MO, kModernSequentialTX,		"Seq TX",			"SequentialTX",					{sharedTxt[31], sharedTxt[32], sharedTxt[33], sharedTxt[34]},
-	MO, 504,						"CHG Slope",		"Slope Changer",				{"Where", "Slope", NULL, NULL},
-	MO, 506,						"CHG Velocity",		"Velocity Changer",				{"XVelocity", "YVelocity", "ZVelocity", "Range"},
-	MO, 16,							"Stealth",			"Stealth region",				{"Radius", "%% To Hear",	"%% To See", NULL},
-	MO, 4,							NULL,				"Marker",						{NULL, NULL, NULL, NULL},
-	MO, kModernSeqSpawner,			"Spawn SEQ",		"SEQ Spawner",					{sharedTxt[9],  sharedTxt[35], sharedTxt[36], sharedTxt[8]},
-	MO, kModernObjSizeChanger,  	"Resize",			"Resizer",						{sharedTxt[37], sharedTxt[38], sharedTxt[39], sharedTxt[40]},
-	MO, kModernDudeTargetChanger, 	"AI Fight",			"Enemy Target Changer",			{"Trgt data1", "Fight mode", "Force trgt", "Behavior"},
-	MO,	kItemShroomGrow,        	NULL,				"Grow shroom",					{NULL, NULL, NULL, NULL},
-	MO,	kItemShroomShrink,      	NULL,				"Shrink shroom",				{NULL, NULL, NULL, NULL},
-	MO, 40,							NULL,				"Random Item",					{sharedTxt[26], sharedTxt[26], sharedTxt[26], sharedTxt[26]},
-	MO, 150,						NULL,				"Map",							{NULL, NULL, NULL, NULL},
-	VC,	kDecorationTorch,			NULL,				"Torch", 						{NULL, NULL, NULL, NULL},
-	VC,	kDecorationCandle,			NULL,				"Candle", 						{NULL, NULL, NULL, NULL},
-	VC,	kItemWeaponFlarePistol,		NULL,				"Flare Pistol",					{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemWeaponSawedoff,		NULL,				"Sawed-off",					{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemWeaponTommygun,		NULL,				"Tommy Gun",					{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemWeaponNapalmLauncher,	NULL,				"Napalm Launcher",				{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemWeaponTeslaCannon,		NULL,				"Tesla Cannon",					{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemWeaponLifeLeech,		NULL,				"Life Leech",					{sharedTxt[30], NULL, NULL, NULL},
+char* gYesNoNames[2] =
+{
+	"no",				// 0
+	"yes",				// 1
+};
 
-	VC,	kItemAmmoSprayCan,			NULL,				"Spray Can",					{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoTNTBundle,			"TNT Bundle",		"Bundle of TNT",				{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoTNTBox,			"TNT Case",			"Case of TNT",					{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoProxBombBundle,	"Prox Bomb",		"Proximity Detonator",			{sharedTxt[30], NULL, NULL, NULL},
- 	VC,	kItemAmmoRemoteBombBundle,	"Remote Bomb",		"Remote Detonator",				{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoSawedoffFew,		"4 shells",			"4 shotgun shells",				{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoSawedoffBox,		"Box of shells",	"Box of shotgun shells",		{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoTommygunFew,		NULL,				"A few bullets",				{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoVoodooDoll,		NULL,				"Voodoo Doll",					{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoTommygunDrum,		"Drum of bullets",	"Full drum of bullets",			{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoTeslaCharge,		NULL,				"Tesla Charge",					{sharedTxt[30], NULL, NULL, NULL},
-	VC,	kItemAmmoFlares,			NULL,				"Flares",						{sharedTxt[30], NULL, NULL, NULL},
- 	VC,	kItemAmmoGasolineCan,		NULL,				"Gasoline Can",					{sharedTxt[30], NULL, NULL, NULL},
- 	VC,	kItemAmmoTrappedSoul,		NULL,				"Trapped Soul",					{sharedTxt[30], NULL, NULL, NULL},
+char* gBusyNames[4] =
+{
+	"Sine",				// 0 kBusySine
+	"Linear", 			// 1 kBusyLinear
+	"SlowOff",			// 2 kBusySlowOff
+	"SlowOn",			// 3 kBusySlowOn
+};
 
-	VC,	kItemKeySkull,          	NULL,				"Skull key",					{NULL, NULL, NULL, NULL},
-	VC,	kItemKeyEye,           		NULL,				"Eye key",						{NULL, NULL, NULL, NULL},
-	VC,	kItemKeyFire,           	NULL,				"Fire key",						{NULL, NULL, NULL, NULL},
-	VC,	kItemKeyDagger,         	NULL,				"Dagger key",					{NULL, NULL, NULL, NULL},
-	VC,	kItemKeySpider,         	NULL,				"Spider key",					{NULL, NULL, NULL, NULL},
-	VC,	kItemKeyMoon,           	NULL,				"Moon key",						{NULL, NULL, NULL, NULL},
-	VC,	kItemKey7,              	NULL,				"key 7",						{NULL, NULL, NULL, NULL},
-	VC,	kItemHealthDoctorBag,   	NULL,				"Doctor's Bag",					{NULL, NULL, NULL, NULL},
-	VC,	kItemHealthMedPouch,    	"Pouch",			"Medicine Pouch",				{sharedTxt[28], NULL, NULL, NULL},
-	VC,	kItemHealthLifeEssense, 	NULL,				"Life Essence",					{sharedTxt[28], NULL, NULL, NULL},
-	VC,	kItemHealthLifeSeed,    	NULL,				"Life Seed",					{sharedTxt[28], NULL, NULL, NULL},
-	VA,	kItemHealthRedPotion,   	"Potion",			"Red Potion",					{sharedTxt[28], NULL, NULL, NULL},
-	VA,	kItemFeatherFall,       	NULL,				"Feather Fall",					{NULL, NULL, NULL, NULL},
-	VC,	kItemShadowCloak,   		NULL,				"ShadowCloak",					{NULL, NULL, NULL, NULL},
-	VC,	kItemDeathMask,   			NULL,				"Death mask",					{NULL, NULL, NULL, NULL},
-	VC,	kItemJumpBoots,				NULL,				"Boots of Jumping",				{NULL, NULL, NULL, NULL},
-	VC,	kItemTwoGuns,        		NULL,				"Guns Akimbo",					{NULL, NULL, NULL, NULL},
-	VC,	kItemDivingSuit,        	NULL,				"Diving Suit",					{NULL, NULL, NULL, NULL},
-	VA,	kItemGasMask,           	NULL,				"Gas mask",						{NULL, NULL, NULL, NULL},
-	VC,	kItemCrystalBall,       	NULL,				"Crystal Ball",					{NULL, NULL, NULL, NULL},
-	VA,	kItemDoppleganger,     		NULL,				"Doppleganger",					{NULL, NULL, NULL, NULL},
-	VC,	kItemReflectShots,   		NULL,				"Reflective shots",				{NULL, NULL, NULL, NULL},
-	VC,	kItemBeastVision,       	NULL,				"Beast Vision",					{NULL, NULL, NULL, NULL},
-	VC,	kItemShroomDelirium,    	NULL,				"Delirium Shroom",				{NULL, NULL, NULL, NULL},
-	VC,	kItemTome,              	NULL,				"Tome",							{NULL, NULL, NULL, NULL},
-	VC,	kItemBlackChest,        	NULL,				"Black Chest",					{NULL, NULL, NULL, NULL},
-	VC,	kItemWoodenChest,      		NULL,				"Wooden Chest",					{NULL, NULL, NULL, NULL},
-	VC,	kItemArmorAsbest,			NULL,				"Asbestos Armor",				{NULL, NULL, NULL, NULL},
-	VC,	kItemArmorBasic,			NULL,				"Basic Armor",					{NULL, NULL, NULL, NULL},
-	VC,	kItemArmorBody,				NULL,				"Body Armor",					{NULL, NULL, NULL, NULL},
-	VC,	kItemArmorFire,				NULL,				"Fire Armor",					{NULL, NULL, NULL, NULL},
-	VC,	kItemArmorSpirit,			NULL,				"Spirit Armor",					{NULL, NULL, NULL, NULL},
-	VC,	kItemArmorSuper,			NULL,				"Super Armor",					{NULL, NULL, NULL, NULL},
-	VC,	kItemFlagABase,				NULL,				"Blue Team Base",				{NULL, NULL, NULL, NULL},
-	VC,	kItemFlagBBase,				NULL,				"Red Team Base",				{NULL, NULL, NULL, NULL},
+char* gWaveNames[12] =
+{
+	"None",				// 0 kWaveNone
+	"Square",			// 1 kWaveSquare
+	"Saw",				// 2 kWaveSaw
+	"Ramp up",			// 3 kWaveRampup
+	"Ramp down",		// 4 kWaveRampdown
+	"Sine",				// 5 kWaveSine
+	"Flicker1",			// 6 kWaveFlicker1
+	"Flicker2",			// 7 kWaveFlicker2
+	"Flicker3",			// 8 kWaveFlicker3
+	"Flicker4",			// 9 kWaveFlicker4
+	"Strobe",			// 10 kWaveStrobe
+	"Search",			// 11 kWaveSearch
+};
 
-	VC,	kDudeCultistShotgun,		"Shotgun Cultist",	"Cultist w/Shotgun", 			{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeCultistShotgunProne,	NULL,				"SCultist prone", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeCultistTommy, 			"Tommy Cultist",	"Cultist w/Tommy", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeCultistTommyProne,		NULL,				"TCultist prone", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeCultistTesla,			"Tesla Cultist",	"Cultist w/Tesla", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeCultistTNT,			"TNT Cultist",		"Cultist w/Dynamite", 			{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeZombieAxeNormal,   	NULL,				"Axe Zombie", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeZombieAxeBuried,  		NULL,				"Earth Zombie", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeZombieAxeLaying,  		NULL,				"Sleep Zombie", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeZombieButcher,    		"Butcher",			"Bloated Butcher",				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeGargoyleFlesh,			NULL,				"Flesh Gargoyle", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeGargoyleStatueFlesh,  	NULL,				"Flesh Statue", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudePhantasm,     			NULL,				"Phantasm", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeHellHound,        		"Hound",			"Hell Hound", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeGillBeast,    			NULL,				"GillBeast", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudePodGreen,     			NULL,				"Green Pod", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeTentacleGreen,			NULL,				"Green Tentacle", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudePodFire,      			NULL,				"Fire Pod", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeTentacleFire, 			NULL,				"Fire Tentacle", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeHand,         			NULL,				"Hand", 						{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeRat,          			NULL,				"Rat", 							{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeBoneEel,          		NULL,				"Eel", 							{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeBat,          			NULL,				"Bat", 							{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeSpiderBrown,  			NULL,				"Brown Spider", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeSpiderRed,    			NULL,				"Red Spider", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeSpiderBlack,  			NULL,				"Black Spider", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeInnocent,  			NULL,				"Innocent", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeTinyCaleb,				NULL,				"Tiny Caleb", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeGargoyleStatueStone, 	NULL,				"Stone Statue", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeGargoyleStone,			NULL,				"Stone Gargoyle", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeSpiderMother, 			NULL,				"Mother Spider", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeCerberusTwoHead,   	NULL,				"Cerberus", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VA,	kDudeCerberusOneHead,		NULL,				"1 Head Cerberus",				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeTchernobog,   			NULL,				"Tchernobog", 					{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeCultistBeast,			NULL,				"Beast Cultist", 				{NULL, NULL, NULL, sharedTxt[29]},
-	VC,	kDudeBeast,					NULL,				"Beast", 						{NULL, NULL, NULL, sharedTxt[29]},
-	VA,	225,						NULL,				"Fake Dude",					{NULL, NULL, NULL, sharedTxt[29]},
+char* gExtNames[] =
+{
+	"map",
+	"seq",
+	"art",
+	"qav",
+};
 
-	VC,	kThingTNTBarrel,			NULL,				"TNT Barrel", 					{NULL, NULL, NULL, NULL},
-	VA,	kThingArmedTNTStick,		"Armed TNT S",		"Armed TNT Stick",				{NULL, NULL, NULL, NULL},
-	VA,	kThingArmedSpray,			NULL,				"Armed Spray",					{NULL, NULL, NULL, NULL},
-	VC,	kThingArmedProxBomb,		"Armed Prox",		"Armed Prox Bomb", 				{NULL, NULL, NULL, NULL},
-	VC,	kThingArmedRemoteBomb,		NULL,				"Armed Remote", 				{NULL, NULL, NULL, NULL},
-	VC,	kThingCrateFace,			NULL,				"Crate Face",					{NULL, NULL, NULL, NULL},
-	VC,	kThingFluorescent,			"Flr Light",		"Fluorescent Light",			{NULL, NULL, NULL, NULL},
-	VC,	kThingWallCrack,			"Crack",			"Wall Crack", 					{NULL, NULL, NULL, NULL},
-	VC,	kThingWoodBeam,				"Beam",				"Wood Beam", 					{NULL, NULL, NULL, NULL},
-	VC,	kThingSpiderWeb,			"Web",				"Spider's Web",					{NULL, NULL, NULL, NULL},
-	VC,	kThingMetalGrate,			"Grate",			"Metal Grate", 					{NULL, NULL, NULL, NULL},
-	VC,	kThingFlammableTree,		"Tree",				"Flammable Tree", 				{"Burn anim", NULL, NULL, sharedTxt[8]},
-	VC,	kTrapMachinegun,			NULL,				"Machine Gun", 					{"Ammo max", sharedTxt[21], NULL, NULL},
-	VC,	kThingFallingRock,			"Rock",				"Falling Rock", 				{NULL, NULL, NULL, NULL},
-	VC,	kThingKickablePail,			"Pail",				"Kickable Pail", 				{NULL, NULL, NULL, NULL},
-	VC,	kThingObjectGib,			"G-Obj",			"Gib Object",					{sharedTxt[3], sharedTxt[4], sharedTxt[5], sharedTxt[8]},
-	VC,	kThingObjectExplode,		"E-Obj",			"Explode Object",				{sharedTxt[3], sharedTxt[4], sharedTxt[5], sharedTxt[8]},
-	VA,	426,						NULL,				"Falling Gib",					{sharedTxt[3], sharedTxt[4], sharedTxt[5], sharedTxt[8]},
-	VC,	kThingZombieHead,			"Head",				"Zombie Head", 					{"Kick times", NULL, NULL, sharedTxt[8]},
-	VA,	428,						NULL,				"Napalm Trap",					{NULL, NULL, NULL, "Divisions"},
-	VA,	430,						NULL,				"Acid Trap",					{NULL, NULL, NULL, NULL},
-	VA,	431,						"Armed Leech",		"Armed Life Leech",				{NULL, NULL, sharedTxt[21], NULL},
+char* gRespawnNames[4] =
+{
+	"Optional",				// 0
+	"Never",				// 1
+	"Always",				// 2
+	"Permanent",			// 3
+};
 
-	VC,	kTrapFlame,					"Flamer",			"Flame Trap", 					{"Flame Dist", NULL, NULL, NULL},
-	VC,	kTrapSawCircular,			NULL,				"Saw Blade", 					{NULL, NULL, NULL, NULL},
-	VC,	kTrapZapSwitchable,			"Zap",				"Electric Zap", 				{NULL, NULL, NULL, NULL},
-	VC,	kTrapPendulum,				NULL,				"Pendulum", 					{NULL, NULL, NULL, NULL},
-	VC,	kTrapGuillotine,			NULL,				"Guillotine", 					{NULL, NULL, NULL, NULL},
-	VC,	kTrapExploder,				"Exploder", 		"Hidden Exploder",				{"*Explosion", "*SEQ Id", sharedTxt[48], "*Radius"},
+char* gDepthNames[8] =
+{
+	"None",					// 0
+	"Tread",				// 1
+	"Puddle",				// 2
+	"Wade",					// 3
+	"Pond",					// 4
+	"Bath",					// 5
+	"Jungle",				// 6
+	"Swim",					// 7
+};
 
-	VC,	kGenTrigger,				"Trigger",			"Trigger Gen", 					{sharedTxt[9], NULL, NULL, NULL},
-	VC,	kGenDripWater,				"Water Drip",		"WaterDrip Gen", 				{sharedTxt[9], NULL, NULL, NULL},
-	VC,	kGenDripBlood,				"Blood Drip",		"BloodDrip Gen", 				{sharedTxt[9], NULL, NULL, NULL},
-	VC,	kGenMissileFireball,		"Fireball",			"Fireball Gen", 				{sharedTxt[9], "Fire anim", NULL, NULL},
-	VC,	kGenBubble,					"Bubble",			"Bubble Gen", 					{sharedTxt[9], NULL, NULL, NULL},
-	VC,	kGenBubbleMulti,			"Bubbles",			"Multi-Bubble Gen", 			{sharedTxt[9], NULL, NULL, NULL},
-	VC,	kGenSound,					"SFX",				"SFX Gen", 						{sharedTxt[9], sharedTxt[8], "*Volume", "*Pitch"},
-	VC,	kSoundSector,				"SSFX",				"Sector SFX", 					{"Off->On", sharedTxt[10], "On->Off", sharedTxt[10]},
-	VC,	kSoundAmbient,				NULL,				"Ambient SFX", 					{"Radius1", "Radius2", sharedTxt[8], "Volume"},
-	VC,	kSoundPlayer,				NULL,				"Player SFX", 					{sharedTxt[8], NULL, NULL, NULL},
+char* gDamageNames[7] =
+{
+	"None",					// 0
+	"Fall",					// 1
+	"Burn",					// 2
+	"Vector",				// 3
+	"Explode",				// 4
+	"Choke",				// 5
+	"Electric",				// 6
+};
 
+
+char *gKeyItemNames[] =
+{
+	"None",					// 0
+	"Skull",				// 1
+	"Eye",					// 2
+	"Fire",					// 3
+	"Dagger",				// 4
+	"Spider",				// 5
+	"Moon",					// 6
+	"key 7",				// 7
+};
+
+char* gSearchStatNames[] =
+{
+	"Wall",					// 0, OBJ_WALL
+	"Ceiling",				// 1, OBJ_CEILING
+	"Floor",				// 2, OBJ_FLOOR
+	"Sprite",				// 3, OBJ_SPRITE
+	"Masked wall",			// 4, OBJ_MASKED
+	gSearchStatNames[3],	// 5, OBJ_FLATSPRITE
+	"Sector",				// 6
+	"Unknown",				// 7
+};
+
+char *gZModeNames[4] =
+{
+	"Gravity",				// 0
+	"Step",					// 1
+	"Free",					// 2
+	"Mouse look",			// 3
+};
+
+char* gCommandNames[256] =
+{
+	"OFF",					// kCmdOff
+	"ON",					// kCmdOn
+	"State",				// kCmdState
+	"Toggle",				// kCmdToggle
+	"NOT State",			// kCmdNotState
+	"Link",					// kCmdLink
+	"Lock",					// kCmdLock
+	"Unlock",				// kCmdUnlock
+	"Toggle Lock",			// kCmdToggleLock
+	"Sector Stop OFF",		// kCmdStopOff
+	"Sector Stop ON",		// kCmdStopOn
+	"Sector Stop Next",		// kCmdStopNext
+	// ...................
+	// ...................
+	// to be filled at init
+};
+
+NAMED_TYPE gModernCommandNames[] =
+{
+	{13, 				"Sector Pause"},
+	{14, 				"Sector Continue"},
+	{15, 				"Set dude flags"},
+	{16,				"Kill events (full)"},
 };
 
 // player control data names
-SPECIAL_DATA_NAMES pCtrlDataNames[32] = {
-
+SPECIAL_DATA_NAMES pCtrlDataNames[32] =
+{
 	64, { NULL, "Race", NULL, NULL },
 	65, { NULL, "Move speed", "Jmp height", NULL },
 	66, { NULL, "Effect", "Length", NULL },
@@ -373,426 +272,167 @@ SPECIAL_DATA_NAMES pCtrlDataNames[32] = {
 	72, { NULL, "Pack item", "Additional", NULL },
 	73, { NULL, "Angle", NULL, NULL },
 	74, { NULL, "Powerup", "Duration", NULL },
-
 };
 
-static NAMED_XOBJECT wallNames[] = {
-
-	VC,	0,			 	sharedTxt[15],	sharedTxt[16],		{NULL, NULL, NULL, NULL},
-	VC,	kSwitchToggle,	sharedTxt[11],	sharedTxt[13],		{NULL, NULL, NULL, NULL},
-	VC,	kSwitchOneWay,	sharedTxt[12],	sharedTxt[14],		{NULL, NULL, NULL, NULL},
-	VC,	kWallStack,		"Stack",		"Wall stack",		{"Stack Id", NULL, NULL, NULL},
-	VC,	kWallGib,		"Gib",			"Gib wall",			{"Gib Id", NULL, NULL, NULL},
-
-};
-
-
-static NAMED_XOBJECT sectorNames[] = {
-
-	VC,	0,						sharedTxt[15],		sharedTxt[16], 			{NULL, NULL, NULL, NULL},
-	VC,	kSectorZMotion,			NULL,				"Z Motion", 			{NULL, NULL, NULL, NULL},
-	VC,	kSectorZMotionSprite,	"Z Motion SPR",		"Z Motion SPRITE", 		{NULL, NULL, NULL, NULL},
-	VC,	kSectorTeleport,		NULL,				"Teleporter", 			{NULL, NULL, NULL, NULL},
-	VC,	kSectorSlideMarked,		NULL,				"Slide Marked", 		{NULL, NULL, NULL, NULL},
-	VC,	kSectorRotateMarked,	NULL,				"Rotate Marked", 		{NULL, NULL, NULL, NULL},
-	VC,	kSectorSlide,			NULL,				"Slide",				{NULL, NULL, NULL, NULL},
-	VC,	kSectorRotate,			NULL,				"Rotate",				{NULL, NULL, NULL, NULL},
-	VC,	kSectorRotateStep,		NULL,				"Step Rotate",			{NULL, NULL, NULL, NULL},
-	VC,	kSectorPath,			sharedTxt[20],		"Path Sector", 			{"Path Id", NULL, NULL, NULL},
-	VC,	kSectorDamage,			"Damage",			"Damage Sector", 		{"Damage", NULL, NULL, NULL},
-	VC,	kSectorCounter,			"Counter",			"Counter Sector",		{"Sprite type", NULL, NULL, NULL},
-
-};
-
-char* gBoolNames[2] = {
-
-	sharedTxt[22],		// 0
-	sharedTxt[23],		// 1
-
-};
-
-char* onOff(int var) {
-
-	return gBoolNames[(var) ? 1 : 0];
-
-}
-
-
-char* gIsNotNames[2] = {
-
-	"is not",			// 0
-	"is",				// 1
-
-};
-
-char* isNot(int var) {
-
-	return gIsNotNames[(var) ? 1 : 0];
-
-}
-
-char* gYesNoNames[2] = {
-
-	"no",				// 0
-	"yes",				// 1
-
-};
-
-char* yesNo(int var) {
-
-	return gYesNoNames[(var) ? 1 : 0];
-
-}
-
-
-char* gBusyNames[4] = {
-
-	sharedTxt[18],		// 0 kBusySine
-	"Linear", 			// 1 kBusyLinear
-	"SlowOff",			// 2 kBusySlowOff
-	"SlowOn",			// 3 kBusySlowOn
-
-};
-
-char* gWaveNames[12] = {
-	sharedTxt[17],		// 0 kWaveNone
-	"Square",			// 1 kWaveSquare
-	"Saw",				// 2 kWaveSaw
-	"Ramp up",			// 3 kWaveRampup
-	"Ramp down",		// 4 kWaveRampdown
-	sharedTxt[18],		// 5 kWaveSine
-	"Flicker1",			// 6 kWaveFlicker1
-	"Flicker2",			// 7 kWaveFlicker2
-	"Flicker3",			// 8 kWaveFlicker3
-	"Flicker4",			// 9 kWaveFlicker4
-	"Strobe",			// 10 kWaveStrobe
-	"Search",			// 11 kWaveSearch
-
-};
-
-char* gExtNames[] = {
-
-	"map",
-	"seq",
-	"art",
-	"qav",
-
-};
-
-NAMED_TYPE gToolNames[] = {
-
+NAMED_TYPE gToolNames[] =
+{
 	{kToolMapEdit, 		"MAPedit"},
 	{kToolSeqEdit, 		"SEQedit"},
 	{kToolArtEdit,		"ARTedit"},
 	{kToolQavEdit,		"QAVedit"},
-
 };
 
-NAMED_TYPE gInitCommandNames[] = {
-
-	{kCmdOff, 			sharedTxt[22]},
-	{kCmdOn,  			sharedTxt[23]},
-	{kCmdState, 		"State"},
-	{kCmdToggle, 		"Toggle"},
-	{kCmdNotState, 		"!State"},
-	{kCmdLink, 			"Link"},
-	{kCmdLock, 			"Lock"},
-	{kCmdUnlock, 		"Unlock"},
-	{kCmdToggleLock, 	"Toggle Lock"},
-	{kCmdStopOff,		"Sector Stop OFF"},
-	{kCmdStopOn, 		"Sector Stop ON"},
-	{kCmdStopNext, 		"Sector Stop Next"},
-	{13, 				"Sector Pause"},
-	{14, 				"Sector Continue"},
-	{15, 				"Set dude flags"},
-	{16,				"Kill events (full)"},
-	// ... numberic commands up to length?
-
-};
-
-NAMED_TYPE gSectorMergeMenu[] = {
-	
+NAMED_TYPE gSectorMergeMenu[] =
+{
 	{0, "&Just make a new sector"},
 	{1, "&Make and merge with outer sector"},
 	{2, "&Cancel"},
-	
 };
 
-char* gRespawnNames[4] = {
-
-	"Optional",				// 0
-	"Never",				// 1
-	"Always",				// 2
-	"Permanent",			// 3
-
-};
-
-char* gDepthNames[8] = {
-	
-	"None",					// 0
-	"Tread",				// 1
-	"Puddle",				// 2
-	"Wade",					// 3
-	"Pond",					// 4
-	"Bath",					// 5
-	"Jungle",				// 6
-	"Swim",					// 7
-	
-};
-
-char* gDamageNames[7] = {
-	
-	"None",					// 0
-	"Fall",					// 1
-	"Burn",					// 2
-	"Vector",				// 3
-	"Explode",				// 4
-	"Choke",				// 5
-	"Electric",				// 6
-	
-};
-
-
-char *gKeyItemNames[] = {
-
-	sharedTxt[17],			// 0
-	"Skull",				// 1
-	"Eye",					// 2
-	"Fire",					// 3
-	"Dagger",				// 4
-	"Spider",				// 5
-	"Moon",					// 6
-	"key 7",				// 7
-
-};
-
-char* gSearchStatNames[] = {
-
-	"Wall",					// 0, OBJ_WALL
-	"Ceiling",				// 1, OBJ_CEILING
-	"Floor",				// 2, OBJ_FLOOR
-	"Sprite",				// 3, OBJ_SPRITE
-	"Masked wall",			// 4, OBJ_MASKED
-	gSearchStatNames[3],	// 5, OBJ_FLATSPRITE
-	"Sector",				// 6
-	"Unknown",				// 7
-
-};
-
-NAMED_TYPE gGameObjectGroupNames[] = {
-
+NAMED_TYPE gGameObjectGroupNames[] =
+{
+	{ kOGrpNone, 	"None" },
+	{ kOGrpModern, 	"Modern" },
 	{ kOGrpDude, 	"Enemy" },
 	{ kOGrpWeapon, 	"Weapon" },
 	{ kOGrpAmmo, 	"Ammo" },
-	{ kOGrpAmmoMix, "Ammo" },
+	{ kOGrpAmmoMix, "Mixed ammo" },
 	{ kOGrpItem, 	"Item" },
 	{ kOGrpHazard, 	"Hazard" },
 	{ kOGrpMisc, 	"Misc" },
 	{ kOGrpMarker, 	"Marker" },
-
 };
 
-char *gZModeNames[4] = {
-
-	"Gravity",			// 0
-	"Step",				// 1
-	"Free",				// 2
-	"Mouse look",		// 3
-
+NAMED_TYPE gDifficNames[6] =
+{
+	{0,						"Still Kicking"},
+	{1,						"Pink On The Inside"},
+	{2,						"Lighty Broiled"},
+	{3,						"Well Done"},
+	{4,						"Extra Crispy"},
+	{5,						"All"},
 };
 
-void ExtPreLoadMap(void) { }
-void ExtLoadMap(const char *mapname) { }
-void ExtPreSaveMap(void) { }
-void ExtSaveMap(const char *mapname) { }
-void HookReplaceFunctions(void);
-void ProcessKeys3D();
-void ProcessKeys2D();
-
-
-
-
-
-
-void InitializeNames( void ) {
-
-	spriteNamesLength = LENGTH(spriteNames);
-
-	int i = 0, j = 0, k = 0;
-
-	static char numbers[192][4];
-	memset(numbers, 0, sizeof(numbers));
-
-	// fill sprite type names, captions and data field names
-	for (i = 0; i < spriteNamesLength; i++)
-	{
-		NAMED_XOBJECT* pObj = &spriteNames[i];
-		if (gMisc.showTypes < pObj->compt)
-			continue;
-
-		gSpriteNames[pObj->id]    = pObj->name;
-		gSpriteCaptions[pObj->id] = (gMisc.useCaptions && pObj->caption) ? pObj->caption : pObj->name;
-
-		for (j = 0; j < 4; j++)
-		{
-			// * = modern compatibility
-			if (pObj->dataOvr[j] && pObj->dataOvr[j][0] == kPrefixModernOnly)
-			{
-				if (gMisc.showTypes != MO) continue;
-				pObj->dataOvr[j] =& pObj->dataOvr[j][1];
-			}
-
-			gSpriteDataNames[pObj->id][j] = spriteNames[i].dataOvr[j];
-		}
-	}
-
-	// fill wall type names, captions and data field names
-	for (i = 0; i < LENGTH(wallNames); i++)
-	{
-		NAMED_XOBJECT* pObj = &wallNames[i];
-		gWallNames[pObj->id]    = pObj->name;
-		gWallCaptions[pObj->id] = (gMisc.useCaptions && pObj->caption) ? pObj->caption : pObj->name;
-		gWallDataNames[pObj->id][0] = pObj->dataOvr[0];
-	}
-
-	// fill sector type names, captions and data field names
-	for (i = 0; i < LENGTH(sectorNames); i++)
-	{
-		NAMED_XOBJECT* pObj = &sectorNames[i];
-		gSectorNames[pObj->id]      = pObj->name;
-		gSectorCaptions[pObj->id] 	= (gMisc.useCaptions && pObj->caption) ? pObj->caption : pObj->name;
-		gSectorDataNames[pObj->id][0] = pObj->dataOvr[0];
-	}
-
-	// fill the command names
-	for (i = 0; i < LENGTH(gInitCommandNames); i++)
-	{
-		j = gInitCommandNames[i].id;
-		if (j > 11 && gMisc.showTypes < MO)
-			continue;
-
-		gCommandNames[j] = gInitCommandNames[i].name;
-	}
-
-
-	// fill numbers for numberic commands
-	for (i = 0; i < 192; i++)
-	{
-		sprintf(numbers[i], "%d", i);
-		gCommandNames[64 + i] = numbers[i];
-	}
-}
-
-
-
-int GetXSector( int nSector )
+NAMED_TYPE gGameNames[5] =
 {
-	dassert(nSector >= 0 && nSector < kMaxSectors);
+	{kGameModeSingle,		"Single"},
+	{kGameModeCoop,			"Cooperative"},
+	{kGametModeDeathmatch,	"BloodBath"},
+	{kGameModeFlags,		"Teams"},
+	{4,						"All"},
+};
 
-	if (sector[nSector].extra != -1)
-		return sector[nSector].extra;
+char* onOff(int var)		{ return gBoolNames[(var) ? 1 : 0]; }
+char* isNot(int var)		{ return gIsNotNames[(var) ? 1 : 0]; }
+char* yesNo(int var)		{ return gYesNoNames[(var) ? 1 : 0]; }
+int GetXSector(int nSec)	{ return (sector[nSec].extra > 0) ? sector[nSec].extra : dbInsertXSector(nSec); }
+int GetXWall(int nWall)		{ return (wall[nWall].extra > 0)  ? wall[nWall].extra  : dbInsertXWall(nWall);	}
+int GetXSprite(int nSpr)	{ return (sprite[nSpr].extra > 0) ? sprite[nSpr].extra : dbInsertXSprite(nSpr); }
+void initNames();
 
-	return dbInsertXSector(nSector);
-}
-
-
-int GetXWall( int nWall )
+const char* GetObjectCaption(int nType, int nID)
 {
-	int nXWall;
-
-	dassert(nWall >= 0 && nWall < kMaxWalls);
-
-	if (wall[nWall].extra > 0)
-		return wall[nWall].extra;
-
-	nXWall = dbInsertXWall(nWall);
-	return nXWall;
-}
-
-int GetXSprite( int nSprite )
-{
-	int nXSprite;
-
-	dassert(nSprite >= 0 && nSprite < kMaxSprites);
-
-	if (sprite[nSprite].extra > 0)
-		return sprite[nSprite].extra;
-
-	nXSprite = dbInsertXSprite(nSprite);
-	return nXSprite;
-}
-
-const char *ExtGetSectorCaption(short nSector, char captStyle)
-{
-	int i = 0, j;
-	int nType = sector[nSector].type, nXSector = sector[nSector].extra;
-	char* to = buffer, *typeName = NULL;
+	switch(nType)
+	{
+		case OBJ_SECTOR:
+			if (!rngok(sector[nID].type, 0, 1024))		return NULL;
+			if (!gSectorCaptions[sector[nID].type])		return NULL;
+			return gSectorCaptions[sector[nID].type];
+		case OBJ_WALL:
+			if (!rngok(wall[nID].type, 0, 1024))		return NULL;
+			if (!gWallCaptions[wall[nID].type])			return NULL;
+			return gWallCaptions[wall[nID].type];
+		case OBJ_SPRITE:
+			if (!rngok(sprite[nID].type, 0, 1024))		return NULL;
+			if (!gSpriteCaptions[sprite[nID].type])		return NULL;
+			return gSpriteCaptions[sprite[nID].type];
+	}
 	
-	to[0] = '\0';
-	if (captStyle == kCaptionStyleMapedit && nXSector > 0)
-	{
-		if (xsector[nXSector].rxID > 0) i += sprintf(&to[i], "%i: ", xsector[nXSector].rxID);
-		if (nType >= 0 && nType < LENGTH(gSectorCaptions) && gSectorCaptions[nType])
-			i += sprintf(&to[i], gSectorCaptions[nType]);
-		else 
-			i += sprintf(&to[i], "<<T%d>>", nType);
+	return NULL;
+}
 
-		if (xsector[nXSector].txID > 0) i += sprintf(&to[i], ": %d", xsector[nXSector].txID);
-		if (xsector[nXSector].panVel != 0)
-			i += sprintf(&to[i], " PAN(%d,%d)", xsector[nXSector].panAngle, xsector[nXSector].panVel);
+const char *ExtGetSectorCaption(short nSect, char captStyle)
+{
+	const char *pCapt; char *p = buffer;
+	sectortype* pSect = &sector[nSect];
+	int i;
+	
+	p[0] = '\0';
+	if (captStyle == kCaptionStyleMapedit && pSect->extra > 0)
+	{
+		XSECTOR* pXSect = &xsector[pSect->extra];
 		
-		i += sprintf(&to[i], " %s", gBoolNames[xsector[nXSector].state]);
-
-	}
-	else if (nType || sector[nSector].hitag)
-	{
-		i += sprintf(&to[i], "{%i:%i}", sector[nSector].hitag, nType);
-	}
-	
-	if (gPreviewMode)
-	{
-		for (j = 0; j < gBusyCount; j++)
+		if (pXSect->rxID > 0)
+			p += sprintf(p, "%d: ", pXSect->rxID);
+		
+		
+		if ((pCapt = GetObjectCaption(OBJ_SECTOR, nSect)) == NULL)
+			p += sprintf(p, "<<T%d>>", pSect->type);
+		else
+			p += sprintf(p, pCapt);
+		
+		
+		if (pXSect->txID > 0)
+			p += sprintf(p, ": %d", pXSect->txID);
+		
+		if (pXSect->panVel != 0)
+			p += sprintf(p, " PAN(%d,%d)", pXSect->panAngle, pXSect->panVel);
+		
+		p += sprintf(p, " %s", gBoolNames[pXSect->state]);
+		
+		if (gPreviewMode)
 		{
-			if (gBusy[j].at0 != nSector) continue;
-			i += sprintf(&to[i], " (%d%%)", (100*klabs(xsector[nXSector].busy)) / 65536);
-			break;
+			for (i = 0; i < gBusyCount; i++)
+			{
+				if (gBusy[i].at0 != nSect) continue;
+				p += sprintf(p, " (%d%%)", (100*klabs(pXSect->busy)) / 65536);
+				break;
+			}
 		}
 	}
-
-	return to;
+	else if (pSect->type || pSect->hitag)
+	{
+		sprintf(p, "{%d:%d}", pSect->hitag, pSect->type);
+	}
+	
+	return buffer;
 }
 
 const char *ExtGetWallCaption(short nWall, char captStyle)
 {
-	int i = 0, nType = wall[nWall].type, nXWall = wall[nWall].extra;
-	char* to = buffer;
-	to[0] = '\0';
-
-	if (captStyle == kCaptionStyleMapedit && nXWall > 0)
+	const char *pCapt; char *p = buffer;
+	walltype* pWall = &wall[nWall];
+	
+	p[0] = '\0';
+	if (captStyle == kCaptionStyleMapedit && pWall->extra > 0)
 	{
-		if (xwall[nXWall].rxID > 0)
-			i += sprintf(&to[i], "%d: ", xwall[nXWall].rxID);
+		XWALL* pXWall = &xwall[pWall->extra];
 		
-		if (nType >= 0 && nType < LENGTH(gWallCaptions) && gWallCaptions[nType])
-			i += sprintf(&to[i], gWallCaptions[nType]);
+		if (pXWall->rxID > 0)
+			p += sprintf(p, "%d: ", pXWall->rxID);
+		
+		
+		if ((pCapt = GetObjectCaption(OBJ_WALL, nWall)) == NULL)
+			p += sprintf(p, "<<T%d>>", pWall->type);
 		else
-			i += sprintf(&to[i], "<<T%d>>", nType);
+			p += sprintf(p, pCapt);
+	
 		
-		if (xwall[nXWall].txID > 0)
-			i += sprintf(&to[i], ": %d", xwall[nXWall].txID);
+		if (pXWall->txID > 0)
+			p += sprintf(p, ": %d", pXWall->txID);
 		
-		if (xwall[nXWall].panXVel != 0 || xwall[nXWall].panYVel != 0)
-			i += sprintf(&to[i], " PAN(%i,%i)", xwall[nXWall].panXVel, xwall[nXWall].panYVel);
+		if (pXWall->panXVel != 0 || pXWall->panYVel != 0)
+			p += sprintf(p, " PAN(%i,%i)", pXWall->panXVel, pXWall->panYVel);
 
-		i += sprintf(&to[i], " %s", gBoolNames[xwall[nXWall].state]);
+		p += sprintf(p, " %s", gBoolNames[pXWall->state]);
 
 	}
-	else if (nType || wall[nWall].hitag)
+	else if (pWall->type || pWall->hitag)
 	{
-		sprintf(to, "{%i:%i}", wall[nWall].hitag, nType);
+		sprintf(p, "{%i:%i}", pWall->hitag, pWall->type);
 	}
 	
-	return to;
+	return buffer;
 }
 
 const char *ExtGetSpriteCaption(short nSprite, char captStyle)
@@ -1108,16 +748,15 @@ void process3DMode() {
  **********************************************************************/
 void ExtCheckKeys( void )
 {
-	int i, x, y, len, lay = 1;
+	int i, x, y, len, nLayout;
 	static int oldnumwalls = 0, oldnumsectors = 0, oldnumsprites = 0;
-	static int objType = -1, objIdx = -1;
-	static int omode, oxdim, oydim;
-	BOOL dialog = FALSE, objUpd = FALSE;
+	static int omode, oxdim, oydim; static OBJECT object;
+	char fullLayout;
 	
 	if (qsetmode == 200)
 	{
 		UndoSectorLighting();
-		lay = gHudPrefs.layout3D;
+		nLayout = gHudPrefs.layout3D;
 	}
 	else
 	{
@@ -1130,7 +769,7 @@ void ExtCheckKeys( void )
 		gScreen2D.ScreenClear();
 		gScreen2D.ScreenDraw();
 		
-		lay = gHudPrefs.layout2D;
+		nLayout = gHudPrefs.layout2D;
 	}
 	
 	if (omode != qsetmode || oxdim != xdim || oydim != ydim)
@@ -1142,7 +781,7 @@ void ExtCheckKeys( void )
 			horiz   = 100;
 		}
 		
-		hudSetLayout(&gMapedHud, lay, &gMouse);
+		hudSetLayout(&gMapedHud, nLayout, &gMouse);
 		omode = qsetmode; oxdim = xdim; oydim = ydim;
 	}
 		
@@ -1151,49 +790,37 @@ void ExtCheckKeys( void )
 	
 	if (gMapedHud.draw)
 	{
-		if (totalclock >= gTimers.hudObjectInfo + 16)
+		if (totalclock >= gTimers.hudObjectInfo + 32)
 		{
 			gTimers.hudObjectInfo = totalclock;
-			if ((objUpd = (searchstat != objType)) == FALSE)
-			{
-				switch (searchstat) {
-					case OBJ_FLOOR:
-					case OBJ_CEILING:
-						objUpd = (objIdx != searchsector);
-						break;
-					default:
-						objUpd = (objIdx != searchwall);
-						break;
-				}
-			}
-			
-			if (objUpd)
-			{
-				objType = searchstat;
-				objIdx  = (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING) ? searchsector : searchwall;
-			}
+			object.type		= searchstat;
+			object.index	= searchindex; 
 		}
 		
-		dialog = (lay == kHudLayoutFull);
+		fullLayout = (nLayout == kHudLayoutFull);
 		gMapedHud.DrawIt();
 		
-		switch (objType)
+		switch (object.type)
 		{
 			case OBJ_FLOOR:
 			case OBJ_CEILING:
-				ShowSectorData(objIdx, !ctrl, dialog);
+				ShowSectorData(object.index, !ctrl, fullLayout);
 				break;
 			case OBJ_MASKED:
 			case OBJ_WALL:
-				ShowWallData(objIdx,   !ctrl, dialog);
+				ShowWallData(object.index,   !ctrl, fullLayout);
 				break;
 			case OBJ_SPRITE:
-				ShowSpriteData(objIdx, !ctrl, dialog);
+				ShowSpriteData(object.index, !ctrl, fullLayout);
 				break;
 			default:
 				gMapedHud.SetMsg(gMapInfoStr);
 				gMapedHud.SetComment();
 				gMapedHud.SetTile();
+				
+				if (fullLayout)
+					ShowMapStatistics();
+				
 				break;
 		}
 	}
@@ -1315,11 +942,37 @@ void ExtCheckKeys( void )
 char dlgMapSettings()
 {
 	const int kPad1 = 6, bw = 80, bh = 24;
-	char* skyTilesNames[] = { "Auto", "1", "2", "4", "8", "16", "32" };
-	char* skyTypeNames[]  = {"Static", "Stretch", "Wrap"};
-	int dw, dx1, dy1, dx2, dy2, dwh, dhg, i;
-	int nSkyTiles = (gCustomSkyBits) ? (pskybits+1) : 0;
+	char* skyTilesNames[] = { "Auto", "01", "02", "04", "08", "16", "32" };
+	char* skyTypeNames[]  = { "Static", "Stretch", "Wrap" };
+	char tmp[256], *p = tmp, *skyTilesRepeat[34];
+	
+	int dw, dx1, dy1, dx2, dy2, dwh, dhg, i, t;
+	int nSkyTilesRepeat = Sky::tileRepeatCount;
 	int nSkyType = parallaxtype;
+	int nSkyTiles = 0;
+	
+	if (Sky::customBitsFlag)
+	{
+		for (i = 1; i < LENGTH(skyTilesNames); i++)
+		{
+			if (atoi(skyTilesNames[i]) == Sky::pieces)
+			{
+				nSkyTiles = i;
+				break;
+			}
+		}
+	}
+	
+	t = LENGTH(skyTilesRepeat)-1;
+	skyTilesRepeat[0] = p; p += sprintf(p, "Auto");
+	for (i = 1; i < t; i++)
+	{
+		skyTilesRepeat[i] = ++p;
+		p += sprintf(p, "%02d", i);
+	}
+	
+	skyTilesRepeat[t] = ++p; sprintf(p, "Never");
+	nSkyTilesRepeat = ClipHigh(nSkyTilesRepeat, t);
 	
 	Window dialog(0, 0, 320, 200, "Map properties");
 	dialog.getEdges(&dx1, &dy1, &dx2, &dy2);
@@ -1333,7 +986,7 @@ char dlgMapSettings()
 	EditNumber* eW			= new EditNumber(kPad1, cy, enw, enh, PIX2MET(boardWidth), kValMeter, 10, 10000);
 	Label* lX				= new Label(eW->left + eW->width + kPad1, cy + (pFont->height>>1), "X");
 	EditNumber* eH			= new EditNumber(lX->left + lX->width + kPad1 + 1, cy, enw, enh, PIX2MET(boardHeight), kValMeter, 10, 10000);
-	Label* lDesc			= new Label(eH->left + eW->width + kPad1, cy + (pFont->height>>1), "// 1m = 512 pixels", kColorDarkGray);
+	Label* lDesc			= new Label(eH->left + eW->width + kPad1, cy + (pFont->height>>1), "1m = 512 pixels", kColorDarkGray);
 	
 	Panel* pButtons 		= new Panel(dx1, dy2-bh-1, dwh, bh);
 	TextButton* bOk			= new TextButton(0, 0, bw, bh, "Confirm", mrOk);
@@ -1348,7 +1001,7 @@ char dlgMapSettings()
 
 	
 	dy1 += fVis->height + 16;
-	FieldSet* fSky 			= new FieldSet(dx1+2, dy1, dwh-kPad1, enh<<1, "PARALLAX SETUP", kColorDarkGray, kColorDarkGray);
+	FieldSet* fSky 			= new FieldSet(dx1+2, dy1, dwh-kPad1, enh*3, "PARALLAX SETUP", kColorDarkGray, kColorDarkGray);
 	
 	Label* lSkyTiles		= new Label(4, 6, "Amount of tiles:");
 	TextButton* bSkyTiles	= new TextButton(lSkyTiles->left+lSkyTiles->width+8, 1, 40, 18, skyTilesNames[nSkyTiles], 1000);
@@ -1360,8 +1013,14 @@ char dlgMapSettings()
 	bSkyType->font			= qFonts[1];
 	bSkyType->fontColor		= kColorBlue;
 	
+	Label* lSkyRepeat		= new Label(4, 6, "Repeat amount:");
+	TextButton* bSkyRepeat	= new TextButton(bSkyTiles->left, 1, 40, 18, skyTilesRepeat[nSkyTilesRepeat], 1002);
+	bSkyRepeat->font		= qFonts[1];
+	bSkyRepeat->fontColor	= kColorBlue;
+	
 	Panel* pSkyTiles		= new Panel(kPad1, cy, lSkyTiles->width+bSkyTiles->width+14, 20, 0, 0, 0);
 	Panel* pSkyType			= new Panel(pSkyTiles->left+pSkyTiles->width+2, cy, lSkyType->width+bSkyType->width+14, 20, 0, 0, 0);
+	Panel* pSkyRepeat		= new Panel(kPad1, 28, lSkyRepeat->width+bSkyRepeat->width, 20, 0, 0, 0);
 	
 	fBSize->Insert(eW);
 	fBSize->Insert(lX);
@@ -1378,6 +1037,10 @@ char dlgMapSettings()
 	pSkyType->Insert(lSkyType);
 	pSkyType->Insert(bSkyType);
 	fSky->Insert(pSkyType);
+	
+	pSkyRepeat->Insert(lSkyRepeat);
+	pSkyRepeat->Insert(bSkyRepeat);
+	fSky->Insert(pSkyRepeat);
 	
 	
 	pButtons->Insert(bOk);
@@ -1400,47 +1063,59 @@ char dlgMapSettings()
 		switch(dialog.endState)
 		{
 			case mrOk:
-				boardWidth 	= MET2PIX(eW->value);
-				boardHeight = MET2PIX(eH->value);
-				visibility  = 4095 - perc2val(eVis->value, 4095);
-				gFogMode	= cFog->checked;
+				Sky::customBitsFlag		= false;
+				boardWidth				= MET2PIX(eW->value);
+				boardHeight				= MET2PIX(eH->value);
+				visibility				= 4095 - perc2val(eVis->value, 4095);
+				gFogMode				= cFog->checked;
+				
 				scrLoadPLUs();
+				
+				if (nSkyTilesRepeat < LENGTH(skyTilesRepeat)-1)
+					Sky::tileRepeatCount = nSkyTilesRepeat;
+				else
+					Sky::tileRepeatCount = MAXPSKYTILES-1;
+				
 				if (nSkyTiles > 0)
 				{
+					nSkyTiles = atoi(skyTilesNames[nSkyTiles]);
 					for (pskybits = 0; pskybits < 6; pskybits++)
 					{
-						gSkyCount = 1 << pskybits;
-						if (gSkyCount == nSkyTiles)
-							break;
-					}
-					
-					gCustomSkyBits = true;
-				}
-				else
-				{
-					gCustomSkyBits = false;
-					gSkyCount = 16;
-					pskybits = 4;
-					
-					i = numsectors;
-					while(--i >= 0)
-					{
-						if (!isSkySector(i, OBJ_CEILING)) continue;
-						else if (Sky::GetMostUsed(i, OBJ_CEILING, true, &i) && tileLoadTile(i))
+						Sky::pieces = 1 << pskybits;
+						if (Sky::pieces == nSkyTiles)
 						{
-							pskybits = (10 - (picsiz[i] & 0x0F));
-							gSkyCount = 1 << pskybits;
+							Sky::customBitsFlag = true;
 							break;
 						}
 					}
 				}
+				
+				if (!Sky::customBitsFlag) // setup from the sky tile size
+				{
+					Sky::pieces	= 16;
+					pskybits	= 4;
+				}
+				
+				i = numsectors;
+				while(--i >= 0)
+				{
+					if (!isSkySector(i, OBJ_CEILING)) continue;
+					else if (Sky::GetMostUsed(i, OBJ_CEILING, true, &i) && tileLoadTile(i))
+					{
+						Sky::SetBits(i, NULL);
+						break;
+					}
+				}
+				
+				
+				
 				parallaxtype = nSkyType;
 				return true;
 			case 1000:
 				if ((i = showButtons(skyTilesNames, LENGTH(skyTilesNames), "Select") - mrUser) >= 0)
 				{
-					nSkyTiles = (i > 0) ? atoi(skyTilesNames[i]) : 0;
 					bSkyTiles->text = skyTilesNames[i];
+					nSkyTiles = i;
 				}
 				continue;
 			case 1001:
@@ -1448,6 +1123,13 @@ char dlgMapSettings()
 				{
 					bSkyType->text = skyTypeNames[i];
 					nSkyType = i;
+				}
+				continue;
+			case 1002:
+				if ((i = showButtons(skyTilesRepeat, LENGTH(skyTilesRepeat), "Select") - mrUser) >= 0)
+				{
+					bSkyRepeat->text = skyTilesRepeat[i];
+					nSkyTilesRepeat = i;
 				}
 				continue;
 		}
@@ -1458,10 +1140,6 @@ char dlgMapSettings()
 	return false;
 }
 
-void qprintmessage16(char name[82])
-{
-	gMapedHud.SetMsgImp(128, name);
-}
 
 //extern "C" char* defsfilename = "blood.def";
 //extern "C" int nextvoxid = 0;
@@ -1472,10 +1150,8 @@ int ExtInit(int argc, char const * const argv[])
 	RESHANDLE hIni = NULL;
 	
 	HookReplaceFunctions();
-	setbrightness_replace 		= qsetbrightness;
-	printmessage16_replace 		= qprintmessage16;
-	loadtile_replace 			= qloadtile;
-
+	initcrc32table();
+	
     char *appdir = Bgetappdir();
 
 	// the OSX app bundle, or on Windows the directory where the EXE was launched
@@ -1486,7 +1162,7 @@ int ExtInit(int argc, char const * const argv[])
 		{
 			if (slash(appdir[i])) appdir[i] = 0;
 			_chdir(appdir); // we need this so opening files through "Open with..." dialog works in Windows...
-			sprintf(buffer, "Using \"%s\" as working dirctory.\n", appdir);
+			sprintf(buffer, "Using \"%s\" as working directory.\n", appdir);
 		}
 
 		free(appdir);
@@ -1528,13 +1204,13 @@ int ExtInit(int argc, char const * const argv[])
 			if (hIni)
 			{
 				buildprintf("Creating \"%s\" with default settings.\n", kCoreIniName);
-				MapEditINI = new IniFile((BYTE*)gGuiRes.Load(hIni), hIni->size, kCoreIniName);
+				MapEditINI = new IniFile((BYTE*)gGuiRes.Load(hIni), hIni->size);
 				MapEditINI->PutKeyInt("General", "ConfigVersion", kConfigReqVersion);
 				iniGenerated = TRUE;
 			}
 			else
 			{
-				buildprintf("--> Failed to load default settings!\n");
+				ThrowError("Failed to load default settings!\n");
 			}
 			
 			break;
@@ -1545,8 +1221,11 @@ int ExtInit(int argc, char const * const argv[])
 			break;
 			
 		buildprintf("--> Current config has incorrect version: Given=%d, Required=%d!\n", i, kConfigReqVersion);
-		unlink(kCoreIniName); delete(MapEditINI); // force creating new file
-		continue;
+		if (unlink(kCoreIniName) == 0)
+		{
+			delete(MapEditINI); // force creating new file
+			continue;
+		}
 	}
 	
 	
@@ -1597,7 +1276,7 @@ int ExtInit(int argc, char const * const argv[])
 	gMisc.Init(MapEditINI,					"General");
 	
 	if (gMisc.editMode == 0)
-		qsetmodeany(xdimgame, ydimgame);
+		qsetmodeany(xdim2d, ydim2d);
 	
 	if (gMisc.forceSetup) // should we show options?
 		xmpOptions();
@@ -1646,13 +1325,28 @@ int ExtInit(int argc, char const * const argv[])
 	hudSetLayout(&gMapedHud, (qsetmode == 200) ? gHudPrefs.layout3D : gHudPrefs.layout2D, &gMouse);
 	// ---------------------------------------------------------------------------
 	// initialize global 2D mode edit screen
+	BYTE* pBytes = NULL;
+	IniFile* pColors;
+	int nSize;
 	
-	hIni = gGuiRes.Lookup((unsigned int)3, "INI");
-	if (hIni)
+	// load user defined colors
+	if ((nSize = fileLoadHelper(kScreen2DPrefs, &pBytes)) > 0)
 	{
-		IniFile* pColors = new IniFile((BYTE*)gGuiRes.Load(hIni), hIni->size);
+		pColors = new IniFile(pBytes, nSize, INI_SKIPCM|INI_SKIPZR);
 		gScreen2D.ColorInit(pColors);
 		delete(pColors);
+	}
+	// load default colors
+	else if ((hIni = gGuiRes.Lookup((unsigned int)3, "INI")) != NULL)
+	{
+		pColors = new IniFile((BYTE*)gGuiRes.Load(hIni), hIni->size);
+		gScreen2D.ColorInit(pColors);
+		pColors->Save(kScreen2DPrefs);
+		delete(pColors);
+	}
+	else
+	{
+		ThrowError("Could not load 2D screen color settings!");
 	}
 	
 	gScreen2D.SetView(0, 0, xdim-1, ydim-1);
@@ -1660,7 +1354,6 @@ int ExtInit(int argc, char const * const argv[])
 	gScreen2D.prefs.showSprites		= 1;
 	gScreen2D.prefs.showHighlight	= 1;
 	gScreen2D.prefs.showVertex		= 1;
-	
 	// ---------------------------------------------------------------------------
 	// initialize sound
 	buildprintf("Initialising sound system...\n");
@@ -1670,14 +1363,15 @@ int ExtInit(int argc, char const * const argv[])
 	buildprintf("Initialising misc stuff...\n");
 	defaultspritecstat 	= kSprOrigin;
 	showinvisibility 	= TRUE;
-	gSkyCount			= 16;
+	Sky::pieces			= 16;
 	visibility 			= 0;
 	mapversion			= 7;
 	
 	trigInit(gSysRes);		FireInit();
 	hgltReset();			eraseExtra();
-	InitializeNames();		dbInit();
+	initNames();			dbInit();
 	gObjectLock.Init();		gBeep.Init();
+	AutoAdjustSpritesInit();
 
 	memset(joinsector, -1, sizeof(joinsector));
 	gSeqEd.filename 			= gPaths.seqs;
@@ -1782,7 +1476,6 @@ int ExtInit(int argc, char const * const argv[])
 void ExtUnInit(void)
 {
 	sndTerm();
-	scrUnInit(false);
 	favoriteTileSave();
 	if (MapEditINI)
 	{	
@@ -1797,7 +1490,7 @@ void ExtUnInit(void)
 		gHudPrefs.Save(MapEditINI,  	"HUD");
 		gCmtPrefs.Save(MapEditINI,  	"Comments");
 		gImportPrefs.Save(MapEditINI, 	"ImportWizard");
-		MapEditINI->Save();
+		MapEditINI->Save(kCoreIniName);
 	}
 }
 
@@ -1964,22 +1657,35 @@ BOOL processKeysShared() {
 			break;
 		case KEY_COMMA:
 		case KEY_PERIOD:
-			if (in2d && highlightsectorcnt > 0)
+			if (in2d && (highlightsectorcnt > 0 || type == 300))
 			{
+				j = 0;
 				i = (shift) ? ((ctrl) ? 128 : 256) : 512;
 				if (key == KEY_COMMA)
 					i = -i;
 				
-				char nFlags = kFlagRotateSprites;
-				if (shift)
-					nFlags |= kFlagRotateRpoint;
-
-				hgltSectAvePoint(&x, &y);
-				for (j = 0; j < highlightsectorcnt; j++)
-					rotateSector(highlightsector[j], i, x, y, nFlags);
+				if (highlightsectorcnt > 0)
+				{
+					j = hgltSectRotate(0x04, i);
+				}
+				else if (isIslandSector(searchsector))
+				{
+					int s, e, flags = 0;
+					int cx, cy;
+					
+					flags |= 0x02; // rotate with outer loop of red sector
+					getSectorWalls(searchsector, &s, &e); midPointLoop(s, e, &cx, &cy);
+					sectRotate(searchsector, cx, cy, i, flags);
+					j = 1;
+				}
+				else
+				{
+					scrSetMessage("You cannot rotate sectors with connections");
+				}
 				
-				scrSetMessage("%d of %d sectors rotated by %d.", highlightsectorcnt, numsectors, i);
-				BeepOk();
+				if (Beep(j > 0))
+					scrSetMessage("Rotate %d sectors by %d.", j, i);
+				
 				break;
 			}
 			else if (type == 200)
@@ -3023,6 +2729,7 @@ BOOL processKeysShared() {
 			BeepFail();
 			break;
 		case KEY_X:
+			if (ctrl) return FALSE;
 			if (alt & 0x01)
 			{
 				// disable auto align for walls in a highlight
@@ -3288,7 +2995,6 @@ void xmpQuit(int code)
 {
 	uninittimer();
 	ExtUnInit();
-	uninitengine();
 	exit(code);
 }
 
@@ -3589,10 +3295,23 @@ int xmpMenuProcess() {
 				if (boardLoad(filename) == -2) break;
 				return result;
 			case mrQuit:	
-				switch (result = DlgSaveChanges("Save changes?", gArtEd.asksave)) {
+				if (gArtEd.asksave || gMapLoaded)
+				{
+					result = DlgSaveChanges("Save changes?", gArtEd.asksave);
+				}
+				else
+				{
+					result = Confirm("Really want to quit?");
+					result = (result) ? 0 : -1;
+				}
+				
+				switch (result)
+				{
 					case 2:
 					case 1:
-						boardSave(gPaths.maps, FALSE);
+						if (gMapLoaded)
+							boardSave(gPaths.maps, FALSE);
+						
 						if (result > 1)
 						{
 							extVoxUninit();
@@ -4338,11 +4057,14 @@ int boardLoad(char *filename)
 	}
 	
 	scrLoadPLUs();
-	if (gModernMap && gMisc.showTypes != 2)
+	if (gModernMap && gMisc.showTypes != MO)
 	{
-		gMisc.showTypes = 2;
-		InitializeNames();
+		gMisc.showTypes = MO;
+		initNames();
 	}
+	
+	for (i = 0; i < kMaxWalls; i++)
+		gNextWall[i] = -1;
 	
 	formatMapInfo(gMapInfoStr);
 	gMapLoaded = TRUE;
@@ -4414,4 +4136,221 @@ void boardReset(int hgltreset)
 	CXTracker::Clear();
 	eraseExtra();
 	dbInit();
+}
+
+static NAMED_TYPE gObjectInfoGroups[] =
+{
+	{OBJ_SPRITE,	"Sprites"},
+	{OBJ_WALL,		"Walls"},
+	{OBJ_SECTOR,	"Sectors"},
+	{-1,			NULL},
+};
+
+enum
+{
+	kObjInfoParName,
+	kObjInfoParCaption,
+	kObjInfoParAvail,
+};
+static NAMED_TYPE gObjectInfoParams[] =
+{
+	{kObjInfoParName,		"Name"},
+	{kObjInfoParCaption,	"Caption"},
+	{kObjInfoParAvail,		"Availability"},
+};
+
+static char initNamesCmp(char* pA, char* pB)
+{
+	return (pA && Bstrcasecmp(pA, pB) == 0);
+}
+
+static char* initNamesHelperGetPtr(char* pName, char searchIn, int nMax)
+{
+	char* p; int i, j;
+	if (searchIn & 0x03)
+	{
+		for (i = 0; i < nMax; i++)
+		{
+			if (searchIn & 0x01)
+			{
+				if (initNamesCmp(gSpriteNames[i], pName))			return gSpriteNames[i];
+				if (initNamesCmp(gSpriteCaptions[i], pName))		return gSpriteCaptions[i];
+				
+				if (initNamesCmp(gWallNames[i], pName))				return gWallNames[i];
+				if (initNamesCmp(gWallCaptions[i], pName))			return gWallCaptions[i];
+				
+				if (initNamesCmp(gSectorNames[i], pName))			return gSectorNames[i];
+				if (initNamesCmp(gSectorCaptions[i], pName))		return gSectorCaptions[i];
+			}
+			
+			if (searchIn & 0x02)
+			{
+				for (j = 0; j < 4; j++)
+					if (initNamesCmp(gSpriteDataNames[i][j], pName))
+						return gSpriteDataNames[i][j];
+				
+				if (initNamesCmp(gWallDataNames[i][0], pName))		return gWallDataNames[i][0];
+				if (initNamesCmp(gSectorDataNames[i][0], pName))	return gSectorDataNames[i][0];
+			}
+		}
+	}
+	
+	p = (char*)malloc(strlen(pName)+1);
+	dassert(p != NULL);
+	p[0] = '\0';
+	return p;
+}
+
+void initNames()
+{
+	char key[256], val[256], *pKey, *pVal, *pStr, ignore;
+	NAMED_TYPE *pGroup = gObjectInfoGroups;
+	int nPar, nType, nGroup, nVal, i, t, o;
+	RESHANDLE hIni; int nPrevNode;
+	static int nTypeMax = 0;
+	
+	if ((hIni = gGuiRes.Lookup((unsigned int)4, "INI")) == NULL)
+		return;
+	
+	IniFile* pIni = new IniFile((BYTE*)gGuiRes.Load(hIni), hIni->size);
+	while(pGroup->name)
+	{
+		nPrevNode = -1; nGroup = pGroup->id;
+		while(pIni->GetNextString(NULL, &pKey, &pVal, &nPrevNode, pGroup->name))
+		{
+			switch(nGroup)
+			{
+				case OBJ_SPRITE:
+				case OBJ_SECTOR:
+				case OBJ_WALL:
+					// fill object type names, captions and data field names
+					if (isIdKeyword(pKey, "Type", &nType) && rngok(nType, 0, 1024))
+					{
+						o = 0, ignore = 0;
+						while((o = enumStr(o, pVal, key, val)) > 0)
+						{
+							// check if type must be available first
+							if (findNamedID(key, gObjectInfoParams, LENGTH(gObjectInfoParams)) == kObjInfoParAvail)
+							{
+								nVal = 0;
+								ignore = (!isufix(val) || (nVal = atoi(val)) > MO || gMisc.showTypes < nVal);
+								if (nVal == MO && !gModernTypes.Exists(nGroup, nType))
+									gModernTypes.Add(nGroup, nType);
+								
+								break;
+							}
+						}
+						
+						if (ignore) continue;
+						else if (nType > nTypeMax)
+							nTypeMax = nType;
+						
+						o = 0;
+						while((o = enumStr(o, pVal, key, val)) > 0)
+						{
+							if (isIdKeyword(key, "Data", &nPar))
+							{
+								// setup data names here
+								///////////////////////////////////
+								
+								char* p = val;
+								if (p[0] == '*') // only when modern features enabled
+								{
+									if (gMisc.showTypes != MO)
+										continue;
+									
+									p = &val[1];
+								}
+								
+								switch(nGroup)
+								{
+									case OBJ_SPRITE:
+										if (irngok(nPar, 1, 4))
+										{
+											pStr = initNamesHelperGetPtr(p, 0x02, nTypeMax);
+											gSpriteDataNames[nType][nPar - 1] = pStr;
+											if (pStr[0] == '\0')
+												sprintf(pStr, "%s", p);
+										}
+										break;
+									default:
+										if (nPar == 1)
+										{
+											pStr = initNamesHelperGetPtr(p, 0x02, nTypeMax);
+											if (nGroup == OBJ_WALL) gWallDataNames[nType][0] = pStr;
+											else gSectorDataNames[nType][0] = pStr;
+											if (pStr[0] == '\0')
+												sprintf(pStr, "%s", p);
+										}
+										break;
+								}
+							}
+							else if ((nPar = findNamedID(key, gObjectInfoParams, LENGTH(gObjectInfoParams))) >= 0)
+							{
+								switch(nPar)
+								{
+									case kObjInfoParCaption:
+										if (!gMisc.useCaptions) break;
+										// no break
+									case kObjInfoParName:
+										pStr = initNamesHelperGetPtr(val, 0x01, nTypeMax);
+										if (pStr[0] == '\0')
+											sprintf(pStr, "%s", val);
+										
+										switch(nGroup)
+										{
+											case OBJ_SPRITE:
+												if (nPar == kObjInfoParName) gSpriteNames[nType] = pStr;
+												else gSpriteCaptions[nType] = pStr;
+												break;
+											case OBJ_WALL:
+												if (nPar == kObjInfoParName) gWallNames[nType] = pStr;
+												else gWallCaptions[nType] = pStr;
+												break;
+											default:
+												if (nPar == kObjInfoParName) gSectorNames[nType] = pStr;
+												else gSectorCaptions[nType] = pStr;
+												break;
+										}
+										break;
+								}
+							}
+						}
+					}
+					break;
+			}
+		}
+		
+		pGroup++;
+	}
+	
+	delete(pIni);
+	
+	for (i = 0; i < 1024; i++)
+	{
+		// point empty captions to a full names
+		if (!gSpriteCaptions[i])	gSpriteCaptions[i]	= gSpriteNames[i];
+		if (!gSectorCaptions[i])	gSectorCaptions[i]	= gSectorNames[i];
+		if (!gWallCaptions[i])		gWallCaptions[i]	= gWallNames[i];
+	}
+	
+	if (gMisc.showTypes == MO)
+	{
+		// fill the modern command names
+		for (i = 0; i < LENGTH(gModernCommandNames); i++)
+		{
+			t = gModernCommandNames[i].id;
+			gCommandNames[t] = gModernCommandNames[i].name;
+		}
+	}
+	
+	for (i = 64, t = 0; i < LENGTH(gCommandNames); i++)
+	{
+		if (!gCommandNames[i])
+		{
+			// fill numbers for numberic commands
+			gCommandNames[i] = (char*)malloc(4);
+			sprintf(gCommandNames[i], "%3d", t++);
+		}
+	}
 }

@@ -1078,7 +1078,7 @@ int artedDlgImportArt(int nTile) {
 			if (noExtra == -1)
 			{
 				noExtra = (Confirm("Import extra ART info as well?")) ? 0 : 1;
-				scrNextPage();
+				showframe();
 			}
 
 			if (noExtra == 0)
@@ -1137,7 +1137,7 @@ int artedDlgImportArt(int nTile) {
 				if (noBlank == -1)
 				{
 					noBlank = (Confirm("Skip blank tiles?")) ? 1 : 0;
-					scrNextPage();
+					showframe();
 				}
 
 				if (noBlank ==  1)

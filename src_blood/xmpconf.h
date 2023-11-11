@@ -40,7 +40,7 @@
 #define kPalPaintDir		"xmapedit/palettes/paint"
 #define kLogFile			"xmapedit/xmapedit.log"
 #define kStdPalDB			"xmapedit/stdclr.ini"
-//#define kScreen2DPrefs		"xmapedit/2dsclr.ini"
+#define kScreen2DPrefs		"xmapedit/2dsclr.ini"
 #define kTempFileBase		"xmapedit/fil"
 #define kThemesDir			"xmapedit/themes"
 #define kDefaultTheme		"default"

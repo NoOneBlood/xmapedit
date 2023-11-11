@@ -28,14 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //-------------------------------------------------------------------------
 #include "common_game.h"
 #include "xmpstr.h"
-
-#pragma pack(push, 1)
-struct NAMED_TYPE
-{
-    unsigned int id;
-    const char* text;
-};
-#pragma pack(pop)
+#include "xmpmisc.h"
 
 NAMED_TYPE gBoolNames[] =
 {
@@ -66,16 +59,20 @@ int enumStr(int nOffs, const char* str, char* key, char* val)
         if (string[t - 1] == ')')
             string[t - 1] = '\0';
 
-        removeSpaces(string);
 
         if (enumStrGetChar(nOffs, buffer1, pStr, ',', NULL))
         {
             if (key)
             {
                 if (enumStrGetChar(0, buffer2, buffer1, '=', NULL))
+				{
                     Bsprintf(key, "%s", buffer2);
-                else
+					strTrim(key);
+                }
+				else
+				{
                     key[0] = '\0';
+				}
             }
 
             if (val)
@@ -102,9 +99,14 @@ int enumStr(int nOffs, const char* str, char* key, char* val)
                                 ThrowError("End of array is not found in \"%s\"", str);
                             }
 
+							strTrim(val);
                             return nOffs;
                         }
                     }
+					else
+					{
+						strTrim(val);
+					}
 
                 }
                 else
@@ -137,10 +139,12 @@ int enumStr(int nOffs, const char* str, char* val)
     if (string[t - 1] == ')')
         string[t - 1] = '\0';
 
-    removeSpaces(string);
     if (enumStrGetChar(nOffs, val, pStr, ',', NULL))
-        return ++nOffs;
-
+	{
+        strTrim(val);
+		return ++nOffs;
+	}
+	
     return 0;
 }
 
@@ -167,7 +171,7 @@ int btoi(const char* str)
         NAMED_TYPE* pEntry = gBoolNames;
         for (i = 0; i < LENGTH(gBoolNames); i++)
         {
-            if (Bstrcasecmp(str, pEntry->text) == 0)
+            if (Bstrcasecmp(str, pEntry->name) == 0)
                 return (bool)pEntry->id;
 
             pEntry++;
@@ -268,7 +272,7 @@ char isufix(const char* str)
 
 char isempty(const char* str)
 {
-    return (!str || !Bstrlen(str));
+    return (!str || str[0] == '\0');
 }
 
 char isIdKeyword(const char* fullStr, const char* prefix, int* nID)
@@ -332,7 +336,7 @@ char* enumStrGetChar(int nOffs, char* out, char* astr, char expcr, char* def)
 		{
 			str = (char*)malloc(n+1);
 			dassert(str != NULL);
-			sprintf(str, astr);
+			Bsprintf(str, "%s", astr);
 		}
 		else
 		{
@@ -392,4 +396,26 @@ int enumStrGetInt(int nOffs, char* astr, char expcr, int retn)
 	}
 	
 	return retn;
+}
+
+
+void strTrim(char* str, char side)
+{
+	int l = strlen(str);
+	int c;
+	
+	if (side & 0x01)
+	{
+		c = 0;
+		while(str[c] && isspace(str[c])) c++;
+		if (c)
+			memmove(str, &str[c], l - c + 1), l-=c;
+	}
+	
+	
+	if (side & 0x02)
+	{
+		while(--l >= 0 && isspace(str[l]));
+		str[l + 1] = '\0';
+	}
 }

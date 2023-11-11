@@ -1785,6 +1785,7 @@ EditNumber::EditNumber( int left, int top, int width, int height, int nVal, char
 	minValue = nMin;
 	maxValue = nMax;
 	ClampValue();
+	pos = len;
 }
 
 
@@ -1856,7 +1857,8 @@ void EditNumber::HandleEvent( GEVENT *event )
 		value = 0;
 	}
 	
-	InsEndChar();
+	if (valueType != kValNone)
+		InsEndChar();
 }
 
 void EditNumber::ClampValue()
@@ -1864,7 +1866,8 @@ void EditNumber::ClampValue()
 	value = ClipRange(value, minValue, maxValue);
 	itoa(value, string, 10); len = strlen(string);
 	pos = ClipRange(pos, 0, len);
-	InsEndChar();
+	if (valueType != kValNone)
+		InsEndChar();
 }
 
 void EditNumber::InsEndChar()
@@ -2170,7 +2173,7 @@ int ShowModal(Container *dialog, int flags)
 		desktop.HandleEvent(&event);
 		desktop.Paint(0, 0, FALSE);
 		gMouse.Draw();
-		showframe(); // this instead of scrNextPage() makes GUI to show in 2d mode
+		showframe();
 
 		// restore the save under after page flipping
 #if USE_POLYMOST

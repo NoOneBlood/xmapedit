@@ -86,6 +86,7 @@ void EditSectorLighting(int nSector);
 void ShowSectorData(int nSector, BOOL xFirst, BOOL dialog = TRUE);
 void ShowWallData(int nWall, BOOL xFirst, BOOL dialog = TRUE);
 void ShowSpriteData(int nSprite, BOOL xFirst, BOOL dialog = TRUE);
+void ShowMapStatistics(void);
 
 void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector);
 void dlgXSectorToDialog(DIALOG_HANDLER* pHandle, int nSector);

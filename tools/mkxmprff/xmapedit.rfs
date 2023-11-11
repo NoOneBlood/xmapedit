@@ -3,6 +3,7 @@ resource "INI\DEFAULTS.INI" as 0;	// default xmapedit settings
 resource "INI\HINTS.INI" as 1;		// hints for HUD edit dialogs
 resource "INI\STDCLR.INI" as 2;		// standard color palette
 resource "INI\2DSCLR.INI" as 3;		// 2d screen colors
+resource "INI\OBJTYPES.INI" as 4;	// Type names and AutoAdjustSprites info
 ///////////////////////////////
 
 

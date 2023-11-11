@@ -325,10 +325,8 @@ int tga2tile(unsigned char* pBuf, int bufLen, int nTile) {
 	imgLen  = wh*hg;									// total length in bytes
 	
 	if (!header.imageType)		return -2;				// no image present
-	#ifndef I2TDEBUG
 	if ((i = imgCheckResolution(wh, hg)) != 0)
 		return i;
-	#endif
 	
 
 	switch (header.pixelDepth) {
@@ -499,10 +497,8 @@ int pcx2tile(unsigned char* pBuf, int bufLen, int nTile) {
 	hg = header.y1 - header.y0 + 1;						// get height
 	imgLen = wh * hg;									// total length in bytes
 	
-	#ifndef I2TDEBUG
 	if ((i = imgCheckResolution(wh, hg)) != 0)
 		return i;
-	#endif
 	
 	bpl  = header.bytesPerLine;							// bytes per one scan line
 	skip = bpl - wh;									// how many pad bytes added to each scan line
@@ -592,10 +588,8 @@ int qbm2tile(unsigned char* pBuf, int bufLen, int nTile) {
 	
 	io.read(&header, sizeof(header));
 	wh = header.width; hg = header.height; imgLen = wh*hg;
-	#ifndef I2TDEBUG
 	if ((retn = imgCheckResolution(wh, hg)) != 0)
 		return retn;
-	#endif
 	
 	switch (header.type) {
 		case kQBitmapRLE:
@@ -631,10 +625,8 @@ int cel2tile(unsigned char* pBuf, int bufLen, int nTile) {
 	
 	io.read(&header, sizeof(header));
 	wh = header.width; hg = header.height; imgLen = wh*hg;
-	#ifndef I2TDEBUG
 	if ((retn = imgCheckResolution(wh, hg)) != 0)
 		return retn;
-	#endif
 		
 	if (header.magic != 0x9119 || header.bpp != 8) return -5;
 	else if (header.compression != 0)
@@ -725,10 +717,8 @@ int kplibImg2Tile(unsigned char* pBuf, int bufLen, int nTile)
 	if (!wh || !hg)
 		return -13;
 	
-	#ifndef I2TDEBUG
 	if ((retn = imgCheckResolution(wh, hg)) != 0)
 		return retn;
-	#endif
 	
 	imgLen = hg*(wh<<2);
 	if ((pixels = (BYTE*)malloc(imgLen)) == NULL) return -12;
@@ -982,11 +972,11 @@ BOOL palFixTransparentColor(PALETTE imgPal) {
 		return FALSE;
 
 	IniFile* palDb = new IniFile(kPalDBIni);
-	ININODE* prev = NULL; char* key = NULL, *value = NULL;
-	int i, j, tokens = LENGTH(palDBTokens);
+	char* key = NULL, *value = NULL;
+	int i, j, nPrevNode = -1, tokens = LENGTH(palDBTokens);
 	PALETTE palbuf; BOOL retn = FALSE;
 
-	while (palDb->GetNextString(NULL, &key, &value, &prev))
+	while (palDb->GetNextString(NULL, &key, &value, &nPrevNode))
 	{
 		if (value == NULL)
 			continue;
