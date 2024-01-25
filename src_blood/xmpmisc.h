@@ -151,6 +151,45 @@ class MapStats
 		static void Clear(char which = 0x03);
 };
 
+enum
+{
+	B2T_ENC_BREP	= 0x01,
+	B2T_ENC_000F	= 0x02,
+	B2T_ENC_MODS	= 0x04,
+};
+
+class BIN2TXT
+{
+	private:
+		static const char* kB2TSign;
+		inline int GetDigit(char* str, int nLen) { str[nLen] = '\0'; return strtol(str, NULL, 16); }
+		int EncodeByte(int c);
+		int DecodeByte(int c);
+	public:
+		struct
+		{
+			uint32_t	len;
+			uint8_t*	ptr;
+		}
+		bin;
+		struct
+		{
+			int32_t		len;
+			int32_t*	ptr;
+			uint8_t		flg;
+		}
+		inf;
+		struct
+		{
+			uint32_t	len;
+			char*		ptr;
+		}
+		txt;
+		char Encode(void);
+		char Decode(void);
+		BIN2TXT(void);
+};
+
 #pragma pack(push, 1)
 struct FUNCT_LIST
 {
@@ -181,6 +220,17 @@ struct SCANWALL
 	short w, s;
 };
 
+
+struct SCANDIRENT
+{
+	char full[BMAX_PATH];
+	char name[BMAX_PATH];
+	char type[BMAX_PATH];
+	unsigned int flags;
+	unsigned int crc;
+	signed   int extra;
+	time_t mtime;
+};
 #pragma pack(pop)
 
 class OBJECT_LIST
@@ -277,7 +327,6 @@ void Delay(int time);
 BOOL Beep(BOOL cond);
 void BeepOk( void );
 void BeepFail( void );
-int scanBakFile(char* file);
 BYTE fileExists(char* filename, RESHANDLE* rffItem = NULL);
 int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom = NULL);
 void updateClocks();
@@ -337,7 +386,7 @@ void resortFree();
 void TranslateWallToSector( void );
 BOOL chlRangeIsFine(int val);
 short getSector();
-BOOL slash(char ch); 
+inline BOOL slash(char ch) { return (ch == '\\' || ch == '/'); }
 char* catslash(char* str);
 BOOL markerIsNode(int idx, int goal);
 void gfxDrawCaption(int x, int y, int fr, int bg, int bgpad, char* txt, QFONT* pFont);
@@ -368,7 +417,7 @@ void wallDetach(int nWall);
 int perc2val(int reqPerc, int val);
 void swapValues(int *nSrc, int *nDest);
 void toggleResolution(int fs, int xres, int yres, int bpp = 8);
-int scaleZ(int sy, int hz);
+int camHitscan(short* hsc, short* hwl, short* hsp, int* hx, int* hy, int* hz, unsigned int clipMask);
 int keyneg(int step, BYTE key = 0, bool rvrs = false);
 int kneg(int step, bool rvrs = false);
 char* getExt(int nExt);
@@ -436,9 +485,9 @@ void flipWalls(int nStart, int nOffs);
 
 void setFirstWall(int nSect, int nWall);
 char loopInside(int nSect, POINT2D* pPoint, int nCount, char full);
-int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pModel);
+int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel = NULL, sectortype* pSModel = NULL);
 void insertPoints(WALLPOINT_INFO* pInfo, int nCount);
-
+int makeSquareSector(int ax, int ay, int area);
 int redSectorCanMake(int nStartWall);
 int redSectorMake(int nStartWall);
 int redSectorMerge(int nThis, int nWith);
@@ -453,6 +502,20 @@ char isNextWallOf(int nSrc, int nDest);
 int findNextWall(int nWall);
 int findNamedID(const char* str, NAMED_TYPE* pDb, int nLen);
 int words2flags(const char* str, NAMED_TYPE* pDb, int nLen);
+char isDir(char* pPath);
+char isFile(char* pPath);
+SCANDIRENT* dirScan(char* path, char* filter, int* numfiles, int* numdirs, char flags = 0x0);
+SCANDIRENT* driveScan(int* numdrives);
+char hasByte(BYTE* pBytes, int l, char nByte);
+char dirRemoveRecursive(char* path);
+char* getCurDir(char* pth, char* out, char addSlash = 0);
+char* getFiletype(char* pth, char* out, char addDot = 1);
+void pathCatSlash(char* pth, int l = -1);
+void pathRemSlash(char* pth, int l = -1);
+char* getRelPath(char* relto, char* targt);
+
+char insidePoints(int x, int y, POINT2D* point, int c);
+char sectWallsInsidePoints(int nSect, POINT2D* point, int c);
 
 //BOOL ss2obj(int* objType, int* objIdx, BOOL asIs = FALSE);
 //BOOL dosboxRescan();

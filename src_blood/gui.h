@@ -28,6 +28,8 @@
 #include "resource.h"
 #include "gfx.h"
 #include "screen.h"
+#include "xmpmisc.h"
+#include "xmpexplo.h"
 
 
 #define kColorBackground	gStdColor[20]
@@ -209,13 +211,23 @@ class Label : public Widget
 		virtual void HandleEvent( GEVENT * ) {};
 };
 
+enum
+{
+ALG_LEFT			= 0x00,
+ALG_TOP				= 0x00,
+ALG_CENTER			= 0x01,
+ALG_MIDDLE			= 0x02,
+ALG_RIGHT			= 0x04,
+ALG_BOTTOM			= 0x08,
+};
+
 enum {
-kTextALeft			= 0x00,
-kTextATop			= 0x00,
-kTextACenter		= 0x01,
-kTextAMiddle		= 0x02,
-kTextARight			= 0x04,
-kTextABottom		= 0x08,
+kTextALeft			= ALG_LEFT,
+kTextATop			= ALG_TOP,
+kTextACenter		= ALG_CENTER,
+kTextAMiddle		= ALG_MIDDLE,
+kTextARight			= ALG_RIGHT,
+kTextABottom		= ALG_BOTTOM,
 kTextUnderline		= 0x10,
 kTextOverline		= 0x20,
 kTextLineThrough	= 0x40,
@@ -223,6 +235,8 @@ kTextBlink			= 0x80,
 kTextUppercase		= 0x100,
 kTextLowercase		= 0x200,
 kTextBold			= 0x400,
+kTextShadow			= 0x800,
+kTextDryRun			= 0x800000,
 };
 
 class Text : public Widget
@@ -334,8 +348,8 @@ public:
 
 class BitButton2 : public Button
 {
-	QBITMAP* pBitmap;
 public:
+	QBITMAP* pBitmap;
 	BitButton2( int left, int top, int width, int height, QBITMAP* pBitmap, int result );
 	virtual void Paint( int x, int y, BOOL hasFocus );
 	virtual void HandleEvent( GEVENT *event );
@@ -487,26 +501,6 @@ public:
 	virtual void HandleEvent( GEVENT *event );
 };
 
-class TextArea : public EditText
-{
-	
-private:
-	struct LINE_RANGE
-	{
-		int p1, p2;
-	};
-public:
-	char* text;
-	int lines, line;
-	LINE_RANGE *linerng;
-	TextArea( int left, int top, int width, int height, char *s );
-	virtual void HandleEvent(GEVENT *event);
-	virtual void Paint(int x, int y, BOOL hasFocus);
-	void FormatText(char* text, int flags = 0x0);
-	void GetCursorPos(int* x = NULL, int* y = NULL);
-	int  GetLineStartByPos(int pos);
-	int  GetLineByPos(int pos);
-};
 
 enum {
 kValNone = 0,

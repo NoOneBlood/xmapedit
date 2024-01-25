@@ -22,29 +22,18 @@
 ***********************************************************************************/
 
 #include "common_game.h"
+#include "inifile.h"
+
 
 #define kPrefabVersion		3
 #define kPrefabFileExt		".pfb"
 #define kPrefabIniSection 	"PrefabInfo"
 #define kMinPrefabSprites    1
-#define kMaxPrefabSprites    512
-#define kMaxPrefabNameLength 8
 
 
-
-/* extern CHECKBOX_LIST gPrefabType[];
-
-enum {
-kPrefabTypeFloor			= 0x0001,
-kPrefabTypeCeiling			= 0x0002,
-kPrefabTypeWall				= 0x0004,
-}; */
-
-
-int pfbAdd(char *filename, int faceAng);
-int pfbInsert(char* file, int sstat, int sect, int x, int y, int z);
-int pfbDlgFaceAngDefine();
-BOOL pfbRemove(char* filename);
-
-
-
+int pfbAdd(char *filename, int nFaceAng, int nThumbTile);
+char pfbGetSize(IniFile* pfbFile, int* width, int* height, int* zHeight);
+int pfbAttachThumbnail(IniFile* pfbFile, int nThumbTile);
+int pfbInsert(IniFile* pfbFile, int nStat, int nID, int nSect, int x, int y, int z, int camZ);
+int pfbInsert(char* file, int nStat, int nID, int nSect, int x, int y, int z, int camZ);
+int pfbDlgOptions(int* nFaceAngle, int* nThumbTile);

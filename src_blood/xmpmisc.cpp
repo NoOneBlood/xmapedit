@@ -20,6 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
+#include <direct.h>
+
 #include "xmpstub.h"
 #include "seq.h"
 #include "editor.h"
@@ -52,16 +54,6 @@ const char* gMapStatsNames[kMapStatMax] =
 	"Health",
 	"Armor",
 	"Inv. Items",
-};
-
-
-
-NAMED_TYPE gSuppBakFiles[] = {
-	
-	{kMap, kBloodMapSig}, 	// see if this file is the BLOOD MAP. Does not work for other BUILD MAP files.
-	{kSeq, kSEQSig}, 		// see if this file is the BLOOD SEQ. Does not work for PowerSlave SEQ files.
-	{kQav, kQavSig},		// see if this file is the BLOOD QAV.	
-	
 };
 
 NAMED_TYPE gReverseSectorErrors[] =
@@ -209,6 +201,221 @@ void MapStats::Clear(char which)
 
 }
 
+
+const char* BIN2TXT::kB2TSign = "NNB2T";
+BIN2TXT::BIN2TXT(void)
+{
+	memset(&bin, 0, sizeof(bin));
+	memset(&txt, 0, sizeof(txt));
+	memset(&inf, 0, sizeof(inf));
+}
+
+int BIN2TXT::EncodeByte(int c)
+{
+	if (inf.flg & (B2T_ENC_000F|B2T_ENC_MODS))
+	{
+		if ((inf.flg & B2T_ENC_000F) && irngok(c, 0x00, 0x0F))
+			return 'G' + c;
+		
+		if (inf.flg & B2T_ENC_MODS)
+		{
+			if ((c % 0x10) == 0)		return 192 + ((c / 0x10) - 1);	// 0x10, 0x20, 0x30 ....
+			if ((c % 0x11) == 0)		return 207 + ((c / 0x11) - 1);	// 0x11, 0x22, 0x33 ....
+		}
+	}
+	
+	return -1;
+}
+
+int BIN2TXT::DecodeByte(int c)
+{
+	if (inf.flg & (B2T_ENC_000F|B2T_ENC_MODS))
+	{
+		if ((inf.flg & B2T_ENC_000F) && irngok(c, 'G', 'V'))
+			return 0x0F + c - 'V';
+		
+		if (inf.flg & B2T_ENC_MODS)
+		{
+			if (irngok(c, 192, 206))	return ((c - 192) + 1) * 0x10;
+			if (irngok(c, 207, 221))	return ((c - 207) + 1) * 0x11;
+		}
+	}
+	
+	return -1;
+}
+
+char BIN2TXT::Encode(void)
+{
+	const char* sign = kB2TSign;
+	int maxLen = strlen(sign)+2+2+8+(inf.len<<3)+(bin.len<<1); // worst case
+	int curLen = 0, i = 0, j, n, c;
+	uint8_t* pBin;
+	char *pTxt;
+	
+	dassert(txt.ptr == NULL);
+	if ((txt.ptr = (char*)malloc(maxLen)) == NULL)
+		return 0;
+	
+	pTxt = txt.ptr;
+	
+	// header
+	//---------------------------------------------------------------------------------
+	curLen+=sprintf(&pTxt[curLen], "%s",   sign);				// signature
+	curLen+=sprintf(&pTxt[curLen], "%02x", inf.flg);			// flags
+	curLen+=sprintf(&pTxt[curLen], "%02x", inf.len);			// extra count
+	while(i < inf.len)											// extra data
+		curLen+=sprintf(&pTxt[curLen], "%08x", inf.ptr[i++]);
+	//---------------------------------------------------------------------------------
+
+	pBin = bin.ptr;
+	for (i = 0; i < bin.len; i++)
+	{
+		c = pBin[i];		
+ 		if ((n = EncodeByte(c)) >= 0)
+		{
+			pTxt[curLen++] = n;
+		}
+		else
+		{
+			curLen+=sprintf(&pTxt[curLen], "%02x", c);
+		}
+		
+		if (inf.flg & B2T_ENC_BREP)
+		{
+			j = i, n = 0;
+			while(++j < bin.len)
+			{
+				if (pBin[j] != pBin[i])
+					break;
+				
+				n++;
+			}
+			
+			if (n)
+			{
+				if (n > 0xFFFF)		curLen+=sprintf(&pTxt[curLen], "g%08x", n);		// giant
+				else if (n > 0xFFF)	curLen+=sprintf(&pTxt[curLen], "h%04x", n);		// huge
+				else if (n > 0xFF)	curLen+=sprintf(&pTxt[curLen], "l%03x", n);		// large
+				else if (n > 0x0F)	curLen+=sprintf(&pTxt[curLen], "m%02x", n);		// medium
+				else if (n > 0x01)	curLen+=sprintf(&pTxt[curLen], "s%x", n);		// small
+				else if (n == 0x01)	curLen+=sprintf(&pTxt[curLen], "t");			// tiny (repeat 1 time)
+				i+=n;
+			}
+		}
+	}
+	
+	for (i = 0; i < curLen; i++)
+	{
+		switch(pTxt[i])
+		{
+			case 'h':	case 'l':
+			case 'm':	case 's':
+			case 't':	case 'g':
+				break;
+			default:
+				pTxt[i] = toupper(pTxt[i]);
+				break;
+		}
+	}
+	
+	txt.ptr = (char*)realloc(txt.ptr, curLen);
+	txt.len = curLen;
+	return 1;
+	
+}
+
+char BIN2TXT::Decode(void)
+{
+	IOBuffer io(txt.len, (unsigned char*)txt.ptr);
+	const int kBaseAlloc = 0x10000;
+	int t = strlen(kB2TSign);
+	int i, j, c, r, s = 0;
+	char ci[9];
+	
+	dassert(bin.ptr == NULL);
+	
+	// header
+	// ----------------------------------------------------------------------
+	io.read(&ci, t);
+	if (memcmp(ci, kB2TSign, t) != 0)
+		return 0;
+	
+	io.read(&ci, 2);	inf.flg = GetDigit(ci, 2);	// flags
+	io.read(&ci, 2);	inf.len = GetDigit(ci, 2);	// extra count
+	if (inf.len)									// extra data
+	{
+		if (!inf.ptr)
+		{
+			inf.ptr = (int32_t*)malloc(inf.len*sizeof(int32_t));
+			dassert(inf.ptr != NULL);
+		}
+		
+		for (i = 0; i < inf.len; i++)
+			io.read(&ci, 8), inf.ptr[i] = GetDigit(ci, 8);
+	}
+	// ----------------------------------------------------------------------
+	
+	j=0;
+	while(io.nRemain)
+	{
+		if (inf.flg & 0x07)
+		{
+			io.read(&t, 1);
+
+			switch( t )
+			{
+				case 't':	r = 1;									break;	// tiny
+				case 's':	io.read(&ci, 1), r = GetDigit(ci, 1);	break;	// small
+				case 'm':	io.read(&ci, 2), r = GetDigit(ci, 2);	break;	// medium
+				case 'l':	io.read(&ci, 3), r = GetDigit(ci, 3);	break;	// large
+				case 'h':	io.read(&ci, 4), r = GetDigit(ci, 4);	break;	// huge
+				case 'g':	io.read(&ci, 8), r = GetDigit(ci, 8);	break;	// giant
+				default:
+					if (j < 2)
+					{
+						if ((c = DecodeByte(t)) >= 0)
+						{
+							r = 1, j = 0;
+							break;
+						}
+						else
+						{
+							ci[j++] = t;
+							r = 0;
+						}
+					}
+					
+					if (j == 2)
+					{
+						c = GetDigit(ci, 2);
+						r = 1, j = 0;
+					}
+					break;
+			}
+		}
+		else
+		{
+			io.read(&ci, 2), c = GetDigit(ci, 2);
+			r = 1;
+		}
+		
+		if (r)
+		{
+			if (bin.len + r >= s)
+			{
+				s = ClipLow(s, bin.len + r) + kBaseAlloc;
+				bin.ptr = (uint8_t*)realloc(bin.ptr, s);
+				dassert(bin.ptr != NULL);
+			}
+			
+			memset(&bin.ptr[bin.len], c, r);
+			bin.len+=r;
+		}
+	}
+	
+	return 1;
+}
+
 BYTE fileExists(char* filename, RESHANDLE* rffItem) {
 
 	BYTE retn = 0;
@@ -346,33 +553,6 @@ void gfxPrinTextShadow(int x, int y, int col, char* text, QFONT *pFont, int shof
 	if (pFont->type != kFontTypeRasterVert) gfxDrawText(x + shofs, y + shofs, gStdColor[30], text, pFont);
 	else viewDrawText(x + shofs, y + shofs, pFont, text, 127);
 	gfxDrawText(x, y, col, text, pFont);
-}
-
-int scanBakFile(char* file) {
-	
-	int i, len, retn = -1, hFile;
-	char signature[kBakSignatureLength];
-	if ((hFile = open(file, O_RDONLY | O_BINARY)) >= 0)
-	{
-		for (i = 0; i < LENGTH(gSuppBakFiles); i++)
-		{
-			NAMED_TYPE* pTable =& gSuppBakFiles[i];
-			memset(signature, 0, sizeof(signature));
-			read(hFile, signature, (len = strlen(pTable->name)));
-			if (memcmp(signature, pTable->name, len) != 0)
-			{
-				lseek(hFile, 0, SEEK_SET);
-				continue;
-			}
-			
-			retn = pTable->id;
-			break;
-		}
-
-		close(hFile);
-	}
-	
-	return retn;
 }
 
 void Delay(int time) {
@@ -698,12 +878,19 @@ int getHighlightedObject() {
 	
 	if (qsetmode == 200)
 	{
+		sectorhighlight = searchsector;
+		pointhighlight = -1;
+		linehighlight = -1;
+		
 		switch (searchstat)
 		{
 			case OBJ_SPRITE:
+				pointhighlight = searchwall + 16384;
 				return 200;
 			case OBJ_WALL:
 			case OBJ_MASKED:
+				pointhighlight = searchwall;
+				linehighlight = searchwall;
 				return 100;
 			case OBJ_FLOOR:
 			case OBJ_CEILING:
@@ -760,8 +947,24 @@ char* getFilename(char* pth, char* out, BOOL addExt) {
 	return out;
 }
 
-char* getPath(char* pth, char* out, BOOL addSlash) {
+char* getFiletype(char* pth, char* out, char addDot)
+{
+	char tmp[_MAX_PATH]; char *fname = NULL, *ext = NULL;
+	pathSplit2(pth, tmp, NULL, NULL, &fname, &ext);
+	if (!isempty(ext) && !addDot && *ext == '.')
+		ext++;
+	
+	if (ext)
+	{
+		strcpy(out, ext);
+		return out;
+	}
+	
+	return NULL;
+}
 
+char* getPath(char* pth, char* out, BOOL addSlash)
+{
 	int i;
 	char tmp[_MAX_PATH]; char *dsk = NULL, *dir = NULL;
 	pathSplit2(pth, tmp, &dsk, &dir, NULL, NULL);
@@ -773,6 +976,52 @@ char* getPath(char* pth, char* out, BOOL addSlash) {
 			catslash(out);
 	}
 	
+	return out;
+}
+
+char* getRelPath(char* relto, char* targt)
+{
+	int l, s, i;
+	if ((l = strlen(relto)) <= strlen(targt))
+	{
+		s = targt[l];
+		
+		if (s)
+			targt[l] = '\0';
+		
+		for (i = 0; i < l; i++)
+		{
+			if (slash(relto[i]) && slash(targt[i])) continue;
+			if (toupper(relto[i]) != toupper(targt[i]))
+				break;
+		}
+		
+		if (s)
+			targt[l] = s;
+		
+		if (i >= l)
+			return &targt[l+1];
+	}
+	
+	return targt;
+}
+
+char* getCurDir(char* pth, char* out, char addSlash)
+{
+	int j = strlen(pth);
+	while(--j >= 0)
+	{
+		if (slash(pth[j]))
+		{
+			strcpy(out, &pth[j+1]);
+			if (addSlash)
+				catslash(out);
+
+			return out;
+		}
+	}
+	
+	strcpy(out, pth);
 	return out;
 }
 
@@ -853,16 +1102,8 @@ void hit2pos(int* rtx, int* rty, int* rtz, int32_t clipmask) {
 	
 	if (qsetmode == 200)
 	{
-		x = 16384;
-		y = divscale14(searchx - (xdim>>1), xdim>>1);
-
-		RotateVector(&x, &y, ang);
-		hitscan(posx, posy, posz, cursectnum,
-			x, y, scaleZ(searchy, horiz),          
-			&hitsect, &hitwall, &hitsprite, &hitx, &hity, &hitz, clipmask);
-			
-		*rtx = hitx;
-		*rty = hity;
+		camHitscan(&hitsect, &hitwall, &hitsprite, &hitx, &hity, &hitz, clipmask);
+		*rtx = hitx; *rty = hity;
 		if (rtz)
 			*rtz = hitz;
 	}
@@ -892,13 +1133,7 @@ void hit2sector(int *rtsect, int* rtx, int* rty, int* rtz, int gridCorrection, i
 	
 	if (qsetmode == 200)
 	{
-		x = 16384;
-		y = divscale14(searchx - (xdim>>1), xdim>>1);
-
-		RotateVector(&x, &y, ang);
-		hitscan(posx, posy, posz, cursectnum,
-			x, y, scaleZ(searchy, horiz),          
-			&hitsect, &hitwall, &hitsprite, &hitx, &hity, &hitz, clipmask);
+		camHitscan(&hitsect, &hitwall, &hitsprite, &hitx, &hity, &hitz, clipmask);
 	}
 	else
 	{
@@ -1332,23 +1567,33 @@ void resortFree() {
 	}
 }
 
-
-BOOL slash(char ch) {
-	
-	#ifdef _WIN32
-		return ch == '\\';
-	#else
-		return ch == '/';
-	#endif
+char* catslash(char* str)
+{
+	return strcat(str, "/");
 }
 
-char* catslash(char* str) {
+void pathCatSlash(char* pth, int l)
+{
+	if (l < 0)
+	{
+		if ((l = strlen(pth)) > 0 && !slash(pth[l-1]))
+			catslash(pth);
+	}
+	else if (!slash(l))
+		catslash(&pth[l]);
+}
+
+void pathRemSlash(char* pth, int l)
+{
+	int t = strlen(pth);
 	
-	#ifdef _WIN32
-		return strcat(str, "\\");
-	#else
-		return strcat(str, "/");
-	#endif
+	if (l < 0)
+	{
+		if (t > 0 && slash(pth[t-1]))
+			pth[t-1] = '\0';
+	}
+	else if (slash(l) && l < t)
+		memmove(&pth[l], &pth[l+1], t-l+1);
 }
 
 // rough approximation of what _splitpath2() does in WATCOM
@@ -1682,10 +1927,17 @@ int revertValue(int nVal)
 	else return nVal;
 }
 
-int scaleZ(int sy, int hz)
+int camHitscan(short* hsc, short* hwl, short* hsp, int* hx, int* hy, int* hz, unsigned int clipMask)
 {
-	// i don't know why hitscan is buggy on widescreen
-	return (scale(sy, 200, ydim) - hz) * 2000;
+	int dx, dy, dz;
+    dx = divscale30(1, viewingrange);
+	dy = divscale14(searchx-(xdim>>1), xdim>>1);
+	dz = divscale27(searchy-(ydim>>1), scale(xdim,yxaspect,320)) + ((100-horiz)*2000);
+	RotateVector(&dx, &dy, ang);
+	
+	*hsc = *hwl = *hsp = -1;
+	return hitscan(posx, posy, posz, cursectnum, dx, dy,
+			dz, hsc, hwl, hsp, hx, hy, hz, clipMask);
 }
 
 int keyneg(int step, BYTE key, bool rvrs)
@@ -1803,6 +2055,18 @@ int countUniqBytes(BYTE* pBytes, int len)
 	
 	return i;
 }
+
+char hasByte(BYTE* pBytes, int l, char nByte)
+{
+	while(--l >= 0)
+	{
+		if (pBytes[l] == nByte)
+			return 1;
+	}
+	
+	return 0;
+}
+
 
 void* getFuncPtr(FUNCT_LIST* db, int dbLen, int nType)
 {
@@ -3139,13 +3403,13 @@ void setFirstWall(int nSect, int nWall)
 	CleanUp();
 }
 
-char loopInside(int nSect, POINT2D* pPoint, int nCount, char full)
+char loopInside(int nSect, POINT2D* pPoint, int c, char full)
 {
 	int nPrev, nAng, nLen, i, r;
 	POINT2D *a = pPoint, *b;
 	POSOFFS pos;
 
-	for (i = 0; i < nCount; i++)
+	for (i = 0; i < c; i++)
 	{
 		if (!inside(a[i].x, a[i].y, nSect))
 			return 0;
@@ -3153,9 +3417,17 @@ char loopInside(int nSect, POINT2D* pPoint, int nCount, char full)
 	
 	if (full)
 	{
-		for (i = 0; i < nCount-1; i++)
+		for (i = 0; i < c; i++)
 		{
-			a = &pPoint[i]; b = &pPoint[i+1];
+			if (i < c - 1)
+			{
+				a = &pPoint[i]; b = &pPoint[i+1];
+			}
+			else
+			{
+				a = &pPoint[0]; b = &pPoint[c-1];
+			}
+			
 			nAng = (getangle(b->x - a->x, b->y - a->y) + kAng90) & kAngMask;
 			nLen = exactDist(b->x - a->x, b->y - a->y);
 			pos.New(nAng, a->x, a->y);
@@ -3179,12 +3451,87 @@ char loopInside(int nSect, POINT2D* pPoint, int nCount, char full)
 	return 1;
 }
 
-int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pModel)
+char insidePoints(int x, int y, POINT2D* point, int c)
 {
-	walltype* pWall;
+	int i, x1, y1, x2, y2;
+	unsigned int cnt = 0;
+	
+	for (i = 0; i < c; i++)
+	{
+		if (i < c - 1)
+		{
+			x1 = point[i].x-x,	x2 = point[i+1].x-x;
+			y1 = point[i].y-y,	y2 = point[i+1].y-y;
+		}
+		else
+		{
+			x1 = point[0].x-x,	x2 = point[c-1].x-x;
+			y1 = point[0].y-y,	y2 = point[c-1].y-y;
+		}
+		
+		if ((y1^y2) < 0)
+			cnt ^= ((x1^x2) >= 0) ? (x1) : ((x1*y2-x2*y1)^y2);
+	}
+	
+	return ((cnt >> 31) > 0);
+}
+
+char sectWallsInsidePoints(int nSect, POINT2D* point, int c)
+{
+	int s, e;
+	
+	// make sure all points inside a sector
+	///////////////////////
+	
+	if (loopInside(nSect, point, c, 1))
+	{
+		// make sure points didn't cover island walls
+		///////////////////////
+		
+		getSectorWalls(nSect, &s, &e);
+		while(s <= e)
+		{
+			if (insidePoints(wall[s].x, wall[s].y, point, c) == 1)
+				return 1;
+			
+			s++;
+		}
+		
+		return 0;
+	}
+	
+	return 1;
+}
+
+int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectortype* pSModel)
+{
+	walltype* pWall; sectortype* pSect;
 	int nStartWall = (nSect >= 0) ? sector[nSect].wallptr : numwalls;
-	int nWall = nStartWall, i = 0;
+	int nWall = nStartWall, i = 0; char insertInside = (nSect >= 0);
 	int t;
+		
+	if (!insertInside)
+	{
+		// create new white sector
+		pSect = &sector[numsectors];
+
+		if (pSModel)
+		{
+			memcpy(pSect, pSModel, sizeof(sectortype));
+		}
+		else
+		{
+			memset(pSect, 0, sizeof(sectortype));
+			
+			pSect->floorz	= 8192<<2;
+			pSect->ceilingz	= -pSect->floorz;
+			pSect->extra	= -1;
+		}
+		
+		pSect->wallptr	= nWall;
+		pSect->wallnum	= nCount;		
+		numsectors++;
+	}
 	
 	movewalls(nWall, nCount); // increases numwalls automatically
 	
@@ -3192,8 +3539,8 @@ int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pModel)
 	{
 		pWall = &wall[nWall++];
 		
-		if (pModel)
-			memcpy(pWall, pModel, sizeof(walltype));
+		if (pWModel)
+			memcpy(pWall, pWModel, sizeof(walltype));
 		
 		pWall->point2		= nWall;
 		pWall->nextwall		= -1;
@@ -3206,7 +3553,10 @@ int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pModel)
 	
 	pWall->point2 = nStartWall;
 	
-	if (nSect >= 0)
+	if (clockdir(nStartWall) == 1)
+		flipWalls(nStartWall, nStartWall + nCount);
+	
+	if (insertInside)
 	{
 		t = nSect;
 		sector[t].wallnum += nCount;
@@ -3235,6 +3585,27 @@ void insertPoints(WALLPOINT_INFO* pInfo, int nCount)
 {
 	for (int i = 0; i < nCount; i++)
 		insertpoint(pInfo[i].w, pInfo[i].x, pInfo[i].y);
+}
+
+int makeSquareSector(int ax, int ay, int area)
+{
+	int nWall = -1;
+	LOOPSHAPE shape(kLoopShapeSquare, -1, ax, ay); // create square sector
+	shape.Setup(ax + area, ay + area, NULL);
+	switch(shape.StatusGet())
+	{
+		default:
+			nWall = shape.Insert();
+			// no break;
+		case -1:
+		case -2:
+		case -4:
+		case -5:
+			shape.Stop();
+			break;
+	}
+	
+	return (nWall >= 0) ? sectorofwall(nWall) : nWall;
 }
 
 int redSectorCanMake(int nStartWall)
@@ -3266,10 +3637,13 @@ int redSectorMake(int nStartWall)
 	sectortype* pSect =& sector[numsectors];
 	getSectorWalls(numsectors, &swal, &ewal);
 	
-	// we for sure don't need cstat inheriting for walls
 	for (i = swal; i <= ewal; i++)
+	{
+		// we for sure don't need cstat inheriting for walls
 		wall[i].cstat = wall[wall[i].nextwall].cstat = 0;
-
+		fixrepeats(wall[i].nextwall);
+		fixrepeats(i);
+	}
 	numwalls = addwalls;
 	numsectors++;
 	return 0;
@@ -3559,4 +3933,176 @@ int words2flags(const char* str, NAMED_TYPE* pDb, int nLen)
     }
 
     return nRetn;
+}
+
+char isDir(char* pPath)
+{
+	BDIR* pDir = NULL;
+	if (fileExists(pPath) && (pDir = Bopendir(pPath)) != NULL)
+		Bclosedir(pDir);
+	
+	return (pDir != NULL);
+}
+
+char isFile(char* pPath)
+{
+	int hFile = -1;
+	if (fileExists(pPath) && (hFile = open(pPath, O_BINARY|O_RDWR, S_IREAD|S_IWRITE)) >= 0)
+		close(hFile);
+	
+	return (hFile >= 0);
+	
+}
+
+SCANDIRENT* dirScan(char* path, char* filter, int* numfiles, int* numdirs, char flags)
+{
+	BDIR* pDir; Bdirent* pFile;
+	SCANDIRENT* db = NULL, tmp;
+	char *ext, *p, buf[BMAX_PATH];
+	char newpath[BMAX_PATH];
+	
+	int i, t;
+	
+	if (numdirs)	*numdirs = 0;
+	if (numfiles)	*numfiles = 0;
+	
+	if (!isempty(filter))
+	{
+		if (filter[0] == '.')
+			filter = &filter[1];
+		
+		enumStrGetChar(0, buf, (char*)filter, '.', NULL);
+	}
+
+	if (isempty(path))
+		path = ".";
+	
+	if (flags & 0x01)
+	{
+		strcpy(newpath, path); pathCatSlash(newpath);
+		_fullpath(newpath, newpath, BMAX_PATH);
+		path = newpath;
+	}
+	
+	t = 0;
+	if ((pDir = Bopendir(path)) != NULL)
+	{
+		while ((pFile = Breaddir(pDir)) != NULL)
+		{
+			memset(&tmp, 0, sizeof(tmp));
+			
+			if (pFile->mode & BS_IFDIR)
+			{
+				if (!numdirs) continue;
+				if (strcmp(pFile->name, "..") == 0)	continue;
+				if (strcmp(pFile->name, ".")  == 0)	continue;
+				*numdirs = *numdirs + 1;
+			}
+			else if (numfiles)
+			{
+				i = 0; ext = NULL;
+				pathSplit2(pFile->name, tmp.name, NULL, NULL, NULL, &ext);
+				if (!isempty(filter))
+				{
+					while((p = enumStrGetChar(i++, buf, NULL, '.')) != NULL)
+					{
+						if (ext[0] == '.') ext = &ext[1];
+						if (stricmp(ext, buf) == 0) break;
+					}
+					
+					if (!p)
+						continue;
+				}
+				
+				if (!isempty(ext))
+					strcpy(tmp.type, ext);
+
+				*numfiles = *numfiles + 1;
+			}
+			else
+			{
+				continue;
+			}
+			
+			if (flags & 0x01)
+			{
+				strcpy(tmp.full, path);
+				strcat(tmp.full, pFile->name);
+			}
+			
+			strcpy(tmp.name, pFile->name);
+			tmp.flags = pFile->mode;
+			tmp.mtime = pFile->mtime;
+			
+			db = (SCANDIRENT*)realloc(db, sizeof(SCANDIRENT) * (t + 1));
+			dassert(db != NULL);
+			
+			memcpy(&db[t++], &tmp, sizeof(SCANDIRENT));
+		}
+		
+		Bclosedir(pDir);
+	}
+	
+	return db;
+}
+
+SCANDIRENT* driveScan(int* numdrives)
+{
+	SCANDIRENT *drives = NULL, *pDrv;
+	char *drv, *drp;
+	int i = 0;
+	
+	drv = drp = Bgetsystemdrives();
+	*numdrives = 0;
+	
+	if (drv)
+	{
+		while(*drp)
+		{
+			drives = (SCANDIRENT*)realloc(drives, sizeof(SCANDIRENT)*(i+1));
+			dassert(drives != NULL);
+			
+			pDrv = &drives[i];
+			memset(pDrv, 0, sizeof(SCANDIRENT));
+			strcpy(pDrv->full, drp); strcpy(pDrv->name, drp);
+			drp+=strlen(drp)+1;
+			i++;
+		}
+		
+		*numdrives = i;
+		free(drv);
+	}
+	
+	return drives;
+}
+
+char dirRemoveRecursive(char* path)
+{
+	BDIR* pDir; Bdirent* pFile;
+	static char cwd[BMAX_PATH];
+	
+	if (chdir(path) == 0)
+	{
+		if ((pDir = Bopendir(".")) != NULL)
+		{
+			while ((pFile = Breaddir(pDir)) != NULL && chmod(pFile->name, S_IWRITE) == 0)
+			{
+				if (pFile->mode & BS_IFDIR)
+				{
+					if (strcmp(pFile->name, "..") == 0)	continue;
+					if (strcmp(pFile->name, ".")  == 0)	continue;
+					if (!dirRemoveRecursive(pFile->name))
+						break;
+				}
+				else if (unlink(pFile->name) != 0)
+					break;
+			}
+			
+			Bclosedir(pDir);
+		}
+		
+		return (getcwd(cwd, sizeof(cwd)) && chdir("../") == 0 && rmdir(cwd) == 0);
+	}
+	
+	return 0;
 }

@@ -834,8 +834,8 @@ void OSD_ShowDisplay(int onf)
 	osdeditcontrol = 0;
 	osdeditshift = 0;
 	
-	if (!fullscreen)
-		grabmouse(osdvisible == 0);
+	if (!fullscreen && osdvisible)
+		grabmouse(0);
 	
 	onshowosd(osdvisible);
 	releaseallbuttons();

@@ -66,7 +66,7 @@ class AUTOSAVE {
 	unsigned int max				: 10;
 	unsigned int current			: 10;
 	unsigned int interval			: 32;
-	char basename[8];
+	char basename[BMAX_PATH];
 	void Init(IniFile* pIni, char* section);
 };
 
@@ -120,6 +120,18 @@ class COMMENT_SYS_PREFS {
 	public:
 	unsigned int enabled			: 1;
 	unsigned int compareCRC			: 1;
+	void Init(IniFile* pIni, char* section);
+	void Save(IniFile* pIni, char* section);
+};
+
+class FILEBROWSER_PREFS
+{
+	public:
+	unsigned int cols				: 10;
+	unsigned int rows				: 10;
+	unsigned int thumbnails			: 1;
+	unsigned int previewArea		: 1;
+	unsigned int previewStretch		: 1;
 	void Init(IniFile* pIni, char* section);
 	void Save(IniFile* pIni, char* section);
 };
@@ -324,6 +336,7 @@ extern AUTOGRID gAutoGrid;
 extern BEEP gBeep;
 extern COMMENT_SYS_PREFS gCmtPrefs;
 extern COMPATIBILITY gCompat;
+extern FILEBROWSER_PREFS gDirBroPrefs;
 extern LIGHT_BOMB gLightBomb;
 extern IMPORT_WIZARD_PREFS gImportPrefs;
 extern MAPEDIT_HUD_SETTINGS gHudPrefs;

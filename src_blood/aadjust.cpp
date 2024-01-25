@@ -580,8 +580,9 @@ void CleanUp() {
 			{
 				case kMarkerOff:
 				case kMarkerAxis:
-				case kMarkerWarpDest:
 					sprite[i].picnum = 3997;
+					// no break
+				case kMarkerWarpDest:
 					if (xsector[nXSector].marker0 == i)
 						continue;
 					break;

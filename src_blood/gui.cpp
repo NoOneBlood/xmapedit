@@ -34,8 +34,14 @@
 #include "xmpmisc.h"
 
 #define kBlinkTicks		100
-#define kBlinkOnTicks	60
+#define kBlinkOnTicks	80
+#define kRepeatDelay	32
+#define kRepeatInterval	6
+#define kDoubleClick	32
 
+
+static int clickTime[3], downTime[3];
+static BYTE oldbuttons = 0;
 static int blinkClock = 0;
 Container* pRoot = NULL;
 Resource gGuiRes;
@@ -210,6 +216,8 @@ Tile::Tile(int left, int top, int tilenumArg, int scaleXArg, int scaleYArg, int 
 	plu = pluArg;
 	flags = flagsArg;
 	
+	if (tileLoadTile(tilenum))
+		tileDrawGetSize(tilenum, scaleXArg, &width, &height);
 }
 
 
@@ -509,6 +517,9 @@ Container::~Container()
 
 BOOL Container::SetFocus( int dir )
 {
+	if (klabs(dir) == 2 && focus->canFocus)
+		return TRUE;
+	
 	do
 	{
 		if (focus->isContainer)
@@ -539,7 +550,32 @@ void Container::ClearFocus()
 
 BOOL Container::SetFocusOn(Widget* pFocus)
 {
-	for ( Widget *w = head.next; w != &head; w = w->next)
+	ClearFocus();
+	
+	do
+	{
+		if (focus == pFocus)
+		{
+			focus = pFocus;
+			return TRUE;
+		}
+
+		if (focus->isContainer)
+		{
+			if (((Container *)focus)->SetFocusOn(pFocus))
+				return TRUE;
+		}
+
+		focus = focus->next;
+		if (focus == &head)
+			return FALSE;
+	}
+	while ( 1 );
+	return TRUE;
+
+	
+	
+	/*for ( Widget *w = head.next; w != &head; w = w->next)
 	{
 		if (w == pFocus)
 		{
@@ -551,7 +587,7 @@ BOOL Container::SetFocusOn(Widget* pFocus)
 			((Container*)w)->SetFocusOn(pFocus);
 	}
 	
-	return FALSE;
+	return FALSE;*/
 }
 
 
@@ -1209,225 +1245,22 @@ void BitButton::Paint( int x, int y, BOOL /* hasFocus */ )
 		gfxDrawBitmap(pBitmap, cx - pBitmap->width / 2, cy - pBitmap->height / 2);
 }
 
-TextArea::TextArea( int left, int top, int width, int height, char *s ) : EditText( left, top, width, height, "")
+
+char perc2clr(int nPerc)
 {
-	canFocus = TRUE;
-	text = NULL;
-	FormatText(s);
-	memset(placeholder, 0, sizeof(placeholder));
-}
-
-void TextArea::FormatText(char* s, int flags)
-{
-	int i, j, tlen = strlen(s);
-	if (!text)
-	{
-		text = (char*)malloc(tlen + 1);
-		memset(text, 0, tlen);
-	}
+	char nColor;
+	//if (nPerc >= 90)		nColor = kColorLightGreen;
+	if (nPerc >= 80)		nColor = kColorGreen;
+	//else if (nPerc >= 70)	nColor = kColorLightBlue;
+	else if (nPerc >= 60)	nColor = kColorBlue;
+	//else if (nPerc >= 50)	nColor = kColorLightCyan;
+	else if (nPerc >= 40)	nColor = kColorCyan;
+	//else if (nPerc >= 30)	nColor = kColorLightRed;
+	else if (nPerc >= 20)	nColor = kColorRed;
+	else if (nPerc >= 10)	nColor = 28;
+	else					nColor = kColorBlack;
 	
-	lines = 1;
-	for (i = 0; i < tlen; i++)
-	{
-		switch(s[i]) {
-			case '\t':
-				text[i] = ' ';
-				continue;
-			case '\r':
-				if (i+1 < tlen && s[i+1] == '\n')
-				{
-					for (j = i; j < tlen - 1; j++) text[j] = text[j+1];
-					text[j] = 0;
-					continue;
-				}
-				// fallthrough
-			case '\n':
-				text[i] = 0; lines++;
-				continue;
-			default:
-				text[i] = s[i];
-				continue;
-		}
-	}
-	
-	len  = pos = tlen;
-	line = lines;
-}
-
-/* void TextArea::GetCursorPos(int* x, int* y)
-{
-	char* txt;
-	int i = 0, j = 0, k = pos, line, tx, ty;
-	
-	while(i < len)
-	{
-		txt =& text[i];
-		gfxDrawText(tx, ty, gStdColor[0], txt, pFont);
-		ty+=pFont->height+1; i+=strlen(txt)+1;
-	}
-	
-} */
-
-int TextArea::GetLineStartByPos(int pos)
-{
-	int i = pos;
-	do{ i--; } while(i >= 0 && i < len && text[i]);
-	return ClipHigh(i + 1, len - 1);
-}
-
-int TextArea::GetLineByPos(int pos)
-{
-	int i = pos, l = 1;
-	do
-	{
-		i--;
-		if (text[i] == 0)
-			l++;
-	}
-	while(i >= 0);
-	return l;
-}
-
-void TextArea::Paint( int x, int y, BOOL hasFocus )
-{
-	scrDisplayMessage();
-	char* txt;
-	int i, lst = 0, tx = x + 3, ty = y + 3, fh = pFont->height;
-	
-	DrawBevel(x, y, x + width - 1, y + height - 1, kColorShadow, kColorHighlight);
-	DrawRect(x + 1, y + 1, x + width - 2, y + height - 2, gStdColor[0]);
-	gfxSetColor(gStdColor[15]);
-	gfxFillBox(x + 2, y + 2, x + width - 3, y + height - 3);
-
-	if (text)
-	{
-		i = 0;
-		while(i < len)
-		{
-			txt =& text[i];
-			gfxDrawText(tx, ty, gStdColor[0], txt, pFont);
-			ty+=pFont->height+1; i+=strlen(txt)+1;
-		}
-		
-		if (hasFocus && IsBlinkOn())
-		{
-			gfxSetColor(gStdColor[0]);
-			
-			lst = GetLineStartByPos(pos);
-			tx = x + gfxGetTextLen(&text[lst], pFont, pos-lst);
-			ty = y + (line*pFont->height);
-			gfxVLine(tx + 3, ty - (fh>>1), ty + (fh>>1));
-		}
-		
-		sprintf(buffer, "%d / %d", pos, pos-lst);
-		gfxDrawText(x + width - gfxGetTextLen(buffer, pFont), y + height - 10, 0, buffer, pFont);
-		return;
-	}
-	else if (placeholder[0])
-		gfxDrawText(x + 3, y + 3, gStdColor[25], placeholder, pFont);
-	
-	
-}
-
-void TextArea::HandleEvent( GEVENT *event )
-{
-	int lst = 0;
-	if ( event->type & evMouse )
-	{
-		if (event->mouse.button != 0)
-			return;
-
-		switch (event->type)
-		{
-			case evMouseDown:
-			case evMouseDrag:
-				pos = gfxFindTextPos(string, pFont, event->mouse.x - left);
-				SetBlinkOn();
-				event->Clear();
-				break;
-		}
-	}
-	else if ( event->type == evKeyDown )
-	{
-		switch (event->key.make) {
-			case KEY_BACKSPACE:
-				if (pos > 0)
-				{
-					memmove(&string[pos - 1], &string[pos], len - pos);
-					pos--;
-					len--;
-					string[len] = '\0';
-				}
-				event->Clear();
-				break;
-			case KEY_DELETE:
-				if (pos < len)
-				{
-					len--;
-					memmove(&string[pos], &string[pos + 1], len - pos);
-					string[len] = '\0';
-				}
-				event->Clear();
-				break;
-			case KEY_LEFT:
-				if (pos > 0)
-				{
-					if (line > 1)
-					{
-						lst = GetLineStartByPos(--pos);
-						if (pos - lst <= 0)
-						{
-							lst = GetLineStartByPos(pos - 1);
-							pos = lst + strlen(&text[lst]);
-							line = GetLineByPos(pos);
-						}
-					}
-					else
-					{
-						pos--;
-					}
-				}
-				event->Clear();
-				break;
-			case KEY_RIGHT:
-				if (pos < len)
-				{
-					pos++;
-					if (line < lines)
-					{
-						lst = GetLineStartByPos(pos);
-						if (pos >= lst + strlen(&text[lst]))
-						{
-							pos = lst;
-							line = GetLineByPos(pos+2);
-						}
-					}
-				}
-				event->Clear();
-				break;
-			case KEY_HOME:
-				pos = 0;
-				event->Clear();
-				break;
-			case KEY_END:
-				pos = len;
-				event->Clear();
-				break;
-			default:
-				if ( event->key.ascii != 0 )
-				{
-					if ( len < maxlen )
-					{
-						memmove(&string[pos+1], &string[pos], len - pos);
-						string[pos++] = event->key.ascii;
-						string[++len] = '\0';
-					}
-					event->Clear();
-				}
-				break;
-		}
-		SetBlinkOn();
-	}
+	return nColor;
 }
 
 PluPick::PluPick(int left, int top, int width, int height, PLUPICK_PREFS* pArg) : Widget(left, top, width, height)
@@ -1445,23 +1278,6 @@ PluPick::PluPick(int left, int top, int width, int height, PLUPICK_PREFS* pArg) 
 	this->colHg = height / pPrefs->nRows;
 	
 	SetCursor(this->value);
-}
-
-char perc2clr(int nPerc)
-{
-	char nColor;
-	//if (nPerc >= 90)		nColor = kColorLightGreen;
-	if (nPerc >= 80)		nColor = kColorGreen;
-	//else if (nPerc >= 70)	nColor = kColorLightBlue;
-	else if (nPerc >= 60)	nColor = kColorBlue;
-	//else if (nPerc >= 50)	nColor = kColorLightCyan;
-	else if (nPerc >= 40)	nColor = kColorCyan;
-	//else if (nPerc >= 30)	nColor = kColorLightRed;
-	else if (nPerc >= 20)	nColor = kColorRed;
-	else if (nPerc >= 10)	nColor = 28;
-	else					nColor = kColorBlack;
-	
-	return nColor;
 }
 
 void PluPick::Paint( int x, int y, BOOL hasFocus )
@@ -1651,21 +1467,23 @@ void PluPick::ClipStart()
 EditText::EditText( int left, int top, int width, int height, char *s, int flags) : Widget(left, top, width, height)
 {
 	canFocus = TRUE;
-	if (s)
+	memset(string, 0, sizeof(string));
+	memset(placeholder, 0, sizeof(placeholder));
+	
+	if (!isempty(s))
 		strcpy(string, s);
 	
 	this->flags = flags;
 	len = strlen(string), pos = len;
 	maxlen = ClipHigh(width / pFont->width, sizeof(string));
-	memset(placeholder, 0, sizeof(placeholder));
 }
 
 
 void EditText::Paint( int x, int y, BOOL hasFocus )
 {
 	DrawBevel(x, y, x + width - 1, y + height - 1, kColorShadow, kColorHighlight);
-	DrawRect(x + 1, y + 1, x + width - 2, y + height - 2, gStdColor[0]);
-	gfxSetColor(gStdColor[15]);
+	DrawRect(x + 1, y + 1, x + width - 2, y + height - 2, gStdColor[hasFocus ? 0 : 26]);
+	gfxSetColor(gStdColor[hasFocus ? 15 : 16]);
 	gfxFillBox(x + 2, y + 2, x + width - 3, y + height - 3);
 
 	if (string[0]) gfxDrawText(x + 3, y + height / 2 - 4, gStdColor[0], string, pFont);
@@ -1676,7 +1494,7 @@ void EditText::Paint( int x, int y, BOOL hasFocus )
 	{
 		gfxSetColor(gStdColor[0]);
 		int nPos = (pos) ? gfxGetTextLen(string, pFont, pos) : 0;
-		gfxVLine(x + nPos + 3, y + height / 2 - 4, y + height / 2 + 3);
+		gfxVLine(x + nPos + 4, y + height / 2 - 4, y + height / 2 + 3);
 	}
 }
 
@@ -1725,12 +1543,13 @@ void EditText::HandleEvent( GEVENT *event )
 				event->Clear();
 				break;
 
+			case KEY_DOWN:
 			case KEY_LEFT:
 				if (pos > 0)
 					pos--;
 				event->Clear();
 				break;
-
+			case KEY_UP:
 			case KEY_RIGHT:
 				if (pos < len)
 					pos++;
@@ -1889,14 +1708,9 @@ void EditNumber::InsEndChar()
 	}
 }
 
-#define kRepeatDelay	60
-#define kRepeatInterval	6
-#define kDoubleClick	60
 
 GEVENT_TYPE GetEvent( GEVENT *event )
 {
-	static int clickTime[3], downTime[3];
-	static BYTE oldbuttons = 0;
 	BYTE newbuttons;
 	BYTE key;
 
@@ -2104,15 +1918,22 @@ void GUIInit() {
 
 int ShowModal(Container *dialog, int flags)
 {
+	static int getFirstEventTime = 0;
+	
 	GEVENT event;
 	MOUSE mouse = gMouse;
 	gMouse.ChangeCursor(kBitmapMouseCursor);
 	gMouse.RangeSet(0, 0, xdim, ydim);
-	gMouse.wheelDelay = 16;
+	gMouse.wheelDelay = 10;
 	
 	Container desktop(0, 0, xdim, ydim);
 	desktop.Insert(dialog);
 	pRoot = &desktop;
+	
+	memset(clickTime, 	0, sizeof(clickTime));
+	memset(downTime, 	0, sizeof(downTime));
+	oldbuttons = 0;
+	blinkClock = 0;
 	
 	if (!(flags & kModalNoCenter))
 	{
@@ -2121,16 +1942,24 @@ int ShowModal(Container *dialog, int flags)
 		dialog->top = (ydim - dialog->height) >> 1;
 	}
 	
-	// find first item for focus
 	if (!(flags & kModalNoFocus))
-		while (!desktop.SetFocus(+1));
-
+	{
+		if (dialog->focus != &dialog->head)
+		{
+			desktop.SetFocusOn(dialog->focus);
+		}
+		else
+		{
+			// find first item for focus
+			while (!desktop.SetFocus(+2));
+		}
+	}
+	
 	int saveSize = bytesperline * ydim;
 	BYTE *saveUnder = (BYTE *)Resource::Alloc(saveSize);
 	
-	// !!!
-	//if (flags & kModalFadeScreen)
-		//drawHighlight(0, 0, xdim, ydim, gStdColor[0]);
+	if (flags & kModalFadeScreen)
+		gfxFillBoxTrans(0, 0, xdim, ydim, gStdColor[0]);
 
 	// copy save under from last displayed page
 #if USE_POLYMOST
@@ -2142,7 +1971,9 @@ int ShowModal(Container *dialog, int flags)
 		enddrawing();
 	}
 
+	getFirstEventTime = gFrameClock + 16;
 	dialog->isModal = TRUE;
+	
 	while (dialog->isModal)
 	{
 		updateClocks();
@@ -2151,26 +1982,31 @@ int ShowModal(Container *dialog, int flags)
 		
 		gMouse.Read();
 		handleevents();
-		GetEvent(&event);
-
-		// trap certain dialog keys
-		if ( event.type == evKeyDown )
+		
+		if (gFrameClock > getFirstEventTime)
 		{
-			switch (event.key.ascii) {
-				case 27:
-					dialog->EndModal(mrCancel);
-					continue;
-				case 13:
-					dialog->EndModal(mrOk);
-					continue;
-				case 9:
-					if ( event.key.shift ) while (!desktop.SetFocus(-1));
-					else while (!desktop.SetFocus(+1));
-					continue;
+			GetEvent(&event);
+
+			// trap certain dialog keys
+			if ( event.type == evKeyDown )
+			{
+				switch (event.key.ascii) {
+					case 27:
+						dialog->EndModal(mrCancel);
+						continue;
+					case 13:
+						dialog->EndModal(mrOk);
+						continue;
+					case 9:
+						if ( event.key.shift ) while (!desktop.SetFocus(-1));
+						else while (!desktop.SetFocus(+1));
+						continue;
+				}
 			}
+			
+			desktop.HandleEvent(&event);
 		}
 		
-		desktop.HandleEvent(&event);
 		desktop.Paint(0, 0, FALSE);
 		gMouse.Draw();
 		showframe();
@@ -2198,11 +2034,17 @@ int ShowModal(Container *dialog, int flags)
 
 int GetStringBox( char *title, char *s )
 {
+	if (!title)	title	= "";
+	if (!s)		s		= "";
+	
+	const int minWh = ClipLow(pFont->width*strlen(s), 154);
+	const int wh = ClipRange(pFont->width*strlen(s), minWh, xdim-4);
+	
 	// create the dialog
-	Window dialog(0, 0, 168, 40, title);
+	Window dialog(0, 0, wh+14, 42, title);
 
 	// this will automatically be destroyed when the dialog is destroyed
-	EditText *el = new EditText(4, 4, 154, 16, s);
+	EditText *el = new EditText(4, 4, wh, 18, s, 0x01);
 	el->maxlen += 5;
 	dialog.Insert(el);
 
@@ -2219,11 +2061,14 @@ int GetStringBox( char *title, char *s )
 
 int GetNumberBox( char *title, int n, int nDefault )
 {
+	if (!title) title = "";
+	const int wh = ClipRange(pFont->width*strlen(title), 154, xdim-4);
+	
 	// create the dialog
-	Window dialog(0, 0, 168, 40, title);
+	Window dialog(0, 0, wh+14, 42, title);
 
 	// this will automatically be destroyed when the dialog is destroyed
-	EditNumber *en = new EditNumber(4, 4, 154, 16, n);
+	EditNumber *en = new EditNumber(4, 4, wh, 18, n);
 	dialog.Insert(en);
 
 	ShowModal(&dialog);

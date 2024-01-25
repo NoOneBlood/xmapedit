@@ -1,8 +1,8 @@
 /**********************************************************************************
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 2021: Originally written by NoOne.
-// Game GUI based directory explorer and it's variations.
-//
+// Copyright (C) 2023: Originally written by NoOne.
+// Game GUI based directory explorer that supports thumbnail preview generation.
+// Includes simple thumbnail cache system.
 // This file is part of XMAPEDIT.
 //
 // XMAPEDIT is free software; you can redistribute it and/or
@@ -22,39 +22,34 @@
 ***********************************************************************************/
 #ifndef __XMPEXPLO
 #define __XMPEXPLO
-enum {
-kDirExpTypeOpen 	= 0x0000,
-kDirExpTypeSave 	= 0x0001,
-};
 
-enum {
-kDirExpNone			= 0x0000,
-kDirExpAllowRff		= 0x0001,
-kDirExpBak			= 0x0002,
-kDirExpMulti 		= 0x0004,
-kDirExpMultiOrder	= 0x0008,
-kDirExpNoDir		= 0x0010,
-};
-
-enum {
-kDirExpFile			= 0x0001,	// normal file
-kDirExpDir			= 0x0002,	// directory
-kDirExpInside		= 0x0004,	// inside archive
-kDirExpFileBak		= 0x0008,	// BAK file
-};
-
-struct DIR_EXPLORER
+enum
 {
-	unsigned int sel		: 1;
-	unsigned int selid		: 10;
-	unsigned int attr		: 8;
-	char  fullname[32];
-	char  basename[32];
-	char  ext[32];
+	kDirExpSave 		= 0x0001,	// select for save
+	kDirExpMulti 		= 0x0002,	// select for multi-load
+	kDirExpRff			= 0x0004,	// search in game rff when selecting for load and file not found on disk
+	kDirExpNoModPtr		= 0x0008,	// do not modify path argument
+	kDirExpNoKeepPath	= 0x0010,	// do not keep current path when aborting selection
+	kDirExpNoFree		= 0x0020,	// do not realloc to selected files count
 };
 
-char* dirBrowse(char* title, char* path, char* ext, BYTE dlgType = kDirExpTypeOpen, char flags = kDirExpAllowRff);
-int dirBrowseGetFiles(char* path, char* reqExt, DIR_EXPLORER* out, int* dirs, int* files, char flags = 0);
-BOOL enumSelected(int* idx, char* out);
-int countSelected();
+enum
+{
+	kDirExpFile			= 0x0001,	// normal file
+	kDirExpDir			= 0x0002,	// directory
+	kDirExpDisk			= 0x0004,	// disk
+	kDirExpDirMask		= 0x0006,	// disk or directory
+	kDirExpSelected		= 0x0008,	// selected
+	kDirExpNoThumb		= 0x0010,	// has no thumbnail
+};
+
+char* dirBrowse(char* pAPath, char* pFilter, char* pTitle = NULL, int flags = 0);
+char* browseOpen(char* pPath, char* pFilter, char* pTitle = NULL, int flags = 0);
+char* browseOpenFS(char* pPath, char* pFilter, char* pTitle = NULL, int flags = 0);
+char* browseOpenMany(char* pPath, char* pFilter, char* pTitle = NULL, int flags = 0);
+char* browseSave(char* pPath, char* pFilter, char* pTitle = NULL, int flags = 0);
+char dirBrowseEnumItems(int* idx, char* out, int which);
+char dirBrowseEnumSelected(int* idx, char* out);
+int dirBrowseCountItems(int which);
+int dirBrowseCountSelected();
 #endif

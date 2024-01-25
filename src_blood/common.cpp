@@ -42,6 +42,32 @@ unsigned int randSeed = 1;
 int costable[2048];
 BYTE OctantTable[8] = { 5, 6, 2, 1, 4, 7, 3, 0 };
 
+
+void GetSpriteExtents(spritetype* pSpr, int *top, int *bot)
+{
+   int nTile, nSizeY, nYoff;
+
+    *top = *bot = pSpr->z;
+	if ((pSpr->cstat & kSprRelMask) == kSprFloor)
+		return;
+	
+	nTile = pSpr->picnum; nSizeY = tilesizy[nTile];
+	
+	nYoff = panm[nTile].ycenter;
+	if ((pSpr->cstat & kSprFlipY) && (pSpr->cstat & kSprRelMask) == kSprWall)
+		nYoff = -nYoff;
+	
+	*bot = pSpr->z - ((nYoff * pSpr->yrepeat) << 2);
+	if (pSpr->cstat & kSprOrigin)
+	{
+		*bot += ((nSizeY * pSpr->yrepeat) << 1);
+		if (nSizeY & 1)
+			*bot += (pSpr->yrepeat << 1);        //Odd yspans
+	}
+
+	*top = *bot - ((nSizeY * pSpr->yrepeat) << 2);
+}
+
 unsigned int qrand(void)
 {
     if (randSeed&0x80000000)

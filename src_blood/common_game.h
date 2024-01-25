@@ -885,27 +885,7 @@ inline int BiRandom2(int a1)
     return mulscale15(wrand()+wrand(), a1) - a1;
 }
 
-template<typename T> void GetSpriteExtents(T const * const pSprite, int *top, int *bottom)
-{
-    *top = *bottom = pSprite->z;
-	if ((pSprite->cstat & kSprRelMask) == kSprFloor)
-		return;
-	
-
-	int nTile = pSprite->picnum;
-	if (pSprite->cstat & kSprOrigin)
-	{
-		int height = tilesizy[nTile];
-        int center = height / 2 + panm[nTile].ycenter;
-        *top -= (pSprite->yrepeat << 2)*center;
-        *bottom += (pSprite->yrepeat << 2)*(height - center);
-	}
-	else
-	{
-		*top -= (panm[nTile].ycenter + tilesizy[nTile]) * (pSprite->yrepeat << 2);
-	}
-
-}
+void GetSpriteExtents(spritetype* pSprite, int *top, int *bottom);
 
 struct Point
 {
@@ -952,7 +932,15 @@ public:
         x1 += dx;
         y1 += dy;
     }
-
+	
+	void scale(int byX, int byY)
+	{
+		x0 -= byX;
+		y0 -= byY;
+		x1 += byX;
+		y1 += byY;
+	}
+	
     int height()
     {
         return y1 - y0;

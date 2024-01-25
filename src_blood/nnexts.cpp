@@ -1729,12 +1729,8 @@ void idListProcessSightSprite(int32_t nSpr)
 			if (!vector)
 				pSpr->cstat |= kSprHitscan;
 
-			hitsect = hitwall = hitsprite = -1;
-			x = 16384; y = divscale14(searchx - xdim / 2, xdim / 2);
-			RotateVector(&x, &y, ang);
-			hitscan(posx, posy, posz, cursectnum, x, y,
-				scaleZ(searchy, horiz), &hitsect, &hitwall, &hitsprite, &x, &y, &z, CLIPMASK0 | CLIPMASK1);
-
+			camHitscan(&hitsect, &hitwall, &hitsprite, &x, &y, &z, CLIPMASK0 | CLIPMASK1);
+			
 			if (!vector)
 				pSpr->cstat &= ~kSprHitscan;
 

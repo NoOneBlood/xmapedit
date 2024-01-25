@@ -513,7 +513,7 @@ int artedDlgSelPal(char* title, char* path, PALETTE out) {
 
 	while ( 1 )
 	{
-		if ((file = dirBrowse(title, path, types, kDirExpTypeOpen, kDirExpNone)) == NULL) return -1;
+		if ((file = browseOpenFS(path, types, title)) == NULL) return -1;
 		else if ((errMsg = retnCodeCheck(i = palLoad(file, out), gPalErrorsCommon)) != NULL)
 		{
 			getFilename(file, buffer, TRUE);
@@ -978,7 +978,7 @@ int artedDlgSaveSelection(int nTile) {
 	switch (k-=mrUser) {
 		case 0:
 			sprintf(buffer, "Save %d tiles as...", j);
-			if ((filename = dirBrowse(buffer, gPaths.images, ".art", kDirExpTypeSave)) != NULL)
+			if ((filename = browseSave(gPaths.images, ".art", buffer)) != NULL)
 			{
 				plsWait();
 				PALETTE pal;
@@ -1041,7 +1041,7 @@ int artedDlgImportArt(int nTile) {
 	while( 1 )
 	{
 		if (artedDlgSelPal("Load palette of ART file(s)", gPaths.palImport, pal) < 0) return -1;
-		else if (dirBrowse("Import ART file(s)", gPaths.images, ".art", kDirExpTypeOpen, kDirExpMulti) == NULL) continue;
+		else if (browseOpenMany(gPaths.images, ".art", "Import ART file(s)") == NULL) continue;
 		else break;
 	}
 
@@ -1049,8 +1049,8 @@ int artedDlgImportArt(int nTile) {
 	palFixTransparentColor(pal);
 	memcpy(palbck, pal, sizeof(pal));	// backup the palette
 
-	j = countSelected(), i = 0;
-	while(enumSelected(&idx, buffer3))
+	j = dirBrowseCountSelected(), i = 0;
+	while(dirBrowseEnumSelected(&idx, buffer3))
 	{
 		infofs = 0;							// restore extra tile info for next file
 		memcpy(pal, palbck, sizeof(pal));	// restore palette for next file
@@ -1203,7 +1203,7 @@ int artedDlgImportFLOORS(int nTile)
 	
 	int i = 0, j = 0, idx = -1, retn = 0;
 	int hFile, nFloors, nTileTemp, siz = kPicSiz*kPicSiz, noDuplicates = -1;
-	char defaultPal[_MAX_PATH], tmp[300]; BYTE *pTemp, *pTile; PALETTE pal;
+	char defaultPal[_MAX_PATH], tmp[512]; BYTE *pTemp, *pTile; PALETTE pal;
 	
 	sprintf(defaultPal, "%s\\chasm.pal", kPalImportDir);
 	while(i < 80)
@@ -1213,15 +1213,15 @@ int artedDlgImportFLOORS(int nTile)
 	while( 1 )
 	{
 		if (i < 0 && artedDlgSelPal("Load palette", gPaths.palImport, pal) < 0) return -1;
-		else if (dirBrowse("Import FLOOR file(s)", gPaths.images, tmp, kDirExpTypeOpen, kDirExpMulti) != NULL) break;
+		else if (browseOpenMany(gPaths.images, tmp, "Import FLOOR file(s)") != NULL) break;
 		else if (i >= 0)
 			return -1;
 	}
 	
 	palShift(pal);
 	nTileTemp = tileGetBlank();
-	j = countSelected(), i = 0;
-	while(retn >= 0 && enumSelected(&idx, buffer3))
+	j = dirBrowseCountSelected(), i = 0;
+	while(retn >= 0 && dirBrowseEnumSelected(&idx, buffer3))
 	{
 		getFilename(buffer3, buffer, TRUE);
 		sprintf(buffer2, "Processing %s (%d of %d)", buffer, ++i, j);
@@ -1307,10 +1307,10 @@ int artedDlgImportImage(int nTile) {
 	while ( 1 )
 	{
 		errCode = 0;
-		if ((img = dirBrowse("Import images", gPaths.images, types, kDirExpTypeOpen, kDirExpMulti)) == NULL)
+		if ((img = browseOpenMany(gPaths.images, types, "Import images")) == NULL)
 			return -1;
 
-		i = countSelected();
+		i = dirBrowseCountSelected();
 
 		if (!asked)
 		{
@@ -1332,7 +1332,7 @@ int artedDlgImportImage(int nTile) {
 		while ( 1 )
 		{
 			errorMsg = NULL;
-			if (!enumSelected(&idx, tmp))
+			if (!dirBrowseEnumSelected(&idx, tmp))
 				return images;
 
 			while(nTile < gMaxTiles && isSysTile(nTile))
@@ -1593,7 +1593,7 @@ BOOL artedDlgReplaceColor(int nTile) {
 				{
 					if ((i = showButtons(replaceColorSaveMenu, LENGTH(replaceColorSaveMenu), "Save changes") - mrUser) == 0)
 					{
-						if ((plu = dirBrowse("Save palookup", gPaths.palPaint, ".plu", kDirExpTypeSave, kDirExpNone)) == NULL)
+						if ((plu = browseSave(gPaths.palPaint, ".plu")) == NULL)
 							continue;
 
 						i = 0;

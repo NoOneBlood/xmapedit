@@ -40,6 +40,7 @@ AUTOGRID gAutoGrid;
 BEEP gBeep;
 COMMENT_SYS_PREFS gCmtPrefs;
 COMPATIBILITY gCompat;
+FILEBROWSER_PREFS gDirBroPrefs;
 LIGHT_BOMB gLightBomb;
 IMPORT_WIZARD_PREFS gImportPrefs;
 MAPEDIT_HUD_SETTINGS gHudPrefs;
@@ -59,7 +60,7 @@ void AUTOSAVE::Init(IniFile* pIni, char* section)
 {
 	max = ClipRange(pIni->GetKeyInt(section, "MaxSaveCopies", 1), 1, 999);
 	interval = 120 * pIni->GetKeyInt(section, "SaveInterval", 5 * 60);
-	sprintf(basename, "%0.7s", pIni->GetKeyString(section, "FileName", "ASAVE"));
+	strcpy(basename, pIni->GetKeyString(section, "FileName", "ASAVE"));
 }
 
 void AUTOADJUST::Init(IniFile* pIni, char* section)
@@ -181,6 +182,25 @@ void COMPATIBILITY::Init(IniFile* pIni, char* section)
 			gMaxTiles = kMaxTiles - 128;
 			break;
 	}
+}
+
+void FILEBROWSER_PREFS::Init(IniFile* pIni, char* section)
+{
+	previewArea		= pIni->GetKeyBool(section, "ShowPreview", 1);
+	previewStretch	= pIni->GetKeyBool(section, "StretchPreview", 0);
+	thumbnails		= pIni->GetKeyBool(section, "ShowThumbnails", 1);	
+	cols			= ClipHigh(pIni->GetKeyInt(section, "Cols", 0), 16);
+	rows			= ClipHigh(pIni->GetKeyInt(section, "Rows", 0), 16);
+	
+}
+
+void FILEBROWSER_PREFS::Save(IniFile* pIni, char* section)
+{
+	pIni->PutKeyInt(section, "StretchPreview", previewStretch);
+	pIni->PutKeyInt(section, "ShowThumbnails", thumbnails);
+	pIni->PutKeyInt(section, "ShowPreview", previewArea);
+	pIni->PutKeyInt(section, "Cols", cols);
+	pIni->PutKeyInt(section, "Rows", rows);
 }
 
 void IMPORT_WIZARD_PREFS::Init(IniFile* pIni, char* section)
@@ -390,6 +410,17 @@ void PATHS::InitMisc(IniFile* pIni, char* section)
 
 void PATHS::Save(IniFile* pIni, char* section)
 {
+	if (!isFile(maps))
+	{
+		RESHANDLE hRes;
+		if (!fileExists(maps, &hRes))
+		{
+			pIni->KeyRemove(section, "Map");
+			return;
+		}
+		
+	}
+	
 	pIni->PutKeyString(section, "Map", maps);
 }
 
@@ -424,8 +455,8 @@ void SCREEN::Init(IniFile* pIni, char* section)
 	msgTime						= 160;
 	
 	gGamma 						= ClipRange(pIni->GetKeyInt(section, "Gamma", 0), 0, 10);
-	xdim2d = xdimgame			= ClipLow(pIni->GetKeyInt(section, "Width", xdimgame), 640);
-	ydim2d = ydimgame			= ClipLow(pIni->GetKeyInt(section, "Height", ydimgame), 480);
+	xdim2d = xdimgame			= ClipLow(pIni->GetKeyInt(section, "Width", 640), 640);
+	ydim2d = ydimgame			= ClipLow(pIni->GetKeyInt(section, "Height", 480), 480);
 	fullscreen					= pIni->GetKeyBool(section, "Fullscreen", 0);
 	bpp							= 8;
 }

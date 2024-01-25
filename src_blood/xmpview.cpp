@@ -514,9 +514,10 @@ void viewSpriteHighlight(spritetype* pSpr)
 			GetSpriteExtents(pSpr, &x1, &y1, &x2, &y2, &zt, &zb);
 			if ((x1-posx)*(y2-posy) < (x2-posx)*(y1-posy))
 			{
+				x3 = x1+((x2-x1)>>1); y3 = y1+((y2-y1)>>1);
 				nAng = (pSpr->ang + kAng180) & kAngMask;
-				RotatePoint(&x1, &y1, kAng180, pSpr->x, pSpr->y);
-				RotatePoint(&x2, &y2, kAng180, pSpr->x, pSpr->y);
+				RotatePoint(&x1, &y1, kAng180, x3, y3);
+				RotatePoint(&x2, &y2, kAng180, x3, y3);
 			}	
 			break;
 		case kSprFloor:

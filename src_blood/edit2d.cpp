@@ -48,6 +48,7 @@
 DOOR_ROTATE* pGDoorR = NULL;
 DOOR_SLIDEMARKED* pGDoorSM = NULL;
 CIRCLEWALL* pGCircleW = NULL;
+LOOPSHAPE* pGLShape = NULL;
 
 short sectorhighlight;		// which sector mouse is inside in 2d mode
 short pointdrag = -1;
@@ -325,15 +326,25 @@ int findUnusedPath(DIALOG_ITEM* dialog, DIALOG_ITEM *control) {
 
 int findUnusedStack()
 {
-	int i = numsectors, j;
+	int i = numsectors, s, e;
 	IDLIST stacks(true);
 	spritetype* pSpr;
+	walltype* pWall;
 	
 	while(--i >= 0) // collect all the stack data
 	{
-		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+		getSectorWalls(i, &s, &e);
+		while(s <= e)
 		{
-			pSpr = &sprite[j];
+			pWall = &wall[s++];
+			if (pWall->extra > 0 && pWall->type == kWallStack)
+				stacks.AddIfNot(xwall[pWall->extra].data);
+		}
+		
+		
+		for (s = headspritesect[i]; s >= 0; s = nextspritesect[s])
+		{
+			pSpr = &sprite[s];
 			if (pSpr->extra > 0
 				&& irngok(pSpr->type, kMarkerLowLink, kMarkerLowGoo) && pSpr->type != kMarkerWarpDest)
 					stacks.AddIfNot(xsprite[pSpr->extra].data1);
@@ -480,6 +491,123 @@ void clampsprite_TEMP(short nspr) {
 	}
 }
 
+int sectCloneMarker(XSECTOR* pXOwner, spritetype* pWich)
+{
+	int nSpr; spritetype* pSpr;
+	if ((nSpr = InsertSprite(pWich->sectnum, kStatMarker)) < 0)
+		return -1;
+	
+	pSpr = &sprite[nSpr];
+	memcpy(pSpr, pWich, sizeof(spritetype));
+	pSpr->owner = pXOwner->reference;
+	pSpr->index = nSpr;
+	pSpr->extra = -1;
+	
+	switch(pSpr->type)
+	{
+		case kMarkerWarpDest:
+		case kMarkerAxis:
+		case kMarkerOff:
+			pXOwner->marker0 = nSpr; 
+			break;
+		case kMarkerOn:
+			pXOwner->marker1 = nSpr;
+			break;
+	}
+	
+	return nSpr;
+}
+
+char sectClone(int nSrc, int nDstS, int nDstW, int flags)
+{
+	int i, s, e, nWall = nDstW;
+	XSECTOR* pXSect;
+	
+	// clone walls
+	getSectorWalls(nSrc, &s, &e);
+	for (i = s; i <= e; i++, nWall++)
+	{
+		wall[nWall] = wall[i];
+		if (wall[nWall].extra > 0) // fix xwall
+		{
+			wall[nWall].extra					= dbInsertXWall(nWall);
+			xwall[wall[nWall].extra]			= xwall[wall[i].extra];
+			xwall[wall[nWall].extra].reference	= nWall;
+		}
+		
+		wall[nWall].point2 += nDstW-s;
+		if (wall[nWall].nextwall >= 0)
+		{
+			wall[nWall].nextsector	+= nDstS-nSrc;
+			wall[nWall].nextwall	+= nDstW-s;
+		}
+	}
+	
+	if (nWall > nDstW)
+	{
+		// clone sector
+		sector[nDstS]			= sector[nSrc];
+		sector[nDstS].wallnum	= nWall-nDstW;
+		sector[nDstS].wallptr	= nDstW;
+		
+		if (sector[nDstS].extra > 0) // fix xsector
+		{
+			sector[nDstS].extra						= dbInsertXSector(nDstS);
+			xsector[sector[nDstS].extra]			= xsector[sector[nSrc].extra];
+			xsector[sector[nDstS].extra].reference	= nDstS;
+			pXSect = &xsector[sector[nDstS].extra];
+			
+			if (flags & 0x03) // fix marker(s)
+			{
+				if (pXSect->marker0 >= 0 && sprite[pXSect->marker0].statnum == kStatMarker)
+				{
+					if ((i = sectCloneMarker(pXSect, &sprite[pXSect->marker0])) >= 0 && (flags & 0x02))
+					{
+						if (inside(sprite[pXSect->marker0].x, sprite[pXSect->marker0].y, nDstS))
+							ChangeSpriteSect(i, nDstS);
+					}
+				}
+				
+				if (pXSect->marker1 >= 0 && sprite[pXSect->marker1].statnum == kStatMarker)
+				{
+					if ((i = sectCloneMarker(pXSect, &sprite[pXSect->marker1])) >= 0 && (flags & 0x02))
+					{
+						if (inside(sprite[pXSect->marker1].x, sprite[pXSect->marker1].y, nDstS))
+							ChangeSpriteSect(i, nDstS);
+					}
+				}
+			}
+		}
+
+		if (flags & 0x01)
+		{
+			// clone sprites
+			for (i = headspritesect[nSrc]; i >= 0; i = nextspritesect[i])
+			{
+				// ignore these in this loop (even if don't own it)
+				if (sprite[i].statnum == kStatMarker)
+					continue;
+				
+				if ((s = InsertSprite(nDstS, sprite[i].statnum)) < 0)
+					break;
+				
+				sprite[s]			= sprite[i];
+				sprite[s].sectnum	= nDstS;
+				sprite[s].index		= s;
+				
+				if (sprite[s].extra > 0) // fix xsprite
+				{
+					sprite[s].extra						= dbInsertXSprite(s);
+					xsprite[sprite[s].extra]			= xsprite[sprite[i].extra];
+					xsprite[sprite[s].extra].reference	= s;
+				}
+			}
+		}
+	}
+	
+	return 1;
+}
+
 void ProcessKeys2D( void )
 {
 	static int capstat = 0, capx = 0, capy = 0, spridx = -1;
@@ -613,8 +741,18 @@ void ProcessKeys2D( void )
 			if (gridlock)
 				doGridCorrection(&x, &y, grid);
 			
+			// create shape loop
+			if (pGLShape)
+			{
+				if (!capstat)
+				{
+					pGLShape->Start(sectorhighlight, x, y);
+					pGLShape->StatusSet(1);	// started
+					capstat = 1;
+				}
+			}
 			// drag highlight sectors
-			if (highlightsectorcnt > 0)
+			else if (highlightsectorcnt > 0)
 			{
 				if (!capstat) // capture mouse coords first
 				{
@@ -692,17 +830,26 @@ void ProcessKeys2D( void )
 						y -= wall[searchwall].y;
 					}
 					
-					if (!shift)
+					if (!shift && hgltWallCount() > 0)
 					{
-						// a hack to keep sectors panning correctly
-						// see fixupPan() function to understand it
-						if (!gridlock || !grid || grid > 6)
-							doGridCorrection(&x, &y, 6);
-
-						for (i = 0; i < numsectors; i++)
+						i = numsectors;
+						while(--i >= 0)
 						{
 							if (allWallsOfSectorInHglt(i))
-								sectChgXY(i, x, y);
+							{
+								// a hack to keep sectors panning correctly
+								// see fixupPan() function to understand it
+								if (!gridlock || !grid || grid > 6)
+									doGridCorrection(&x, &y, 6);
+								
+								for (j = 0; j <= i; j++)
+								{
+									if (allWallsOfSectorInHglt(j))
+										sectChgXY(j, x, y, 0x01);
+								}
+								
+								break;
+							}
 						}
 					}
 					
@@ -730,8 +877,11 @@ void ProcessKeys2D( void )
 									pSpr->x += x, pSpr->y += y;
 									
 									sect = pSpr->sectnum;
-									if (FindSector(pSpr->x, pSpr->y, &sect) && sect != pSpr->sectnum)
-										ChangeSpriteSect(pSpr->index, sect);
+									if (FindSector(pSpr->x, pSpr->y, pSpr->z, &sect) || FindSector(pSpr->x, pSpr->y, &sect))
+									{
+										if (sect != pSpr->sectnum)
+											ChangeSpriteSect(pSpr->index, sect);
+									}
 								}
 							}
 						}
@@ -740,16 +890,24 @@ void ProcessKeys2D( void )
 				else if (searchstat == OBJ_SPRITE)
 				{
 					spritetype* pSpr =& sprite[searchwall];
-					sect = (sectorhighlight >= 0) ? sectorhighlight : -1;
 					pSpr->x = x, pSpr->y = y;
-					if (sect >= 0)
+
+					sect = ClipLow((sectorhighlight >= 0) ? sectorhighlight : pSpr->sectnum, 0);
+					if (FindSector(pSpr->x, pSpr->y, pSpr->z, &sect) || FindSector(pSpr->x, pSpr->y, &sect))
 					{
-						if (sect != pSpr->sectnum) ChangeSpriteSect(pSpr->index, sect);
-						if (FindSector(pSpr->x, pSpr->y, pSpr->z, &sect) && sect != pSpr->sectnum)
+						if (sect != pSpr->sectnum)
 							ChangeSpriteSect(pSpr->index, sect);
 					}
 					
 					clampsprite_TEMP(searchwall);
+					
+					if (linehighlight >= 0 && alt)
+					{
+						int x1, y1;
+						getclosestpointonwall(pSpr->x, pSpr->y, linehighlight, &x1, &y1);
+						if (sectorofwall(linehighlight) == pSpr->sectnum)
+							pSpr->ang = (GetWallAngle(linehighlight) + kAng90) & kAngMask;
+					}
 				}
 				else if (shift & 0x01)
 				{
@@ -853,63 +1011,72 @@ void ProcessKeys2D( void )
 		}
 		else if (gMouse.release & 1)
 		{
-			fixspritesectors();
 			capstat = 0;
-			CleanUp();
 			
-			for (i = 0; i < numsectors; i++)
+			if (pGLShape)
 			{
-				if (hgltCheck(OBJ_SECTOR, i) < 0)
-					sectorAttach(i);
+				if (pGLShape->StatusGet() == 1)
+					pGLShape->StatusSet(2);	// finished drawing
 			}
-			
-			// fix repeats for walls
-			if ((pointdrag & 0xc000) == 0)
+			else
 			{
-				int x1, y1, x2, y2, x3, y3;
-				int s, k;
+				//fixspritesectors();
+				//CleanUp();
 				
-				j = pointdrag;
-				getWallCoords(j, &x3, &y3);
-				
-				i = numwalls;
-				while(--i >= 0)
+				for (i = 0; i < numsectors; i++)
 				{
-					getWallCoords(i, &x1, &y1, &x2, &y2);
-					if ((x1 == x2 && y1 == y2) && ((x3 == x1 && y3 == y1) || (x3 == x2 && y3 == y2)))
+					if (hgltCheck(OBJ_SECTOR, i) < 0)
+						sectorAttach(i);
+				}
+				
+				// fix repeats for walls
+				if ((pointdrag & 0xc000) == 0)
+				{
+					int x1, y1, x2, y2, x3, y3;
+					int s, k;
+					
+					j = pointdrag;
+					getWallCoords(j, &x3, &y3);
+					
+					i = numwalls;
+					while(--i >= 0)
 					{
-						s = sectorofwall(i);
+						getWallCoords(i, &x1, &y1, &x2, &y2);
+						if ((x1 == x2 && y1 == y2) && ((x3 == x1 && y3 == y1) || (x3 == x2 && y3 == y2)))
+						{
+							s = sectorofwall(i);
+							
+							deletepoint(i);
+							if (rngok(s, 0, numsectors) && sector[s].wallnum <= 1)
+								sectDelete(s);
+							
+							for (k = 0; k < numsectors; k++)
+								sectorAttach(k);
+						}
+					}
+					
+					for (i = 0; i < numwalls; i++)
+					{
+						k = wall[i].point2;
 						
-						deletepoint(i);
-						if (rngok(s, 0, numsectors) && sector[s].wallnum <= 1)
-							sectDelete(s);
+						// current wall
+						if (!(wall[i].cstat & kWallMoveMask)) // skip kinetic motion marked
+						{
+							if (wall[i].x == wall[j].x && wall[i].y == wall[j].y)
+								fixrepeats((short)i); // must be i here!
+						}
 						
-						for (k = 0; k < numsectors; k++)
-							sectorAttach(k);
+						// wall that connects to current one
+						if (!(wall[k].cstat & kWallMoveMask))  // skip kinetic motion marked
+						{
+							if (wall[k].x == wall[j].x && wall[k].y == wall[j].y)
+								fixrepeats((short)i); // must be i here!
+						}
 					}
 				}
 				
-				for (i = 0; i < numwalls; i++)
-				{
-					k = wall[i].point2;
-					
-					// current wall
-					if (!(wall[i].cstat & kWallMoveMask)) // skip kinetic motion marked
-					{
-						if (wall[i].x == wall[j].x && wall[i].y == wall[j].y)
-							fixrepeats((short)i); // must be i here!
-					}
-					
-					// wall that connects to current one
-					if (!(wall[k].cstat & kWallMoveMask))  // skip kinetic motion marked
-					{
-						if (wall[k].x == wall[j].x && wall[k].y == wall[j].y)
-							fixrepeats((short)i); // must be i here!
-					}
-				}
+				pointdrag = -1;
 			}
-			
-			pointdrag = -1;
 		}
 		
 		if (pointdrag < 0)
@@ -962,7 +1129,86 @@ void ProcessKeys2D( void )
 			}
 		}
 		
-		if (pGCircleW)
+		if (pGLShape)
+		{
+			int nStat = pGLShape->StatusGet();
+			sprintf(buffer, "Loop shape");
+			char doSetup = capstat;
+			char* errMsg;
+			
+			OBJECT obj;
+			obj.type = somethingintab; obj.index = tempidx;
+			if (pGLShape->SectorGet() >= 0 && sectorhighlight >= 0)
+				obj.type = OBJ_FLOOR, obj.index = sectorhighlight;
+		
+			if (capstat)
+				pGLShape->Setup(x, y, &obj);
+			
+			if (nStat >= 0 || (errMsg = retnCodeCheck(nStat, gLoopShapeErrors)) == NULL)
+			{
+				if (nStat)
+				{
+					if (nStat == 1)
+						gMapedHud.SetMsgImp(16, "%s: width: %d, height: %d, points: %d", buffer, pGLShape->Width(), pGLShape->Height(), pGLShape->NumPoints());
+					
+					if (nStat == 2)
+						gMapedHud.SetMsgImp(16, "%s: Press SPACE to insert loop", buffer);
+				}
+				else
+				{
+					gMapedHud.SetMsgImp(16, "%s: Hold LEFT MOUSE and move to draw shape", buffer);
+				}
+			}
+			else
+			{
+				gMapedHud.SetMsgImp(16, "%s error: %s", buffer, errMsg);
+			}
+			
+			
+			switch(key)
+			{
+				case KEY_PLUS:
+				case KEY_MINUS:
+				case KEY_SPACE:
+				case KEY_COMMA:
+				case KEY_PERIOD:
+					switch(key)
+					{
+						case KEY_SPACE:
+							if (!alt)
+							{
+								if (Beep(nStat > 0))
+								{
+									pGLShape->Insert(); pGLShape->StatusSet(0);
+									updatesector(posx, posy, &cursectnum);
+								}
+							}
+							break;
+						case KEY_PLUS:
+							pGLShape->AddPoints();
+							break;
+						case KEY_MINUS:
+							pGLShape->RemPoints();
+							break;
+						case KEY_PERIOD:
+							pGLShape->AddAngle();
+							break;
+						case KEY_COMMA:
+							pGLShape->RemAngle();
+							break;
+							
+					}
+					if (key != KEY_SPACE || !alt)
+					{
+						keystatus[key] = 0;
+						BeepOk();
+						key = 0;
+					}
+					break;
+			}
+			
+		}
+		else if (pGCircleW)
 		{
 			gMapedHud.SetMsgImp(16, "Press SPACE to insert %d points here", pGCircleW->count);
 			pGCircleW->Setup(mousxplc, mousyplc);
@@ -1161,15 +1407,38 @@ void ProcessKeys2D( void )
 		
 	switch (key)
 	{
+		
+		case KEY_SPACE:
 		case KEY_C:
 			if (pGDoorSM)	DELETE_AND_NULL(pGDoorSM);
 			if (pGDoorR)	DELETE_AND_NULL(pGDoorR);
 			if (pGCircleW)  DELETE_AND_NULL(pGCircleW);
-			if (Beep(linehighlight >= 0))
+			if (pGLShape)	DELETE_AND_NULL(pGLShape);
+			if (key == KEY_SPACE)
 			{
-				pGCircleW			= new CIRCLEWALL(linehighlight, x, y);
-				pGCircleW->count	= gMisc.circlePoints;
-				break;
+				if (alt)
+				{
+					if ((i = showButtons(gLoopShapeTypes, LENGTH(gLoopShapeTypes), "Select shape type...") - mrUser) >= 0)
+					{
+						pGLShape = new LOOPSHAPE(i, sectorhighlight, x, y);
+						scrSetMessage("Loop shape tool started.");
+						BeepOk();
+					}
+					
+					keystatus[key] = 0;
+					key = 0;
+					break;
+				}
+			}
+	
+			if (key == KEY_C)
+			{
+				if (Beep(linehighlight >= 0))
+				{
+					pGCircleW			= new CIRCLEWALL(linehighlight, x, y);
+					pGCircleW->count	= gMisc.circlePoints;
+					break;
+				}
 			}
 			break;
 		case KEY_X:
@@ -1293,11 +1562,12 @@ void ProcessKeys2D( void )
 			{
 				int nIdx1, nIdx2;
 				int nsects = numsectors, nwalls = numwalls;
+				int nGrid  = (grid <= 0) ? 10 : grid;
 				for (i = 0; i < highlightsectorcnt; i++)
 				{
 					sect = highlightsector[i];
-					copysector(sect, nsects, nwalls, 1);
-					sectChgXY(nsects, 2048>>4, 2048>>4);
+					sectClone(sect, nsects, nwalls, 0x03);
+					sectChgXY(nsects, 2048>>nGrid, 2048>>nGrid);
 					nwalls += sector[sect].wallnum;
 					nsects++;
 				}
@@ -1328,15 +1598,6 @@ void ProcessKeys2D( void )
 				
 				numsectors = nsects, numwalls = nwalls;
 				updatenumsprites();
-				CleanUp();
-				
-				for (j = 0; j < highlightsectorcnt; j++)
-				{
-					findSectorMarker(highlightsector[j], &nIdx1, &nIdx2);
-					if (nIdx1 >= 0) ChangeSpriteSect(nIdx1, highlightsector[j]);
-					if (nIdx2 >= 0) ChangeSpriteSect(nIdx2, highlightsector[j]);
-				}
-				
 				scrSetMessage("%d sector(s) duplicated and stamped.", highlightsectorcnt);
 				BeepOk();
 			}
@@ -1449,6 +1710,26 @@ void ProcessKeys2D( void )
 			scrSetMessage("The wall %d now sector's %d first wall.", linehighlight, sectorhighlight);
 			break;
 		case KEY_G:
+			if (ctrl && alt)
+			{
+				if (grid && highlightcnt > 0 && Confirm("Snap %d wall points to grid %d?", hgltWallCount(), grid))
+				{
+					for (i = 0; i < highlightcnt; i++)
+					{
+						j = highlight[i];
+						if ((j & 0xC000) != 0)
+							continue;
+						
+						doGridCorrection(&wall[j].x, &wall[j].y, grid);
+					}
+					
+					BeepOk();
+					break;
+				}
+				
+				BeepFail();
+				break;
+			}
 			if (ctrl) gAutoGrid.enabled^=1;
 			else if (alt && grid > 0) grid = 0;
 			else grid = (short)ClipLow(IncRotate(grid, (shift) ? kMaxGrids : 7), 1);

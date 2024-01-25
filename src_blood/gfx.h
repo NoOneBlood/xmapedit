@@ -126,6 +126,7 @@ void gfxVLine(int x, int y0, int y1);
 void gfxLine(int x1, int y1, int x2, int y2);
 void gfxRect(int x1, int y1, int x2, int y2);
 void gfxFillBox(int x0, int y0, int x1, int y1);
+void gfxFillBoxTrans(int x1, int y1, int x2, int y2, char color, char transLev = 2);
 void gfxSetClip(int x0, int y0, int x1, int y1);
 void gfxBackupClip();
 void gfxRestoreClip();
@@ -135,6 +136,13 @@ int gfxFindTextPos(char* pzText, QFONT* pFont, int a3);
 void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont = NULL, bool label = false);
 void gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont = NULL, bool label = false);
 void gfxDrawLabel(int, int, int, char*, QFONT* pFont = NULL);
+void gfxDrawTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines = 0x7FFFFFFF);
+void gfxDrawTextRect(Rect* pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines = 0x7FFFFFFF);
+void gfxGetTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines = 0x7FFFFFFF);
 void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade = 0, int nPLU = 0, int nAlign = 0);
 void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup );
 void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags = 0x0);
+
+inline void gfxRect(Rect* pRect)		{ gfxRect(pRect->x0, pRect->y0, pRect->x1, pRect->y1);		}
+inline void gfxFillBox(Rect* pRect)		{ gfxFillBox(pRect->x0, pRect->y0, pRect->x1, pRect->y1);	}
+inline void gfxSetClip(Rect* pRect)		{ gfxSetClip(pRect->x0, pRect->y0, pRect->x1, pRect->y1);	}

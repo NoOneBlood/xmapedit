@@ -25,10 +25,20 @@
 	#define _WIN32_WINNT 0x0600
 #endif
 
-
-#define WIN32_LEAN_AND_MEAN
-
 #include <windows.h>
+
+#if _MSC_VER <= 1400
+	#ifdef DEBUGGINGAIDS
+		#if SUBSYS < 501
+			// this is for IsDebuggerPresent()
+			#ifndef COMPILE_NEWAPIS_STUBS
+				#define COMPILE_NEWAPIS_STUBS
+				#define WANT_ISDEBUGGERPRESENT_WRAPPER
+				#include <newapis.h>
+			#endif
+		#endif
+	#endif
+#endif
 
 #if HAVE_JOYSTICK_SUPP == 1
 #include <xinput.h>
@@ -169,9 +179,8 @@ static char keynames[256][24];
 static const int wscantable[256], wxscantable[256];
 
 
-static unsigned int mouseclock = 0, grabtimer = 0;
-static int omouseparam[3], nmouseparam[3] = {1, 1, 0};
-static char moustat = 0, mousegrab = 0, mouserestoreparam = 0;
+static unsigned int mouseclock = 0;
+static char moustat = 0, mousegrab = 0;
 static int joyblast=0;
 
 static int xinputusernum = -1;
@@ -933,7 +942,9 @@ void setjoypresscallback(void (*callback)(int, int)) { joypresscallback = callba
 
 void UpdateWindowInfo(HWND hWnd)
 {
-	#define kWndPad 10
+	const int kWndPad = 10;
+	int twh, thg;
+	
 	
 	if (!hWnd)
 	{
@@ -945,8 +956,19 @@ void UpdateWindowInfo(HWND hWnd)
 	{
 		GetWindowRect(hWnd, &windowrct);
 		
-		windowrct.top  += kWndPad; windowrct.bottom -= kWndPad;
-		windowrct.left += kWndPad; windowrct.right  -= kWndPad;
+		if (fullscreen)
+		{
+			windowrct.top  += kWndPad; windowrct.bottom -= kWndPad;
+			windowrct.left += kWndPad; windowrct.right  -= kWndPad;
+		}
+		else
+		{
+			twh = (windowrct.right-windowrct.left)-xres;
+			thg = (windowrct.bottom-windowrct.top)-yres;
+			
+			windowrct.left += twh; windowrct.right += twh;	// borders
+			windowrct.top  += thg;							// title
+		}
 		
 		windowcen.x = (windowrct.right  + windowrct.left) >> 1;
 		windowcen.y = (windowrct.bottom + windowrct.top)  >> 1;
@@ -1143,7 +1165,6 @@ static void updatemouse(void)
 	mouseclock = getticks();
 	
 	#if MOUSETYPE == 1
-	if (grabtimer < mouseclock)
 		dinputReadMouse();
 	#endif
 	
@@ -1175,12 +1196,6 @@ void grabmouse(int a)
 	
 	if (a)
 	{
-		if (SystemParametersInfo(SPI_GETMOUSE, 0, omouseparam, 0))
-		{
-			if (SystemParametersInfo(SPI_SETMOUSE, 0, nmouseparam, 0))
-				mouserestoreparam = 1;
-		}
-		
 		#if MOUSETYPE == 1
 		{
 			HRESULT       hr;
@@ -1220,9 +1235,6 @@ void grabmouse(int a)
 		UpdateWindowInfo(hWindow);
 		CenterCursor(hWindow);
 		ShowCursor(FALSE);
-		
-		// a short delay to avoid weird mouse moving after grabbing
-		grabtimer = getticks() + 512;
 	}
 	else
 	{
@@ -1231,13 +1243,7 @@ void grabmouse(int a)
 		#elif MOUSETYPE == 0
 			ReleaseCapture();
 		#endif
-		
-		if (mouserestoreparam)
-		{
-			SystemParametersInfo(SPI_SETMOUSE, 0, omouseparam, 0);
-			mouserestoreparam = 0;
-		}
-				
+			
 		ShowCursor(TRUE);
 		ClipCursor(NULL);
 	}
@@ -1559,7 +1565,10 @@ int setvideomode(int x, int y, int c, int fs)
 	modechange=1;
 	videomodereset = 0;
 	//baselayer_onvideomodechange(c>8);
-
+	
+	if (appactive)
+		grabmouse(1);
+	
 	return 0;
 }
 
@@ -1567,6 +1576,7 @@ int setvideomode(int x, int y, int c, int fs)
 //
 // getvalidmodes() -- figure out what video modes are available
 //
+#if 0
 #define ADDMODE(x,y,c,f,n) if (validmodecnt<MAXVALIDMODES) { \
 	validmode[validmodecnt].xdim=x; \
 	validmode[validmodecnt].ydim=y; \
@@ -1627,6 +1637,9 @@ static void cdsenummodes(void)
 }
 #endif
 
+
+#endif
+
 static int sortmodes(const struct validmode_t *a, const struct validmode_t *b)
 {
 	int x;
@@ -1638,9 +1651,46 @@ static int sortmodes(const struct validmode_t *a, const struct validmode_t *b)
 
 	return 0;
 }
+
 void getvalidmodes(void)
 {
-	static int defaultres[][2] = {
+	DEVMODE d;	
+	int i, j;
+
+	if (!modeschecked)
+	{
+		validmodecnt = 0; // offer best possible video modes
+		for (i = 0; EnumDisplaySettings(NULL, i, &d) && validmodecnt < MAXVALIDMODES; i++)
+		{
+			if (d.dmPelsWidth > MAXXDIM || d.dmPelsHeight > MAXYDIM) continue;
+			if (maxrefreshfreq && d.dmDisplayFrequency > maxrefreshfreq) continue;
+			if (desktopbpp < d.dmBitsPerPel) continue;
+			if (!fullscreen && (d.dmPelsWidth > desktopxdim || d.dmPelsHeight > desktopydim))
+				continue;
+			//if (fullscreen)
+
+			j = validmodecnt;
+			while(--j >= 0 && (validmode[j].xdim != d.dmPelsWidth || validmode[j].ydim != d.dmPelsHeight));
+			
+			if (j < 0) j = validmodecnt++;
+			else if (d.dmBitsPerPel < validmode[j].bpp || d.dmDisplayFrequency < validmode[j].extra)
+				continue;
+			
+			// update existing or add new mode
+			validmode[j].extra	= d.dmDisplayFrequency;
+			validmode[j].xdim	= d.dmPelsWidth;
+			validmode[j].ydim 	= d.dmPelsHeight;
+			validmode[j].bpp	= d.dmBitsPerPel;
+			validmode[j].fs		= 1;
+		}
+		
+		qsort((void*)validmode, validmodecnt, sizeof(struct validmode_t), (int(*)(const void*,const void*))sortmodes);
+		modeschecked = 1;
+	}
+	
+
+	
+	/*static int defaultres[][2] = {
 		{1920,1200},{1920,1080},{1600,1200},{1680,1050},{1600,900},{1400,1050},{1440,900},{1366,768},
 		{1280,1024},{1280,960},{1280,800},{1280,720},{1152,864},{1024,768},{800,600},{640,480},
 		{640,400},{512,384},{480,360},{400,300},{320,240},{320,200},{0,0}
@@ -1667,8 +1717,8 @@ void getvalidmodes(void)
 #endif
 
 	// Windowed modes can't be bigger than the current desktop resolution.
-	maxx = desktopxdim-1;
-	maxy = desktopydim-1;
+	maxx = desktopxdim+1;
+	maxy = desktopydim+1;
 
 	// Windows 8-bit modes
 	for (i=0; defaultres[i][0]; i++) {
@@ -1688,14 +1738,10 @@ void getvalidmodes(void)
 	}
 #endif
 
-	qsort((void*)validmode, validmodecnt, sizeof(struct validmode_t), (int(*)(const void*,const void*))sortmodes);
+	//qsort((void*)validmode, validmodecnt, sizeof(struct validmode_t), (int(*)(const void*,const void*))sortmodes);
 
-	modeschecked=1;
+	modeschecked=1;*/
 }
-
-#undef CHECK
-#undef ADDMODE
-
 
 //
 // resetvideomode() -- resets the video system
@@ -2326,7 +2372,7 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 
 	if (fs)
 	{
-		stylebitsex = WS_EX_TOPMOST;
+		stylebitsex = 0;
 		stylebits = WS_POPUP;
 	}
 	else
@@ -2366,7 +2412,7 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 	}
 	else
 	{
-		SetWindowLong(hWindow,GWL_EXSTYLE,stylebitsex);
+		//SetWindowLong(hWindow,GWL_EXSTYLE,stylebitsex);
 		SetWindowLong(hWindow,GWL_STYLE,stylebits);
 	}
 
@@ -2650,51 +2696,93 @@ static const int wxscantable[256] = {
 /* Fy */ 0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
 };
 
+static void togglePriority(char active)
+{
+	if (backgroundidle)
+		SetPriorityClass( GetCurrentProcess(),
+			active ? NORMAL_PRIORITY_CLASS : IDLE_PRIORITY_CLASS );
+}
+
+static char mouseInsideWindow()
+{
+	POINT c; GetCursorPos(&c);
+	return (c.x >= windowrct.left && c.x <= windowrct.right
+			&& c.y >= windowrct.top && c.y <= windowrct.bottom);
+}
 
 //
 // WndProcCallback() -- the Windows window callback
 //
 static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	RECT rect;
-	POINT pt;
-	HRESULT result;
-
+	// somehow these messages is not working
+	// in the main switch when using OpenGL
+	// and mouse is not grabbed
+	if (appactive && !mousegrab)
+	{
+		POINT c;
+		switch(uMsg)
+		{
+			case WM_LBUTTONDOWN:
+			case WM_RBUTTONDOWN:
+			case WM_MBUTTONDOWN:
+				if (mouseInsideWindow())
+				{
+					grabmouse(1);
+					return 0;
+				}
+				break;
+		}
+	}
+	
 #if USE_OPENGL
 	if (hGLWindow && hWnd == hGLWindow) return DefWindowProc(hWnd,uMsg,wParam,lParam);
 	if (dummyhGLwindow && hWnd == dummyhGLwindow) return DefWindowProc(hWnd,uMsg,wParam,lParam);
 #endif
 		
-	switch (uMsg) {
+	switch (uMsg)
+	{
 		case WM_SYSCOMMAND:
-			if (wParam == SC_SCREENSAVE || wParam == SC_MONITORPOWER) return 0;
-			if (wParam == SC_KEYMENU || wParam == SC_HOTKEY) return 0;
+			switch(wParam)
+			{
+				case SC_MONITORPOWER:
+				case SC_SCREENSAVE:
+				case SC_KEYMENU:
+				case SC_HOTKEY:
+					return 0;
+			}
 			break;
 			
 		case WM_ACTIVATEAPP:
 			appactive = wParam;
-			if (backgroundidle)
-				SetPriorityClass( GetCurrentProcess(),
-					appactive ? NORMAL_PRIORITY_CLASS : IDLE_PRIORITY_CLASS );
-
-			grabmouse(appactive);
-			break;
+			togglePriority(appactive);
+			grabmouse(mouseInsideWindow() && appactive);
+			return 0;
 			
 		case WM_ACTIVATE:
 			appactive = (LOWORD(wParam) != WA_INACTIVE && HIWORD(wParam) == 0);
-			grabmouse(appactive);
+			grabmouse(mouseInsideWindow() && appactive);
+			togglePriority(appactive);
 			return 0;
-
+			
+		case WM_KILLFOCUS:
+			memset(keystatus, 0, sizeof(keystatus));
+			togglePriority(0);
+			appactive = 0;
+			grabmouse(0);
+			return 0;
+			
 		case WM_SIZE:
 			appactive = (wParam != SIZE_MAXHIDE && wParam != SIZE_MINIMIZED);
-			grabmouse(appactive);
+			togglePriority(appactive);
 			return 0;
-
+			
 		case WM_DISPLAYCHANGE:
 			// desktop settings changed so adjust our world-view accordingly
 			desktopxdim = LOWORD(lParam);
 			desktopydim = HIWORD(lParam);
 			desktopbpp  = wParam;
+			resetvideomode();
 			getvalidmodes();
 			break;
 			
@@ -2710,25 +2798,21 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 		case WM_MBUTTONDOWN:
 		case WM_MBUTTONUP:
 		case WM_MOUSEMOVE:
-		//#if SUBSYS >= 501
-			//case WM_XBUTTONDOWN:
-			//case WM_XBUTTONUP:
-		//#endif
-			if (mousegrab && grabtimer < mouseclock)
+			if (mousegrab)
 			{
 				POINT c;
+				GetCursorPos(&c);
 				if (wParam & MK_LBUTTON) mouseb |= 0x01; else mouseb &= ~0x01;
 				if (wParam & MK_RBUTTON) mouseb |= 0x02; else mouseb &= ~0x02;
 				if (wParam & MK_MBUTTON) mouseb |= 0x04; else mouseb &= ~0x04;
 				
-				GetCursorPos(&c);
 				mousex += (c.x - windowcen.x);
 				mousey += (c.y - windowcen.y);
 			}
 			return 0;
 			#if SUBSYS > 400
 				case WM_MOUSEWHEEL:
-					if (mousegrab && grabtimer < mouseclock)
+					if (mousegrab)
 					{
 						int i = (((short)HIWORD(wParam)) < 0) ? 1 : 0;
 						mousewheel[i] = getticks();
@@ -2738,7 +2822,7 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 			#endif
 		#elif MOUSETYPE == 2
 		case WM_INPUT:
-			if (mousegrab && grabtimer < mouseclock)
+			if (mousegrab)
 			{
 				int but;
 				RAWINPUT raw; UINT dwSize = sizeof(RAWINPUT);
@@ -2848,10 +2932,6 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 					SetKey(scan, press);
 				}
 			}
-			return 0;
-		case WM_KILLFOCUS:
-			memset(keystatus, 0, sizeof(keystatus));
-			grabmouse(appactive);
 			return 0;
 		case WM_CHAR:
 			if (appactive)

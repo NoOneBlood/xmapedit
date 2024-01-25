@@ -34,6 +34,7 @@ extern "C" {
 #include "xmpstr.h"
 #include "xmpconf.h"
 #include "xmpmisc.h"
+#include "editor.h"
 
 PALETTE gamepal;
 RGB baseDAC[256];
@@ -274,19 +275,23 @@ void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits)
 	{
 		wh = validmode[i].xdim;
 		hg = validmode[i].ydim;
+		validmode[i].bpp = nBits;
 		
-		if (wh == XRes && hg == YRes && setgamemode(vidMode, wh, hg, bpp) == 0) break;
+		
+		if (wh == XRes && hg == YRes && setgamemode(vidMode, wh, hg, nBits) == 0) break;
 		if (nSafe < 0 && (wh == 640 && (hg == 480 || hg == 400)))
 			nSafe = i;
 	}
 	
 	if (i < 0)
 	{
-		if (nSafe < 0 || setgamemode(vidMode, validmode[nSafe].xdim, validmode[nSafe].ydim, bpp) < 0)
+		buildprintf("Could not set %dx%d resolution, trying to set default...\n", XRes, YRes);
+		if (nSafe < 0 || setgamemode(vidMode, validmode[nSafe].xdim, validmode[nSafe].ydim, nBits) < 0)
 			ThrowError("Unable to set any video mode!");
 	}
 	
     gfxSetClip(windowx1, windowy1, windowx2, windowy2);
+	xdimgame = xdim; ydimgame = ydim;
 }
 
 void scrSave()

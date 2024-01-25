@@ -385,6 +385,34 @@ void tileInitSystemTiles() {
 		gSysTiles.icoVer2 = nTile;
 		gSysTiles.add(nTile);
 	}
+	
+	if ((hIco = gGuiRes.Lookup((unsigned int)5, "TGA")) && (nTile = tileGetBlank()) > 0)
+	{
+		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		gSysTiles.icoFolder1 = nTile;
+		gSysTiles.add(nTile);
+	}
+	
+	if ((hIco = gGuiRes.Lookup((unsigned int)6, "TGA")) && (nTile = tileGetBlank()) > 0)
+	{
+		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		gSysTiles.icoFile1 = nTile;
+		gSysTiles.add(nTile);
+	}
+	
+	if ((hIco = gGuiRes.Lookup((unsigned int)7, "TGA")) && (nTile = tileGetBlank()) > 0)
+	{
+		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		gSysTiles.icoDrive1 = nTile;
+		gSysTiles.add(nTile);
+	}
+	
+	if ((hIco = gGuiRes.Lookup((unsigned int)4, "QBM")) && (nTile = tileGetBlank()) > 0)
+	{
+		qbm2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		gSysTiles.icoDiskette = nTile;
+		gSysTiles.add(nTile);
+	}	
 }
 
 void tileUninitSystemTiles() {
@@ -437,6 +465,30 @@ void tileUninitSystemTiles() {
 	{
 		tilePurgeTile(gSysTiles.icoVer2, TRUE);
 		tileFreeTile(gSysTiles.icoVer2);
+	}
+	
+	if (gSysTiles.icoFolder1)
+	{
+		tilePurgeTile(gSysTiles.icoFolder1, TRUE);
+		tileFreeTile(gSysTiles.icoFolder1);
+	}
+	
+	if (gSysTiles.icoFile1)
+	{
+		tilePurgeTile(gSysTiles.icoFile1, TRUE);
+		tileFreeTile(gSysTiles.icoFile1);
+	}
+	
+	if (gSysTiles.icoDrive1)
+	{
+		tilePurgeTile(gSysTiles.icoDrive1, TRUE);
+		tileFreeTile(gSysTiles.icoDrive1);
+	}
+	
+	if (gSysTiles.icoDiskette)
+	{
+		tilePurgeTile(gSysTiles.icoDiskette, TRUE);
+		tileFreeTile(gSysTiles.icoDiskette);
 	}
 }
 
@@ -1399,6 +1451,18 @@ BOOL tileHasColor(int nTile, char color)
 	return FALSE;
 }
 
+int tileGetUsedColors(int nTile, char colors[256])
+{
+	int i, c = 0;
+	for (i = 0; i < 256; i++)
+	{
+		if (tileHasColor(nTile, i))
+			colors[c++] = 1;
+	}
+	
+	return c;
+}
+
 BYTE tileGetMostUsedColor(int nTile, short noColor)
 {
 	return mostUsedColor(tileLoadTile(nTile), tilesizx[nTile]*tilesizy[nTile], noColor);
@@ -1454,7 +1518,37 @@ void tileDrawGetSize(short pic, int size, int* width, int* height) {
 	
 }
 
+void tileDrawTileRect(Rect** pARect, int flags, int nTile, int nSize, int nPlu, int nShade, int nDrawFlags)
+{
+	Rect* pRect = *pARect;
+	int x1 = pRect->x0, 	y1 = pRect->y0;
+	int x2 = pRect->x1,		y2 = pRect->y1;
+	int wh = x2-x1,			hg = y2-y1;
+	int dx = x1,			dy = y1;
+	
+	
+	int dwh, dhg;
+	tileDrawGetSize(nTile, nSize, &dwh, &dhg);
+	if (flags & ALG_MIDDLE)	dy = y1 + ((hg >> 1) - (dhg >> 1));
+	else if (flags & ALG_BOTTOM)
+		dy = y2 - dhg;
 
+	if (flags & ALG_CENTER)	dx = x1 + ((wh >> 1) - (dwh >> 1));
+	else if (flags & ALG_RIGHT)
+		dx = x2 - dwh;
+	
+	
+	tileDrawTile(dx, dy, nTile, nSize, nPlu, nDrawFlags, nShade);
+	pRect->x0 = dx;		pRect->x1 = dx+dwh;
+	pRect->y0 = dy;		pRect->y1 = dy+dhg;
+
+}
+
+void tileDrawTileRect(Rect* pARect, int flags, int nTile, int nSize, int nPlu, int nShade, int nDrawFlags)
+{
+	Rect* pDummy = new Rect(pARect->x0, pARect->y0, pARect->x1, pARect->y1);
+	tileDrawTileRect(&pDummy, flags, nTile, nSize, nPlu, nShade, nDrawFlags);
+}
 
 void tileDrawTile(int x, int y, short pic, int size, short plu, char flags, schar shade) {
 

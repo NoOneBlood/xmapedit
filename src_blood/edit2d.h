@@ -11,6 +11,7 @@
 #define __EDIT2D_H
 #include "xmphud.h"
 #include "xmpdoorwiz.h"
+#include "xmpshape.h"
 
 extern short sectorhighlight;
 extern short pointdrag;
@@ -59,5 +60,6 @@ class CIRCLEWALL
 extern DOOR_ROTATE* pGDoorR;
 extern DOOR_SLIDEMARKED* pGDoorSM;
 extern CIRCLEWALL* pGCircleW;
+extern LOOPSHAPE* pGLShape;
 
 #endif

@@ -645,10 +645,12 @@ void hglt2Xlist(OBJECT_LIST* pList, char which)
 	}
 }
 
-void hgltRelaceChannel(OBJECT_LIST* pList, int nOld, int nNew, char which)
+char hgltRelaceChannel(OBJECT_LIST* pList, int nOld, int nNew, char which)
 {
 	OBJECT* pObj = pList->Ptr();
 	int nID, nPrev, i, t, tx[4];
+	char rpc = 0;
+	
 	
 	while(pObj->type != OBJ_NONE)
 	{
@@ -656,14 +658,14 @@ void hgltRelaceChannel(OBJECT_LIST* pList, int nOld, int nNew, char which)
 		switch(pObj->type)
 		{
 			case OBJ_SECTOR:
-				if((which & 0x2) && xsector[nID].txID == nOld) xsector[nID].txID = nNew;
-				if((which & 0x1) && xsector[nID].rxID == nOld) xsector[nID].rxID = nNew;
+				if((which & 0x2) && xsector[nID].txID == nOld) xsector[nID].txID = nNew, rpc = 1;
+				if((which & 0x1) && xsector[nID].rxID == nOld) xsector[nID].rxID = nNew, rpc = 1;
 				break;
 			case OBJ_SPRITE:
 				if (which & 0x02)
 				{
 					if (xsprite[nID].txID == nOld)
-						xsprite[nID].txID = nNew;
+						xsprite[nID].txID = nNew, rpc = 1;
 					
 					if (isMultiTx(xsprite[nID].reference))
 					{
@@ -682,6 +684,7 @@ void hgltRelaceChannel(OBJECT_LIST* pList, int nOld, int nNew, char which)
 										{
 											setDataOf(0, nPrev - t, OBJ_SPRITE, xsprite[nID].reference);	// data1
 											setDataOf(3, nPrev, 	OBJ_SPRITE, xsprite[nID].reference);	// data4
+											rpc = 1;
 										}
 										
 										// !!! assign objects to a new range somehow
@@ -696,47 +699,57 @@ void hgltRelaceChannel(OBJECT_LIST* pList, int nOld, int nNew, char which)
 							for (i = 0; i < 4; i++)
 							{
 								if (tx[i] == nOld)
-									setDataOf(i, nNew, OBJ_SPRITE, xsprite[nID].reference);
+									setDataOf(i, nNew, OBJ_SPRITE, xsprite[nID].reference), rpc = 1;
 							}
 						}
 					}
 				}
-				if((which & 0x1) && xsprite[nID].rxID == nOld) xsprite[nID].rxID = nNew;
+				if((which & 0x1) && xsprite[nID].rxID == nOld) xsprite[nID].rxID = nNew, rpc = 1;
 				break;
 			case OBJ_WALL:
-				if((which & 0x2) && xwall[nID].txID == nOld) xwall[nID].txID = nNew;
-				if((which & 0x1) && xwall[nID].rxID == nOld) xwall[nID].rxID = nNew;
+				if((which & 0x2) && xwall[nID].txID == nOld) xwall[nID].txID = nNew, rpc = 1;
+				if((which & 0x1) && xwall[nID].rxID == nOld) xwall[nID].rxID = nNew, rpc = 1;
 				break;
 		}
 		
 		pObj++;
 	}
+	
+	return rpc;
 }
 
 void hgltIsolateChannels(char which)
 {
 	unsigned char used[1024]; const int l = LENGTH(used);
 	OBJECT_LIST hglt; OBJECT* pObj;
-	int i, j;
-	
+	int i, j, k = 0;
+
 	hglt2Xlist(&hglt, which);
 	collectUsedChannels(used);
+	
 	for (i = 100; i < l; i++)
 	{
+		if (k >= LENGTH(used)-100)
+		{
+			ThrowError("Out of free TX/RX channels!");
+			break;
+		}
+		
+		
 		if (used[i] == 1) // must be originally busy channel
 		{
-			for (j = 100; j < l; j++)
+			k++;
+			for (j = 100; j < l ; j++)
 			{
-				if (!used[j])
+				if (used[j] == 0 && hgltRelaceChannel(&hglt, i, j, 0x03)) // replace TX and RX of the matching objects
 				{
-					hgltRelaceChannel(&hglt, i, j, 0x03); // replace TX and RX of the matching objects
-					used[j] = 2; // new used channel
+					if (!collectObjectsByChannel(i, 0, NULL, 0x0))
+						used[i] = 0, k--; // this channel freed
+					
+					used[j] = 2, k++; // new used channel
 					break;
 				}
 			}
-			
-			if (j >= l)
-				ThrowError("Out of free TX/RX channels!");
 		}
 	}
 }
@@ -1237,6 +1250,7 @@ void ED32_updateSectorExclude(int x, int y, int* nSect, OBJECT_LIST* pExclude)
 		
 		s = (*nSect < 0) ? (numsectors >> 1) : *nSect;
 		nHigh = nLow = s;
+		s = 0;
 
 		while(s < numsectors)
 		{

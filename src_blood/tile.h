@@ -38,6 +38,11 @@ struct SYSTEM_TILES{
 	unsigned int icoXmp				: 17;
 	unsigned int icoVer1			: 17;
 	unsigned int icoVer2			: 17;
+	unsigned int icoFolder1			: 17;
+	unsigned int icoFile1			: 17;
+	unsigned int icoDrive1			: 17;
+	unsigned int icoDiskette		: 17;
+	unsigned int icoPreview			: 17;
 	STATUS_BIT1 busy[kMaxTiles];
 	BOOL isBusy(int nTile) 	{ return (BOOL)busy[nTile].ok; }
 	void add(int nTile) 	{ busy[nTile].ok = 1; }
@@ -85,6 +90,8 @@ kTilePickFlgAllowEmpty		= 0x01,
 };
 
 int tilePick(int nTile, int nDefault, int type, char* titleArg = NULL, char flagsArg = 0x0);
+void tileDrawTileRect(Rect** pARect, int flags, int nTile, int nSize, int nPlu, int nShade, int nDrawFlags = 0x02);
+void tileDrawTileRect(Rect* pARect, int flags, int nTile, int nSize, int nPlu, int nShade, int nDrawFlags = 0x02);
 void tileDrawTile(int x, int y, short pic, int size, short plu, char flags, schar shade = 0);
 void tileDrawGetSize(short pic, int size, int* width, int* height);
 int tileGetPic(int nTile);
@@ -97,6 +104,7 @@ short tileGetBlank();
 BYTE tileGetMostUsedColor(int nTile, short noColor = 255);
 int tileReplaceColor(int nTile, char colorA, char colorB = 255);
 BOOL tileHasColor(int nTile, char color);
+int tileGetUsedColors(int nTile, char colors[256]);
 int tileCountColors(int nTile);
 int tileExists(BYTE* image, int wh, int hg);
 

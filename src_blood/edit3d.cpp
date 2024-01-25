@@ -773,7 +773,6 @@ enum {
 	mrModern,
 	mrPrefabPut,
 	mrPrefabAdd,
-	mrPrefabRem,
 };
 
 int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
@@ -781,6 +780,7 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
 
 	int i, j, t, pfbAng = 0;
 	char* filename = NULL;
+	int pfbThumb = -1;
 
 	Window dialog(0, 0, 135, ydim, "Game objects");
 	dialog.height = 112;
@@ -793,20 +793,18 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
 	dialog.Insert(new TextButton( 66, 48, 60, 20,  "&Misc",     mrMisc ));
 	dialog.Insert(new TextButton( 4,  70, 60, 20,  "Mar&ker",   mrMarker ));
 	dialog.Insert(new TextButton( 66, 70, 60, 20,  "&Faves",    mrFavesPut ));
-	if (gMisc.showTypes > 1) {
-
+	if (gMisc.showTypes > 1)
+	{
 		dialog.Insert(new TextButton( 4, 92, 122, 20,  "Modern &Types",	mrModern ));
 		dialog.height+=22;
-
 	}
 
 	dialog.Insert(new Label(6, dialog.height - 8, "PREFABS. . . . . . . . . ."));
 
 	dialog.height+=22;
 
-	dialog.Insert(new TextButton(4,    dialog.height - 20, 40, 20,  "I&ns",     mrPrefabPut));
-	dialog.Insert(new TextButton(44,   dialog.height - 20, 42, 20,  "Sa&ve",     mrPrefabAdd));
-	dialog.Insert(new TextButton(86,   dialog.height - 20, 40, 20,  "&Del",     mrPrefabRem));
+	dialog.Insert(new TextButton(4,    dialog.height - 20, 60, 20,  "I&nsert",	mrPrefabPut));
+	dialog.Insert(new TextButton(66,   dialog.height - 20, 60, 20,  "Sa&ve",	mrPrefabAdd));
 
 	dialog.height+=22;
 
@@ -845,77 +843,77 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
 			pSpr = InsertModernSpriteType(nSector, x, y, z, nAngle);
 			break;
 		case mrPrefabPut:
-			if ((filename = dirBrowse("Insert prefab", gPaths.prefabs, kPrefabFileExt)) == NULL) break;
-			switch (pfbInsert(filename, where, nSector, x, y, z)) {
-				default: scrSetMessage("The prefab inserted at x:%d, y:%d, z:%d.", x, y, z); return -1;
-				case -1: Alert("Must insert in a sector.");   break;
-				case -3: Alert("Wrong prefab file version."); break;
-				case -4: Alert("Too many sprites!"); return -1;
-				//case -5: Alert("This prefab is not designed for walls."); break;
-				case -2:
-				case  0: // zero sprites was created
-					Alert("File \"%s\" is corrupted or not exist.");
-					break;
-			}
-			break;
-		case mrPrefabRem:
-			while ( 1 ) {
-				if ((filename = dirBrowse("Delete prefab", gPaths.prefabs, kPrefabFileExt)) == NULL) break;
-				else if (Confirm("Delete file \"%s\"?", filename)) {
-					if (pfbRemove(filename))
-						scrSetMessage("File deleted.");
+			if ((filename = browseOpenFS(gPaths.prefabs, kPrefabFileExt, "Insert prefab")) != NULL)
+			{
+				int objIdx;
+				switch(where)
+				{
+					case OBJ_WALL:
+					case OBJ_MASKED:
+						objIdx = searchwall2;
+						break;
+					case OBJ_FLOOR:
+					case OBJ_CEILING:
+						objIdx = searchsector;
+						break;
+					default:
+						objIdx = searchwall;
+						break;
+				}
+
+				switch (pfbInsert(filename, where, objIdx, nSector, x, y, z, posz))
+				{
+					case -1: Alert("Must insert in a sector.");		break;
+					case -3: Alert("Wrong file version.");			break;
+					case -4: Alert("Too many sprites!");			break;
+					case -2:
+					case  0: // zero sprites was created
+						Alert("File \"%s\" is corrupted.", filename);
+						break;
+					default:
+						scrSetMessage("The prefab inserted at x:%d, y:%d, z:%d.", x, y, z);
+						return -1;
 				}
 			}
 			break;
 		case mrPrefabAdd:
-			if ((i = hgltSprCount()) < kMinPrefabSprites || i >= kMaxPrefabSprites) {
-				Alert("You must highlight from %d to %d sprites first.", kMinPrefabSprites, kMaxPrefabSprites);
-				break;
+			if ((i = hgltSprCount()) < kMinPrefabSprites)
+			{
+				Alert("You must highlight at least %d sprites first.", kMinPrefabSprites);
+				return -1;
 			}
-			i = 0;
-			while ( 1 ) {
-
-				if ((filename = dirBrowse("Save prefab", gPaths.prefabs, kPrefabFileExt, kDirExpTypeSave, 0)) == NULL) return -1;
-				if (fileExists(filename) && !Confirm("Overwrite existing file?"))
-					continue;
-
-				// pick face side of the prefab (for walls)
-				while ( 1 ) {
-
-					switch (pfbAng = pfbDlgFaceAngDefine()) {
-						case mrOk:
-							Alert("Define face side of the prefab by selecting one of arrows.");
-							continue;
-						case mrCancel:
+			
+			while ( 1 )
+			{
+				if (pfbDlgOptions(&pfbAng, &pfbThumb) == mrOk)
+				{
+					if ((filename = browseSave(gPaths.prefabs, kPrefabFileExt)) == NULL)
+						continue;
+					
+					if (fileExists(filename) && !Confirm("Overwrite existing file?"))
+						continue;
+					
+					switch (pfbAdd(filename, pfbAng, pfbThumb))
+					{
+						case  0:
+							Alert("Failed to save prefab. All sprites were wrong!");
+							unlink(filename);
+							break;
+						case -1:
+							Alert("Failed to save prefab. Previous file exists!");
 							break;
 						default:
-							if (pfbAng < mrUser) continue;
-							else if (pfbAng - mrUser == kAng360 && !Confirm("Are you sure?")) continue;
-							else pfbAng -= mrUser;
-							i = 1;
+							scrSetMessage("Prefab saved.");
 							break;
 					}
-
-					break;
 				}
-
-				if (i > 0)
-					break;
-
+				
+				if (pfbThumb >= 0)
+					tileFreeTile(pfbThumb);
+				
+				break;
 			}
-			switch (pfbAdd(filename, pfbAng)) {
-				case  0:
-					Alert("Failed to save prefab. All sprites were wrong!");
-					pfbRemove(filename);
-					break;
-				case -1:
-					Alert("Failed to save prefab. Previous file exists!");
-					break;
-				default:
-					scrSetMessage("Prefab saved.");
-					break;
-			}
-			break;
+			return -1;
 	}
 
 	if (pSpr == NULL)
@@ -1378,13 +1376,11 @@ int spriteText(const char* text, TILEFONT* pFont, unsigned char nSize, int nSpac
 	int nWidth = 0, i, zt, zb, t;
 	int nAng;
 	
+	short cstat = kSprOneSided | kSprHitscan;
 	short hsc = -1, hw = -1, hsp;
-	short cstat = kSprOneSided;
 	const char* p = text;	
 	
-	hitscan(posx, posy, posz, cursectnum, Cos(ang)>>16, Sin(ang)>>16,
-		scaleZ(searchy, horiz), &hsc, &hw, &hsp, &pos.x, &pos.y, &pos.z, 0);
-	
+	camHitscan(&hsc, &hw, &hsp, &pos.x, &pos.y, &pos.z, 0);
 	if (hsc < 0)
 		return -1;
 	
@@ -1719,7 +1715,8 @@ void ProcessKeys3D( void )
 		} // drag sprites while holding left mouse
 		else if ((mhold & 1) && (searchstat == OBJ_SPRITE && sprite[searchwall].statnum < kStatFree) && (gMousePrefs.controls & 0x0001))
 		{
-			gMouse.VelocitySet(ClipLow(gMouse.velX >> 2, 10), ClipLow(gMouse.velY >> 2, 10), false);
+			if (gMouseLook.mode || rfirst)
+				gMouse.VelocitySet(ClipLow(gMouse.velX >> 2, 10), ClipLow(gMouse.velY >> 2, 10), false);
 			
 			gHighSpr = searchwall;
 			BOOL inHglt = sprInHglt(gHighSpr);
@@ -1728,12 +1725,7 @@ void ProcessKeys3D( void )
 			if (ztofs == 0x80000000 || zbofs == 0x80000000)
 				sprGetZOffsets((short)gHighSpr, &ztofs, &zbofs); // keep z-offsets
 
-			hitsect = hitwall = hitsprite = -1;
-			x = 16384; y = divscale14(searchx - xdim / 2, xdim / 2);
-			RotateVector(&x, &y, ang);
-			hitscan(posx, posy, posz, cursectnum, x, y,
-				scaleZ(searchy, horiz), &hitsect, &hitwall, &hitsprite, &hitx, &hity, &hitz, 0);
-
+			camHitscan(&hitsect, &hitwall, &hitsprite, &hitx, &hity, &hitz, 0);
 			x = hitx; y = hity; z = hitz;
 
 
@@ -2059,20 +2051,23 @@ void ProcessKeys3D( void )
 				switch (searchstat)
 				{
 					case OBJ_CEILING:
+					{
+						z = (sector[searchsector].floorz - sector[searchsector].ceilingz) / 256;
+						z = GetNumberBox("height off floor", z, z) * 256;
+						z = (sector[searchsector].floorz - z) - sector[searchsector].ceilingz;
+						ProcessHighlightSectors(SetCeilingRelative, z);
+						z = sector[searchsector].ceilingz;
+						break;
+					}
 					case OBJ_FLOOR:
 					{
-						sprintf(buffer, "height off %s", gSearchStatNames[searchstat]);
-						i = (searchstat == OBJ_FLOOR);
-						
-						sectortype* pSect = &sector[searchindex];
-						z = (pSect->floorz - pSect->ceilingz) / 256;
-						z = GetNumberBox(buffer, z, z) * 256;
-						z = (pSect->floorz - z) - pSect->ceilingz;
-						
-						ProcessHighlightSectors((i) ? SetFloorRelative : SetCeilingRelative, z);
-						z = (i) ? pSect->floorz : pSect->ceilingz;
+						z = (sector[searchsector].floorz - sector[searchsector].ceilingz) / 256;
+						z = GetNumberBox("height off ceiling", z, z) * 256;
+						z = (sector[searchsector].ceilingz + z) - sector[searchsector].floorz;
+						ProcessHighlightSectors(SetFloorRelative, z);
+						z = sector[searchsector].floorz;
+						break;
 					}
-					break;
 					case OBJ_SPRITE:
 						if (sprInHglt(searchindex))
 						{
@@ -2854,6 +2849,9 @@ void ProcessKeys3D( void )
 						sectCstatAdd(searchsector, (BYTE)i, searchstat);
 						break;
 					case OBJ_SPRITE:
+					{
+						int zTopOld, zTopNew;
+						GetSpriteExtents(&sprite[searchwall], &zTopOld, &i);
 						i = sprite[searchwall].cstat;
 						
 						// two-sided floor sprite?
@@ -2885,7 +2883,10 @@ void ProcessKeys3D( void )
 							strcat(buffer," y-flipped");
 						}
 						scrSetMessage(buffer);
+						GetSpriteExtents(&sprite[searchwall], &zTopNew, &i);
+						sprite[searchwall].z += (zTopOld-zTopNew); // compensate Z (useful for wall sprites)
 						break;
+					}
 				}
 				BeepOk();
 			}
@@ -2978,7 +2979,8 @@ void ProcessKeys3D( void )
 			}
 			break;
 		case KEY_O:
-			switch (searchstat) {
+			switch (searchstat)
+			{
 				default:
 					BeepFail();
 					break;
@@ -2992,42 +2994,54 @@ void ProcessKeys3D( void )
 					break;
 				// O (ornament onto wall)
 				case OBJ_SPRITE:
-				{
-					if (alt) {
+					if (ctrl)
+					{
+						if (sprite[searchwall].z > sector[sprite[searchwall].sectnum].floorz)
+						{
+							scrSetMessage("%s[%d].z is below floor", gSearchStatNames[searchstat], searchwall);
+							BeepFail();
+							break;
+						}
+
+						if (sprite[searchwall].z < sector[sprite[searchwall].sectnum].ceilingz)
+						{
+							scrSetMessage("%s[%d].z is above ceiling", gSearchStatNames[searchstat], searchwall);
+							BeepFail();
+							break;
+						}
+						
+						int nAng = ang;
+						if (alt)
+							nAng = sprite[searchwall].ang + kAng180;
+						
+						int nx, ny;
+						int hitType = HitScan(&sprite[searchwall], sprite[searchwall].z,Cos(nAng) >> 16, Sin(nAng) >> 16, 0, BLOCK_NONE, 0);
+						switch(hitType)
+						{
+							case OBJ_WALL:
+							case OBJ_MASKED:
+								GetWallNormal(gHitInfo.hitwall, &nx, &ny);
+								sprite[searchwall].x = gHitInfo.hitx + (nx >> 14);
+								sprite[searchwall].y = gHitInfo.hity + (ny >> 14);
+								sprite[searchwall].z = gHitInfo.hitz;
+								ChangeSpriteSect(searchwall, gHitInfo.hitsect);
+								sprite[searchwall].ang = (short)((GetWallAngle(gHitInfo.hitwall) + kAng90) & kAngMask);
+								scrSetMessage("%s ornamented onto wall %d\n", gSearchStatNames[searchstat], gHitInfo.hitwall);
+								BeepOk();
+								break;
+							default:
+								BeepFail();
+								break;
+						}
+					}
+					else if (alt)
+					{
 						sprite[searchwall].cstat ^= kSprOrigin;
-						scrSetMessage("sprite[%d] origin align is %s", searchwall, onOff((sprite[searchwall].cstat & kSprOrigin)));
+						scrSetMessage("%s[%d] origin align is %s", gSearchStatNames[searchstat], searchwall, onOff((sprite[searchwall].cstat & kSprOrigin)));
 						BeepOk();
 						break;
 					}
-					if (!ctrl) break;
-					else if (sprite[searchwall].z > sector[sprite[searchwall].sectnum].floorz) {
-						scrSetMessage("sprite[%d].z is below floor", searchwall);
-						BeepFail();
-						break;
-					}
-
-					if (sprite[searchwall].z < sector[sprite[searchwall].sectnum].ceilingz) {
-						scrSetMessage("sprite[%d].z is above ceiling", searchwall);
-						BeepFail();
-						break;
-					}
-
-					int hitType = HitScan(&sprite[searchwall], sprite[searchwall].z,Cos(ang) >> 16, Sin(ang) >> 16, 0, BLOCK_NONE, 0);
-					if (hitType != OBJ_WALL && hitType != OBJ_MASKED) {
-						BeepFail();
-						break;
-					}
-
-					int nx, ny;
-					GetWallNormal(gHitInfo.hitwall, &nx, &ny);
-					sprite[searchwall].x = gHitInfo.hitx + (nx >> 14);
-					sprite[searchwall].y = gHitInfo.hity + (ny >> 14);
-					sprite[searchwall].z = gHitInfo.hitz;
-					ChangeSpriteSect(searchwall, gHitInfo.hitsect);
-					sprite[searchwall].ang = (short)((GetWallAngle(gHitInfo.hitwall) + kAng90) & kAngMask);
-					BeepOk();
 					break;
-				}
 			}
 			break;
 		case KEY_P:

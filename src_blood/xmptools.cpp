@@ -192,19 +192,21 @@ void cpyRestoreObject(int type, int idx) {
 }
 
 
-BOOL toolSaveAs(char* path, char* ext) {
-	return (dirBrowse("Save file as", path, ext, kDirExpTypeSave, 0) != NULL);
+BOOL toolSaveAs(char* path, char* ext)
+{
+	return (browseSave(path, ext, NULL) != NULL);
 }
 
-BOOL toolLoadAs(char* path, char* ext, char* title) {
-	return (dirBrowse(title, path, ext) != NULL);
+BOOL toolLoadAs(char* path, char* ext, char* title)
+{
+	return (browseOpen(path, ext, title) != NULL);
 }
 
 int toolLoadAsMulti(char* path, char* ext, char* title)
 {
 	int i = 0;
-	if (dirBrowse(title, path, ext, kDirExpTypeOpen, kDirExpMulti) != NULL)
-		i = countSelected();
+	if (browseOpenMany(path, ext, title) != NULL)
+		i = dirBrowseCountSelected();
 
 	return i;
 }
@@ -1283,8 +1285,15 @@ int toolMapArtGrabber(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, i
 				else
 				{
 					k = i + pics[i].rng;
-					for (j = i; j < k; j++, i++)
-						pics[j].newnum = nStartTile++;
+					if (i < k)
+					{
+						for (j = i; j < k; j++, i++)
+							pics[j].newnum = nStartTile++;
+					}
+					else
+					{
+						i++;
+					}
 				}
 			}
 			else if (gSysTiles.isBusy(nStartTile)) i = -5;
@@ -1883,7 +1892,7 @@ int IMPORT_WIZARD::ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg)
 						
 						k = -1;
 						nArtFiles = 0, i = -1;
-						while(enumSelected(&i, tmp))
+						while(dirBrowseEnumSelected(&i, tmp))
 						{
 							errMsg = NULL;
 							pArtFiles = (ARTFILE*)realloc(pArtFiles, sizeof(ARTFILE)*(nArtFiles+1));

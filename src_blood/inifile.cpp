@@ -69,9 +69,10 @@ IniFile::IniFile(char* fileName, char flags)
 			{
 				read(hFil, pRaw, nLength); pRaw[nLength] = '\0';
 				Load(pRaw, nLength+1);
-				close(hFil);
 				free(pRaw);
 			}
+			
+			close(hFil);
 		}
 		
 		sprintf(filename, "%s", fileName);
@@ -468,20 +469,11 @@ int IniFile::KeyFind(char* section, char* key)
 	return -1;
 }
 
-int IniFile::KeyAdd(char* section, char* hiWord, char* loWord)
+int IniFile::KeyAddNew(char* section, char* hiWord, char* loWord)
 {
-	ININODE newNode, *pNode;
+	ININODE newNode;
 	int nID;
 	
-	if ((nID = KeyFind(section, hiWord)) >= 0)
-	{
-		pNode = &node[nID];
-		NodeSetWord(&pNode->hiWord, hiWord);
-		NodeSetWord(&pNode->loWord, loWord);
-		pNode->type = (pNode->loWord) ? kIniNodeKeySep : kIniNodeKeyStr;
-		return nID;
-	}
-		
 	memset(&newNode, 0, sizeof(newNode));
 	NodeSetWord(&newNode.hiWord, hiWord);
 	NodeSetWord(&newNode.loWord, loWord);
@@ -497,6 +489,23 @@ int IniFile::KeyAdd(char* section, char* hiWord, char* loWord)
 	}
 	
 	return NodeAdd(&newNode, nID);
+}
+
+int IniFile::KeyAdd(char* section, char* hiWord, char* loWord)
+{
+	ININODE *pNode;
+	int nID;
+	
+	if ((nID = KeyFind(section, hiWord)) >= 0)
+	{
+		pNode = &node[nID];
+		NodeSetWord(&pNode->hiWord, hiWord);
+		NodeSetWord(&pNode->loWord, loWord);
+		pNode->type = (pNode->loWord) ? kIniNodeKeySep : kIniNodeKeyStr;
+		return nID;
+	}
+	
+	return KeyAddNew(section, hiWord, loWord);
 }
 
 void IniFile::KeyRemove(char* section, char* hiWord)

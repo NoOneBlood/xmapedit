@@ -56,6 +56,9 @@
 #include "edit3d.h"
 #include "xmpstr.h"
 #include "crc32.h"
+#include "osd.h"
+
+
 
 IniFile* gHints = NULL;
 
@@ -681,35 +684,31 @@ void process2DMode() {
 			{
 				tcolor = kColorRed;
 				bcolor = kColorYellow;
-				sprintf(compat, "MODERN");
+				strcpy(compat, "MODERN");
 			}
 			else
 			{
 				tcolor = kColorWhite;
 				bcolor = kColorGreen;
-				sprintf(compat, "VANILLA");
+				strcpy(compat, "VANILLA");
 			}
 
 			gTimers.compatCheck = totalclock;
 		}
 
-		if (totalclock >= gTimers.diskPic)
-		{
-			len = gfxGetTextLen(compat, pFont);
-
-			pad <<= 1;
-			x = xdim-len-pad, y = pad; pad >>= 1;
-			gfxSetColor(gStdColor[bcolor]);
-			gfxFillBox(x-pad, y-pad, x+len+pad, y+pFont->height+pad);
-			gfxDrawText(x, y, gStdColor[tcolor], compat, pFont);
-		}
+		pad <<= 1;
+		len = gfxGetTextLen(compat, pFont);
+		x = xdim-len-pad, y = pad; pad >>= 1;
+		gfxSetColor(clr2std(bcolor));
+		gfxFillBox(x-pad, y-pad, x+len+pad, y+pFont->height+pad);
+		gfxDrawText(x, y, clr2std(tcolor), compat, pFont);
 	}
 }
 
-void processDrawRooms()
+void processDrawRooms(int camx, int camy, int camz, int cama, int camh, int nSect)
 {
 	ExtPreCheckKeys();
-	drawrooms(posx,posy,posz,ang,horiz,cursectnum);
+	drawrooms(camx, camy, camz, cama, camh, nSect);
 	ExtAnalyzeSprites();
 	drawmasks();
 }
@@ -748,9 +747,10 @@ void process3DMode() {
  **********************************************************************/
 void ExtCheckKeys( void )
 {
-	int i, x, y, len, nLayout;
+	int y, nLayout;
 	static int oldnumwalls = 0, oldnumsectors = 0, oldnumsprites = 0;
 	static int omode, oxdim, oydim; static OBJECT object;
+	static char hudLogoChanged = 0;
 	char fullLayout;
 	
 	if (qsetmode == 200)
@@ -785,7 +785,7 @@ void ExtCheckKeys( void )
 		omode = qsetmode; oxdim = xdim; oydim = ydim;
 	}
 		
-	h = (gFrameClock & kHClock) ? 8 : 0;
+	h = (totalclock & kHClock) ? 8 : 0;
 	updateClocks();
 	
 	if (gMapedHud.draw)
@@ -833,27 +833,23 @@ void ExtCheckKeys( void )
 			CleanUp();
 		}
 
-		int dy = (totalclock < gScreen.msg[0].time) ? 14 : 4;
-		if (hgltShowStatus(4, dy))
-			dy+=14;
+		y = (totalclock < gScreen.msg[0].time) ? 14 : 4;
+		if (hgltShowStatus(4, y))
+			y+=14;
 
-		objectLockShowStatus(4, dy);
-		if (gFrameClock > gTimers.autosave + gAutosave.interval)
+		objectLockShowStatus(4, y);
+		if (totalclock > gTimers.autosave)
 		{
-			gTimers.autosave = gFrameClock;
 			if (asksave)
 			{
-				asksave = FALSE; gTimers.diskPic = totalclock + 128;
-				
-				gAutosave.current++;
-				if (gAutosave.current > gAutosave.max)
-					gAutosave.current = 1;
-
-				getPath(gPaths.maps, buffer, FALSE);
-				sprintf(buffer2, "%s%s%d", buffer, gAutosave.basename, gAutosave.current);
-				ChangeExtension(buffer2, gExtNames[kMap]);
-				boardSave(buffer2, TRUE);
+				gMapedHud.SetLogo("AUTOSAVE...", pFont->charSpace*4, gSysTiles.icoDiskette);
+				gTimers.diskPic = totalclock + 128;
+				hudLogoChanged = 1;
+				boardSaveAuto();
+				asksave = 0;
 			}
+			
+			gTimers.autosave = totalclock + gAutosave.interval;
 		}
 	}
 	else
@@ -864,13 +860,13 @@ void ExtCheckKeys( void )
 	keyGetHelper(&key, &ctrl, &shift, &alt);
 	if ((key) && (gPreviewMode && (previewProcessKeys() || !previewCheckKey(key))) || (processKeysShared()))
 	{
-		keyClear();
 		keystatus[key] = 0;
+		keyClear();
 		key = 0;
 	}
 	
-	CalcFrameRate();
 	scrDisplayMessage();
+	CalcFrameRate();
 
 	if (qsetmode == 200)
 	{
@@ -882,62 +878,27 @@ void ExtCheckKeys( void )
 		process2DMode();
 		ProcessKeys2D();
 	}
-
-	if (totalclock < gTimers.diskPic)
+	
+	if (hudLogoChanged)
 	{
-		gfxDrawBitmap(kBitmapDisk1, xdim - 33, 1);
-
-		static char saves[3];
-		sprintf(saves, "%03i", gAutosave.current);
-		gfxSetColor(gStdColor[kColorLightGray]);
-		gfxFillBox(xdim - 29, 21, xdim - 5, 31);
-		gfxDrawText(xdim - 25, 22, gStdColor[kColorBlack], saves, qFonts[1]);
-
+		if (totalclock >= gTimers.diskPic)
+		{
+			gMapedHud.SetLogo("XMAPEDIT", pFont->charSpace*6, gSysTiles.icoXmp);
+			hudLogoChanged = 0;
+		}
 	}
-	else
-	{
-		QFONT* pFont = qFonts[1];
-		sprintf(buffer, "%4d FPS", gFrameRate);
-		len = gfxGetTextLen(buffer, pFont);
-
-		y = 2;
-		if (!gPreviewMode && qsetmode != 200) y+=22;
-		else if (gPreviewMode)
-			y+=22;
-
-		gfxPrinTextShadow(xdim - len - 4, y, gStdColor[(gFrameRate<30) ? kColorLightRed : kColorWhite], buffer, pFont);
-	}
-
+	
+	y = 2;
+	if (gPreviewMode || qsetmode != 200)
+		y+=22;
+	
+	QFONT* pFont = qFonts[2];
+	sprintf(buffer, "%4d FPS", gFrameRate);
+	gfxPrinTextShadow(xdim-gfxGetTextLen(buffer, pFont)-4, y, clr2std((gFrameRate<30) ? kColorLightRed : kColorWhite), buffer, pFont);
+	
 	if (key)
-	{
-		keyClear();
-		asksave = TRUE;
-	}
+		asksave = 1;
 }
-
-
-
-
-
-/* void textareatest() {
-	
-	int dw, dx1, dy1, dx2, dy2, dwh, dhg, i;
-	
-	Window dialog(0, 0, 320, 200, "test");
-	dialog.getEdges(&dx1, &dy1, &dx2, &dy2);
-	dialog.getSize(&dwh, &dhg);	
-	
-	char text[] = "Test text\nLine222\nLine33\nLine4";
-	
-	TextArea* pArea = new TextArea(dx1, dy1, dwh, 100, text);
-	TextButton* pOk = new TextButton(dx1, dy2-30, 60, 30, "&Confirm", mrOk);
-	
-	
-	dialog.Insert(pArea);
-	dialog.Insert(pOk);
-	
-	ShowModal(&dialog);
-} */
 
 char dlgMapSettings()
 {
@@ -1100,9 +1061,9 @@ char dlgMapSettings()
 				while(--i >= 0)
 				{
 					if (!isSkySector(i, OBJ_CEILING)) continue;
-					else if (Sky::GetMostUsed(i, OBJ_CEILING, true, &i) && tileLoadTile(i))
+					else if (Sky::GetMostUsed(i, OBJ_CEILING, true, &t) && tileLoadTile(t))
 					{
-						Sky::SetBits(i, NULL);
+						Sky::SetBits(t, NULL);
 						break;
 					}
 				}
@@ -1140,6 +1101,84 @@ char dlgMapSettings()
 	return false;
 }
 
+static int OSDFUNC_ShiftSysStatnum(const osdfuncparm_t *arg)
+{
+	int nNew, nOld, nVal = 256, i, j;
+	int nShifted = 0, nTotal = 0;
+	spritetype* pSpr;
+	
+	if (gMapLoaded)
+	{
+		switch(arg->numparms)
+		{
+			case 1:
+				nVal = Bstrtol(arg->parms[0], NULL, 10);
+				break;
+			default:
+				return OSDCMD_SHOWHELP;
+		}
+	}
+	else
+	{
+		buildprintf("No map loaded!\n");
+		return OSDCMD_OK;
+	}
+	
+	buildprintf("\n>>>> Statnum shifter utility for \"%s\"\n", gPaths.maps);
+	for (i = 0; i < highlightcnt; i++)
+	{
+		j = highlight[i];
+		if ((j & 0xC000) == 0)
+			continue;
+
+		pSpr = &sprite[j & 0x1FFF];
+		nTotal++;
+		
+		if (pSpr->statnum == kStatFree)																	;
+		else if (pSpr->statnum == kStatExplosion && !rngok(pSpr->type, 0, kExplosionMax))				;
+		else if (pSpr->statnum == kStatFX && !rngok(pSpr->type, 0, kFXMax))								;
+		else if (pSpr->statnum == kStatItem && !rngok(pSpr->type, kItemWeaponBase, kItemMax))			;
+		else if (pSpr->statnum == kStatThing && !rngok(pSpr->type, kThingBase, kThingMax))				;
+		else if (pSpr->statnum == kStatProjectile && !rngok(pSpr->type, kMissileBase, kMissileMax))		;
+		else if ((pSpr->statnum == kStatDude) && !rngok(pSpr->type, kDudeBase, kDudeMax))				;
+		else if (pSpr->statnum == kStatRespawn)															;
+		else if (pSpr->statnum == kStatPurge)															;
+		else if (pSpr->statnum == kStatTraps && !rngok(pSpr->type, kTrapBase, kTrapMax))				;
+		else if (pSpr->statnum == kStatAmbience && pSpr->type != kSoundAmbient)							;
+		else if (pSpr->statnum == kStatSpares)															;
+		else if (pSpr->statnum == kStatFlare)															;
+		else if (pSpr->statnum == kStatDebris)															;
+		else if (pSpr->statnum == kStatPathMarker && pSpr->type != kMarkerPath)							;
+		else if (pSpr->statnum == kStatSpares)															;
+		else if (pSpr->statnum == kStatInactive)														;
+		else if (rngok(pSpr->statnum, 17, 128))															;
+		else continue;
+
+		nOld = pSpr->statnum;
+		nNew = ClipRange(pSpr->statnum + nVal, 0, kMaxStatus - 1);
+			
+		buildprintf
+		(
+			"Sprite #%d, Type %d - %s: Shifting statnum from %d to %d...\n",
+			pSpr->index,
+			pSpr->type,
+			(rngok(pSpr->type, 0, LENGTH(gSpriteNames)) && !isempty(gSpriteNames[pSpr->type])) ? gSpriteNames[pSpr->type] : "<UNNAMED>",
+			nOld,
+			nNew
+		);
+		
+		ChangeSpriteStat(pSpr->index, nNew);
+		nShifted++;
+	}
+	
+	Beep(nShifted > 0);
+	buildprintf(">>>> %d of %d sprites shifted in total.\n", nShifted, nTotal);
+	if (nShifted)
+		CleanUp();
+	
+	return OSDCMD_OK;
+}
+
 
 //extern "C" char* defsfilename = "blood.def";
 //extern "C" int nextvoxid = 0;
@@ -1148,6 +1187,13 @@ int ExtInit(int argc, char const * const argv[])
 	int i, retn = 0;
 	BOOL iniGenerated = FALSE;
 	RESHANDLE hIni = NULL;
+	
+	OSD_RegisterFunction
+	(
+		"statnumshift_sys",
+		"statnumshift_sys <val>: shift system reserved statnums by given value for sprites in a highlight\n",
+		OSDFUNC_ShiftSysStatnum
+	);
 	
 	HookReplaceFunctions();
 	initcrc32table();
@@ -1359,6 +1405,9 @@ int ExtInit(int argc, char const * const argv[])
 	buildprintf("Initialising sound system...\n");
 	gSound.Init(MapEditINI, "Sound");
 	// ---------------------------------------------------------------------------
+	// initialize file browser settings
+	gDirBroPrefs.Init(MapEditINI, "FileBrowser");
+	// ---------------------------------------------------------------------------
 	// misc initialization
 	buildprintf("Initialising misc stuff...\n");
 	defaultspritecstat 	= kSprOrigin;
@@ -1385,12 +1434,14 @@ int ExtInit(int argc, char const * const argv[])
 		
 	if (argc <= 1 || argv[1] == NULL)
 	{
-		sprintf(buffer, kDefaultMapName);
+		strcpy(buffer, kDefaultMapName);
 		
 		if (!gMisc.autoLoadMap)
 		{
-			sprintf(gPaths.maps, buffer);
-			char* tmp = dirBrowse("Load board", gPaths.maps, ".map");
+			if (isempty(gPaths.maps))
+				strcpy(gPaths.maps, buffer);
+			
+			char* tmp = browseOpen(gPaths.maps, ".map", "Load board");
 			if (!tmp)
 			{
 				while ( 1 )
@@ -1416,12 +1467,12 @@ int ExtInit(int argc, char const * const argv[])
 			}
 			else
 			{
-				sprintf(buffer, tmp);
+				strcpy(buffer, tmp);
 			}
 		}
-		else if (strlen(gPaths.maps))
+		else if (!isempty(gPaths.maps))
 		{
-			sprintf(buffer, gPaths.maps);
+			strcpy(buffer, gPaths.maps);
 		}
 	}
 	else
@@ -1433,15 +1484,26 @@ int ExtInit(int argc, char const * const argv[])
 	if (sprintf(gPaths.maps, buffer) > 0)
 		ChangeExtension(gPaths.maps, getExt(kMap));
 	
-	boardReset();
-	switch (i = toolOpenWith(buffer)) {
+	
+	boardStartNew();
+	switch (i = toolOpenWith(buffer))
+	{
+		case -1:
+		{
+			Alert("Could not open \"%s\".", buffer);
+			char* tmp = browseOpen(gPaths.maps, ".map", "Load board");
+			if (!tmp)
+			{
+				xmpQuit(1);
+				break;
+			}
+			
+			strcpy(buffer, tmp);
+			// no break
+		}
 		case kToolMapEdit:
 			gMapLoaded = TRUE;
 			boardLoad(buffer);
-			break;
-		case -1:
-			Alert("Could not open file \"%s\".", buffer);
-			xmpQuit(1);
 			break;
 		case kToolArtEdit:
 		case kToolSeqEdit:
@@ -1490,6 +1552,7 @@ void ExtUnInit(void)
 		gHudPrefs.Save(MapEditINI,  	"HUD");
 		gCmtPrefs.Save(MapEditINI,  	"Comments");
 		gImportPrefs.Save(MapEditINI, 	"ImportWizard");
+		gDirBroPrefs.Save(MapEditINI, 	"FileBrowser");
 		MapEditINI->Save(kCoreIniName);
 	}
 }
@@ -1591,7 +1654,7 @@ BOOL processKeysShared() {
 	
 	if (in2d)
 	{
-		if (pGCircleW || pGDoorR || pGDoorSM)
+		if (pGLShape || pGCircleW || pGDoorR || pGDoorSM)
 		{
 			switch(key)
 			{
@@ -1602,13 +1665,15 @@ BOOL processKeysShared() {
 				case KEY_F2:
 				case KEY_F3:
 				case KEY_F4:
+				case KEY_COMMA:
+				case KEY_PERIOD:
 					return 0;
 			}
 		}
 	}
 
 	type = getHighlightedObject();
-	
+		
 	switch (key)
 	{
 		default:
@@ -1618,6 +1683,13 @@ BOOL processKeysShared() {
 			{
 				scrSetMessage("Points inserting aborted.");
 				DELETE_AND_NULL(pGCircleW);
+				BeepFail();
+				break;
+			}
+			else if (pGLShape)
+			{
+				scrSetMessage("Loop inserting aborted.");
+				DELETE_AND_NULL(pGLShape);
 				BeepFail();
 				break;
 			}
@@ -1874,8 +1946,8 @@ BOOL processKeysShared() {
 					if (alt)
 					{
 						sprintf(buffer2, "pos");
-						if (chx) pSpr->x += ((changedir == 1) ? step : -step);
-						if (chy) pSpr->y += ((changedir == 1) ? step : -step);
+						if (chx) nnExtOffsetPos((changedir == 1) ? -step : step, 0, 0, ang, &pSpr->x, &pSpr->y, NULL);
+						if (chy) nnExtOffsetPos(0, (changedir == 1) ? step : -step, 0, ang, &pSpr->x, &pSpr->y, NULL);
 						
 						vlx = pSpr->x;
 						vly = pSpr->y;
@@ -2801,7 +2873,7 @@ void xmpOptions(void) {
 		TextButton* pVideoChange = new TextButton(pad, pad, btw, bth, "Chan&ge...", 100);
 		
 		Checkbox* pFullscreen = new Checkbox(btw+(pad<<1), half, fullscreen, "&Fullscreen", 101);
-		sprintf(buffer, "%dx%d", xdimgame, ydimgame); len = gfxGetTextLen(buffer, pFont);
+		sprintf(buffer, "%dx%d", xdim, ydim); len = gfxGetTextLen(buffer, pFont);
 		Label* pLabel = new Label(dw-(pad<<2)-len, half+2, buffer, kColorBlue);
 		
 		
@@ -2833,8 +2905,8 @@ void xmpOptions(void) {
 							continue;
 						
 						sprintf(buffer, "%dx%d", w, h);
-						for (j = 0; j < i && stricmp(buffer, text[j]); j++); // we don't need duplicates
-						if (j >= i)
+						//for (j = 0; j < i && stricmp(buffer, text[j]); j++); // we don't need duplicates
+						//if (j >= i)
 						{
 							sprintf(text[k], buffer);
 							modes[k].name = text[k];
@@ -3233,14 +3305,15 @@ int xmpMenuProcess() {
 					result = mrMenu;
 					break;
 				}
-				boardReset();
-				sprintf(gPaths.maps, kDefaultMapName);
+				
+				boardStartNew();
+				strcpy(gPaths.maps, kDefaultMapName);
 				scrSetMessage("New board started.");
 				gMapLoaded = TRUE;
 				return result;
 			case mrSave:
 			case mrSaveAs:
-				if ((len = strlen(gPaths.maps)) <= 0) sprintf(gPaths.maps, kDefaultMapName), result = mrSaveAs;
+				if ((len = strlen(gPaths.maps)) <= 0) strcpy(gPaths.maps, kDefaultMapName), result = mrSaveAs;
 				switch (result) {
 					case mrSave:
 
@@ -3261,7 +3334,7 @@ int xmpMenuProcess() {
 						return result;
 					default:
 						result = mrMenu;
-						if ((filename = dirBrowse("Save board as", gPaths.maps, ".map", kDirExpTypeSave, 0)) != NULL)
+						if ((filename = browseSave(gPaths.maps, ".map")) != NULL)
 						{
 							sprintf(gPaths.maps, filename);
 							result = mrSave;
@@ -3277,7 +3350,7 @@ int xmpMenuProcess() {
 				if (result != mrLoad) filename = gPaths.maps;
 				else
 				{
-					if ((filename = dirBrowse("Load board", gPaths.maps, ".map")) == NULL)
+					if ((filename = browseOpen(gPaths.maps, ".map", "Load board")) == NULL)
 					{
 						result = mrMenu;
 						break;
@@ -4105,6 +4178,20 @@ int boardSave(char* filename, BOOL autosave)
 	return i;
 }
 
+int boardSaveAuto()
+{
+	char path[BMAX_PATH] = "\0", *p = path;
+	getPath(gPaths.maps, path, 1);
+	p += strlen(path);
+
+	gAutosave.current++;
+	if (gAutosave.current > gAutosave.max)
+		gAutosave.current = 1;
+
+	sprintf(p, "%s%d.%s", gAutosave.basename, gAutosave.current, gExtNames[kMap]);
+	return boardSave(path, 1);
+}
+
 void boardReset(int hgltreset)
 {
 	gTimers.autosave = gFrameClock + gAutosave.interval;
@@ -4130,12 +4217,24 @@ void boardReset(int hgltreset)
 	if (pGDoorSM)	DELETE_AND_NULL(pGDoorSM);
 	if (pGDoorR)	DELETE_AND_NULL(pGDoorR);
 	if (pGCircleW)  DELETE_AND_NULL(pGCircleW);
+	if (pGLShape)  	DELETE_AND_NULL(pGLShape);
 	
 	memset(gMapInfoStr, 0, sizeof(gMapInfoStr));
 	gCommentMgr.DeleteAll();
 	CXTracker::Clear();
 	eraseExtra();
 	dbInit();
+}
+
+void boardStartNew()
+{
+	boardReset();
+	LOOPSHAPE shape(kLoopShapeSquare, -1, startposx, startposy); // create square sector
+	shape.Setup(startposx + MET2PIX(8), startposy + MET2PIX(8), NULL);
+	shape.Insert();
+	shape.Stop();
+	
+	startsectnum = cursectnum = 0;
 }
 
 static NAMED_TYPE gObjectInfoGroups[] =

@@ -93,7 +93,7 @@ DEFINE=/DUSE_ASM=$(USE_ASM) /DUSE_OPENGL=$(USE_OPENGL) /DWITHOUT_GTK=1
 # ---------------------------------------------------------------
 LF=/nologo /opt:ref
 RF=/i$(BUILDINC) /i$(XMAPEDSRC)
-CF=/nologo /EHsc /MT /wd4996
+CF=/nologo /EHsc /MT /J /wd4996
 AF=/nologo /coff
 
 
@@ -252,6 +252,7 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\xmpqaved.$o \
 	$(XMAPEDSRC)\xmpsky.$o \
 	$(XMAPEDSRC)\xmpdoorwiz.$o \
+	$(XMAPEDSRC)\xmpshape.$o \
 	$(XMAPEDSRC)\xmpinput.$o \
 	$(XMAPEDSRC)\buildres.$(res) \
 	$(BUILDSRC)\$(EDITORLIB) \

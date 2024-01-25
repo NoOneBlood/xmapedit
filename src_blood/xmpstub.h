@@ -31,6 +31,7 @@
 #include "gfx.h"
 #include "edit2d.h"
 #include "xmpmisc.h"
+#include "editor.h"
 
 #define kPlayerRadius		32
 #define kTabWall  kMaxWalls
@@ -206,7 +207,8 @@ int GetXSprite( int nSprite );
 
 
 BOOL processKeysShared();
-void processDrawRooms();
+void processDrawRooms(int camx, int camy, int camz, int cama, int camh, int nSect);
+inline void processDrawRooms() { processDrawRooms(posx,posy,posz,ang,horiz,cursectnum); }
 char* onOff(int var);
 char* isNot(int var);
 char* yesNo(int var);
@@ -222,7 +224,9 @@ void setStartPos(int x, int y, int z, int ang);
 int boardLoad(char *filename);
 void boardPreloadTiles();
 int boardSave(char* filename, BOOL autosave);
+int boardSaveAuto();
 void boardReset(int hgltreset = 0);
+void boardStartNew();
 
 const char *ExtGetSectorCaption(short sectnum, char captStyle);
 const char *ExtGetWallCaption(short wallnum, char captStyle);

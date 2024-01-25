@@ -339,7 +339,7 @@ void overheadeditor(void)
 		
 		if (!gPreviewMode)
 		{
-			bad = (gSectorDrawing && keystatus[0x39] > 0);  //Gotta do this to save lots of 3 spaces!
+			bad = (gSectorDrawing && keystatus[0x39] > 0 && !keystatus[0x38] && !keystatus[0xB8]);  //Gotta do this to save lots of 3 spaces!
 			
 			if (bad > 0)   //Space bar test
 			{

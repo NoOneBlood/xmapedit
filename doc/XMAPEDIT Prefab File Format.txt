@@ -1,5 +1,5 @@
 
- PFB FILE FORMAT [MAR 04 2021]
+ PFB FILE FORMAT [JAN 06 2024]
  -----------------------------
 
  Prefab is a text file with INI structure that contains information about sprites that
@@ -16,7 +16,10 @@
  ..........
  Sprite#0511 = (n, n, n, n, n ...)
  
- 
+ [Thumbnail]											// Optional section with encoded tile.
+ // You may see BIN2TXT source code to decode/encode the image
+ // Also see pfbAttachThumbnail() function code for
+ // examples.
 
  BUILD SPRITE PARAM OFFSET DESCRIPTION
  -------------------------------------

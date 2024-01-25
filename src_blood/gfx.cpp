@@ -25,6 +25,7 @@
 #include "gfx.h"
 #include "replace.h"
 #include "gui.h"
+#include "tile.h"
 #include "xmpmisc.h"
 extern "C" {
 #include "a.h"
@@ -289,6 +290,27 @@ void gfxLine(int x1, int y1, int x2, int y2)
 		if (y1 >= yres) { if (dx) x1 += scale(yres-1-y1,dx,dy); y1 = yres-1; if (x1 < 0) x1 = 0; }
 	}
 	
+	if (!drawpat)
+	{
+		if (x1 == x2)
+		{
+			if (y2 < y1)
+				swapValues(&y1, &y2);
+			
+			gfxVLine(x1, y1, y2);
+			return;
+		}
+		
+		if (y1 == y2)
+		{
+			if (x2 < x1)
+				swapValues(&x1, &x2);
+			
+			gfxHLine(y1, x1, x2);
+			return;
+		}
+	}
+	
 	dx = klabs(dx)+1;
 	dy = klabs(dy)+1;
 	
@@ -375,6 +397,36 @@ void gfxFillBox(int x0, int y0, int x1, int y1)
 	}
 	enddrawing();
 	
+}
+
+void gfxFillBoxTrans(int x1, int y1, int x2, int y2, char color, char transLev)
+{
+	char flags = kRSCorner | kRSNoMask | kRSNoClip;
+	static int nTile = -1; int t, wh, hg;
+	BYTE* pTile;
+	
+	if (nTile >= 0 || (nTile = tileGetBlank()) >= 0)
+	{
+		if (x1 > x2) swapValues(&x1, &x2);
+		if (y1 > y2) swapValues(&y1, &y2);
+
+		wh = x2-x1, hg = y2-y1;
+		if (tilesizx[nTile] == wh && tilesizy[nTile] == hg)
+		{
+			if ((pTile = tileLoadTile(nTile)) == NULL)
+				return;
+		}
+		else
+		{
+			tileFreeTile(nTile);
+			if ((pTile = tileAllocTile(nTile, wh, hg, 0, 0)) == NULL)
+				return;
+		}
+		
+		memset(pTile, color, wh*hg);
+		flags |= ((transLev >= 2) ? kRSTransluc : kRSTransluc2);
+		rotatesprite(x1 << 16, y1 << 16, 0x10000, 0, nTile, 0, 0, flags, x1, y1, x2, y2);
+	}
 }
 
 void gfxSetClip(int x0, int y0, int x1, int y1)
@@ -555,6 +607,123 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
 		underline = false;
 	}
 }
+
+void gfxDrawTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines)
+{
+	Rect* pRect = *pARect;
+	
+	int wh = pRect->width(),	hg = pRect->height();
+	int x1 = pRect->x0, 		y1 = pRect->y0;
+	int x2 = pRect->x1,			y2 = pRect->y1;
+	int dx = x1,				dy = y1;
+	
+	char shadow = ((flags & kTextShadow) > 0);
+	
+	QFONTCHAR* pChar;
+	int c = '\n', g = 0, lineWidth;
+	int nLines, fh = pFont->height;
+	int i, j;
+
+	i = j = 0;
+	while(str[i])
+	{
+		pChar = &pFont->info[str[i++]];
+		if (j + pChar->ox + pFont->charSpace >= wh)
+			break;
+		
+		j += (pChar->ox + pFont->charSpace);
+	}
+		
+	lineWidth = ClipLow(j, 1);
+	nLines = ClipHigh(gfxGetTextLen(str, pFont) / lineWidth, maxLines-1);
+
+	if (flags & kTextABottom)
+	{
+		dy = y2-(nLines*fh)-fh;
+	}
+	else if (flags & kTextAMiddle)
+	{
+		dy = y1+((hg>>1)-((nLines*fh) >> 1));
+	}
+	else
+	{
+		dy+=fh;
+	}
+	
+	if (flags & kTextACenter)
+	{
+		pRect->x0 = pRect->x1 = x1+((wh>>1)-(lineWidth>>1));
+	}
+	else if (flags & kTextARight)
+	{
+		pRect->x0 = pRect->x1 = x1+(wh-g);
+	}
+	else
+	{
+		pRect->x0 = pRect->x1 = x1;
+	}
+	
+	pRect->y0 = dy;
+	
+	i = j = nLines = 0;
+	while(c != '\0')
+	{
+		c = str[i];
+		pChar = &pFont->info[c];
+		if ((c == '\0') || (nLines >= maxLines) || (g + pChar->ox + pFont->charSpace) >= wh)
+		{
+			if (flags & kTextACenter)		dx = x1+((wh>>1)-(g>>1));
+			else if (flags & kTextARight)	dx = x1+(wh-g);
+			
+			if (dx < pRect->x0)
+				pRect->x0 = dx;
+			
+			if (pRect->x0+g > pRect->x1)
+				pRect->x1 = pRect->x0+g;
+			
+			if (c)
+				str[i] = '\0';
+			
+			if (!(flags & kTextDryRun))
+			{
+				if (flags & kTextShadow)
+					gfxDrawText(dx+1, dy+1, clr2std(31), &str[j], pFont);
+				
+				gfxDrawText(dx, dy, fc, &str[j], pFont);
+			}
+			
+			if (c)
+				str[i] = c;
+
+			dy += fh;
+			if (++nLines >= maxLines)
+				break;
+			
+			g = 0;
+			j = i;
+		}
+		else
+		{
+			g += (pChar->ox + pFont->charSpace);
+		}
+		
+		i++;
+	}
+	
+	pRect->y1 = dy;
+}
+
+void gfxDrawTextRect(Rect* pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines)
+{
+	Rect* pDummy = new Rect(pARect->x0, pARect->y0, pARect->x1, pARect->y1);
+	gfxDrawTextRect(&pDummy, flags, fc, str, pFont, maxLines);
+}
+
+void gfxGetTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines)
+{
+	gfxDrawTextRect(pARect, flags, fc, str, pFont, maxLines);
+}
+
 
 void gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont, bool label)
 {

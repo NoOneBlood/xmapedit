@@ -14,6 +14,7 @@
 
 #include "editor.h"
 #include "edit2d.h"
+#include "edit3d.h"
 
 #define kMaxMessages		32
 #define kMaxMessageLength	64
@@ -99,9 +100,9 @@ DIALOG_ITEM dlgXSprite[] =
 DIALOG_ITEM dlgSprite[] =
 {
 	{ NO,	1,		0,	0,	0,	HEADER, 		"General:" },
-	{ NO,	0,		0,	1,	1,	NUMBER,			"X-coordinate..: %d",		-kDefaultBoardSize, kDefaultBoardSize,	NULL,	NULL},
-	{ NO,	0,		0,	2,	2,	NUMBER,			"Y-coordinate..: %d", 		-kDefaultBoardSize, kDefaultBoardSize,	NULL,	NULL},
-	{ NO,	0,		0,	3,	3,	NUMBER,			"Z-coordinate..: %d", 		-13421721, 			13421722, 			NULL,	NULL},
+	{ NO,	1,		0,	1,	1,	NUMBER,			"X-coordinate..: %d",		-kDefaultBoardSize, kDefaultBoardSize,	NULL,	NULL},
+	{ NO,	1,		0,	2,	2,	NUMBER,			"Y-coordinate..: %d", 		-kDefaultBoardSize, kDefaultBoardSize,	NULL,	NULL},
+	{ NO,	1,		0,	3,	3,	NUMBER,			"Z-coordinate..: %d", 		-13421721, 			13421722, 			NULL,	NULL},
 	{ NO,	0,		0,	4,	4,	NUMBER,			"Sectnum.......: %d", 		0, 					kMaxSectors-1,		NULL,	NULL},
 	{ NO,	1,		0,	5,	5,	NUMBER,			"Statnum.......: %d", 		0, 					kMaxStatus,			NULL,	NULL},
 	{ NO,	1,		0,	6,	6,	NUMBER,			"Hi-tag........: %d",  		-32767, 			32768, 				NULL,	NULL},
@@ -336,7 +337,7 @@ DIALOG_ITEM dlgSector[] =
 	
 	{ NO,	1,		0,	0,	0,	HEADER, 		"General:" },
 	{ NO,	0,		0,	1,	1,	NUMBER,			"Total walls..: %d",		0,					kMaxWalls - 1,		NULL,	NULL},
-	{ NO,	0,		0,	2,	2,	NUMBER,			"First wall...: %d",		0,					kMaxWalls - 1,		NULL,	NULL},
+	{ NO,	1,		0,	2,	2,	NUMBER,			"First wall...: %d",		0,					kMaxWalls - 1,		NULL,	NULL},
 	{ NO,	0,		0,	3,	3,	NUMBER,			"Total sprites: %d",		0,					kMaxSprites - 1,	NULL,	NULL},
 	{ NO,	0,		0,	4,	4,	NUMBER,			"First sprite : %d",		-1,					kMaxSprites - 1,	NULL,	NULL},
 	{ NO,	1,		0,	5,	5,	NUMBER,			"Hi-tag.......: %d",  		-32767, 			32768, 				NULL,	NULL},
@@ -647,14 +648,13 @@ char DIALOG_HANDLER::Edit()
 			Paint();
 			Paint(pCur, true);
 			mouse.Draw();
-			showframe();
 		}
-		
-		updateClocks();
 		
 		mouse.Read();
 		keyGetHelper(&key, &ctrl, &shift, &alt);
 		handleevents();
+		updateClocks();
+		showframe();
 		
 		upd = (key || mouse.buttons || mouse.dX2 || mouse.dY2);
 		if (!upd)
@@ -1418,6 +1418,10 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 
 						control->value = i;
 						return 0;
+					case kWallStack:
+						if (control->tabGroup != kWallDialogData) break;
+						else if ((i = findUnusedStack()) >= 0) control->value = i;
+						return 0;
 				}
 			}
 			else if (dialog == dlgXSprite)
@@ -1538,7 +1542,7 @@ char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key)
 	int i, n;
 
 	sprintf(tmpbuf, gPaths.episodeIni);
-	while ((pName = dirBrowse("Select file", tmpbuf, ".INI", kDirExpTypeOpen, kDirExpNone)) != NULL)
+	while ((pName = browseOpenFS(tmpbuf, ".INI")) != NULL)
 	{
 		if (pEpisode)
 			delete(pEpisode);
@@ -1823,34 +1827,37 @@ void dlgDialogToSector(DIALOG_HANDLER* pHandle, int nSector)
 {
 	dassert(nSector >= 0 && nSector < kMaxSectors);
 	
-	int i, cnt = 0;
+	int i, s, e;
+	getSectorWalls(nSector, &s, &e);
 	sectortype* pSect =& sector[nSector];
 	
-	//pSect->wallnum				= pHandle->GetValue(1);
-	//pSect->wallptr				= pHandle->GetValue(2);
+	// 1
+	i = pHandle->GetValue(2);
+	if (s != i && irngok(i, s, e))
+		setFirstWall(nSector, i);
 	// 3
-	//headspritesect[nSector]		= pHandle->GetValue(4);
+	// 4
 	pSect->hitag					= pHandle->GetValue(5);
 	pSect->lotag 					= pHandle->GetValue(6);
 	pSect->visibility				= pHandle->GetValue(7);
 	
-	pSect->ceilingpicnum			= ClipHigh(pHandle->GetValue(9), gMaxTiles-1);
+	pSect->ceilingpicnum			= ClipHigh(pHandle->GetValue(9), kMaxTiles-1);
 	pSect->ceilingshade				= pHandle->GetValue(10);
 	pSect->ceilingpal				= pHandle->GetValue(11);
 	pSect->ceilingxpanning			= pHandle->GetValue(12);
 	pSect->ceilingypanning			= pHandle->GetValue(13);
 	
-	//SetCeilingSlope(nSector,		pHandle->GetValue(14));
-	//SetCeilingZ(nSector, 			pHandle->GetValue(15));
+	SetCeilingSlope(nSector,		pHandle->GetValue(14));
+	SetCeilingZ(nSector, 			pHandle->GetValue(15));
 	
-	pSect->floorpicnum				= ClipHigh(pHandle->GetValue(16), gMaxTiles-1);
+	pSect->floorpicnum				= ClipHigh(pHandle->GetValue(16), kMaxTiles-1);
 	pSect->floorshade				= pHandle->GetValue(17);
 	pSect->floorpal					= pHandle->GetValue(18);
 	pSect->floorxpanning			= pHandle->GetValue(19);
 	pSect->floorypanning			= pHandle->GetValue(20);
 	
-	//SetFloorSlope(nSector,			pHandle->GetValue(21));
-	//SetFloorZ(nSector,				pHandle->GetValue(22));
+	SetFloorSlope(nSector,			pHandle->GetValue(21));
+	SetFloorZ(nSector,				pHandle->GetValue(22));
 
 	
 	/* i = kSectSloped;

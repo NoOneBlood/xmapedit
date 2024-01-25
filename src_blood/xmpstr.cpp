@@ -398,6 +398,40 @@ int enumStrGetInt(int nOffs, char* astr, char expcr, int retn)
 	return retn;
 }
 
+void strTrim(char* str, char side, char* list)
+{
+	int l = strlen(str);
+	char* p;
+	int c;
+	
+	if (side & 0x01)
+	{
+		c = 0;
+		while(str[c])
+		{
+			p = list;
+			while(*p != '\0' && *p != str[c]) p++;
+			if (*p != '\0')
+				c++;
+		}
+		
+		if (c)
+			memmove(str, &str[c], l - c + 1), l-=c;
+	}
+	
+	if (side & 0x02)
+	{
+		while(--l >= 0)
+		{
+			p = list;
+			while(*p != '\0' && *p != str[l]) p++;
+			if (*p != '\0')
+				l++;
+		}
+		
+		str[l + 1] = '\0';
+	}
+}
 
 void strTrim(char* str, char side)
 {
@@ -418,4 +452,20 @@ void strTrim(char* str, char side)
 		while(--l >= 0 && isspace(str[l]));
 		str[l + 1] = '\0';
 	}
+}
+
+int strReplace(char* str, char cWhat, char cBy)
+{
+	int i = 0;
+	int c = 0;
+	
+	while(str[i])
+	{
+		if (str[i] == cWhat)
+			str[i] = cBy, c++;
+		
+		i++;
+	}
+	
+	return c;
 }

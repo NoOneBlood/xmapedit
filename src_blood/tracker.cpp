@@ -182,12 +182,9 @@ void CXTracker::Draw(SCREEN2D* pScr)
 				y2 = pScr->cscaley(y2);
 				
 				if (!tx)
-				{
-					swapValues(&x1, &x2);
-					swapValues(&y1, &y2);
-				}
-				
-				pScr->DrawArrow(x1, y1, x2, y2, color, pScr->data.zoom, kAng15 + kAng5, 0);
+					pScr->DrawArrow(x2, y2, x1, y1, color, pScr->data.zoom, kAng15 + kAng5, 0);
+				else
+					pScr->DrawArrow(x1, y1, x2, y2, color, pScr->data.zoom, kAng15 + kAng5, 0);
 			}
 		}
 		

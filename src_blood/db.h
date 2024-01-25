@@ -402,3 +402,4 @@ int dbCheckMap(IOBuffer* pIo, int* pSuppVerDB, int DBLen, BOOL* bloodMap);
 int dbLoadMap(IOBuffer* pIo, char* cmtpath);
 int dbLoadBuildMap(IOBuffer* pIo);
 int dbSaveMap(char *filename, BOOL ver7);
+void dbCrypt(char *pPtr, int nLength, int nKey);

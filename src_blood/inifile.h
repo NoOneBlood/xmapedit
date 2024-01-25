@@ -67,6 +67,7 @@ class IniFile
 		//---------------------------------------------------------------
 		int  KeyFind(char* section, char* key);
 		int  KeyAdd(char* section, char* hiWord, char* loWord);
+		int  KeyAddNew(char* section, char* hiWord, char* loWord);
 		void KeyRemove(char* section, char* hiWord);
 		//---------------------------------------------------------------
 		char* GetKeyString(char* section, char* key, char* pRetn = NULL);

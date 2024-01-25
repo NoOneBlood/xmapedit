@@ -546,7 +546,7 @@ void DOOR_ROTATE::Draw(SCREEN2D* pScr)
 			pScr->DrawLine(x1, y1, x2, y2, c, 0, kPatDotted);
 		}
 		
-		c = (info.side[i].available) ? kColorLightGreen : kColorLightRed;
+		c = (info.side[i].available) ? kColorLightBlue : kColorLightRed;
 		
 		if (pScr->prefs.useTransluc)
 		{

@@ -1370,6 +1370,7 @@ void SCREEN2D::ScreenDraw(void)
 		if (pGCircleW)									pGCircleW->Draw(this);
 		else if (pGDoorSM && pGDoorSM->StatusGet() > 0) pGDoorSM->Draw(this);
 		else if (pGDoorR && pGDoorR->StatusGet() > 0)	pGDoorR->Draw(this);
+		else if (pGLShape)								pGLShape->Draw(this);
 		
 		/* draw RX/TX tracker */
 		////////////////////////////

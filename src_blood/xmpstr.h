@@ -38,6 +38,8 @@ char isempty(const char* str);
 char isIdKeyword(const char* fullStr, const char* prefix, int* nID = NULL);
 char parseRGBString(const char* str, unsigned char out[3]);
 void strTrim(char* str, char side = 0x03);
+void strTrim(char* str, char* list, char side = 0x03);
+int strReplace(char* str, char cWhat, char cBy);
 
 char* enumStrGetChar(int offset, char* out = NULL, char* astr = NULL, char expcr = ',', char* def = NULL);
 int enumStrGetInt(int offset, char* astr = NULL, char expcr = ',', int retn = 0);

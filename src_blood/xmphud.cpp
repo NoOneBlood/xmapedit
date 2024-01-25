@@ -502,7 +502,7 @@ void MAPEDIT_HUD::ClearMessageArea()
 void MAPEDIT_HUD::SetMsgImp(int nTime, char *__format, ...)
 {
 	MAPEDIT_HUD_MSG* pData =& msgData;
-	if (pData->showTicks >= 0 && totalclock >= pData->showTicks)
+	//if (pData->showTicks >= 0 && totalclock >= pData->showTicks)
 	{
 		char tmp[256];
 		va_list argptr;

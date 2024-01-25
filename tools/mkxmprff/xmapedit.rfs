@@ -84,6 +84,13 @@ resource "TGA\NOTILE.TGA" as 1;
 resource "TGA\WALHGLT.TGA" as 2;
 resource "TGA\V1.TGA" as 3;
 resource "TGA\V2.TGA" as 4;
+resource "TGA\FOLDER1.TGA" as 5;
+resource "TGA\FILE1.TGA" as 6;
+resource "TGA\DRIVE1.TGA" as 7;
+resource "TGA\EYE1.TGA" as 8;
+resource "TGA\EYE2.TGA" as 9;
+resource "TGA\EYE3.TGA" as 10;
+resource "TGA\EYE4.TGA" as 11;
 
 // inverse table for creating PLUs
 ///////////////////////////////////
