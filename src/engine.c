@@ -376,23 +376,9 @@ static inline int getclipmask(int a, int b, int c, int d)
 static inline unsigned int nsqrtasm(unsigned int a)
 {	// JBF 20030901: This was a damn lot simpler to reverse engineer than
 	// msqrtasm was. Really, it was just like simplifying an algebra equation.
-	unsigned short c;
-
-	if (a & 0xff000000) {			// test eax, 0xff000000  /  jnz short over24
-		c = shlookup[(a >> 24) + 4096];	// mov ebx, eax
-						// over24: shr ebx, 24
-						// mov cx, word ptr shlookup[ebx*2+8192]
-	} else {
-		c = shlookup[a >> 12];		// mov ebx, eax
-						// shr ebx, 12
-						// mov cx, word ptr shlookup[ebx*2]
-						// jmp short under24
-	}
-	a >>= c&0xff;				// under24: shr eax, cl
-	a = (a&0xffff0000)|(sqrtable[a]);	// mov ax, word ptr sqrtable[eax*2]
-	a >>= ((c&0xff00) >> 8);		// mov cl, ch
-						// shr eax, cl
-	return a;
+	unsigned short const c = shlookup[(a & 0xff000000) ? ((a >> 24) + 4096) : (a >> 12)];
+	a >>= c & 0xff;
+	return ((a & 0xffff0000) | (sqrtable[a])) >> ((c & 0xff00) >> 8);
 }
 
 static inline int msqrtasm(unsigned int c)
@@ -4600,7 +4586,7 @@ void drawsprite(int snum)
 									unsigned short v = (sg1_y+v0)&0xffff;
 									unsigned char ch = ggbuf[((u>>(16-gglogx))<<gglogy)+(v>>(16-gglogy))];
 									if (ch != 255)
-										*p = *(unsigned char*)(((int)slopalptr[0])+ch);
+										*p = *(unsigned char*)(slopalptr[0]+ch);
 									slopalptr--;
 									p += ggpinc;
 									u0 += u1;
@@ -4628,7 +4614,7 @@ void drawsprite(int snum)
 										unsigned char ch = ggbuf[((u>>(16-gglogx))<<gglogy)+(v>>(16-gglogy))];
 										if (ch != 255)
 										{
-											ch = *(unsigned char*)(((int)slopalptr[0])+ch);
+											ch = *(unsigned char*)(slopalptr[0]+ch);
 											*p = trans[(ch<<8)|*p];
 										}
 										slopalptr--;
@@ -4655,7 +4641,7 @@ void drawsprite(int snum)
 										unsigned char ch = ggbuf[((u>>(16-gglogx))<<gglogy)+(v>>(16-gglogy))];
 										if (ch != 255)
 										{
-											ch = *(unsigned char*)(((int)slopalptr[0])+ch);
+											ch = *(unsigned char*)(slopalptr[0]+ch);
 											*p = trans[(*p<<8)|ch];
 										}
 										slopalptr--;
@@ -4685,7 +4671,7 @@ void drawsprite(int snum)
 									unsigned short v = (sg1_y+v0)&0xffff;
 									unsigned char ch = ggbuf[mulscale16(u, xspan)*yspan+mulscale16(v, yspan)];
 									if (ch != 255)
-										*p = *(unsigned char*)(((int)slopalptr[0])+ch);
+										*p = *(unsigned char*)(slopalptr[0]+ch);
 									slopalptr--;
 									p += ggpinc;
 									u0 += u1;
@@ -4713,7 +4699,7 @@ void drawsprite(int snum)
 										unsigned char ch = ggbuf[mulscale16(u, xspan)*yspan+mulscale16(v, yspan)];
 										if (ch != 255)
 										{
-											ch = *(unsigned char*)(((int)slopalptr[0])+ch);
+											ch = *(unsigned char*)(slopalptr[0]+ch);
 											*p = trans[(ch<<8)|*p];
 										}
 										slopalptr--;
@@ -4740,7 +4726,7 @@ void drawsprite(int snum)
 										unsigned char ch = ggbuf[mulscale16(u, xspan)*yspan+mulscale16(v, yspan)];
 										if (ch != 255)
 										{
-											ch = *(unsigned char*)(((int)slopalptr[0])+ch);
+											ch = *(unsigned char*)(slopalptr[0]+ch);
 											*p = trans[(*p<<8)|ch];
 										}
 										slopalptr--;
