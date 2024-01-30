@@ -230,7 +230,7 @@ const char *FX_GetCurrentDriverName(void)
 
 int FX_SetCallBack
    (
-   void ( *function )( unsigned int )
+   void ( *function )( uintptr_t )
    )
 
    {
@@ -554,7 +554,7 @@ int FX_PlayVOC
    int left,
    int right,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -589,7 +589,7 @@ int FX_PlayLoopedVOC
    int left,
    int right,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -622,7 +622,7 @@ int FX_PlayWAV
    int left,
    int right,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -657,7 +657,7 @@ int FX_PlayLoopedWAV
    int left,
    int right,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -690,7 +690,7 @@ int FX_PlayVOC3D
    int angle,
    int distance,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -723,7 +723,7 @@ int FX_PlayWAV3D
    int angle,
    int distance,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -757,7 +757,7 @@ int FX_PlayRaw3D
    int angle,
    int distance,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -791,7 +791,7 @@ int FX_PlayRaw
    int left,
    int right,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -827,7 +827,7 @@ int FX_PlayLoopedRaw
    int left,
    int right,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -996,7 +996,7 @@ int FX_StartDemandFeedPlayback
    int left,
    int right,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -1059,7 +1059,7 @@ void FX_StopRecord
    Play a sound, autodetecting the format.
 ---------------------------------------------------------------------*/
 int FX_PlayAuto( char *ptr, unsigned int length, int pitchoffset, int vol,
-                 int left, int right, int priority, unsigned int callbackval )
+                 int left, int right, int priority, uintptr_t callbackval )
 {
    int handle = -1;
    
@@ -1089,7 +1089,7 @@ int FX_PlayAuto( char *ptr, unsigned int length, int pitchoffset, int vol,
 ---------------------------------------------------------------------*/
 int FX_PlayLoopedAuto( char *ptr, unsigned int length, int loopstart, int loopend,
                        int pitchoffset, int vol, int left, int right, int priority,
-                       unsigned int callbackval )
+                       uintptr_t callbackval )
 {
    int handle = -1;
    
@@ -1121,7 +1121,7 @@ int FX_PlayLoopedAuto( char *ptr, unsigned int length, int loopstart, int loopen
    Play a positioned sound, autodetecting the format.
 ---------------------------------------------------------------------*/
 int FX_PlayAuto3D( char *ptr, unsigned int length, int pitchoffset, int angle,
-                   int distance, int priority, unsigned int callbackval )
+                   int distance, int priority, uintptr_t callbackval )
 {
    int handle = -1;
    

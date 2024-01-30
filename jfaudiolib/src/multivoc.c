@@ -96,7 +96,7 @@ static volatile VoiceNode VoicePool;
 static int MV_MixPage      = 0;
 static int MV_VoiceHandle  = MV_MinVoiceHandle;
 
-static void ( *MV_CallBackFunc )( unsigned int ) = NULL;
+static void ( *MV_CallBackFunc )( uintptr_t ) = NULL;
 static void ( *MV_RecordFunc )( char *ptr, int length ) = NULL;
 static void ( *MV_MixFunction )( VoiceNode *voice, int buffer );
 
@@ -1053,7 +1053,7 @@ int MV_Kill
    {
    VoiceNode *voice;
    int        flags;
-   unsigned int callbackval;
+   uintptr_t callbackval;
 
    if ( !MV_Installed )
       {
@@ -2067,7 +2067,7 @@ int MV_StartDemandFeedPlayback
    int left,
    int right,
    int priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2132,7 +2132,7 @@ int MV_PlayRaw
    int   left,
    int   right,
    int   priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2164,7 +2164,7 @@ int MV_PlayLoopedRaw
    int   left,
    int   right,
    int   priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2226,7 +2226,7 @@ int MV_PlayWAV
    int   left,
    int   right,
    int   priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2254,7 +2254,7 @@ int MV_PlayWAV3D
    int  angle,
    int  distance,
    int  priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2308,7 +2308,7 @@ int MV_PlayRaw3D
    int  angle,
    int  distance,
    int  priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2364,7 +2364,7 @@ int MV_PlayLoopedWAV
    int   left,
    int   right,
    int   priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2496,7 +2496,7 @@ int MV_PlayVOC3D
    int  angle,
    int  distance,
    int  priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2550,7 +2550,7 @@ int MV_PlayVOC
    int   left,
    int   right,
    int   priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2581,7 +2581,7 @@ int MV_PlayLoopedVOC
    int   left,
    int   right,
    int   priority,
-   unsigned int callbackval
+   uintptr_t callbackval
    )
 
    {
@@ -2810,7 +2810,7 @@ int MV_GetVolume
 
 void MV_SetCallBack
    (
-   void ( *function )( unsigned int )
+   void ( *function )( uintptr_t )
    )
 
    {

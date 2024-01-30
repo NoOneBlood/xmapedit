@@ -146,7 +146,7 @@ void BEEP::Play(int type)
 		return;
 	
 	Stop();	
-	hBeep = FX_PlayRaw(data[type], length[type], freq, 0, volume, volume, volume, 128, (unsigned int)&hBeep);
+	hBeep = FX_PlayRaw(data[type], length[type], freq, 0, volume, volume, volume, 128, (uintptr_t)&hBeep);
 }
 
 void BEEP::Stop()

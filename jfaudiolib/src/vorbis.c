@@ -222,7 +222,7 @@ int MV_PlayVorbis3D
  int  angle,
  int  distance,
  int  priority,
- unsigned int callbackval
+ uintptr_t callbackval
  )
 
 {
@@ -276,7 +276,7 @@ int MV_PlayVorbis
  int   left,
  int   right,
  int   priority,
- unsigned int callbackval
+ uintptr_t callbackval
  )
 
 {
@@ -307,7 +307,7 @@ int MV_PlayLoopedVorbis
  int   left,
  int   right,
  int   priority,
- unsigned int callbackval
+ uintptr_t callbackval
  )
 
 {

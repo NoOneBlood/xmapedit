@@ -31,6 +31,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef ___MULTIVC_H
 #define ___MULTIVC_H
 
+#include <stdint.h>
+
 #define TRUE  ( 1 == 1 )
 #define FALSE ( !TRUE )
 
@@ -147,7 +149,7 @@ typedef struct VoiceNode
    short        *LeftVolume;
    short        *RightVolume;
 
-   unsigned int  callbackval;
+   uintptr_t     callbackval;
 
    } VoiceNode;
 

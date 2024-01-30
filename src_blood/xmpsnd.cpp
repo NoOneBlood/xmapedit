@@ -79,7 +79,7 @@ int soundRates[13] = {
     44100,
 };
 
-void SoundCallback(unsigned int val)
+void SoundCallback(uintptr_t val)
 {
     int *phVoice = (int*)val;
     *phVoice = 0;
