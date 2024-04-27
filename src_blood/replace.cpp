@@ -19,14 +19,10 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include "build.h"
-#include "editor.h"
 #include "common_game.h"
-#include "crc32.h"
-
 #include "tile.h"
 #include "screen.h"
-#include "xmphud.h"
+#include "db.h"
 
 int qanimateoffs(short a1, short a2)
 {
@@ -79,9 +75,18 @@ void qsetbrightness(unsigned char *dapal, unsigned char *dapalgamma)
     scrSetDac(dapal, dapalgamma);
 }
 
-void qprintmessage16(char name[82])
+void qprintext(int x, int y, short col, short backcol, const char *name, char nFont)
 {
-	gMapedHud.SetMsgImp(128, name);
+	ROMFONT* pFont = &vFonts[nFont];
+	
+	if (backcol >= 0)
+	{
+		int l = strlen(name)*pFont->ls;
+		gfxSetColor(backcol);
+		gfxFillBox(x, y, x+l, y+pFont->lh);
+	}
+	
+	printext2(x, y, col, (char*)name, pFont);
 }
 
 void HookReplaceFunctions(void)
@@ -96,6 +101,6 @@ void HookReplaceFunctions(void)
     changespritestat_replace	= qchangespritestat;
     loadvoxel_replace			= qloadvoxel;
 	setbrightness_replace 		= qsetbrightness;
-	printmessage16_replace 		= qprintmessage16;
 	loadtile_replace 			= qloadtile;
+	printext_replace			= qprintext;
 }

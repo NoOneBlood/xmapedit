@@ -21,9 +21,6 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "compat.h"
-#include "build.h"
-#include "pragmas.h"
 #include "common_game.h"
 #include "db.h"
 #include "sectorfx.h"
@@ -107,9 +104,16 @@ short shadeList[kMaxXSectors];
 int panCount = 0;
 short panList[kMaxXSectors];
 
+static char didSectorLighting = 0;
+
 void DoSectorLighting(void)
 {
-    for (int i = 0; i < shadeCount; i++)
+	if (didSectorLighting)
+		return;
+	
+	didSectorLighting = 1;
+	
+	for (int i = 0; i < shadeCount; i++)
     {
         int nXSector = shadeList[i];
         XSECTOR *pXSector = &xsector[nXSector];
@@ -204,7 +208,12 @@ void DoSectorLighting(void)
 
 void UndoSectorLighting(void)
 {
-    for (int i = 0; i < numsectors; i++)
+    if (!didSectorLighting)
+		return;
+	
+	didSectorLighting = 0;
+	
+	for (int i = 0; i < numsectors; i++)
     {
         int nXSector = sector[i].extra;
         if (nXSector > 0)

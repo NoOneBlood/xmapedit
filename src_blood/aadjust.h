@@ -22,7 +22,6 @@
 ***********************************************************************************/
 #ifndef CLEANUP_H
 #define CLEANUP_H
-#include "inifile.h"
 
 #pragma pack(push, 1)
 struct AUTODATA

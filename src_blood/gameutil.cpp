@@ -20,10 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include "build.h"
-#include "common_game.h"
-#include "db.h"
 #include "gameutil.h"
+#include "db.h"
 #include "tile.h"
 
 POINT2D baseWall[kMaxWalls];

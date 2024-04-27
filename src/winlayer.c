@@ -144,7 +144,7 @@ static BOOL RegisterWindowClass(void);
 static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refresh);
 static void DestroyAppWindow(void);
 static void UpdateAppWindowTitle(void);
-
+void SetNumLock( BOOL bState );
 static void shutdownvideo(void);
 
 RECT  windowrct;
@@ -851,6 +851,9 @@ int initinput(void)
 	memset(keystatus, 0, sizeof(keystatus));
 	keyfifoplc = keyfifoend = 0;
 	keyasciififoplc = keyasciififoend = 0;
+	
+	SetNumLock(0);
+	
 	#if MOUSETYPE == 1
 	{
 		g_lpDI = NULL;
@@ -1663,7 +1666,7 @@ void getvalidmodes(void)
 		for (i = 0; EnumDisplaySettings(NULL, i, &d) && validmodecnt < MAXVALIDMODES; i++)
 		{
 			if (d.dmPelsWidth > MAXXDIM || d.dmPelsHeight > MAXYDIM) continue;
-			if (maxrefreshfreq && d.dmDisplayFrequency > maxrefreshfreq) continue;
+			//if (maxrefreshfreq && d.dmDisplayFrequency > maxrefreshfreq) continue;
 			if (desktopbpp < d.dmBitsPerPel) continue;
 			if (!fullscreen && (d.dmPelsWidth > desktopxdim || d.dmPelsHeight > desktopydim))
 				continue;
@@ -2710,6 +2713,27 @@ static char mouseInsideWindow()
 			&& c.y >= windowrct.top && c.y <= windowrct.bottom);
 }
 
+void SetNumLock( BOOL bState )
+{
+	int t = GetKeyState(VK_NUMLOCK);
+	if( (bState && !(t & 1)) || (!bState && (t & 1)) )
+	{
+		// Simulate a key press
+		 keybd_event( VK_NUMLOCK,
+					  0x45,
+					  KEYEVENTF_EXTENDEDKEY | 0,
+					  0 );
+
+		// Simulate a key release
+		 keybd_event( VK_NUMLOCK,
+					  0x45,
+					  KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP,
+					  0);
+	}
+}
+
+
+
 //
 // WndProcCallback() -- the Windows window callback
 //
@@ -2885,7 +2909,7 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 			return 0;
 
 		case WM_CLOSE:
-			quitevent = 1;
+			quitevent = (onquiteventcallback) ? onquiteventcallback() : 1;
 			return 0;
 
 		case WM_SYSKEYDOWN:

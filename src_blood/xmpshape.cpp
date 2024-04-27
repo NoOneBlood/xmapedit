@@ -20,11 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
-#include "xmpshape.h"
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "aadjust.h"
-#include "edit3d.h"
 #include "db.h"
 
 NAMED_TYPE gLoopShapeErrors[] =
@@ -84,13 +81,11 @@ void LOOPSHAPE::Start(int nType, int nSect, int x, int y)
 		point[i].y = y;
 	}
 
-	lockSectorDrawing();
 	active = 1;
 }
 
 void LOOPSHAPE::Stop()
 {
-	unlockSectorDrawing();
 }
 
 void LOOPSHAPE::SetupRectangle(int x2, int y2)
@@ -230,10 +225,10 @@ void LOOPSHAPE::Draw(SCREEN2D* pScr)
 	if (status == 0)
 		return;
 	
-	char fillCol = clr2std((status > 0) ? kColorLightBlue : kColorLightRed);
-	char vtxCol1 = pScr->ColorGet(kClrEdFirstVtxBrd, 0);
-	char vtxCol2 = pScr->ColorGet(kClrEdFirstVtxBgd, 0);
-	char lineCol = pScr->ColorGet(kClrWalBase, 0);
+	char fillCol = pScr->ColorGet((status > 0) ? kColorLightBlue : kColorLightRed);
+	char vtxCol1 = pScr->ColorGet(kColorBlack);
+	char vtxCol2 = pScr->ColorGet(kColorYellow);
+	char lineCol = pScr->ColorGet(kColorGrey18);
 	int n = numPoints, i, x1, y1, x2, y2;
 	LINE2D fill[LENGTH(point)];
 	
@@ -280,7 +275,7 @@ int LOOPSHAPE::Insert()
 {
 	walltype wmodel; sectortype smodel;
 	int nSect = numsectors, nWall = -1;
-	int oWallPtr, t, s, e;
+	int t, s, e;
 	
 	memset(&wmodel, 0, sizeof(wmodel));
 	wmodel.extra		= -1;
@@ -318,7 +313,6 @@ int LOOPSHAPE::Insert()
 			break;
 	}
 	
-	oWallPtr = (destSect >= 0) ? sector[destSect].wallptr : -1;
 	nWall = insertLoop(destSect, point, numPoints, &wmodel, &smodel);
 	loopGetWalls(nWall, &s, &e);
 	
@@ -329,10 +323,8 @@ int LOOPSHAPE::Insert()
 	}
 	
 	AutoAlignWalls(s);
-	if (destSect >= 0) // fix first wall of the sector, so slope direction stay the same
-		setFirstWall(destSect, oWallPtr + numPoints);
-	
 	CleanUp();
+	
 	return nWall;
 }
 

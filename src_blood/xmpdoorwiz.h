@@ -24,9 +24,7 @@
 #define __XMPDOORWIZ_H
 
 #include "common_game.h"
-#include "xmpmisc.h"
 #include "xmp2dscr.h"
-#include "gui.h"
 
 extern NAMED_TYPE gDoorWizardErrors[];
 

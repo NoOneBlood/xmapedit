@@ -60,7 +60,6 @@ extern void ExtSaveMap(const char *mapname);
 int loadsetup(const char *fn);	// from config.c
 int writesetup(const char *fn);	// from config.c
 
-void printmessage16(char name[82]);
 
 #ifdef __cplusplus
 }

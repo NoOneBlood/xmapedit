@@ -1,20 +1,14 @@
-#include <cmath>
 
-#include "nnexts.h"
+#include "common_game.h"
+#include "db.h"
 #include "preview.h"
 #include "aadjust.h"
-#include "xmpsnd.h"
 #include "xmphudlg.h"
 #include "xmptools.h"
 #include "xmpexplo.h"
-#include "xmpstub.h"
-#include "xmpconf.h"
-#include "xmpmisc.h"
-#include "xmpstr.h"
-
-#include "editor.h"
-#include "edit2d.h"
-#include "edit3d.h"
+#include "xmpmaped.h"
+#include "tile.h"
+#include "hglt.h"
 
 #define kMaxMessages		32
 #define kMaxMessageLength	64
@@ -26,6 +20,27 @@ static char helperAuditSound(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key)
 static char helperPickItemTile(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key);
 static char helperPickEnemyTile(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 static char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
+
+static int dlgCountItems(DIALOG_ITEM* pDlg)
+{
+	int c = 1;
+	while(pDlg->type != CONTROL_END) { pDlg++, c++; };
+	return c;
+}
+
+#pragma pack(push, 1)
+struct DIALOG_INFO
+{
+	unsigned int objectType					: 8;
+	DIALOG_ITEM* dialog;
+	void (*objectToDialog)(DIALOG_HANDLER*, int);
+	void (*dialogToObject)(DIALOG_HANDLER*, int);
+	const char* pHintGroup;
+	signed int objectTypeHintID				: 8;
+};
+#pragma pack(pop)
+
+DIALOG_INFO* GetDialogInfo(DIALOG_ITEM* pDlg, int nID);
 
 DIALOG_ITEM dlgXSprite[] =
 {
@@ -149,39 +164,39 @@ DIALOG_ITEM dlgSprite[] =
 
 DIALOG_ITEM dlgXWall[] =
 {
-	{ NO,	1,		0,	0,	1,	LIST, 		"Type %4d: %-18.18s", 0, 1023, gWallNames },
-	{ NO,	1,		0,	1,	2,	NUMBER, 	"RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
-	{ NO,	1,		0,	2,	3,	NUMBER, 	"TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
-	{ NO,	1,		0,	3,	4,	LIST, 		"State %1d: %-3.3s", 0, 1, gBoolNames },
-	{ NO,	1,		0,	4,	5,	LIST, 		"Cmd: %3d: %-18.18s", 0, 255, gCommandNames },
+	{ NO,	1,		0,	0,	kWallType,			LIST, 		"Type %4d: %-18.18s", 0, 1023, gWallNames },
+	{ NO,	1,		0,	1,	kWallRX,			NUMBER, 	"RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
+	{ NO,	1,		0,	2,	kWallTX,			NUMBER, 	"TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
+	{ NO,	1,		0,	3,	kWallState,			LIST, 		"State %1d: %-3.3s", 0, 1, gBoolNames },
+	{ NO,	1,		0,	4,	kWallCmd,			LIST, 		"Cmd: %3d: %-18.18s", 0, 255, gCommandNames },
 
-	{ NO,	1,		0,	5,	0,	HEADER, 	"Send when:" },
-	{ NO,	1,		0,	6,	6,	CHECKBOX,	"going ON" },
-	{ NO,	1,		0,	7,	7,	CHECKBOX,	"going OFF" },
-	{ NO,	1,		0,	8,	8,	NUMBER, 	"busyTime = %4d", 0, 4095 },
-	{ NO,	1,		0,	9,	9,	NUMBER, 	"waitTime = %4d", 0, 4095 },
-	{ NO,	1,		0,	10,	10,	LIST,		"restState %1d: %-3.3s", 0, 1, gBoolNames },
+	{ NO,	1,		0,	5,	0,					HEADER, 	"Send when:" },
+	{ NO,	1,		0,	6,	kWallGoingOn,		CHECKBOX,	"going ON" },
+	{ NO,	1,		0,	7,	kWallGoingOff,		CHECKBOX,	"going OFF" },
+	{ NO,	1,		0,	8,	kWallBusyTime,		NUMBER, 	"busyTime = %4d", 0, 4095 },
+	{ NO,	1,		0,	9,	kWallWaitTime,		NUMBER, 	"waitTime = %4d", 0, 4095 },
+	{ NO,	1,		0,	10,	kWallRestState,		LIST,		"restState %1d: %-3.3s", 0, 1, gBoolNames },
 
-	{ NO,	1,		30,	0,	0,	HEADER,		"Trigger On:" },
-	{ NO,	1,		30,	1,	11,	CHECKBOX,	"Push" },
-	{ NO,	1,		30,	2,	12,	CHECKBOX,	"Vector" },
-	{ MO,	1,		30,	3,	13,	CHECKBOX,	"Touch" },
+	{ NO,	1,		30,	0,	0,					HEADER,			"Trigger On:" },
+	{ NO,	1,		30,	1,	kWallTrPush,		CHECKBOX,	"Push" },
+	{ NO,	1,		30,	2,	kWallTrVector,		CHECKBOX,	"Vector" },
+	{ MO,	1,		30,	3,	kWallTrTouch,		CHECKBOX,	"Touch" },
 
 
-	{ NO,	1,		30,	5,	14,	LIST,		"Key: %1d %-7.7s", 0, 7, gKeyItemNames },
-	{ NO,	1,		30,	7,	15,	NUMBER, 	"panX = %4d", -128, 127 },
-	{ NO,	1,		30,	8,	16,	NUMBER, 	"panY = %4d", -128, 127 },
-	{ NO,	1,		30,	9,	17,	CHECKBOX,	"always" },
+	{ NO,	1,		30,	5,	kWallKey,			LIST,		"Key: %1d %-7.7s", 0, 7, gKeyItemNames },
+	{ NO,	1,		30,	7,	kWallPanX,			NUMBER, 	"panX = %4d", -128, 127 },
+	{ NO,	1,		30,	8,	kWallPanY,			NUMBER, 	"panY = %4d", -128, 127 },
+	{ NO,	1,		30,	9,	kWallPanAlways,		CHECKBOX,	"always" },
 
-	{ NO,	1,		48,	0,	0,	HEADER, 	"Trigger Flags:" },
-	{ NO,	1,		48,	1,	18,	CHECKBOX, 	"Decoupled" },
-	{ NO,	1,		48,	2,	19,	CHECKBOX,	"1-shot" },
-	{ NO,	1,		48,	3,	20,	CHECKBOX, 	"Locked" },
-	{ NO,	1,		48,	4,	21,	CHECKBOX,	"Interruptable" },
-	{ NO,	1,		48,	5,	22,	CHECKBOX,	"Player only" },
+	{ NO,	1,		48,	0,	0,					HEADER, 	"Trigger Flags:" },
+	{ NO,	1,		48,	1,	kWallDecoupled,		CHECKBOX, 	"Decoupled" },
+	{ NO,	1,		48,	2,	kWallOnce,			CHECKBOX,	"1-shot" },
+	{ NO,	1,		48,	3,	kWallLocked,		CHECKBOX, 	"Locked" },
+	{ NO,	1,		48,	4,	kWallInterrupt,		CHECKBOX,	"Interruptable" },
+	{ NO,	1,		48,	5,	kWallLockout,		CHECKBOX,	"Player only" },
 
-	{ NO,	1,		48,	7,	0,	HEADER, 	"Data:         " },
-	{ NO,	1,		48,	8,	kWallDialogData,	NUMBER, 	"Data", -65535, 65535, NULL, helperAuditSound },
+	{ NO,	1,		48,	7,	0,					HEADER, 	"Data:         " },
+	{ NO,	1,		48,	8,	kWallData,			NUMBER, 	"Data", -65535, 65535, NULL, helperAuditSound },
 
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
@@ -278,63 +293,58 @@ DIALOG_ITEM dlgXSectorFX[] =
 
 DIALOG_ITEM dlgXSector[] =
 {
-	{ NO,	1,		0,	0,	1,	LIST, 		"Type %4d: %-16.16s", 0, 1023, gSectorNames },
-	{ NO,	1,		0,	1,	2,	NUMBER, 	"RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
-	{ NO,	1,		0,	2,	3,	NUMBER, 	"TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
-	{ NO,	1,		0,	3,	4,	LIST, 		"State %1d: %-3.3s", 0, 1, gBoolNames },
-	{ NO,	1,		0,	4,	5,	LIST, 		"Cmd: %3d: %-16.16s", 0, 255, gCommandNames },
+	{ NO,	1,		0,	0,	kSectType,			LIST, 		"Type %4d: %-16.16s", 0, 1023, gSectorNames },
+	{ NO,	1,		0,	1,	kSectRX,			NUMBER, 	"RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
+	{ NO,	1,		0,	2,	kSectTX,			NUMBER, 	"TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
+	{ NO,	1,		0,	3,	kSectState,			LIST, 		"State %1d: %-3.3s", 0, 1, gBoolNames },
+	{ NO,	1,		0,	4,	kSectCmd,			LIST, 		"Cmd: %3d: %-16.16s", 0, 255, gCommandNames },
 
-	{ NO,	1,		0,	5,	0,	HEADER, 	"Trigger Flags:" },
-	{ NO,	1,		0,	6,	6,	CHECKBOX, 	"Decoupled" },
-	{ NO,	1,		0,	7,	7,	CHECKBOX,	"1-shot" },
-	{ NO,	1,		0,	8,	8,	CHECKBOX, 	"Locked" },
-	{ NO,	1,		0,	9,	9,	CHECKBOX, 	"Interruptable" },
-	{ NO,	1,		0,	10, 10,	CHECKBOX,	"Player only" },
+	{ NO,	1,		0,	5,	0,					HEADER, 	"Trigger Flags:" },
+	{ NO,	1,		0,	6,	kSectDecoupled,		CHECKBOX, 	"Decoupled" },
+	{ NO,	1,		0,	7,	kSectOnce,			CHECKBOX,	"1-shot" },
+	{ NO,	1,		0,	8,	kSectLocked,		CHECKBOX, 	"Locked" },
+	{ NO,	1,		0,	9,	kSectInterrupt,		CHECKBOX, 	"Interruptable" },
+	{ NO,	1,		0,	10, kSectLockout,		CHECKBOX,	"Player only" },
 
-	{ NO,	1,		28,	0,	0,	HEADER, 	"OFF->ON:" },
-	{ NO,	1,		28,	1,	11,	CHECKBOX,	"send at ON" },
-	{ NO,	1,		28,	2,	12,	NUMBER, 	"busyTime   = %3d", 0, 4095 },
-	{ NO,	1,		28,	3,	13,	LIST, 		"Wave: %1d %-8.8s", 0, 3, gBusyNames },
-	{ NO,	1,		28,	4,	14,	CHECKBOX, 	"" },
-	{ NO,	1,		30,	4,	15,	NUMBER, 	"waitTime = %3d", 0, 4095 },
+	{ NO,	1,		28,	0,	0,					HEADER, 	"OFF->ON:" },
+	{ NO,	1,		28,	1,	kSectGoingOn,		CHECKBOX,	"send at ON" },
+	{ NO,	1,		28,	2,	kSectBusyTimeOff,	NUMBER, 	"busyTime   = %3d", 0, 4095 },
+	{ NO,	1,		28,	3,	kSectBusyWaveOff,	LIST, 		"Wave: %1d %-8.8s", 0, 3, gBusyNames },
+	{ NO,	1,		28,	4,	kSectWaitOff,		CHECKBOX, 	"" },
+	{ NO,	1,		30,	4,	kSectWaitTimeOff,	NUMBER, 	"waitTime = %3d", 0, 4095 },
 
-	{ NO,	1,		28,	6,	0,	HEADER, 	"ON->OFF:" },
-	{ NO,	1,		28,	7,	16,	CHECKBOX,	"send at OFF" },
-	{ NO,	1,		28,	8,	17,	NUMBER, 	"busyTime   = %3d", 0, 4095 },
-	{ NO,	1,		28,	9,	18,	LIST, 		"Wave: %1d %-8.8s", 0, 3, gBusyNames },
-	{ NO,	1,		28,	10,	19,	CHECKBOX, 	"" },
-	{ NO,	1,		30,	10,	20,	NUMBER, 	"waitTime = %3d", 0, 4095 },
+	{ NO,	1,		28,	6,	0,					HEADER, 	"ON->OFF:" },
+	{ NO,	1,		28,	7,	kSectGoingOff,		CHECKBOX,	"send at OFF" },
+	{ NO,	1,		28,	8,	kSectBusyTimeOn,	NUMBER, 	"busyTime   = %3d", 0, 4095 },
+	{ NO,	1,		28,	9,	kSectBusyWaveOn,	LIST, 		"Wave: %1d %-8.8s", 0, 3, gBusyNames },
+	{ NO,	1,		28,	10,	kSectWaitOn,		CHECKBOX, 	"" },
+	{ NO,	1,		30,	10,	kSectWaitTimeOn,	NUMBER, 	"waitTime = %3d", 0, 4095 },
 
-	{ NO,	1,		46,	0,	0,	HEADER, 	"Trigger On:    " },
-	{ NO,	1,		46,	1,	21,	CHECKBOX,	"Push" },
-	{ NO,	1,		46,	2,	22,	CHECKBOX,	"WallPush" },
-	//{	45,	2,	22,	CHECKBOX,	"Vector" },
-	//{	45,	3,	23,	CHECKBOX,	"Reserved" },
-	{ NO,	1,		46,	3,	23,	CHECKBOX,	"Enter" },
-	{ NO,	1,		46,	4,	24,	CHECKBOX,	"Exit" },
+	{ NO,	1,		47,	0,	0,					HEADER, 	"Trigger On:    " },
+	{ NO,	1,		47,	1,	kSectTrPush,		CHECKBOX,	"Push" },
+	{ NO,	1,		47,	2,	kSectTrWPush,		CHECKBOX,	"WallPush" },
+	{ NO,	1,		47,	3,	kSectTrEnter,		CHECKBOX,	"Enter" },
+	{ NO,	1,		47,	4,	kSectTrExit,		CHECKBOX,	"Exit" },
 
-	{ NO,	1,		46,	6,	0,	HEADER, 	"Sound:         " },
-	{ NO,	1,		46,	7,	25,	NUMBER,		"Off->On : %5d", 0, 32768, NULL, helperAuditSound },
-	{ NO,	1,		46,	8,	26,	NUMBER,		"Stopping: %5d", 0, 32768, NULL, helperAuditSound },
-	{ NO,	1,		46,	9,	27,	NUMBER,		"On->Off : %5d", 0, 32768, NULL, helperAuditSound },
-	{ NO,	1,		46,	10,	28,	NUMBER,		"Stopping: %5d", 0, 65535, NULL, helperAuditSound },
+	{ NO,	1,		47,	6,	0,					HEADER, 	"Sound:         " },
+	{ NO,	1,		47,	7,	kSectSndOffOn,		NUMBER,		"Off->On : %5d", 0, 32768, NULL, helperAuditSound },
+	{ NO,	1,		47,	8,	kSectSndOffStop,	NUMBER,		"Stopping: %5d", 0, 32768, NULL, helperAuditSound },
+	{ NO,	1,		47,	9,	kSectSndOnOff,		NUMBER,		"On->Off : %5d", 0, 32768, NULL, helperAuditSound },
+	{ NO,	1,		47,	10,	kSectSndOnStop,		NUMBER,		"Stopping: %5d", 0, 65535, NULL, helperAuditSound },
 
-	{ NO,	1,		62,	0,	29,	LIST,		"Key:   %1d %-7.7s", 0, 7, gKeyItemNames },
-	{ NO,	1,		62,	1,	30,	LIST,		"Depth: %1d %-7.7s", 0, 7, gDepthNames },
-	{ NO,	1,		62,	3,	31,	CHECKBOX, 	"Underwater" },
-	{ NO,	1,		62,	4,	32,	CHECKBOX, 	"Crush" },
+	{ NO,	1,		65,	0,	kSectKey,			LIST,		"Key:   %1d %-7.7s", 0, 7, gKeyItemNames },
+	{ NO,	1,		65,	1,	kSectDepth,			LIST,		"Depth: %1d %-7.7s", 0, 7, gDepthNames },
+	{ NO,	1,		65,	3,	kSectUwater,		CHECKBOX, 	"Underwater" },
+	{ NO,	1,		65,	4,	kSectCrush,			CHECKBOX, 	"Crush" },
 
-	{ NO,	1,		62,	6,	0,	HEADER, 		"Data:         " },
-	{ NO,	1,		62,	7,	kSectDialogData,	NUMBER,		"Data", -32768, 32767 },
-
-	{ NO,	1,		62,	10,	34,	DIALOG,		"FX...",  0, 0, NULL, helperDoSectorFXDialog },
-
-	{ NO,	1,		0,	0,	0,	CONTROL_END },
+	{ NO,	1,		65,	6,	0,					HEADER, 	"Data:         " },
+	{ NO,	1,		65,	7,	kSectData,			NUMBER,		"Data", -32768, 32767 },
+	{ NO,	1,		65,	10,	kSectFX,			DIALOG,		"FX...",  0, 0, NULL, helperDoSectorFXDialog },
+	{ NO,	1,		0,	0,	0,					CONTROL_END },
 };
 
 DIALOG_ITEM dlgSector[] =
 {
-	
 	{ NO,	1,		0,	0,	0,	HEADER, 		"General:" },
 	{ NO,	0,		0,	1,	1,	NUMBER,			"Total walls..: %d",		0,					kMaxWalls - 1,		NULL,	NULL},
 	{ NO,	1,		0,	2,	2,	NUMBER,			"First wall...: %d",		0,					kMaxWalls - 1,		NULL,	NULL},
@@ -399,55 +409,70 @@ DIALOG_ITEM dlgSector[] =
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
 
-
-DIALOG_HANDLER::DIALOG_HANDLER(DIALOG_ITEM* pItem)
+static DIALOG_INFO gDialogInfo[] =
 {
-	pDlg = pItem;
-	nMaxGroup = 0;
+	{ OBJ_SPRITE, 	dlgXSprite, 	dlgXSpriteToDialog, 	dlgDialogToXSprite,		gSearchStatNames[OBJ_SPRITE],	1 },
+	{ OBJ_WALL, 	dlgXWall, 		dlgXWallToDialog, 		dlgDialogToXWall,		gSearchStatNames[OBJ_WALL],		kWallType, },
+	{ OBJ_SECTOR, 	dlgXSector, 	dlgXSectorToDialog, 	dlgDialogToXSector,		gSearchStatNames[OBJ_SECTOR],	kSectType, },
+	{ OBJ_SECTOR, 	dlgXSectorFX, 	dlgXSectorFXToDialog, 	dlgDialogToXSectorFX,	"SectorFX",						-1, },
+};
+
+DIALOG_INFO* GetDialogInfo(DIALOG_ITEM* pDlg, int nID = OBJ_NONE)
+{
+	int i = LENGTH(gDialogInfo);
+	DIALOG_INFO* pEntry;
+	
+	while(--i >= 0)
+	{
+		pEntry = &gDialogInfo[i];
+		if (pEntry->dialog == pDlg && (nID == OBJ_NONE || pEntry->objectType == nID))
+			return pEntry;
+	}
+	
+	return NULL;
+}
+
+int DIALOG_HANDLER::editStatus = 0;
+IniFile* DIALOG_HANDLER::pHints = NULL;
+DIALOG_HANDLER::DIALOG_HANDLER(MAPEDIT_HUD* pHud, DIALOG_ITEM* pItem)
+{
+	this->pFont		= pHud->GetFont(kHudFontCont);
+	this->pDlg		= pItem;
+	this->pHud		= pHud;
 	
 	DIALOG_ITEM* pCur = pDlg;
 	while(pCur->type != CONTROL_END)
 	{
+		if (pCur->readyLabel)
+			break; // dialog already initialized
+		
 		switch(pCur->type)
 		{
 			case HEADER:
-			case DIALOG:
-				pCur->readyLabel = pCur->formatLabel;
+				SetLabel(pCur, "%s", pCur->formatLabel);
+				strupr(pCur->readyLabel);
+				break;
+			case LIST:
+			case NUMBER:
 				break;
 			case LABEL:
 				pCur->readyLabel = (pCur->names) ? NULL : pCur->formatLabel;
 				break;
 			default:
-				pCur->readyLabel = NULL;
+				pCur->readyLabel = pCur->formatLabel;
 				break;
 		}
 		
-		if (pCur->tabGroup > nMaxGroup)
-			nMaxGroup = pCur->tabGroup;
+		if (pCur->readyLabel)
+			pCur->readyLabelLen = strlen(pCur->readyLabel);
 		
 		pCur++;
 	}
-}
-
-DIALOG_HANDLER::~DIALOG_HANDLER()
-{
-	DIALOG_ITEM* pCur = pDlg;
-	while(pCur->type != CONTROL_END)
-	{
-		if (pCur->readyLabel && pCur->readyLabel != pCur->formatLabel)
-		{
-			free(pCur->readyLabel);
-			pCur->readyLabel = NULL;
-		}
-		
-		pCur++;
-	}
+	
 }
 
 void DIALOG_HANDLER::Paint()
 {
-	gMapedHud.ClearContent();
-	
 	DIALOG_ITEM* pCur = pDlg;
 	while(pCur->type != CONTROL_END)
 	{
@@ -459,16 +484,21 @@ void DIALOG_HANDLER::Paint()
 void DIALOG_HANDLER::Paint(DIALOG_ITEM* pItem, char focus)
 {
 	unsigned char fc = clr2std(kColorLightCyan);
-	unsigned char bc = clr2std(kColorDarkGray);
+	short bc = -1;
 
 	if (focus)
 	{
 		fc = clr2std(kColorYellow);
 		bc = clr2std(kColorBlack);
 
-		// assuming that we are in edit mode
-		if (gHints)
-			gMapedHud.DrawEditDialogHints(pDlg, pItem);
+		// show hints while editing only
+		if (editStatus && pHints)
+			DrawHints(pItem);
+	}
+	else if (pItem->type == ELT_SELECTOR)
+	{
+		if (pItem->selected)
+			bc = clr2std(kColorMagenta);
 	}
 	else if (pItem->type == HEADER)
 	{
@@ -477,7 +507,7 @@ void DIALOG_HANDLER::Paint(DIALOG_ITEM* pItem, char focus)
 	}
 	else if (!pItem->enabled)
 	{
-		fc = clr2std(20);
+		fc = clr2std(kColorGrey20);
 	}
 	else if (pItem->flags > 0 && gMisc.showTypes != pItem->flags)
 	{
@@ -551,7 +581,7 @@ void DIALOG_HANDLER::Paint(DIALOG_ITEM* pItem, char focus)
 
 				sprintf(&buffer[i], ": %-6d", pItem->value);
 			}
-			else if (pDlg == dlgXWall && pItem->tabGroup == kWallDialogData)
+			else if (pDlg == dlgXWall && pItem->tabGroup == kWallData)
 			{
 				// get wall type
 				DIALOG_ITEM *wallType = pDlg;
@@ -568,7 +598,7 @@ void DIALOG_HANDLER::Paint(DIALOG_ITEM* pItem, char focus)
 				sprintf(buffer, "%-0.11s: %-5d", label, pItem->value);
 				
 			}
-			else if (pDlg == dlgXSector && pItem->tabGroup == kSectDialogData)
+			else if (pDlg == dlgXSector && pItem->tabGroup == kSectData)
 			{
 				// get sector type
 				DIALOG_ITEM *sectType = pDlg;
@@ -597,8 +627,9 @@ void DIALOG_HANDLER::Paint(DIALOG_ITEM* pItem, char focus)
 			PrintText(pItem, fc, bc);
 			break;
 		case CHECKBOX:
-			SetLabel(pItem, "%c %s", pItem->value ? 3 : 2, pItem->formatLabel);
-			// no break
+		case ELT_SELECTOR:
+			DrawCheckbox(pItem, fc, bc);
+			break;
 		default:
 			PrintText(pItem, fc, bc);
 			break;
@@ -612,39 +643,45 @@ char DIALOG_HANDLER::Edit()
 	BYTE key, ctrl, shift, alt;
 	DIALOG_ITEM *pItem, *pCur;
 	
-	int nGroup = 1, nVal, i;
-	static int recurLev = 0;
+	int nVal, i;
 	RESHANDLE hFile;
 	MOUSE mouse;
-
 	keyClear();
-	if (recurLev++ < 1)
+
+	if (editStatus++ < 1)
 	{
-		if (gHints == NULL) // load hints for edit dialog
+		// started editing
+		if (pHints == NULL) // load hints for edit dialog
 		{
 			if ((hFile = gGuiRes.Lookup(kIniEditDialogHints, "INI")) != NULL)
-				gHints = new IniFile((BYTE*)gGuiRes.Load(hFile), hFile->size);
+				pHints = new IniFile((BYTE*)gGuiRes.Load(hFile), hFile->size);
 		}
+		
+		gfxFillBoxTrans(0, 0, xdim, ydim, clr2std(kColorCyan), kRSTransluc2);
 	}
 	
-	gMapedHud.GetWindowCoords(&gMapedHud.content, &x1, &y1, &x2, &y2);
+	
+	pHud->content.GetCoords(&x1, &y1, &x2, &y2);
 	
 	mouse.ChangeCursor(kBitmapMouseCursor);
 	wh = mouse.cursor.width; hg = mouse.cursor.height >> 1;
-	mouse.RangeSet(x1+wh, y1+hg, x2-wh, y2-ClipLow(hg, 9));
+	mouse.RangeSet(x1, y1, x2+wh, y2+hg);
 	mouse.VelocitySet(40, 35, false);
 	mouse.wheelDelay = 14;
 	
-	// focus on first group
-	pCur = FindGroup(nGroup, 0);
-	mouse.X = x1 + (pCur->x << 3);
-	mouse.Y = y1 + (pCur->y << 3);
-	nGroup = pCur->tabGroup;
+	// focus on first item
+	pCur = FirstItem();
+	dassert(pCur != NULL);
+	
+	mouse.X = x1 + (pCur->x * pFont->ls);
+	mouse.Y = y1 + (pCur->y * pFont->lh);
 	
 	while ( 1 )
 	{
 		if (upd)
-		{
+		{	
+			pHud->DrawIt();
+			
 			Paint();
 			Paint(pCur, true);
 			mouse.Draw();
@@ -665,14 +702,11 @@ char DIALOG_HANDLER::Edit()
 			// find item to focus with mouse
 			for (pItem = pDlg; pItem->type != CONTROL_END; pItem++)
 			{
-				if (pItem->tabGroup > 0 && pItem->enabled)
+				if (CanAccess(pItem) && GetItemCoords(pItem, &x1, &y1, &x2, &y2))
 				{
-					x3 = pItem->x << 3, y3 = pItem->y << 3;
-					x4 = x3 + (ClipLow(strlen(pItem->readyLabel), 1) << 3), y4 = y3 + 8;
-					if (irngok(mouse.X, x1+x3, x1+x4) && irngok(mouse.Y, y1+y3, y1+y4))
+					if (irngok(mouse.X, x1, x2) && irngok(mouse.Y, y1, y2))
 					{
-						nGroup	= pItem->tabGroup;
-						pCur	= pItem;
+						pCur = pItem;
 						break;
 					}
 				}
@@ -684,7 +718,7 @@ char DIALOG_HANDLER::Edit()
 			if (pCur->pHelpFunc)
 				key = pCur->pHelpFunc(pDlg, pCur, key);
 		}
-		else if (mouse.buttons) // convert mouse buttons in keyboard scans
+		else  if (mouse.buttons) // convert mouse buttons in keyboard scans
 		{
 			if (mouse.wheel && keystatus[KEY_Q])
 			{
@@ -706,6 +740,7 @@ char DIALOG_HANDLER::Edit()
 			switch (pCur->type)
 			{
 				case CHECKBOX:
+				case ELT_SELECTOR:
 					if (mouse.press & 1) key = KEY_SPACE;
 					break;
 				case DIALOG:
@@ -714,12 +749,7 @@ char DIALOG_HANDLER::Edit()
 					continue;
 				case LIST:
 				case NUMBER:
-					if (mouse.press & 4)
-					{
-						if (pCur->type == LIST) // force a dialog box
-							key = KEY_1;
-					}
-					else if (mouse.wheel == -1)
+					if (mouse.wheel == -1)
 					{
 						if (ctrl || alt) key = KEY_PAGEUP;
 						else if (shift) key = KEY_PADPLUS;
@@ -747,130 +777,92 @@ char DIALOG_HANDLER::Edit()
 				// no break
 			case KEY_ESC:
 				keystatus[key] = 0;
-				if (gHints && pDlg != dlgXSectorFX)
-				{
-					delete(gHints);
-					gHints = NULL;
-				}
 				sndKillAllSounds();
-				recurLev--;
+				if (--editStatus <= 0 && pHints)
+					DELETE_AND_NULL(pHints);
 				return (key == KEY_ESC) ? 0 : 1;
 			case KEY_TAB:
 			case KEY_RIGHT:
 				if (!shift)
 				{
-					Paint(pCur, false);
-					pCur = FindGroup(nGroup, 1);
-					nGroup = pCur->tabGroup;
+					if ((pCur = NextItem(pCur)) == NULL) pCur = FirstItem();
 					continue;
 				}
 				// no break
 			case KEY_LEFT:
-				Paint(pCur, false);
-				pCur = FindGroup(nGroup, -1);
-				nGroup = pCur->tabGroup;
+				if ((pCur = PrevItem(pCur)) == NULL) pCur = LastItem();
 				continue;
 		}
 
 		switch (pCur->type)
 		{
 			case NUMBER:
-				switch (key) {
-					case KEY_DELETE:
-						pCur->value = 0;
-						break;
-					case KEY_PADPLUS:
-					case KEY_UP:
-						pCur->value++;
-						break;
-					case KEY_PADMINUS:
-					case KEY_DOWN:
-						pCur->value--;
-						break;
-					case KEY_PAGEUP:
-						if (ctrl) pCur->value = pCur->maxValue;
-						else pCur->value = IncBy(pCur->value, 10);
-						break;
-					case KEY_PAGEDN:
-						if (ctrl) pCur->value = pCur->minValue;
-						else pCur->value = DecBy(pCur->value, 10);
-						break;
-					case KEY_MINUS:
-						if (pCur->minValue >= 0) break;
-						else if (!pCur->value) pCur->value = -1;
-						sprintf(tmp, "%d", (pCur->value > 0) ? -pCur->value : pCur->value);
-						pCur->value = atoi(tmp);
-						break;
-					case KEY_PLUS:
-						if (pCur->maxValue < 0) break;
-						sprintf(tmp, "%d", abs(pCur->value));
-						pCur->value = atoi(tmp);
-						break;
-					case KEY_BACKSPACE:
-						if ((i = sprintf(tmp, "%d", pCur->value)) > 1) tmp[i-1] = 0;
-						else tmp[0] = '\0';
-						pCur->value = atoi(tmp);
-						break;
-					default:
-						if (irngok(key, KEY_1, KEY_0) || irngok(key, KEY_PAD7, KEY_PAD0))
-						{
-							i = 0;
-							i += sprintf(&tmp[i], "%d", pCur->value);
-							i += sprintf(&tmp[i], "%c", keyAscii[key]);
-							pCur->value = atoi(tmp);
-						}
-						break;
-				}
-				pCur->value = ClipRange(pCur->value, pCur->minValue, pCur->maxValue);
-				break;
-			case CHECKBOX:
-				switch (key)
-				{
-					case KEY_SPACE:
-					case KEY_BACKSPACE:
-					case KEY_DELETE:
-						pCur->value = !pCur->value;
-						break;
-				}
-				break;
 			case LIST:
 				switch (key)
 				{
 					case KEY_DELETE:
 					case KEY_SPACE:
-						pCur->value = 0;
+						nVal = 0;
 						break;
 					case KEY_PAGEUP:
 					case KEY_PADPLUS:
 					case KEY_UP:
-						if (!ctrl)
+						if (pCur->type == NUMBER)
+						{
+							if (key == KEY_PAGEUP)
+							{
+								if (ctrl) nVal = pCur->maxValue;
+								else nVal = IncBy(nVal, 10);
+							}
+							else
+							{
+								nVal++;
+							}
+							
+							break;
+						}
+						else if (!ctrl)
 						{
 							do
 							{
 								nVal = IncBy(nVal, (key == KEY_PAGEUP) ? 5 : 1);
-								if (nVal > pCur->maxValue)
-									nVal = pCur->minValue;
+								nVal = ClipHigh(nVal, pCur->maxValue);
 							}
-							while (nVal <= pCur->maxValue && pCur->names[nVal] == NULL);
+							while (nVal < pCur->maxValue && pCur->names[nVal] == NULL);
+							while (nVal >= pCur->minValue && pCur->names[nVal] == NULL)
+								nVal--;
 						}
 						else
 						{
 							nVal = pCur->maxValue;
-							while (nVal >= pCur->minValue && pCur->names[nVal] == NULL) nVal--;
+							while (nVal >= pCur->minValue && !pCur->names[nVal]) nVal--;
 						}
 						break;
 					case KEY_PAGEDN:
 					case KEY_PADMINUS:
 					case KEY_DOWN:
-						if (!ctrl)
+						if (pCur->type == NUMBER)
+						{
+							if (key == KEY_PAGEDN)
+							{
+								if (ctrl) nVal = pCur->minValue;
+								else nVal = DecBy(nVal, 10);
+							}
+							else
+							{
+								nVal--;
+							}
+						}
+						else if (!ctrl)
 						{
 							do
 							{
 								nVal = DecBy(nVal, (key == KEY_PAGEDN) ? 5 : 1);
-								if (nVal < pCur->minValue)
-									nVal = pCur->maxValue;
+								nVal = ClipLow(nVal, pCur->minValue);
 							}
 							while (nVal >= pCur->minValue && pCur->names[nVal] == NULL);
+							while (nVal < pCur->maxValue && pCur->names[nVal] == NULL)
+								nVal++;
 						}
 						else
 						{
@@ -878,80 +870,274 @@ char DIALOG_HANDLER::Edit()
 							while (nVal <= pCur->maxValue && pCur->names[nVal] == NULL) nVal++;
 						}
 						break;
+					case KEY_MINUS:
+						if (pCur->minValue >= 0) break;
+						else if (!nVal) nVal = -1;
+						sprintf(tmp, "%d", (nVal > 0) ? -nVal : nVal);
+						nVal = atoi(tmp);
+						break;
+					case KEY_PLUS:
+						if (pCur->maxValue < 0) break;
+						sprintf(tmp, "%d", abs(nVal));
+						nVal = atoi(tmp);
+						break;
+					case KEY_BACKSPACE:
+						if ((i = sprintf(tmp, "%d", nVal)) > 1) tmp[i-1] = 0;
+						else tmp[0] = '\0';
+						nVal = atoi(tmp);
+						break;
 					default:
 						if (irngok(key, KEY_1, KEY_0) || irngok(key, KEY_PAD7, KEY_PAD0))
 						{
-							sprintf(buffer, "Enter value (%d - %d)", pCur->minValue, pCur->maxValue);
-							nVal = GetNumberBox(buffer, nVal, nVal);
-							if (!irngok(nVal, pCur->minValue, pCur->maxValue))
-								Alert("Value must be in a range of %d and %d.", pCur->minValue, pCur->maxValue);
-							else if (!pCur->names || pCur->names[nVal] == NULL)
-								Alert("Value %d is reserved or not exist.", nVal);
+							i = 0;
+							i += sprintf(tmp, "%d", nVal);
+							if (irngok(pCur->maxValue, 0, 9))
+								i = 0;
+							
+							sprintf(&tmp[i], "%c", keyAscii[key]);
+							nVal = atoi(tmp);
 						}
 						break;
 				}
-				if (nVal < pCur->minValue || nVal > pCur->maxValue || !pCur->names[nVal]) break;
-				pCur->value = nVal;
+				pCur->value = ClipRange(nVal, pCur->minValue, pCur->maxValue);
+				break;
+			case CHECKBOX:
+			case ELT_SELECTOR:
+				switch (key)
+				{
+					case KEY_SPACE:
+					case KEY_BACKSPACE:
+					case KEY_DELETE:
+						if (pCur->type == CHECKBOX) pCur->value = !pCur->value;
+						else pCur->selected = !pCur->selected;
+						break;
+				}
 				break;
 		}
 	}
 }
 
-DIALOG_ITEM* DIALOG_HANDLER::FindGroup(int nGroup, int dir)
+DIALOG_ITEM* DIALOG_HANDLER::NextItem(DIALOG_ITEM* pItem)
 {
-	if (dir == -1 && --nGroup < 1) nGroup = nMaxGroup;
-	else if (dir == 1 && ++nGroup > nMaxGroup)
-		nGroup = 1;
+	if (pItem->type != CONTROL_END)
+	{
+		while(pItem->type != CONTROL_END)
+		{
+			pItem++;
+			if (CanAccess(pItem))
+				return pItem;
+		}
+	}
 	
-	DIALOG_ITEM *pItem = pDlg;
+	return NULL;
+}
+
+DIALOG_ITEM* DIALOG_HANDLER::PrevItem(DIALOG_ITEM* pItem)
+{
+	if (pItem != pDlg)
+	{
+		while(pItem != pDlg)
+		{
+			pItem--;
+			if (CanAccess(pItem))
+				return pItem;
+		}
+	}
+	
+	return NULL;
+}
+
+DIALOG_ITEM* DIALOG_HANDLER::FirstItem()
+{
+	DIALOG_ITEM* pItem = pDlg;
 	while(pItem->type != CONTROL_END)
 	{
-		if (pItem->tabGroup == nGroup)
-		{
-			if (pItem->enabled) break;
-			else if (dir == -1) nGroup--;
-			else nGroup++;
-			
-			if (nGroup < 1) nGroup = nMaxGroup;
-			else if (nGroup > nMaxGroup)
-				nGroup = 1;
-			
-			pItem = pDlg;
-		}
+		if (CanAccess(pItem))
+			return pItem;
 		
 		pItem++;
 	}
 	
-	return pItem;
+	return NULL;
 }
 
-void DIALOG_HANDLER::PrintText(DIALOG_ITEM* pItem, char fc, char bc)
+DIALOG_ITEM* DIALOG_HANDLER::LastItem(DIALOG_ITEM* pItem)
 {
-	if (!pItem->readyLabel)
+	DIALOG_ITEM* pRetn = NULL;
+	
+	if (!pItem)
+		pItem = pDlg;
+	
+	while(pItem->type != CONTROL_END)
+	{
+		if (CanAccess(pItem))
+			pRetn = pItem;
+		
+		pItem++;
+	}
+	
+	return pRetn;
+}
+
+void DIALOG_HANDLER::DrawHints(DIALOG_ITEM* pItem)
+{
+	if (!pDlg || !pItem || !pHints)
 		return;
 	
-	int x1 = gMapedHud.content.x1+(pItem->x << 3);
-	int y1 = gMapedHud.content.y1+(pItem->y << 3);
-	int x2 = x1 + (strlen(pItem->readyLabel) << 3);
-	int	y2 = y1 + 8;
+	char buf1[256], buf2[32], buf3[32], typeHint, *tmp = NULL;
+	ROMFONT* pFont = pHud->GetFont(kHudFontStat);
+	DIALOG_INFO* pInfo = GetDialogInfo(pDlg);
+	int x1, x2, y1, y2, wh, i, l = 0;
+	char bg = clr2std(kColorGrey27);
+	char fg = clr2std(kColorGrey17);
 	
-	gfxSetColor(bc);
-	gfxFillBox(x1, y1, x2, y2);
-	printextShadowL(x1, y1, fc, pItem->readyLabel);
+	if (!pInfo || !pInfo->pHintGroup)
+		return;
+	
+	typeHint = (pInfo->objectTypeHintID == pItem->tabGroup);
+	sprintf(buf3, "%d", (typeHint) ? pDlg->value : pItem->tabGroup - 1);
+	sprintf(buf1, (typeHint) ? "Type" : "Dialog");
+	sprintf(buf2, "Hints.%s.%s", buf1, pInfo->pHintGroup);
+	
+	if (isempty(tmp = pHints->GetKeyString(buf2, buf3, NULL)))
+	{
+		sprintf(buf2, "Hints.%s.Shared", buf1);
+		tmp = pHints->GetKeyString(buf2, buf3, "<no information found>");
+	}
+	
+	gfxSetColor(bg);
+	pHud->bottom.GetCoords(&x1, &y1, &x2, &y2);
+	gfxFillBox(x1+1, y1+1, x2-1, y2-1);
+	wh = x2-x1;
+	
+	i = wh/pFont->ls;
+	if (pItem->selected)
+		l += sprintf(&buf1[l], "*SEL* - ");
+	
+	if ((l += sprintf(&buf1[l], "%0.255s", tmp)) >= i)
+		buf1[i] = 0, l = i;
+	
+	pHud->CenterText(&x1, &y1, x2-x1, l, y2-y1, pFont);
+	printextShadow(x1, y1, fg, buf1, pFont);
+}
+
+void DIALOG_HANDLER::DrawCheckbox(DIALOG_ITEM* pItem, char fc, short bc)
+{
+	int x1, y1, x2, y2, x3, y3, x4, y4, a;
+	if (!GetItemCoords(pItem, &x1, &y1, &x2, &y2))
+		return;
+	
+	if (bc >= 0)
+	{
+		gfxSetColor((char)bc);
+		gfxFillBox(x1, y1, x2, y2);
+	}
+	
+	if (pFont->ls != pFont->lh)
+	{
+		a = (pFont->ls+pFont->lh)>>1;
+		y3 = y1+((pFont->lh>>1)-(a>>1));
+		y4 = y3+a-2;
+		
+		x3 = x1+((pFont->ls>>1)-(a>>1));
+		x4 = x3+a-2;
+	}
+	else
+	{
+		x3 = x1+1;
+		y3 = y1+1;
+		x4 = x1+pFont->ls-1;
+		y4 = y1+pFont->lh-1;
+	}
+	
+	gfxSetColor(fc);
+	if (pItem->selected)
+	{
+		gfxSetColor(clr2std(kColorMagenta));
+		gfxFillBox(x3, y3, x4, y4);
+		
+		gfxSetColor(clr2std(kColorWhite));
+		gfxLine(x3, y3, x4, y4);
+		gfxLine(x4, y3, x3, y4);
+	}
+	else
+	{
+		if (pItem->enabled)
+		{
+			gfxSetColor(clr2std(kColorGrey27));
+			gfxFillBox(x3, y3, x4, y4);
+		}
+		
+		if (pItem->value)
+		{
+			if (pItem->enabled)
+				gfxSetColor(clr2std(kColorGrey18));
+			
+			gfxLine(x3, y3, x4, y4);
+			gfxLine(x4, y3, x3, y4);
+		}
+	}
+	
+	gfxSetColor(fc);
+	gfxRect(x3, y3, x4, y4);
+	printextShadow(x1+(pFont->ls<<1), y1, fc, pItem->readyLabel, pFont);
+}
+
+char DIALOG_HANDLER::GetItemCoords(DIALOG_ITEM* pItem, int* x1, int* y1, int* x2, int* y2)
+{
+	if (pItem->readyLabel)
+	{
+		*x1 = pHud->content.x1+(pItem->x * pFont->ls);
+		*y1 = pHud->content.y1+(pItem->y * pFont->lh);
+		*x2 = *x1 + (pItem->readyLabelLen * pFont->ls);
+		*y2 = *y1 + pFont->lh;
+		
+		switch(pItem->type)
+		{
+			case CHECKBOX:
+			case ELT_SELECTOR:
+				*x2 = *x2 + pFont->ls;
+				if (pItem->readyLabelLen)
+					*x2 = *x2 + pFont->ls;
+				break;
+		}
+		
+		return 1;
+	}
+	
+	return 0;
+}
+
+void DIALOG_HANDLER::PrintText(DIALOG_ITEM* pItem, char fc, short bc)
+{
+	int x1, y1, x2, y2;
+	if (bc < 0)
+	{
+		x1 = pHud->content.x1+(pItem->x*pFont->ls);
+		y1 = pHud->content.y1+(pItem->y*pFont->lh);
+	}
+	else
+	{
+		if (!GetItemCoords(pItem, &x1, &y1, &x2, &y2))
+			return;
+		
+		gfxSetColor((char)bc);
+		gfxFillBox(x1, y1, x2, y2);
+	}
+
+	printextShadow(x1, y1, fc, pItem->readyLabel, pFont);
 }
 
 void DIALOG_HANDLER::SetLabel(DIALOG_ITEM* pItem, char *__format, ...)
 {
-	char text[64];
-	int t;
-	
+	if (pItem->readyLabel == pItem->formatLabel
+		|| (!pItem->readyLabel && (pItem->readyLabel = (char*)malloc(128)) == NULL))
+				return;
+			
 	va_list argptr;
 	va_start(argptr, __format);
-	t = vsprintf(text, __format, argptr);
+	pItem->readyLabelLen = vsprintf(pItem->readyLabel, __format, argptr);
 	va_end(argptr);
-	
-	pItem->readyLabel = (char*)realloc(pItem->readyLabel, t+1);
-	sprintf(pItem->readyLabel, text);
 }
 
 void DIALOG_HANDLER::SetValue(int nGroup, int nValue)
@@ -989,13 +1175,13 @@ void ShowSectorData(int nSector, BOOL xFirst, BOOL showDialog)
 		{
 			if (testXSectorForLighting(pSect->extra))
 			{
-				DIALOG_HANDLER dialog(dlgXSectorFX);
+				DIALOG_HANDLER dialog(&gMapedHud, dlgXSectorFX);
 				dlgXSectorFXToDialog(&dialog, nSector);
 				dialog.Paint();
 			}
 			else
 			{
-				DIALOG_HANDLER dialog(dlgXSector);
+				DIALOG_HANDLER dialog(&gMapedHud, dlgXSector);
 				dlgXSectorToDialog(&dialog, nSector);
 				dialog.Paint();
 			}
@@ -1005,18 +1191,11 @@ void ShowSectorData(int nSector, BOOL xFirst, BOOL showDialog)
 	}
 	else if (showDialog)
 	{
-		DIALOG_HANDLER dialog(dlgSector);
+		DIALOG_HANDLER dialog(&gMapedHud, dlgSector);
 		dlgSectorToDialog(&dialog, nSector);
 		dialog.Paint();
 	}
-	
-	gMapedHud.SetComment();
-	if (pSect->extra > 0)
-	{
-		if ((i = gCommentMgr.IsBind(OBJ_SECTOR, pSect->extra)) >= 0)
-			gMapedHud.SetComment(&gCommentMgr.comments[i]);
-	}
-	
+
 	if (searchstat == OBJ_FLOOR)
 		gMapedHud.SetTile(pSect->floorpicnum, pSect->floorpal, pSect->floorshade);
 	else
@@ -1041,13 +1220,13 @@ void ShowWallData(int nWall, BOOL xFirst, BOOL showDialog)
 	{
 		if (pWall->extra > 0 && xFirst)
 		{
-			DIALOG_HANDLER dialog(dlgXWall);
+			DIALOG_HANDLER dialog(&gMapedHud, dlgXWall);
 			dlgXWallToDialog(&dialog, nWall);
 			dialog.Paint();
 		}
 		else
 		{
-			DIALOG_HANDLER dialog(dlgWall);
+			DIALOG_HANDLER dialog(&gMapedHud, dlgWall);
 			dlgWallToDialog(&dialog, nWall);
 			dialog.Paint();
 		}
@@ -1075,15 +1254,9 @@ void ShowWallData(int nWall, BOOL xFirst, BOOL showDialog)
 	
 	pBuf += sprintf(pBuf, ", Angle = %d", getangle(x2 - x1, y2 - y1) & kAngMask);
 	
-	gMapedHud.SetComment();
 	if (pWall->extra > 0)
-	{
-		if ((i = gCommentMgr.IsBind(OBJ_WALL, pWall->extra)) >= 0)
-			gMapedHud.SetComment(&gCommentMgr.comments[i]);
-		
 		pBuf += sprintf(pBuf, ", Extra = %d, XRef = %d", pWall->extra, xwall[pWall->extra].reference);
-	}
-	
+
 	sectortype* pSect = &sector[nSect];
 	if (pSect->wallptr == nWall) pBuf += sprintf(pBuf, " [FIRST]");
 	if (pSect->alignto && nWall - pSect->wallptr == pSect->alignto)
@@ -1094,8 +1267,12 @@ void ShowWallData(int nWall, BOOL xFirst, BOOL showDialog)
 	gMapedHud.SetMsg(buf);
 }
 
-void ShowMapStatistics(void)
+void ShowMapInfo(BOOL showDialog)
 {
+	gMapedHud.SetMsg(gMapInfoStr);
+	if (!showDialog)
+		return;
+
 	char buf[64], *pBuf;
 	int x1, y1, x2, y2, x3, y3, x4, y4, x, y;
 	int nLongest = 0, i = LENGTH(gMapStatsNames), t;
@@ -1110,10 +1287,13 @@ void ShowMapStatistics(void)
 	const char kColorProgTextZero	= clr2std(20);
 	const char kColorProgPercFull	= clr2std(kColorBlue);
 	const char kColorProgPerc		= clr2std(kColorMagenta);
-	const int  kProgWidth			= 54;
 	
-	gMapedHud.GetWindowCoords(&gMapedHud.content, &x1, &y1, &x2, &y2);
-	gMapedHud.ClearContent();
+	
+	gMapedHud.content.GetCoords(&x1, &y1, &x2, &y2);
+	ROMFONT* pFont = gMapedHud.GetFont(kHudFontCont);
+	int fw = pFont->ls, fh = pFont->lh;
+	int nProgWidth = fw * 6;
+	int nStep = fw * 13;
 	
 	while(--i >= 0) // get longest string
 	{
@@ -1121,13 +1301,13 @@ void ShowMapStatistics(void)
 			nLongest = t;
 	}
 	
-	t = sprintf(buf, "TOTAL SPRITES:")<<3;
+	t = sprintf(buf, "TOTAL SPRITES:")*fw;
 	
 	gfxSetColor(kColorHeaderBack);
-	gfxFillBox(x1, y1, x1+t, y1+8);
-	printextShadowL(x1, y1, kColorHeaderText, buf);
+	gfxFillBox(x1, y1, x1+t, y1+fh);
+	printextShadow(x1, y1, kColorHeaderText, buf, pFont);
 	
-	y = y1 + 8;
+	y = y1+fh;
 	for (i = 0; i < kMapStatMax; i++)
 	{
 		pBuf = buf;
@@ -1137,28 +1317,28 @@ void ShowMapStatistics(void)
 			*pBuf = '.', pBuf++;
 		
 		sprintf(pBuf, ".:%03d", ClipHigh(MapStats::Get(nMode, i), 999));
-		printextShadowL(x1, y, kColorNormalText, buf);
-		y+=8;
+		printextShadow(x1, y, kColorNormalText, buf, pFont);
+		y+=fh;
 	}
 	
-	x = x1 + 128, y = y1 + 8;
-	for (nSkill = 0; nSkill < 5; nSkill++, x+=104, y = y1 + 8)
+	x = x1+(fw<<4), y = y1 + fh;
+	for (nSkill = 0; nSkill < 5; nSkill++, x+=nStep, y = y1 + fh)
 	{
 		pBuf = buf;
 		if (gPreview.difficulty >= 5 || nSkill == gPreview.difficulty)
 			*pBuf = '*', pBuf++; // mark current difficulty
 		
-		sprintf(pBuf, "D%d", nSkill + 1);
+		sprintf(pBuf, "SKL%d", nSkill + 1);
 		
-		t = strlen(buf)<<3;
+		t = strlen(buf)*fw;
 		gfxSetColor(kColorHeaderBack);
-		gfxFillBox(x, y1, x + t, y1 + 8);
-		printextShadowL(x, y1, kColorHeaderText, buf);
+		gfxFillBox(x, y1, x + t, y1 + fh);
+		printextShadow(x, y1, kColorHeaderText, buf, pFont);
 		
 		for (nStat = 0; nStat < kMapStatMax; nStat++)
 		{
-			x3 = x;		x4 = x3 + kProgWidth;
-			y3 = y;		y4 = y3 + 8;
+			x3 = x;		x4 = x3 + nProgWidth;
+			y3 = y;		y4 = y3 + fh;
 
 			gfxSetColor(kColorProgRectLine);
 			gfxRect(x3, y3, x4, y4);
@@ -1167,13 +1347,13 @@ void ShowMapStatistics(void)
 			nCurVal = MapStats::Get(nMode, nSkill, nStat);
 			if ((nPerc = (100 * nCurVal)/ClipLow(nTotVal, 1)) > 0)
 			{
-				gfxSetColor(nPerc >= 100 ? kColorProgPercFull : kColorProgPerc);
-				t = x3 + perc2val(nPerc, kProgWidth) - 1;
+				gfxSetColor((nPerc >= 100) ? kColorProgPercFull : kColorProgPerc);
+				t = x3 + perc2val(nPerc, nProgWidth) - 1;
 				while(t > x3)
 					gfxVLine(t, y3+1, y4-1), t-=3;
 				
-				t = sprintf(buf, "%d%%", nPerc)<<3;
-				printextShadowL(x3 + ((kProgWidth>>1) - (t>>1)), y, kColorProgPercText, buf);
+				t = sprintf(buf, "%d%%", nPerc)*fw;
+				printextShadow(x3 + ((nProgWidth>>1) - (t>>1)), y, kColorProgPercText, buf, pFont);
 			}
 			else
 			{
@@ -1183,13 +1363,13 @@ void ShowMapStatistics(void)
 				while(t > x3)
 					gfxVLine(t, y3+1, y4-1), t-=3;
 				
-				t = sprintf(buf, "---")<<3;
-				printextShadowL(x3 + ((kProgWidth>>1) - (t>>1)), y, kColorProgTextZero, buf);
+				t = sprintf(buf, "---")*fw;
+				printextShadow(x3 + ((nProgWidth>>1) - (t>>1)), y, kColorProgTextZero, buf, pFont);
 			}
 			
 			t = sprintf(buf, "%03d", ClipHigh(nCurVal, 999));
-			printextShadowL(x4+4, y, kColorNormalText, buf);
-			y+=8;
+			printextShadow(x4+4, y, kColorNormalText, buf, pFont);
+			y+=fh;
 		}
 	}
 	
@@ -1198,8 +1378,8 @@ void ShowMapStatistics(void)
 	{
 		if (gGameNames[i].id == nMode)
 		{
-			t = sprintf(buf, "Showing statistics for game mode: %s", gGameNames[i].name) << 3;
-			printextShadowL(x1+((x2-x1>>1)) - (t>>1), y2-14, kColorNormalText, buf);
+			t = sprintf(buf, "Showing statistics for game mode: %s", gGameNames[i].name)*fw;
+			printextShadow(x1+((x2-x1>>1)) - (t>>1), y2-fh, kColorNormalText, buf, pFont);
 			break;
 		}
 	}
@@ -1236,7 +1416,7 @@ void ShowSpriteData(int nSprite, BOOL xFirst, BOOL showDialog)
 	{
 		if (showDialog)
 		{
-			DIALOG_HANDLER dialog(dlgXSprite);
+			DIALOG_HANDLER dialog(&gMapedHud, dlgXSprite);
 			dlgXSpriteToDialog(&dialog, nSprite);
 			dialog.Paint();
 		}
@@ -1245,15 +1425,10 @@ void ShowSpriteData(int nSprite, BOOL xFirst, BOOL showDialog)
 	}
 	else if (showDialog)
 	{
-		DIALOG_HANDLER dialog(dlgSprite);
+		DIALOG_HANDLER dialog(&gMapedHud, dlgSprite);
 		dlgSpriteToDialog(&dialog, nSprite);
 		dialog.Paint();
 	}
-	
-	if ((nComment = gCommentMgr.IsBind(OBJ_SPRITE, nSprite)) < 0)
-		gMapedHud.SetComment();
-	else
-		gMapedHud.SetComment(&gCommentMgr.comments[nComment]);
 	
 	gMapedHud.SetTile(pSpr->picnum, pSpr->pal, pSpr->shade);
 	gMapedHud.SetMsg(buf);
@@ -1266,14 +1441,14 @@ void EditSectorData(int nSector, BOOL xFirst)
 	{
 		GetXSector(nSector);
 		
-		DIALOG_HANDLER dialog(dlgXSector);
+		DIALOG_HANDLER dialog(&gMapedHud, dlgXSector);
 		dlgXSectorToDialog(&dialog, nSector);
 		if (dialog.Edit())
 			dlgDialogToXSector(&dialog, nSector);
 	}
 	else
 	{
-		DIALOG_HANDLER dialog(dlgSector);
+		DIALOG_HANDLER dialog(&gMapedHud, dlgSector);
 		dlgSectorToDialog(&dialog, nSector);
 		if (dialog.Edit())
 			dlgDialogToSector(&dialog, nSector);
@@ -1289,7 +1464,7 @@ void EditSectorLighting(int nSector)
 	ShowSectorData(nSector, TRUE);
 	GetXSector(nSector);
 
-	DIALOG_HANDLER dialog(dlgXSectorFX);
+	DIALOG_HANDLER dialog(&gMapedHud, dlgXSectorFX);
 	dlgXSectorFXToDialog(&dialog, nSector);
 	if (dialog.Edit())
 		dlgDialogToXSectorFX(&dialog, nSector);
@@ -1306,14 +1481,14 @@ void EditWallData(int nWall, BOOL xFirst)
 	{
 		GetXWall(nWall);
 		
-		DIALOG_HANDLER dialog(dlgXWall);
+		DIALOG_HANDLER dialog(&gMapedHud, dlgXWall);
 		dlgXWallToDialog(&dialog, nWall);
 		if (dialog.Edit())
 			dlgDialogToXWall(&dialog, nWall);
 	}
 	else
 	{
-		DIALOG_HANDLER dialog(dlgWall);
+		DIALOG_HANDLER dialog(&gMapedHud, dlgWall);
 		dlgWallToDialog(&dialog, nWall);
 		if (dialog.Edit())
 			dlgDialogToWall(&dialog, nWall);
@@ -1331,14 +1506,14 @@ void EditSpriteData(int nSprite, BOOL xFirst)
 	{
 		GetXSprite(nSprite);
 		
-		DIALOG_HANDLER dialog(dlgXSprite);
+		DIALOG_HANDLER dialog(&gMapedHud, dlgXSprite);
 		dlgXSpriteToDialog(&dialog, nSprite);
 		if (dialog.Edit())
 			dlgDialogToXSprite(&dialog, nSprite);
 	}
 	else
 	{
-		DIALOG_HANDLER dialog(dlgSprite);
+		DIALOG_HANDLER dialog(&gMapedHud, dlgSprite);
 		dlgSpriteToDialog(&dialog, nSprite);
 		if (dialog.Edit())
 			dlgDialogToSprite(&dialog, nSprite);
@@ -1367,9 +1542,9 @@ char helperDoSectorFXDialog(DIALOG_ITEM*, DIALOG_ITEM*, BYTE key)
 {
 	if (key == KEY_ENTER)
 	{
-		DIALOG_HANDLER dialog(dlgXSectorFX);
-		if (dialog.Edit())
-			return 0;
+		DIALOG_HANDLER dialog(&gMapedHud, dlgXSectorFX);
+		dialog.Edit();
+		return 0;
 	}
 	
 	return key;
@@ -1411,7 +1586,7 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 				switch (dialog->value)
 				{
 					case kWallGib:
-						if (control->tabGroup != kWallDialogData) break;
+						if (control->tabGroup != kWallData) break;
 						i = toolGibTool(control->value, OBJ_WALL);
 						if (i < 0)
 							return key;
@@ -1419,7 +1594,7 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 						control->value = i;
 						return 0;
 					case kWallStack:
-						if (control->tabGroup != kWallDialogData) break;
+						if (control->tabGroup != kWallData) break;
 						else if ((i = findUnusedStack()) >= 0) control->value = i;
 						return 0;
 				}
@@ -1610,34 +1785,34 @@ void dlgXWallToDialog(DIALOG_HANDLER* pHandle, int nWall)
 	dassert(nXWall > 0 && nXWall < kMaxXWalls);
 	XWALL *pXWall = &xwall[nXWall];
 
-	pHandle->SetValue(1, wall[nWall].type);
-	pHandle->SetValue(2, pXWall->rxID);
-	pHandle->SetValue(3, pXWall->txID);
-	pHandle->SetValue(4, pXWall->state);
-	pHandle->SetValue(5, pXWall->command);
+	pHandle->SetValue(kWallType,		wall[nWall].type);
+	pHandle->SetValue(kWallRX,			pXWall->rxID);
+	pHandle->SetValue(kWallTX,			pXWall->txID);
+	pHandle->SetValue(kWallState,		pXWall->state);
+	pHandle->SetValue(kWallCmd,			pXWall->command);
 
-	pHandle->SetValue(6, pXWall->triggerOn);
-	pHandle->SetValue(7, pXWall->triggerOff);
-	pHandle->SetValue(8, pXWall->busyTime);
-	pHandle->SetValue(9, pXWall->waitTime);
-	pHandle->SetValue(10, pXWall->restState);
+	pHandle->SetValue(kWallGoingOn,		pXWall->triggerOn);
+	pHandle->SetValue(kWallGoingOff,	pXWall->triggerOff);
+	pHandle->SetValue(kWallBusyTime,	pXWall->busyTime);
+	pHandle->SetValue(kWallWaitTime,	pXWall->waitTime);
+	pHandle->SetValue(kWallRestState,	pXWall->restState);
 
-	pHandle->SetValue(11, pXWall->triggerPush);
-	pHandle->SetValue(12, pXWall->triggerVector);
-	pHandle->SetValue(13, pXWall->triggerTouch);
+	pHandle->SetValue(kWallTrPush,		pXWall->triggerPush);
+	pHandle->SetValue(kWallTrVector,	pXWall->triggerVector);
+	pHandle->SetValue(kWallTrTouch,		pXWall->triggerTouch);
 
-	pHandle->SetValue(14, pXWall->key);
-	pHandle->SetValue(15, pXWall->panXVel);
-	pHandle->SetValue(16, pXWall->panYVel);
-	pHandle->SetValue(17, pXWall->panAlways);
+	pHandle->SetValue(kWallKey,			pXWall->key);
+	pHandle->SetValue(kWallPanX,		pXWall->panXVel);
+	pHandle->SetValue(kWallPanY,		pXWall->panYVel);
+	pHandle->SetValue(kWallPanAlways,	pXWall->panAlways);
 
-	pHandle->SetValue(18, pXWall->decoupled);
-	pHandle->SetValue(19, pXWall->triggerOnce);
-	pHandle->SetValue(20, pXWall->locked);
-	pHandle->SetValue(21, pXWall->interruptable);
-	pHandle->SetValue(22, pXWall->dudeLockout);
+	pHandle->SetValue(kWallDecoupled,	pXWall->decoupled);
+	pHandle->SetValue(kWallOnce,		pXWall->triggerOnce);
+	pHandle->SetValue(kWallLocked,		pXWall->locked);
+	pHandle->SetValue(kWallInterrupt,	pXWall->interruptable);
+	pHandle->SetValue(kWallLockout,		pXWall->dudeLockout);
 
-	pHandle->SetValue(kWallDialogData, pXWall->data);
+	pHandle->SetValue(kWallData,		pXWall->data);
 
 }
 
@@ -1647,35 +1822,35 @@ void dlgDialogToXWall(DIALOG_HANDLER* pHandle, int nWall)
 	dassert(nXWall > 0 && nXWall < kMaxXWalls);
 	XWALL *pXWall = &xwall[nXWall];
 
-	wall[nWall].type			= pHandle->GetValue(1);
-	pXWall->rxID				= pHandle->GetValue(2);
-	pXWall->txID				= pHandle->GetValue(3);
+	wall[nWall].type			= pHandle->GetValue(kWallType);
+	pXWall->rxID				= pHandle->GetValue(kWallRX);
+	pXWall->txID				= pHandle->GetValue(kWallTX);
 
-	pXWall->state				= pHandle->GetValue(4);
-	pXWall->command				= pHandle->GetValue(5);
+	pXWall->state				= pHandle->GetValue(kWallState);
+	pXWall->command				= pHandle->GetValue(kWallCmd);
 
-	pXWall->triggerOn			= pHandle->GetValue(6);
-	pXWall->triggerOff			= pHandle->GetValue(7);
-	pXWall->busyTime			= pHandle->GetValue(8);
-	pXWall->waitTime			= pHandle->GetValue(9);
-	pXWall->restState			= pHandle->GetValue(10);
+	pXWall->triggerOn			= pHandle->GetValue(kWallGoingOn);
+	pXWall->triggerOff			= pHandle->GetValue(kWallGoingOff);
+	pXWall->busyTime			= pHandle->GetValue(kWallBusyTime);
+	pXWall->waitTime			= pHandle->GetValue(kWallWaitTime);
+	pXWall->restState			= pHandle->GetValue(kWallRestState);
 
-	pXWall->triggerPush			= pHandle->GetValue(11);
-	pXWall->triggerVector		= pHandle->GetValue(12);
-	pXWall->triggerTouch		= pHandle->GetValue(13);
+	pXWall->triggerPush			= pHandle->GetValue(kWallTrPush);
+	pXWall->triggerVector		= pHandle->GetValue(kWallTrVector);
+	pXWall->triggerTouch		= pHandle->GetValue(kWallTrTouch);
 
-	pXWall->key					= pHandle->GetValue(14);
-	pXWall->panXVel				= pHandle->GetValue(15);
-	pXWall->panYVel				= pHandle->GetValue(16);
-	pXWall->panAlways			= pHandle->GetValue(17);
+	pXWall->key					= pHandle->GetValue(kWallKey);
+	pXWall->panXVel				= pHandle->GetValue(kWallPanX);
+	pXWall->panYVel				= pHandle->GetValue(kWallPanY);
+	pXWall->panAlways			= pHandle->GetValue(kWallPanAlways);
 
-	pXWall->decoupled			= pHandle->GetValue(18);
-	pXWall->triggerOnce			= pHandle->GetValue(19);
-	pXWall->locked				= pHandle->GetValue(20);
-	pXWall->interruptable		= pHandle->GetValue(21);
-	pXWall->dudeLockout			= pHandle->GetValue(22);
+	pXWall->decoupled			= pHandle->GetValue(kWallDecoupled);
+	pXWall->triggerOnce			= pHandle->GetValue(kWallOnce);
+	pXWall->locked				= pHandle->GetValue(kWallLocked);
+	pXWall->interruptable		= pHandle->GetValue(kWallInterrupt);
+	pXWall->dudeLockout			= pHandle->GetValue(kWallLockout);
 
-	pXWall->data				= pHandle->GetValue(kWallDialogData);
+	pXWall->data				= pHandle->GetValue(kWallData);
 }
 
 void dlgWallToDialog(DIALOG_HANDLER* pHandle, int nWall)
@@ -2153,35 +2328,35 @@ void dlgXSectorToDialog(DIALOG_HANDLER* pHandle, int nSector)
 	dassert(nXSector > 0 && nXSector < kMaxXSectors);
 	XSECTOR *pXSector = &xsector[nXSector];
 
-	pHandle->SetValue(1, sector[nSector].type);
+	pHandle->SetValue(kSectType,		sector[nSector].type);
 
-	pHandle->SetValue(2, pXSector->rxID);
-	pHandle->SetValue(3, pXSector->txID);
-	pHandle->SetValue(4, pXSector->state);
-	pHandle->SetValue(5, pXSector->command);
+	pHandle->SetValue(kSectRX,			pXSector->rxID);
+	pHandle->SetValue(kSectTX,			pXSector->txID);
+	pHandle->SetValue(kSectState,		pXSector->state);
+	pHandle->SetValue(kSectCmd,			pXSector->command);
 
-	pHandle->SetValue(6, pXSector->decoupled);
-	pHandle->SetValue(7, pXSector->triggerOnce);
-	pHandle->SetValue(8, pXSector->locked);
-	pHandle->SetValue(9, pXSector->interruptable);
-	pHandle->SetValue(10, pXSector->dudeLockout);
+	pHandle->SetValue(kSectDecoupled,	pXSector->decoupled);
+	pHandle->SetValue(kSectOnce,		pXSector->triggerOnce);
+	pHandle->SetValue(kSectLocked,		pXSector->locked);
+	pHandle->SetValue(kSectInterrupt,	pXSector->interruptable);
+	pHandle->SetValue(kSectLockout,		pXSector->dudeLockout);
 
-	pHandle->SetValue(11, pXSector->triggerOn);
-	pHandle->SetValue(12, pXSector->busyTimeA);
-	pHandle->SetValue(13, pXSector->busyWaveA);
-	pHandle->SetValue(14, pXSector->reTriggerA);
-	pHandle->SetValue(15, pXSector->waitTimeA);
+	pHandle->SetValue(kSectGoingOn,		pXSector->triggerOn);
+	pHandle->SetValue(kSectBusyTimeOff, pXSector->busyTimeA);
+	pHandle->SetValue(kSectBusyWaveOff, pXSector->busyWaveA);
+	pHandle->SetValue(kSectWaitOff, 	pXSector->reTriggerA);
+	pHandle->SetValue(kSectWaitTimeOff,	pXSector->waitTimeA);
 
-	pHandle->SetValue(16, pXSector->triggerOff);
-	pHandle->SetValue(17, pXSector->busyTimeB);
-	pHandle->SetValue(18, pXSector->busyWaveB);
-	pHandle->SetValue(19, pXSector->reTriggerB);
-	pHandle->SetValue(20, pXSector->waitTimeB);
+	pHandle->SetValue(kSectGoingOff,	pXSector->triggerOff);
+	pHandle->SetValue(kSectBusyTimeOn,	pXSector->busyTimeB);
+	pHandle->SetValue(kSectBusyWaveOn,	pXSector->busyWaveB);
+	pHandle->SetValue(kSectWaitOn,		pXSector->reTriggerB);
+	pHandle->SetValue(kSectWaitTimeOn,	pXSector->waitTimeB);
 
-	pHandle->SetValue(21, pXSector->triggerPush);
-	pHandle->SetValue(22, pXSector->triggerWallPush);
-	pHandle->SetValue(23, pXSector->triggerEnter);
-	pHandle->SetValue(24, pXSector->triggerExit);
+	pHandle->SetValue(kSectTrPush,		pXSector->triggerPush);
+	pHandle->SetValue(kSectTrWPush,		pXSector->triggerWallPush);
+	pHandle->SetValue(kSectTrEnter,		pXSector->triggerEnter);
+	pHandle->SetValue(kSectTrExit,		pXSector->triggerExit);
 
 	// get values of first found setor sfx sprite
 	for(i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
@@ -2189,7 +2364,7 @@ void dlgXSectorToDialog(DIALOG_HANDLER* pHandle, int nSector)
 		if (sprite[i].type == kSoundSector && sprite[i].extra > 0)
 		{
 			for (j = 0; j < 4; j++)
-				pHandle->SetValue(25 + j, getDataOf(j, OBJ_SPRITE, i));
+				pHandle->SetValue(kSectSndOffOn + j, getDataOf(j, OBJ_SPRITE, i));
 			
 			break;
 		}
@@ -2199,18 +2374,18 @@ void dlgXSectorToDialog(DIALOG_HANDLER* pHandle, int nSector)
 	if (i == -1)
 	{
 		for (i = 0; i < 4; i++)
-			pHandle->SetValue(25 + i, 0);
+			pHandle->SetValue(kSectSndOffOn + i, 0);
 	}
 
-	pHandle->SetValue(29, pXSector->key);
-	pHandle->SetValue(30, pXSector->Depth);
-	pHandle->SetValue(31, pXSector->underwater);
-	pHandle->SetValue(32, pXSector->crush);
+	pHandle->SetValue(kSectKey,		pXSector->key);
+	pHandle->SetValue(kSectDepth,	pXSector->Depth);
+	pHandle->SetValue(kSectUwater,	pXSector->underwater);
+	pHandle->SetValue(kSectCrush,	pXSector->crush);
 
-	pHandle->SetValue(kSectDialogData, pXSector->data);
+	pHandle->SetValue(kSectData,	pXSector->data);
 	
 	
-	DIALOG_HANDLER dialog(dlgXSectorFX);
+	DIALOG_HANDLER dialog(&gMapedHud, dlgXSectorFX);
 	dlgXSectorFXToDialog(&dialog, nSector);
 	
 }
@@ -2222,35 +2397,34 @@ void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
 	dassert(nXSector > 0 && nXSector < kMaxXSectors);
 	XSECTOR *pXSector = &xsector[nXSector];
 
-	sector[nSector].type 		= (short)pHandle->GetValue(1);
-	pXSector->rxID 				= pHandle->GetValue(2);
-	pXSector->txID 				= pHandle->GetValue(3);
-	pXSector->state 			= pHandle->GetValue(4);
-	pXSector->command 			= pHandle->GetValue(5);
+	sector[nSector].type 		= pHandle->GetValue(kSectType);
+	pXSector->rxID 				= pHandle->GetValue(kSectRX);
+	pXSector->txID 				= pHandle->GetValue(kSectTX);
+	pXSector->state 			= pHandle->GetValue(kSectState);
+	pXSector->command 			= pHandle->GetValue(kSectCmd);
 
-	pXSector->decoupled			= pHandle->GetValue(6);
-	pXSector->triggerOnce		= pHandle->GetValue(7);
-	pXSector->locked			= pHandle->GetValue(8);
-	pXSector->interruptable		= pHandle->GetValue(9);
-	pXSector->dudeLockout		= pHandle->GetValue(10);
+	pXSector->decoupled			= pHandle->GetValue(kSectDecoupled);
+	pXSector->triggerOnce		= pHandle->GetValue(kSectOnce);
+	pXSector->locked			= pHandle->GetValue(kSectLocked);
+	pXSector->interruptable		= pHandle->GetValue(kSectInterrupt);
+	pXSector->dudeLockout		= pHandle->GetValue(kSectLockout);
 
-	pXSector->triggerOn  		= pHandle->GetValue(11);
-	pXSector->busyTimeA			= pHandle->GetValue(12);
-	pXSector->busyWaveA			= pHandle->GetValue(13);
-	pXSector->reTriggerA		= pHandle->GetValue(14);
-	pXSector->waitTimeA			= pHandle->GetValue(15);
+	pXSector->triggerOn  		= pHandle->GetValue(kSectGoingOn);
+	pXSector->busyTimeA			= pHandle->GetValue(kSectBusyTimeOff);
+	pXSector->busyWaveA			= pHandle->GetValue(kSectBusyWaveOff);
+	pXSector->reTriggerA		= pHandle->GetValue(kSectWaitOff);
+	pXSector->waitTimeA			= pHandle->GetValue(kSectWaitTimeOff);
 
-	pXSector->triggerOff 		= pHandle->GetValue(16);
-	pXSector->busyTimeB			= pHandle->GetValue(17);
-	pXSector->busyWaveB			= pHandle->GetValue(18);
-	pXSector->reTriggerB		= pHandle->GetValue(19);
-	pXSector->waitTimeB			= pHandle->GetValue(20);
+	pXSector->triggerOff 		= pHandle->GetValue(kSectGoingOff);
+	pXSector->busyTimeB			= pHandle->GetValue(kSectBusyTimeOn);
+	pXSector->busyWaveB			= pHandle->GetValue(kSectBusyWaveOn);
+	pXSector->reTriggerB		= pHandle->GetValue(kSectWaitOn);
+	pXSector->waitTimeB			= pHandle->GetValue(kSectWaitTimeOn);
 
-	pXSector->triggerPush		= pHandle->GetValue(21);
-	pXSector->triggerWallPush	= pHandle->GetValue(22);
-
-	pXSector->triggerEnter		= pHandle->GetValue(23);
-	pXSector->triggerExit		= pHandle->GetValue(24);
+	pXSector->triggerPush		= pHandle->GetValue(kSectTrPush);
+	pXSector->triggerWallPush	= pHandle->GetValue(kSectTrWPush);
+	pXSector->triggerEnter		= pHandle->GetValue(kSectTrEnter);
+	pXSector->triggerExit		= pHandle->GetValue(kSectTrExit);
 
 	int i = 0;
 	short cstat = 0;
@@ -2279,7 +2453,7 @@ void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
 	// create new sector sfx sprite if values are not zero
 	for (i = 0; i < 4; i++)
 	{
-		if (pHandle->GetValue(25 + i) <= 0)
+		if (pHandle->GetValue(kSectSndOffOn + i) <= 0)
 			continue;
 
 		// set new coords if there was no old sprite found
@@ -2303,7 +2477,7 @@ void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
 		adjSpriteByType(pSprite);
 
 		for (i = 0; i < 4; i++)
-			setDataValueOfObject(OBJ_SPRITE, pSprite->index, i + 1, pHandle->GetValue(25 + i));
+			setDataValueOfObject(OBJ_SPRITE, pSprite->index, i + 1, pHandle->GetValue(kSectSndOffOn + i));
 
 		if (cstat != 0) pSprite->cstat = cstat;
 		else if (sector[nSector].type > kSectorTeleport && sector[nSector].type <= kSectorRotate)
@@ -2312,14 +2486,14 @@ void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
 		break;
 	}
 
-	pXSector->key				= pHandle->GetValue(29);
-	pXSector->Depth				= pHandle->GetValue(30);
-	pXSector->underwater		= pHandle->GetValue(31);
-	pXSector->crush				= pHandle->GetValue(32);
+	pXSector->key				= pHandle->GetValue(kSectKey);
+	pXSector->Depth				= pHandle->GetValue(kSectDepth);
+	pXSector->underwater		= pHandle->GetValue(kSectUwater);
+	pXSector->crush				= pHandle->GetValue(kSectCrush);
 
-	pXSector->data				= pHandle->GetValue(kSectDialogData);
+	pXSector->data				= pHandle->GetValue(kSectData);
 	
-	DIALOG_HANDLER dialog(dlgXSectorFX);
+	DIALOG_HANDLER dialog(&gMapedHud, dlgXSectorFX);
 	dlgDialogToXSectorFX(&dialog, nSector);
 }
 
@@ -2401,4 +2575,165 @@ void dlgDialogToXSectorFX(DIALOG_HANDLER* pHandle, int nSector)
 	pXSector->bobCeiling		= pHandle->GetValue(26);
 	pXSector->bobRotate			= pHandle->GetValue(27);
 	pXSector->damageType		= pHandle->GetValue(28);
+}
+
+
+
+int dlgCopyObjectSettings(DIALOG_ITEM* pDialog, int nType, int nSrc, int nDst, char hglt)
+{
+	DIALOG_ITEM *pDlg, *pCpy, *pDst, *et, *ed, *es;
+	int nSiz, i = LENGTH(gDialogInfo), n = 0; char ok = 0;
+	DIALOG_HANDLER *hSrc, *hDst; DIALOG_INFO* pEntry;
+	OBJECT_LIST objects; OBJECT* pObj;
+		
+	while(--i >= 0)
+	{
+		pEntry = &gDialogInfo[i];
+		if (pEntry->dialog == pDialog && pEntry->objectType == nType)
+			break;
+	}
+	
+	if (i < 0)
+		return -1;
+	
+	pDlg = pEntry->dialog;			// source dialog
+	nSiz = (dlgCountItems(pDlg)+1) * sizeof(DIALOG_ITEM);
+	
+	pCpy = (DIALOG_ITEM*)malloc(nSiz);	// original dialog
+	dassert(pCpy != NULL);
+	
+	pDst = (DIALOG_ITEM*)malloc(nSiz);	// will be changed on comparison
+	dassert(pDst != NULL);
+	
+	switch(nType)
+	{
+		case OBJ_SPRITE:	GetXSprite(nSrc);	break;
+		case OBJ_WALL:		GetXWall(nSrc);	  	break;
+		case OBJ_SECTOR:	GetXSector(nSrc);	break;
+	}
+	
+	// nasty trick to add checkboxes in the dialog
+	// but keep the formatted labels of the source
+	// object
+	
+	hSrc = new DIALOG_HANDLER(&gMapedHud, (DIALOG_ITEM*)pDlg);
+	pEntry->objectToDialog(hSrc, nSrc);
+	hSrc->Paint(); // this forces format of readyLabel which is what we need
+	
+	// backup the source so we can use values later
+	memcpy(pCpy, pDlg, nSiz);
+	
+	et = pDlg;
+	while(et->type != CONTROL_END)
+	{
+		switch(et->type)
+		{
+			case ELT_SELECTOR:
+			case CHECKBOX:
+				// just make it to be an element selector
+				et->type = ELT_SELECTOR;
+				break;
+			case HEADER:
+			case LABEL:
+				break;
+			case DIALOG:
+				// nested dialogs is not currently
+				// supported so make it invisible
+				if (et->readyLabel)
+				{
+					if (et->readyLabel != et->formatLabel)
+						free(et->readyLabel);
+					
+					et->formatLabel = "";
+					et->readyLabel = et->formatLabel;
+				}
+				et->enabled = 0;
+				break;
+			default:
+				if (et->readyLabel)
+				{
+					// make it to be an element selector and use
+					// the formatted text as a normal
+					// label
+					
+					et->type = ELT_SELECTOR;
+					et->formatLabel = (char*)malloc(strlen(et->readyLabel)+1);
+					dassert(et->formatLabel != NULL);
+					sprintf(et->formatLabel, "%0.26s", et->readyLabel);
+					et->value = 0;
+				}
+				break;
+		}
+		
+		et->flags = NO;
+		et++;
+	}
+
+	gMapedHud.SetMsg("Select properties for copying from %s #%d:", gSearchStatNames[nType], nSrc);
+	gMapedHud.DrawIt();
+	
+	if ((ok = hSrc->Edit()) != 0)
+	{
+		if (hglt)
+		{
+			if (nDst < 0 || Confirm("%s #%d in a highlight! Copy properties to the rest of objects?", gSearchStatNames[nType], nDst))
+				hglt2List(&objects, 0, kHgltSector|kHgltPoint);
+		}
+		
+		if (nDst >= 0 && !objects.Exists(nType, nDst))
+			objects.Add(nType, nDst);
+
+		for (pObj = objects.Ptr(); pObj->type != OBJ_NONE; pObj++)
+		{
+			if (pObj->type != pEntry->objectType)
+				continue;
+			
+			switch(pObj->type)
+			{
+				case OBJ_SPRITE:	GetXSprite(pObj->index);	break;
+				case OBJ_WALL:		GetXWall(pObj->index);	  	break;
+				case OBJ_SECTOR:	GetXSector(pObj->index);	break;
+			}
+			
+			memcpy(pDst, pCpy, nSiz);
+			hDst = new DIALOG_HANDLER(&gMapedHud, pDst);
+			pEntry->objectToDialog(hDst, pObj->index);
+			
+			et = pDlg, ed = pDst, es = pCpy;
+			while(et->type != CONTROL_END)
+			{
+				// was it selected in clipboard dialog?
+				if (et->selected)
+					ed->value = es->value; // source -> destination
+				
+				et++, ed++, es++;
+			}
+			
+			pEntry->dialogToObject(hDst, pObj->index);
+			delete(hDst);
+			n++;
+		}
+		
+		AutoAdjustSprites();
+		CleanUp();
+	}
+	else
+	{
+		n = -1;
+	}
+	
+	et = pDlg; es = pCpy;
+	while(et->type != CONTROL_END)
+	{
+		if (et->type == ELT_SELECTOR && et->readyLabel)
+			free(et->formatLabel); // don't forget to free this
+		
+		es->selected = et->selected; // save selected state in source
+		et++, es++;
+	}
+	
+	// restore source dialog
+	memcpy(pDlg, pCpy, nSiz);
+	free(pCpy); free(pDst);
+	return n;
 }

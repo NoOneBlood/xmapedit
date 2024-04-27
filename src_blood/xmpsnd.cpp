@@ -24,11 +24,8 @@
 ***********************************************************************************/
 
 
-#include "build.h"
-#include "cache1d.h"
-#include "baselayer.h"
+#include "common_game.h"
 #include "winlayer.h"
-#include "resource.h"
 #include "gameutil.h"
 #include "xmpsnd.h"
 #include "xmpconf.h"

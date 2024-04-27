@@ -21,12 +21,9 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "inifile.h"
 #include "xmpconf.h"
 #include "xmpevox.h"
-#include "xmpmisc.h"
 #include "tile.h"
-#include "xmpstr.h"
 
 char* extVoxelPath[kMaxTiles]; // these are dynamically allocated!
 

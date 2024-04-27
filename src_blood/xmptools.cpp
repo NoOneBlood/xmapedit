@@ -21,25 +21,16 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "common_game.h"
-#include "editor.h"
-#include "replace.h"
-#include "xmpstub.h"
-#include "gui.h"
+
+#include "xmpmaped.h"
+#include "nnexts.h"
 #include "tile.h"
-#include "screen.h"
 #include "eventq.h"
-#include "gameutil.h"
-#include "edit2d.h"
 #include "aadjust.h"
 #include "xmpfx.h"
 #include "xmpgib.h"
-#include "xmpconf.h"
 #include "xmptools.h"
-#include "fire.h"
-#include "nnexts.h"
 #include "xmpexplo.h"
-#include "xmpmisc.h"
 #include "img2tile.h"
 #include "xmpsky.h"
 
@@ -753,8 +744,8 @@ void chgSpriteZ(spritetype* pSprite, int zVal) {
 int toolChannelCleaner(char* logfile)
 {
 	BOOL freed[1024], tolog = FALSE;
-	register int i = 2, j, c = 0, txrng[4];
-	register int nChannel = 1024, hFile = -1;
+	int i = 2, j, c = 0, txrng[4];
+	int nChannel = 1024, hFile = -1;
 	char buf[256], fmt[64];
 	
 	memset(freed, 0, sizeof(freed));

@@ -22,7 +22,6 @@
 ***********************************************************************************/
 #ifndef __XMPEVOX
 #define __XMPEVOX
-#include "common_game.h"
 extern char* extVoxelPath[kMaxTiles];
 inline char isExternalModel(int nTile) { return (tiletovox[nTile] >= 0); }
 extern void extVoxInit();

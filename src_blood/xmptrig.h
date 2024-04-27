@@ -26,8 +26,6 @@
 #ifndef __XMPTRIG
 #define __XMPTRIG
 #include "common_game.h"
-#include "db.h"
-#include "eventq.h"
 
 enum BUSYID {
     BUSYID_0 = 0,

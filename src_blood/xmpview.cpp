@@ -21,24 +21,16 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "common_game.h"
-#include "build.h"
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "xmpview.h"
-#include "db.h"
-#include "gameutil.h"
-#include "screen.h"
 #include "tile.h"
 #include "aadjust.h"
-#include "preview.h"
 #include "nnexts.h"
-#include "xmptools.h"
-#include "xmpmisc.h"
 #include "xmpconf.h"
 #include "xmpevox.h"
-#include "editor.h"
 #include "seq.h"
 #include "grdshd.h"
+#include "hglt.h"
 
 void viewDoQuake(int strength, int* x, int* y, int* z, short* a, int* h) {
 	
@@ -408,12 +400,12 @@ void viewWallHighlight(int nWall, int nSect, POINT3D point[4])
 
 void viewWallHighlight(int nWall, int nSect, char how, BOOL testPoint)
 {
-	char which = 0;
-	int x1, y1, x2, y2;
-	int cz1, cz2, fz1, fz2;
+	int cz1, cz2, cz3, cz4, fz1, fz2, fz3, fz4;
 	int nNext = wall[nWall].nextsector;
-	POINT3D point[4];
+	int x1, y1, x2, y2;
+	char which = 0;
 
+	POINT3D point[4];
 	getWallCoords(nWall, &x1, &y1, &x2, &y2);
 	point[0].x = point[2].x = x1;	point[1].x = point[3].x = x2;
 	point[0].y = point[2].y = y1; 	point[1].y = point[3].y = y2; 
@@ -483,8 +475,13 @@ void viewWallHighlight(int nWall, int nSect, char how, BOOL testPoint)
 		// between floor and ceil
 		if (how & 0x40)
 		{
-			getzsofslope(nNext, x1, y1, &point[0].z, &point[2].z); 			// next left top bot
-			getzsofslope(nNext, x2, y2, &point[1].z, &point[3].z); 			// next right top bot
+			getzsofslope(nNext, x1, y1, &cz3, &fz3);	// next left top bot
+			getzsofslope(nNext, x2, y2, &cz4, &fz4); 	// next right top bot
+			
+			point[0].z = (cz1 < cz3) ? cz3 : cz1;
+			point[1].z = (cz2 < cz4) ? cz4 : cz2;
+			point[2].z = (fz1 > fz3) ? fz3 : fz1;
+			point[3].z = (fz2 > fz4) ? fz4 : fz2;
 			
 			if (!testPoint || (point[2].z != point[0].z && point[3].z != point[1].z))
 				viewWallHighlight(nWall, nSect, (POINT3D*)point);
@@ -713,7 +710,7 @@ void viewProcessSprites(int x, int y, int z, int a) {
 		if (gHovWall >= 0)
 		{
 			if (gHovStat == OBJ_MASKED)
-				viewWallHighlight(gHovWall, sectorofwall(gHovWall), 0, FALSE);
+				viewWallHighlight(gHovWall, sectorofwall(gHovWall), 0x40);
 			else if (searchwallcf)
 				viewWallHighlight(gHovWall, searchsector, 0x10);
 			else
@@ -761,7 +758,10 @@ void viewProcessSprites(int x, int y, int z, int a) {
 			if (!voxType)
 				nView = (viewType[nTile] < kSprViewVox) ? viewType[nTile] : kSprViewSingle;
 		}
-
+	
+		if (nSpr == gHovSpr && gSysTiles.wallHglt > 0)
+			viewSpriteHighlight(pTSpr);
+		
 		if (!gPreviewMode)
 		{
 			if (nSpr == gHovSpr)
@@ -775,12 +775,9 @@ void viewProcessSprites(int x, int y, int z, int a) {
 						viewAddEffect(i, kViewEffectAngle);
 						break;
 				}
-				
-				if (gSysTiles.wallHglt > 0)
-					viewSpriteHighlight(pTSpr);
 			}
 				
-			if ((h) && (nSpr == gHighSpr || TestBitString(show2dsprite, nSpr)))
+			if ((h) && (nSpr == gHighSpr || TestBitString(hgltspri, nSpr)))
 				viewAddEffect(i, kViewEffectHighlight);
 		}
 		else if (showinvisibility && (sprite[nSpr].cstat & kSprInvisible))

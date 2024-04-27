@@ -111,7 +111,6 @@ int pow2long[32] =
 int reciptable[2048], fpuasm;
 
 unsigned char britable[16][256];
-extern unsigned char textfont[2048], smalltextfont[2048];
 
 static char kensmessage[128];
 char *engineerrstr = NULL;
@@ -10276,40 +10275,49 @@ void qsetmodeany(int daxdim, int daydim)
 }
 
 
+
+
 // printext256
 void printext(int xpos, int ypos, short col, short backcol, const char *name, char fontsize)
 {
-	int stx, i, x, y, charxsiz;
-	unsigned char *fontptr, *letptr, *ptr;
+	#if 0
+		int stx, i, x, y, charxsiz;
+		unsigned char *fontptr, *letptr, *ptr;
 
-	stx = xpos;
+		stx = xpos;
 
-	if (fontsize) { fontptr = smalltextfont; charxsiz = 4; }
-	else { fontptr = textfont; charxsiz = 8; }
+		if (fontsize) { fontptr = smalltextfont; charxsiz = 4; }
+		else { fontptr = textfont; charxsiz = 8; }
 
-#if USE_POLYMOST && USE_OPENGL
-	if (!polymost_printext256(xpos,ypos,col,backcol,name,fontsize)) return;
-#endif
+	#if USE_POLYMOST && USE_OPENGL
+		if (!polymost_printext256(xpos,ypos,col,backcol,name,fontsize)) return;
+	#endif
 
-	begindrawing();	//{{{
-	for(i=0;name[i];i++)
-	{
-		letptr = &fontptr[name[i]<<3];
-		ptr = (unsigned char *)(ylookup[ypos+7]+(stx-fontsize)+frameplace);
-		for(y=7;y>=0;y--)
+		begindrawing();	//{{{
+		for(i=0;name[i];i++)
 		{
-			for(x=charxsiz-1;x>=0;x--)
+			letptr = &fontptr[name[i]<<3];
+			ptr = (unsigned char *)(ylookup[ypos+7]+(stx-fontsize)+frameplace);
+			for(y=7;y>=0;y--)
 			{
-				if (letptr[y]&pow2char[7-fontsize-x])
-					ptr[x] = (unsigned char)col;
-				else if (backcol >= 0)
-					ptr[x] = (unsigned char)backcol;
+				for(x=charxsiz-1;x>=0;x--)
+				{
+					if (letptr[y]&pow2char[7-fontsize-x])
+						ptr[x] = (unsigned char)col;
+					else if (backcol >= 0)
+						ptr[x] = (unsigned char)backcol;
+				}
+				ptr -= ylookup[1];
 			}
-			ptr -= ylookup[1];
+			stx += charxsiz;
 		}
-		stx += charxsiz;
-	}
-	enddrawing();	//}}}
+		enddrawing();	//}}}
+	#else
+		if (printext_replace)
+			printext_replace(xpos, ypos, col, backcol, name, fontsize);
+	#endif
+	
+	return;
 }
 
 #if USE_POLYMOST

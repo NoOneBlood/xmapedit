@@ -20,14 +20,9 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
-#include "common_game.h"
-#include "gui.h"
+#include "xmpmisc.h"
 #include "grdshd.h"
-#include "tile.h"
 #include "screen.h"
-#include "xmpstub.h"
-
 
 enum {
 mrRight = mrUser,
@@ -52,7 +47,7 @@ void processShade(OBJECT* pObj, int* nShade, int nMaxShade, int nStep, int nStep
 
 int grshShadeWalls(char toggle)
 {
-	char* pShadeStr;
+	char buff[64], *pShadeStr;
 	int nStep, nStepCnt, nShade, dwh, dhg;
 	int nBaseShade;
 	int i = 0;
@@ -82,8 +77,8 @@ int grshShadeWalls(char toggle)
 	pObj = gListGrd.Ptr(i);
 	nBaseShade = getShadeOf(pObj->type, pObj->index);
 	
-	sprintf(buffer, "Gradient shading [%d]", nLen);
-	Window dialog(0, 0, 180, 180, buffer);
+	sprintf(buff, "Gradient shading [%d]", nLen);
+	Window dialog(0, 0, 180, 180, buff);
 	dialog.getSize(&dwh, &dhg);
 
 	Label *startShL = new Label(4, 10, "BASE SHADE. . . . . . . .");

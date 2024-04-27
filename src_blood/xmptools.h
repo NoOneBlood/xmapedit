@@ -23,9 +23,7 @@
 
 #ifndef __XMPTOOLS_H
 #define __XMPTOOLS_H
-
-#include "gui.h"
-#include "iob.h"
+#include "screen.h"
 
 #define kChannelCleanerLog "RXTXCLN.LOG"
 

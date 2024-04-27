@@ -22,23 +22,17 @@
 ***********************************************************************************/
 
 #include "common_game.h"
-#include "gui.h"
-#include "gfx.h"
 #include "screen.h"
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "xmpexplo.h"
-#include "xmpmisc.h"
-#include "xmpstr.h"
 #include "tile.h"
 #include "prefabs.h"
 #include "xmparted.h"
-#include "editor.h"
 #include "hglt.h"
 #include "xmpview.h"
 #include "img2tile.h"
 #include "xmpqav.h"
-#include "crc32.h"
-#include <direct.h>
+#include "seq.h"
 
 #define kThumbnailCacheFile "xmapedit/thumbs.xch"
 
@@ -51,6 +45,7 @@ enum
 	kThumbCache			= 0x04,
 	kThumbForceStretch	= 0x08,
 };
+#pragma pack(push, 1)
 struct REGISTERED_FILE_TYPE
 {
 	const char* type;						// file extension
@@ -63,7 +58,7 @@ struct REGISTERED_FILE_TYPE
 	signed int typeColor			: 10;	// extension text std color
 	signed int typeBgColor			: 10;	// extension background std color
 };
-
+#pragma pack(pop)
 /** Thumbnail generation functions
 ********************************************************************************/
 static char getThumbnail_PICS(char* filepath, int nTile, int wh, int hg, int bg);
@@ -2408,7 +2403,7 @@ static char getThumbnail_PFB(char* filepath, int nTile, int twh, int thg, int bg
 			// setup camera
 			camz = pSect->floorz - ClipLow(zhg>>1, 8192);
 			cama = (((GetWallAngle(s) + kAng90) & kAngMask) + kAng180) & kAngMask;
-			nnExtOffsetPos(0, -(((wh > hg) ? wh : hg)+ClipLow(zhg>>4, 768)), 0, cama, &camx, &camy, NULL); // moves backward
+			offsetPos(0, -(((wh > hg) ? wh : hg)+ClipLow(zhg>>4, 768)), 0, cama, &camx, &camy, NULL); // moves backward
 			RotatePoint(&camx, &camy, kAng45, 0, 0);
 			cama += kAng45;
 
@@ -2768,12 +2763,13 @@ static char getThumbnail_SEQ(char* filepath, int nTile, int wh, int hg, int bg)
 		{
 			for (i = pSeq->nFrames>>2; i < pSeq->nFrames; i++)
 			{
-				nTile2 = seqGetTile(&pSeq->frames[i]);
+				pFrame = &pSeq->frames[i]; nTile2 = seqGetTile(pFrame);
 				if (nTile2 != nTile && (pTile = tileLoadTile(nTile2)) != NULL)
 				{
 					wh = tilesizx[nTile2]; hg = tilesizy[nTile2];
 					helperAllocThumb(nTile, wh, hg, bg);
 					memcpy((void*)waloff[nTile], pTile, wh*hg);
+					tilePaint(nTile, pFrame->pal, pFrame->shade);
 					nRetn = 1;
 					break;
 				}

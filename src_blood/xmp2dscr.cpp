@@ -1,17 +1,35 @@
-#include <cmath>
+/**********************************************************************************
+///////////////////////////////////////////////////////////////////////////////////
+// Copyright (C) 2023: Originally written by NoOne.
+// Screen drawing for 2D editing mode.
+//
+// This file is part of XMAPEDIT.
+//
+// XMAPEDIT is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License version 2
+// as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+//
+// See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+////////////////////////////////////////////////////////////////////////////////////
+***********************************************************************************/
+
 #include "xmp2dscr.h"
-#include "screen.h"
-#include "editor.h"
-#include "nnexts.h"
-#include "xmpmisc.h"
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "xmpact.h"
 #include "tile.h"
 #include "hglt.h"
 #include "tracker.h"
-#include "xmpstr.h"
 #include "img2tile.h"
-
+#include "mapcmt.h"
+#include "nnexts.h"
 
 #define kCaptPadNormal		2
 #define kCaptPadHover		kCaptPadNormal + 1
@@ -19,12 +37,9 @@
 #define kZoomSpritesUnder	256
 #define kZoomSprites		128
 #define kZoomEditCaption	256
-#define kZoomEditSmallFont	128
 #define kZoomFAWalls		100
 #define kZoomVertexAll		300
 #define kZoomVertexHglt		256
-#define kMinWallLengthG		64
-#define kMinWallLengthA		32
 
 enum
 {
@@ -36,23 +51,6 @@ static NAMED_TYPE gColorType[] =
 	{kColorTypeRGB, "RGB"},
 };
 
-enum
-{
-kPrefClrBase	= 0,
-kPrefClrWal,
-kPrefClrSpr,
-kPrefClrSec,
-kPrefClrMax,
-};
-
-static NAMED_TYPE gColorSections[] = 
-{
-	{kPrefClrBase,	"Main"},
-	{kPrefClrWal, 	"Wall"},
-	{kPrefClrSpr, 	"Sprite"},
-	{kPrefClrSec, 	"Sector"},
-	{-1,			NULL},
-};
 
 enum
 {
@@ -60,66 +58,43 @@ kMarkWallFirst	= 0,
 kMarkWallAlign,
 };
 
-SCREEN2D gScreen2D;
-
 void SCREEN2D::ColorInit(IniFile* pIni)
 {
-	char key[256], val[256], group[32], *pKey, *pVal;
-	NAMED_TYPE* pColors = gColorSections;
-	unsigned char rgb[3];
-	int nBase, nID, nPrevNode;
-	int t, i;
-	int o;
+	char key[256], val[256], *pKey, *pVal; unsigned char rgb[3];
+	const char* pGroup = "Palette";
+	int nID, nPrevNode = -1;
+	int t, i, o;
 	
-	while(pColors->name)
+	while(pIni->GetNextString(NULL, &pKey, &pVal, &nPrevNode, (char*)pGroup))
 	{
-		if (rngok(pColors->id, kPrefClrBase, kPrefClrMax))
+		if (!isufix(pKey))
+			continue;
+
+		nID = atoi(pKey);
+		if (!rngok(nID, 0, LENGTH(colors)))
+			continue;
+
+		o = i = 0;
+		while(i < LENGTH(colors[0]) && (o = enumStr(o, pVal, key, val)) > 0)
 		{
-			sprintf(group, "Colors.%s", pColors->name);
-			nPrevNode = -1; pKey = NULL; pVal = NULL;
-			
-			switch(pColors->id)
+			if ((t = findNamedID(key, gColorType, LENGTH(gColorType))) == kColorTypeRGB)
 			{
-				case kPrefClrBase:	nBase = kClrEdBase;		break;
-				case kPrefClrWal:	nBase = kClrWalBase;	break;
-				case kPrefClrSpr:	nBase = kClrSprBase;	break;
-				case kPrefClrSec:	nBase = kClrSectBase;	break;
+				if (parseRGBString(val, rgb))
+					ColorFill(nID, countBestColor(gamepal, rgb[0], rgb[1], rgb[2]), i);
+			}
+			else if ((t = gfxGetStdColor(key)) >= 0)
+			{
+				if (t < LENGTH(gStdColor))
+					ColorFill(nID, gStdColor[t], i);
+			}
+			else if (isufix(key))
+			{
+				if ((t = atoi(key)) < 256)
+					ColorFill(nID, t, i);
 			}
 			
-			while(pIni->GetNextString(NULL, &pKey, &pVal, &nPrevNode, group))
-			{
-				if (!isufix(pKey))
-					continue;
-				
-				nID = atoi(pKey) + nBase;
-				if (!rngok(nID, kClrBase, kClrMax))
-					continue;
-				
-				o = i = 0;
-				while(i < LENGTH(colors[0]) && (o = enumStr(o, pVal, key, val)) > 0)
-				{
-					if ((t = findNamedID(key, gColorType, LENGTH(gColorType))) == kColorTypeRGB)
-					{
-						if (parseRGBString(val, rgb))
-							ColorFill(nID, countBestColor(gamepal, rgb[0], rgb[1], rgb[2]), i);
-					}
-					else if ((t = gfxGetStdColor(key)) >= 0)
-					{
-						if (t < LENGTH(gStdColor))
-							ColorFill(nID, gStdColor[t], i);
-					}
-					else if (isufix(key))
-					{
-						if ((t = atoi(key)) < 256)
-							ColorFill(nID, t, i);
-					}
-					
-					i++;
-				}
-			}
+			i++;
 		}
-		
-		pColors++;
 	}
 }
 
@@ -159,7 +134,7 @@ void SCREEN2D::GetPoint(int* x, int* y)
 
 void SCREEN2D::FillPolygon(LINE2D* coords, int nCount, char c, char nStep, int drawPat)
 {
-	static int fillist[640];
+	static int fillist[MAXXDIM];
 	int x1, x2, y1, y2, y, dax, miny, maxy, fillcnt;
 	int i, j, sy;
 	
@@ -241,18 +216,27 @@ void SCREEN2D::FillPolygon(LINE2D* coords, int nCount, char c, char nStep, int d
 void SCREEN2D::FillSector(int nSect, char c, char nStep, int drawPat)
 {
 	int i = 0, s, e;
-	LINE2D* coords = (LINE2D*)malloc(sizeof(LINE2D)*sector[nSect].wallnum);
-	if (coords)
+	if ((s = sector[nSect].wallnum) > numflines)
+	{
+		if ((flines = (LINE2D*)realloc(flines, sizeof(LINE2D)*s)) == NULL)
+		{
+			numflines = 0;
+			return;
+		}
+		
+		numflines = s;
+	}
+	
+	if (flines)
 	{
 		getSectorWalls(nSect, &s, &e);
 		while(s <= e)
 		{
-			getWallCoords(s++, &coords[i].x1, &coords[i].y1, &coords[i].x2, &coords[i].y2);
+			getWallCoords(s++, &flines[i].x1, &flines[i].y1, &flines[i].x2, &flines[i].y2);
 			i++;
 		}
 		
-		FillPolygon(coords, i, c, nStep, drawPat);
-		free(coords);
+		FillPolygon(flines, i, c, nStep, drawPat);
 	}
 }
 
@@ -423,32 +407,32 @@ char SCREEN2D::GetWallColor(int nWall, char hover)
 {
 	char nColor;
 	walltype* pWall = &wall[nWall];
-	if (pWall->cstat & kWallMoveForward)		nColor = kClrWalMveF;
-	else if (pWall->cstat & kWallMoveReverse)	nColor = kClrWalMveR;
-	else if (pWall->nextwall < 0)				nColor = kClrWalBase;
-	else if (pWall->cstat & kWallHitscan)		nColor = kClrWalHscn;
-	else										nColor = kClrWalNext;
+	if (pWall->cstat & kWallMoveForward)		nColor = kColorLightBlue;
+	else if (pWall->cstat & kWallMoveReverse)	nColor = kColorLightGreen;
+	else if (pWall->nextwall < 0)				nColor = kColorGrey18;
+	else if (pWall->cstat & kWallHitscan)		nColor = kColorMagenta;
+	else										nColor = kColorRed;
 	
 	return ColorGet(nColor, hover);
 }
 
 char SCREEN2D::GetSpriteColor(spritetype* pSpr, char hover)
 {
-	char nColor = kClrSprBase;
-	if (pSpr->cstat & kSprHitscan)			nColor = kClrSprHscn;
-	if (pSpr->cstat & kSprInvisible)		nColor = kClrSprInvs;
-	if (pSpr->cstat & kSprMoveForward)		nColor = kClrSprMveF;
-	else if (pSpr->cstat & kSprMoveReverse)	nColor = kClrSprMveR;
+	char nColor = kColorCyan;
+	if (pSpr->cstat & kSprHitscan)			nColor = kColorMagenta;
+	if (pSpr->cstat & kSprInvisible)		nColor = kColorGrey24;
+	if (pSpr->cstat & kSprMoveForward)		nColor = kColorLightBlue;
+	else if (pSpr->cstat & kSprMoveReverse)	nColor = kColorLightGreen;
 	
-	if (nColor == kClrSprHscn || nColor == kClrSprBase)
+	if (nColor == kColorMagenta || nColor == kColorCyan)
 	{
 		switch(pSpr->statnum)
 		{
 			case kStatDude:
-				nColor = kClrSprDude;
+				nColor = kColorLightRed;
 				break;
 			case kStatItem:
-				nColor = kClrSprItem;
+				nColor = kColorLightMagenta;
 				break;
 			case kStatFX:
 			case kStatProjectile:
@@ -457,15 +441,16 @@ char SCREEN2D::GetSpriteColor(spritetype* pSpr, char hover)
 			default:
 				switch(pSpr->type)
 				{
-					case 24:
+					case kModernCustomDudeSpawn:
 						if (!gModernMap) break;
 					case kMarkerDudeSpawn:
-						nColor = kClrSprDude;
+						nColor = kColorLightRed;
 						break;
 				}
 				break;
 		}
 	}
+	
 	
 	return ColorGet(nColor, hover);
 }
@@ -596,13 +581,13 @@ void SCREEN2D::MarkWall(int nWall, int nMarkType)
 	switch(nMarkType)
 	{
 		case kMarkWallFirst:
-			fc = ColorGet(kClrEdCaptWalFT);
-			bc = ColorGet(kClrEdCaptWalFB);
+			fc = ColorGet(kColorWhite);
+			bc = ColorGet(kColorBlack);
 			m[0] = 'F';
 			break;
 		case kMarkWallAlign:
-			fc = ColorGet(kClrEdCaptWalAT);
-			bc = ColorGet(kClrEdCaptWalAB);
+			fc = ColorGet(kColorYellow);
+			bc = ColorGet(kColorBlack);
 			m[0] = 'A';
 			break;
 		default:
@@ -610,46 +595,50 @@ void SCREEN2D::MarkWall(int nWall, int nMarkType)
 	}
 	
 	avePointWall(nWall, &x1, &y1);
-	x1 = cscalex(x1); y1 = cscaley(y1);
+	ScalePoints(&x1, &y1);
 	
-	nnExtOffsetPos(0, 8, 0, GetWallAngle(nWall) + kAng90, &x1, &y1, NULL);
+	offsetPos(0, 8, 0, GetWallAngle(nWall) + kAng90, &x1, &y1, NULL);
 	if (prefs.showTags && CaptionGet(OBJ_WALL, nWall))
-		nnExtOffsetPos(0, perc2val(300, pCaptFont->height), 0, 1536, &x1, &y1, NULL);
+		offsetPos(0, perc2val(300, pCaptFont->height), 0, 1536, &x1, &y1, NULL);
 	
 	CaptionPrint(m, x1, y1, 1, fc, (unsigned char)bc, false, qFonts[1]);
 }
 
-void SCREEN2D::CaptionPrintWallEdit(int nWall, char fc, char bc, QFONT* pFont)
+void SCREEN2D::CaptionPrintLineEdit(int nOffs, int x1, int y1, int x2, int y2, char fc, char bc, QFONT* pFont)
 {
-	int x1, y1, x2, y2, cx, cy;
-	getWallCoords(nWall, &x1, &y1, &x2, &y2);
+	int sx1 = x1, sy1 = y1, sx2 = x2, sy2 = y2;
+	int nAng, sLen, cx, cy;
 	
 	double nGrid, t;
 	double nLen = approxDist(x2 - x1, y2 - y1);
 	char buf1[32] = "\0", buf2[32] = "\0";
-	int nNext, nAng;
 	
-	if (nLen > kMinWallLengthG)
+	QFONT* pFont1 = pFont;
+	QFONT* pFont2 = qFonts[3];
+	
+	if (data.grid)
 	{
-		if (data.grid)
+		nGrid = (double)(nLen / (2048>>data.grid));
+		if (modf(nGrid, &t))
 		{
-			nGrid = (double)(nLen / (2048>>data.grid));
-			if (modf(nGrid, &t))
-			{
-				sprintf(buf1, "%2.1fG", nGrid);
-			}
-			else
-			{
-				sprintf(buf1, "%dG", (int)nGrid);
-			}
+			sprintf(buf1, "%2.1fG", nGrid);
 		}
 		else
 		{
-			sprintf(buf1, "%dP", (int)nLen);
+			sprintf(buf1, "%dG", (int)nGrid);
 		}
 	}
+	else
+	{
+		sprintf(buf1, "%dP", (int)nLen);
+	}
 	
-	if (nLen > kMinWallLengthA && x1 != x2 && y1 != y2)
+	ScalePoints(&sx1, &sy1, &sx2, &sy2);
+	sLen = perc2val(75, approxDist(sx2 - sx1, sy2 - sy1));
+	if (gfxGetTextLen(buf1, pFont1) > sLen)
+		return;
+	
+	if (x1 != x2 && y1 != y2)
 	{
 		if (x1 > x2)
 			swapValues(&x1, &x2);
@@ -660,24 +649,36 @@ void SCREEN2D::CaptionPrintWallEdit(int nWall, char fc, char bc, QFONT* pFont)
 		sprintf(buf2, "%dD", ((nAng & kAngMask)*360)/kAng360);
 	}
 	
-	if (buf1[0] || buf2[0])
+	if (buf1[0])
 	{
-		x1 = cscalex(x1);	x2 = cscalex(x2);
-		y1 = cscaley(y1);	y2 = cscaley(y2);
+		cx = sx1+((sx2-sx1)>>1); cy = sy1+((sy2-sy1)>>1);
 		
-		cx = x1+((x2-x1)>>1); cy = y1+((y2-y1)>>1); nNext = wall[nWall].nextwall;
-		if (prefs.showTags && (CaptionGet(OBJ_WALL, nWall) || nNext >= 0 && CaptionGet(OBJ_WALL, nNext)))
-			nnExtOffsetPos(0, perc2val(150, pCaptFont->height), 0, kAng90, &cx, &cy, NULL);
+		if (nOffs)
+			offsetPos(0, nOffs, 0, kAng90, &cx, &cy, NULL);
 		
 		// print length
-		CaptionPrint(buf1, cx, cy, 1, fc, -1, true, pFont);
-		nnExtOffsetPos(0, perc2val(110, pCaptFont->height), 0, kAng90, &cx, &cy, NULL);
-		
-		// print angle below
-		t = qFonts[3]->charSpace, qFonts[3]->charSpace = 2;
-		CaptionPrint(buf2, cx, cy, 1, fc, -1, true, qFonts[3]);
-		qFonts[3]->charSpace = t;
+		CaptionPrint(buf1, cx, cy, 1, fc, -1, true, pFont1);
+		if (buf2[0])
+		{
+			// print angle
+			offsetPos(0, perc2val(110, pFont1->height), 0, kAng90, &cx, &cy, NULL);
+			t = pFont2->charSpace, pFont2->charSpace = 2;
+			CaptionPrint(buf2, cx, cy, 1, fc, -1, true, qFonts[3]);
+			pFont2->charSpace = t;
+		}
 	}
+}
+
+void SCREEN2D::CaptionPrintWallEdit(int nWall, char fc, char bc, QFONT* pFont)
+{
+	int nNext = wall[nWall].nextwall;
+	int x1, y1, x2, y2, nOffs = 0;
+	
+	getWallCoords(nWall, &x1, &y1, &x2, &y2);
+	if (prefs.showTags && (CaptionGet(OBJ_WALL, nWall) || nNext >= 0 && CaptionGet(OBJ_WALL, nNext)))
+		nOffs = perc2val(150, pCaptFont->height);
+	
+	CaptionPrintLineEdit(nOffs, x1, y1, x2, y2, fc, bc, pFont);
 }
 
 void SCREEN2D::DrawWallMidPoint(int nWall, char c, char s, char thick, char which)
@@ -685,9 +686,8 @@ void SCREEN2D::DrawWallMidPoint(int nWall, char c, char s, char thick, char whic
 	int nAng, nSize, nLen, x1, y1, x2, y2, cx, cy;
 	
 	getWallCoords(nWall, &x1, &y1, &x2, &y2);
-	x1 = cscalex(x1);	x2 = cscalex(x2);
-	y1 = cscaley(y1);	y2 = cscaley(y2);
-	cx = (x1 + x2) >> 1;	cy = (y1 + y2) >> 1;
+	ScalePoints(&x1, &y1, &x2, &y2);
+	cx = (x1+x2)>>1; cy = (y1+y2)>>1;
 	
 	nLen = approxDist(x1 - x2, y1 - y2);
 	
@@ -723,30 +723,20 @@ void SCREEN2D::DrawWall(int nWall)
 	short flags;
 	
 	getWallCoords(nWall, &x1, &y1, &x2, &y2);
-	x1 = cscalex(x1); y1 = cscaley(y1);
-	x2 = cscalex(x2); y2 = cscaley(y2);
+	ScalePoints(&x1, &y1, &x2, &y2);
 	THICK = 0;
 	
-	if (nWall == linehighlight)
-		color = GetWallColor(nWall, h);
-	else
-		color = GetWallColor(nWall, 0);
-
 	if (nNext >= 0)
 	{
-		flags = wall[nNext].cstat;
-		
-		if (linehighlight >= 0 && nNext == linehighlight)
-		{
-			color = GetWallColor(nNext, h);
-			flags = wall[nNext].cstat;
-		}
-		
+		if (nWall == linehighlight)			flags = pWall->cstat;
+		else if (nNext == linehighlight)	flags = wall[nNext].cstat, nWall = nNext;
+		else								flags = pWall->cstat | wall[nNext].cstat;
+
 		THICK = ((flags & kWallBlock) > 0);
 	}
-	
-	DrawLine(x1, y1, x2, y2, color, THICK);
 
+	color = GetWallColor(nWall, (nWall == linehighlight) ? h : 0);
+	DrawLine(x1, y1, x2, y2, color, THICK);
 }
 
 char SCREEN2D::OnScreen(int x1, int y1, int x2, int y2)
@@ -770,6 +760,7 @@ char SCREEN2D::InHighlight(int x, int y)
 		int hy1 = hglty1;
 		int hy2 = hglty2;
 		
+		ScalePoints(&hx1, &hy1, &hx2, &hy2);
 		if (hx1 > hx2) swapValues(&hx1, &hx2);
 		if (hy1 > hy2) swapValues(&hy1, &hy2);
 		return (rngok(x, hx1, hx2) && rngok(y, hy1, hy2));
@@ -796,7 +787,7 @@ const char* SCREEN2D::CaptionGet(int nType, int nID)
 			break;
 	}
 	
-	return (t && t[0]) ? t : NULL;
+	return (!isempty(t)) ? t : NULL;
 }
 
 void SCREEN2D::CaptionPrint(const char* text, int cx, int cy, char pd, char fc, short bc, char shadow, QFONT* pFont)
@@ -839,11 +830,10 @@ void SCREEN2D::CaptionPrintSector(int nSect, char hover, QFONT* pFont)
 		return;
 	
 	avePointSector(nSect, &cx, &cy);
-	cx = cscalex(cx);
-	cy = cscaley(cy);
+	ScalePoints(&cx, &cy);
 	
-	fc = ColorGet(kClrCaptSectT, hover);
-	bc = ColorGet(kClrCaptSectB, hover);
+	fc = ColorGet(kColorBlack);
+	bc = ColorGet(kColorLightGray, hover);
 	
 	pd = (hover) ? kCaptPadHover : kCaptPadNormal;
 	CaptionPrint(caption, cx, cy, pd, fc, bc, false, pFont);
@@ -866,15 +856,15 @@ void SCREEN2D::CaptionPrintSprite(int nSpr, char hover, QFONT* pFont)
 	bh = (flags & kSprBlock);
 	if (flags & kSprMoveForward)
 	{
-		bc = ColorGet(kClrSprMveF, 	(hover) ? h : !bh);
+		bc = ColorGet(kColorLightBlue, 	(hover) ? h : !bh);
 		dark = !bh;
 	}
-	else if (flags & kSprMoveReverse)		bc = ColorGet(kClrSprMveR, 		(hover) ? h : !bh);
-	else									bc = ColorGet(kClrSprBase, 		(hover) ? h :  bh);
+	else if (flags & kSprMoveReverse)		bc = ColorGet(kColorLightGreen, (hover) ? h : !bh);
+	else									bc = ColorGet(kColorCyan, 		(hover) ? h :  bh);
 		
-	if (flags & kSprHitscan)				fc = ColorGet(kClrCaptSprTHscn, (hover && h));
-	else if (dark)							fc = ColorGet(kClrCaptSprTMveF, (hover && h));
-	else									fc = ColorGet(kClrCaptSprT, 	(hover && h));
+	if (flags & kSprHitscan)				fc = ColorGet(kColorRed, 		(hover && h));
+	else if (dark)							fc = ColorGet(kColorLightGray, 	(hover && h));
+	else									fc = ColorGet(kColorBlack, 		(hover && h));
 	
 	pd = (hover) ? kCaptPadHover : kCaptPadNormal;
 	CaptionPrint(caption, cx, cy, pd, fc, bc, false, pFont);
@@ -889,18 +879,17 @@ void SCREEN2D::CaptionPrintWall(int nWall, char hover, QFONT* pFont)
 	if (!caption[0])
 		return;
 	
-	fc = ColorGet(kClrCaptWalT, hover && h);
-	bc = ColorGet(kClrCaptWalB, hover && h);
+	fc = ColorGet(kColorBlack);
+	bc = ColorGet(kColorRed, hover && h);
 	
 	avePointWall(nWall, &cx, &cy);	
-	cx = cscalex(cx);
-	cy = cscaley(cy);
+	ScalePoints(&cx, &cy);
 	
 	pd = (hover) ? kCaptPadHover : kCaptPadNormal;
 	CaptionPrint(caption, cx, cy, pd, fc, bc, false, pFont);
 }
 
-void SCREEN2D::SetView(int x1, int y1, int x2, int y2)
+void SCREEN2D::SetView(int x1, int y1, int x2, int y2, char clip)
 {
 	view.wx1 = x1;	view.wy1 = y1;
 	view.wx2 = x2;	view.wy2 = y2;
@@ -910,30 +899,47 @@ void SCREEN2D::SetView(int x1, int y1, int x2, int y2)
 	
 	view.wcx = view.wx1 + (view.wwh >> 1);
 	view.wcy = view.wy1 + (view.whg >> 1);
+	
+	prefs.clipView = (clip > 0);
+	
+	if (fullscreen && ydim <= 600)
+	{
+		pCaptFont = qFonts[3];
+		pEditFont = qFonts[3];
+	}
+	else
+	{
+		pCaptFont = qFonts[0];
+		pEditFont = qFonts[1];
+	}	
 }
 
 void SCREEN2D::ScreenClear()
 {
-	gfxSetColor(ColorGet(kClrEdBgd));
+	gfxSetColor(ColorGet(kColorGrey30));
 	gfxFillBox(view.wx1, view.wy1, view.wx2, view.wy2);
 }
 
 void SCREEN2D::ScreenDraw(void)
 {
 	XSECTOR* pXSect;
-	int nSect, i, j, e, t;
+	int nSect, nPat, i, j, e, t;
 	char fc, bc;
 	
 	x1 = x2 = x3 = 0;
 	y1 = y2 = y3 = 0;
 	
+	if (prefs.clipView)
+	{
+		gfxBackupClip();
+		gfxSetClip(view.wx1, view.wy1, view.wx2, view.wy2);
+	}
+	
 	spritetype* pHSpr = NULL;
 	if (pointhighlight >= 0 && (pointhighlight & 0xc000))
 		pHSpr = &sprite[pointhighlight & 16383];
 	
-	pCaptFont = qFonts[0];
-	pEditFont = qFonts[(data.zoom <= kZoomEditSmallFont) ? 3 : 1];
-	
+
 	if (!prefs.showVertex)			vertexSize = 0;
 	else if (data.zoom	<= 512)		vertexSize = 2;
 	else if (data.zoom	<= 1024)	vertexSize = 4;
@@ -971,7 +977,7 @@ void SCREEN2D::ScreenDraw(void)
 		if (sectorhighlight >= 0)
 		{
 			LayerOpen();
-			color = ColorGet(kClrSectFillHovr);
+			color = ColorGet(kColorGrey28);
 			FillSector(sectorhighlight, color, 1);
 			LayerShowAndClose(kRSTransluc);
 		}
@@ -979,7 +985,7 @@ void SCREEN2D::ScreenDraw(void)
 		if (highlightsectorcnt > 0 || joinsector[0] >= 0)
 		{
 			LayerOpen();
-			color = ColorGet(kClrSectFillHglt);
+			color = ColorGet(kColorLightGreen);
 			
 			// flood sectors in a highlight
 			for (i = 0; i < highlightsectorcnt; i++)
@@ -992,7 +998,7 @@ void SCREEN2D::ScreenDraw(void)
 			// flood sector waiting for merging
 			if (joinsector[0] >= 0)
 			{
-				color = ColorGet(kClrSectFillMerg);
+				color = ColorGet(kColorYellow);
 				FillSector(joinsector[0], color, 1);
 			}
 			
@@ -1004,7 +1010,7 @@ void SCREEN2D::ScreenDraw(void)
 		// flood sectors in a highlight
 		if (highlightsectorcnt > 0)
 		{
-			color = ColorGet(kClrSectFillHglt);
+			color = ColorGet(kColorLightGreen);
 			i = highlightsectorcnt;
 			while(--i >= 0)
 				FillSector(highlightsector[i], color);
@@ -1013,11 +1019,43 @@ void SCREEN2D::ScreenDraw(void)
 		// flood sector waiting for merging
 		if (joinsector[0] >= 0)
 		{
-			color = ColorGet(kClrSectFillMerg);
+			color = ColorGet(kColorYellow);
 			FillSector(joinsector[0], color);
 		}
 	}
+	
+	/* draw busy / motion progress of the sector */
+	////////////////////////////
+	if (gPreviewMode)
+	{
+		for (i = 0; i < numsectors; i++)
+		{
+			if ((pXSect = GetXSect(&sector[i])) != NULL)
+			{
+				if (rngok(pXSect->busy, 1, 65536))
+				{
+					if ((pXSect->unused1 && h) || !pXSect->unused1)
+						FillSector(i, ColorGet((pXSect->state) ? kColorRed : kColorBlue));
+				}
+				else if ((pXSect->bobFloor || pXSect->bobCeiling) && (pXSect->bobAlways || pXSect->state))
+				{
+					FillSector(i, ColorGet(kColorDarkGray));
+				}
+			}
+		}
+	}
+	
+	/* draw avepoint of the sector */
+	////////////////////////////
+	if ((gFrameClock & 64) && sectorhighlight >= 0)
+	{
+		avePointSector(sectorhighlight, &x1, &y1);
+		ScalePoints(&x1, &y1);
 		
+		gfxSetColor(ColorGet(kColorWhite));
+		gfxPixel(x1, y1);
+	}
+	
 	/* draw wall midpoint closest to mouse cursor */
 	////////////////////////////
 	if (linehighlight >= 0)
@@ -1029,20 +1067,18 @@ void SCREEN2D::ScreenDraw(void)
 		getWallCoords(linehighlight, &x2, &y2, &x3, &y3);
 		if ((x1 != x2 && x1 != x3) || (y1 != y2 && y1 != y3))
 		{
-			x1 = cscalex(x1); y1 = cscaley(y1);
+			ScalePoints(&x1, &y1);
 			DrawIconCross(x1, y1, GetWallColor(linehighlight, false), 2);
 		}
 	}
-	
 
-	
 	/* draw walls */
 	////////////////////////////
-	fc = ColorGet(kClrVtxBord);
-	bc = ColorGet(kClrVtxFill);
+	fc = ColorGet(kColorGrey28);
+	bc = ColorGet(kColorBrown);
 	for (i = 0; i < numwalls; i++)
 	{
-		if (wall[i].nextwall > i || wall[i].point2 >= numwalls)
+		if (wall[i].nextwall > i)
 			continue;
 		
 		DrawWall(i);
@@ -1053,16 +1089,32 @@ void SCREEN2D::ScreenDraw(void)
 		}
 	}
 	
-	/* draw sector highlight box */
+	
+	/* draw highlight sector walls that's gonna be detached */
 	////////////////////////////
+	fc = ColorGet(kColorYellow);
 	if (highlightsectorcnt > 0)
 	{
-		hgltSectGetBox(&x1, &y1, &x2, &y2);
-		if (irngok(mousxplc, x1, x2) && irngok(mousyplc, y1, y2))
+		i = highlightsectorcnt;
+		while(--i >= 0)
 		{
-			x1 = cscalex(x1);	x2 = cscalex(x2);
-			y1 = cscaley(y1);	y2 = cscaley(y2);
-			DrawRect(x1, y1, x2, y2, ColorGet(kClrEdHgltSectBox), 0, kPatDashed);
+			getSectorWalls(highlightsector[i], &j, &e);
+			while(j <= e)
+			{
+				if ((t = wall[j].nextsector) >= 0 && hgltCheck(OBJ_SECTOR, t) < 0)
+				{
+					getWallCoords(j, &x1, &y1, &x2, &y2); ScalePoints(&x1, &y1, &x2, &y2);
+					DrawLine(x1, y1, x2, y2, ColorGet(kColorGrey16), 0, kPatDotted);
+					
+					if (data.zoom >= kZoomVertexAll && vertexSize)
+					{
+						if (OnScreen(x1, y1, vertexSize))	DrawVertex(x1, y1, fc, bc, vertexSize);
+						if (OnScreen(x2, y2, vertexSize))	DrawVertex(x2, y2, fc, bc, vertexSize);
+					}
+				}
+				
+				j++;
+			}
 		}
 	}
 	
@@ -1070,22 +1122,40 @@ void SCREEN2D::ScreenDraw(void)
 	////////////////////////////
 	if (h && data.zoom >= kZoomVertexHglt && vertexSize)
 	{
-		fc = ColorGet(kClrVtxBord, h);
-		bc = ColorGet(kClrVtxFill, h);
+		fc = ColorGet(kColorYellow, h);
+		bc = ColorGet(kColorBrown, h);
 		
-		for (i = 0; i < numwalls; i++)
+		if (hgltType)
 		{
-			x1 = cscalex(wall[i].x);
-			y1 = cscaley(wall[i].y);
-			if (OnScreen(x1, y1, vertexSize))
+			for (i = 0; i < numwalls; i++)
 			{
-				if (highlightcnt <= 0 || !TestBitString(show2dwall, i))
+				x1 = cscalex(wall[i].x);
+				y1 = cscaley(wall[i].y);
+				if (OnScreen(x1, y1, vertexSize))
 				{
-					if (!InHighlight(x1, y1))
-						continue;
+					if (highlightcnt <= 0 || !TestBitString(hgltwall, i))
+					{
+						if (!InHighlight(x1, y1))
+							continue;
+					}
+					
+					DrawVertex(x1, y1, fc, bc, vertexSize);
 				}
+			}
+		}
+		else
+		{
+			for (i = 0; i < highlightcnt; i++)
+			{
+				if ((highlight[i] & 0xC000) != 0)
+					continue;
 				
-				DrawVertex(x1, y1, fc, bc, vertexSize);
+				j = highlight[i];
+				x1 = cscalex(wall[j].x);
+				y1 = cscaley(wall[j].y);
+				
+				if (OnScreen(x1, y1, vertexSize))
+					DrawVertex(x1, y1, fc, bc, vertexSize);
 			}
 		}
 		
@@ -1125,15 +1195,9 @@ void SCREEN2D::ScreenDraw(void)
 						
 						x2 = cscalex(pSpr2->x);
 						y2 = cscaley(pSpr2->y);
-						color = ColorGet(kClrEdTracerSlide, HOVER);
-						DrawArrow(x1, y1, x2, y2, color, data.zoom, kAng30, 0, kPatNormal);
-						
-						/*if (sectorHasMoveRObjects(pSpr->owner))
-						{
-							RotatePoint(&x2, &y2, kAng180, x1, y1);
-							color = ColorGet(kClrTracerSlideR, HOVER);
-							DrawArrow(x1, y1, x2, y2, color, data.zoom, kAng30, 0, kPatDotted);
-						}*/
+						color = ColorGet(kColorYellow);
+						t = (HOVER) ? kPatDotted : kPatNormal;
+						DrawArrow(x1, y1, x2, y2, color, data.zoom, kAng30, 0, t, t);
 					}
 					break;
 				case kMarkerWarpDest:
@@ -1143,9 +1207,8 @@ void SCREEN2D::ScreenDraw(void)
 						if (!HOVER)
 							HOVER = (pHSpr == pSpr && h);
 						
-						x2 = cscalex(x2);
-						y2 = cscaley(y2);
-						color = ColorGet(kClrEdTracerWarp, HOVER);
+						ScalePoints(&x2, &y2);
+						color = ColorGet(kColorDarkGray, HOVER);
 						DrawArrow(x2, y2, x1, y1, color, data.zoom, kAng30, 0, kPatDotted);
 					}
 					break;
@@ -1168,55 +1231,13 @@ void SCREEN2D::ScreenDraw(void)
 		}
 	}
 	
-	/* draw busy / motion progress of the sector */
-	////////////////////////////
-	if (gPreviewMode)
-	{
-		for (i = 0; i < numsectors; i++)
-		{
-			if ((pXSect = GetXSect(&sector[i])) != NULL)
-			{
-				if (rngok(pXSect->busy, 1, 65536))
-				{
-					if ((pXSect->unused1 && h) || !pXSect->unused1)
-						FillSector(i, ColorGet(kClrPrvSectOff + pXSect->state));
-				}
-				else if ((pXSect->bobFloor || pXSect->bobCeiling) && (pXSect->bobAlways || pXSect->state))
-				{
-					FillSector(i, ColorGet(kClrPrvSectMotFx));
-				}
-			}
-		}
-	}
+
 		
 	/* sector drawing process */
 	////////////////////////////
-	if (newnumwalls > numwalls)
+	if (pGLBuild)
 	{
-		color = ColorGet(kClrEdWalNew, h);
-		i = newnumwalls;
-		
-		while(--i >= numwalls)
-		{
-			getWallCoords(i, &x1, &y1, &x2, &y2);
-			x1 = cscalex(x1);	x2 = cscalex(x2);
-			y1 = cscaley(y1);	y2 = cscaley(y2);
-			
-			DrawLine(x1, y1, x2, y2, color);
-			DrawWallMidPoint(i, color, 0x02);
-			if (i == newnumwalls - 1 && x1 != x2 && y1 != y2)
-				DrawLine(x1, y1, x2, y2, ColorGet(kClrEdWallAngled), 0, kPatDotted);
-
-			if (data.zoom >= kZoomEditCaption)
-			{
-				fc = ColorGet(kClrEdCaptWalNewT);
-				bc = ColorGet(kClrEdCaptWalNewB);
-				CaptionPrintWallEdit(i, fc, (unsigned char)bc, pEditFont);
-			}
-		}
-		
-		// draw first point
-		DrawVertex(x1, y1, ColorGet(kClrEdFirstVtxBrd), ColorGet(kClrEdFirstVtxBgd), 6);
+		pGLBuild->Draw(this);
 		
 		// draw midpoints on all walls of a sector
 		if ((i = sectorhighlight) >= 0)
@@ -1245,14 +1266,14 @@ void SCREEN2D::ScreenDraw(void)
 				CaptionPrintSector(i, (sectorhighlight == i), pCaptFont);
 			
 			for (i = 0; i < numwalls; i++)
-				CaptionPrintWall(i, TestBitString(show2dwall, i), pCaptFont);
+				CaptionPrintWall(i, TestBitString(hgltwall, i), pCaptFont);
 			
 			if (prefs.showSprites)
 			{
 				for (i = 0; i < numsectors; i++)
 				{
 					for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
-						CaptionPrintSprite(j, TestBitString(show2dsprite, j), pCaptFont);
+						CaptionPrintSprite(j, TestBitString(hgltspri, j), pCaptFont);
 				}
 			}
 			
@@ -1288,12 +1309,12 @@ void SCREEN2D::ScreenDraw(void)
 	/* draw start arrow */
 	////////////////////////////
 	x1 = cscalex(startposx); y1 = cscaley(startposy);
-	DrawArrow(x1, y1, ColorGet(kClrEdStartPos), startang, data.zoom, (int)80, (char)true);
+	DrawArrow(x1, y1, ColorGet(kColorBrown), startang, data.zoom, (int)80, (char)true);
 	
 	/* draw current position */
 	////////////////////////////
 	x1 = cscalex(posx); y1 = cscaley(posy);
-	DrawArrow(x1, y1, ColorGet(kClrEdCurPos), data.ang, data.zoom);
+	DrawArrow(x1, y1, ColorGet(kColorWhite), data.ang, data.zoom);
 	
 	/* draw highlight */
 	////////////////////////////
@@ -1305,16 +1326,16 @@ void SCREEN2D::ScreenDraw(void)
 		switch(hgltType)
 		{
 			case kHgltPoint:
-				fc = ColorGet(kClrEdHgltPointB);
-				bc = ColorGet(kClrEdHgltPointF);
+				fc = ColorGet(kColorMagenta);
+				bc = ColorGet(kColorLightCyan);
 				break;
 			default:
-				fc = ColorGet(kClrEdHgltSectB);
-				bc = ColorGet(kClrEdHgltSectF);
+				fc = ColorGet(kColorLightGreen);
+				bc = ColorGet(kColorLightGreen);
 				break;
 		}
 		
-		
+		ScalePoints(&x1, &y1, &x2, &y2);
 		if (x1 > x2) swapValues(&x1, &x2);
 		if (y1 > y2) swapValues(&y1, &y2);
 		DrawRect(x1-1, y1-1, x2, y2, fc);
@@ -1337,7 +1358,7 @@ void SCREEN2D::ScreenDraw(void)
 			if (data.zoom >= kZoomSpritesUnder && data.sprUnderCursor > 1)
 			{
 				pFont = qFonts[0];
-				color = ColorGet(kClrEdSprCountUnder);
+				color = ColorGet(kColorYellow);
 				sprintf(buffer, "[%d]", data.sprUnderCursor);
 				
 				i = gfxGetTextLen(buffer, pFont);
@@ -1348,8 +1369,8 @@ void SCREEN2D::ScreenDraw(void)
 		////////////////////////////
 		else if (pointdrag >= 0 && data.zoom >= kZoomEditCaption)
 		{
-			fc = ColorGet(kClrEdCaptWalNewT);
-			bc = ColorGet(kClrEdCaptWalNewB);
+			fc = ColorGet(kColorYellow);
+			bc = ColorGet(kColorBrown);
 			getWallCoords(pointdrag, &x3, &y3);
 			for (i = 0; i < numwalls; i++)
 			{
@@ -1382,6 +1403,9 @@ void SCREEN2D::ScreenDraw(void)
 		if (gCmtPrefs.enabled)
 			gCommentMgr.Draw(this);
 	}
+		
+	if (prefs.clipView)
+		gfxRestoreClip();
 }
 
 void SCREEN2D::DrawSpritePathMarker(void)
@@ -1401,7 +1425,7 @@ void SCREEN2D::DrawSpritePathMarker(void)
 				continue;
 			
 			x2 = cscalex(pSpr2->x); y2 = cscaley(pSpr2->y);
-			DrawLine(x1, y1, x2, y2, ColorGet(kClrEdTracerPath, BLINK), HOVER, kPatDotted);
+			DrawLine(x1, y1, x2, y2, ColorGet(kColorLightMagenta, BLINK), HOVER, kPatDotted);
 		}
 	}
 	
@@ -1417,7 +1441,7 @@ void SCREEN2D::DrawSpritePathMarker(void)
 		DrawAngLine(100, pSpr->ang, x1, y1, c, THICK);
 		DrawIconFaceSpr_NORMAL(x1, y1, c);
 		
-		c = ColorGet(kClrSprMarkPath, BLINK);
+		c = ColorGet(kColorYellow, BLINK);
 		DrawIconCross(x1, y1, c, 1);
 	}
 }
@@ -1433,7 +1457,7 @@ void SCREEN2D::DrawSprite(spritetype* pSprite)
 	y1		= cscaley(pSpr->y);
 
 	if ((pSpr->index | 0x4000) == pointhighlight) HOVER = 1;
-	else if (highlightcnt > 0 && TestBitString(show2dsprite, pSpr->index)) HOVER = 1;
+	else if (highlightcnt > 0 && TestBitString(hgltspri, pSpr->index)) HOVER = 1;
 	else if (InHighlight(x1, y1)) HOVER = 1;
 	else HOVER = 0;
 
@@ -1457,13 +1481,7 @@ void SCREEN2D::DrawSprite(spritetype* pSprite)
 		{
 			case kSprWall:
 				GetSpriteExtents(pSpr, &dx[0], &dy[0], &dx[1], &dy[1], NULL, NULL, 0x0);
-				while(i < 2)
-				{
-					dx[i] = cscalex(dx[i]);
-					dy[i] = cscaley(dy[i]);
-					i++;
-				}
-				
+				ScalePoints(&dx[0], &dy[0], &dx[1], &dy[1]);
 				DrawLine(dx[0], dy[0], dx[1], dy[1], color, THICK, kPatDotted);
 				break;
 			case kSprFloor:
@@ -1471,12 +1489,8 @@ void SCREEN2D::DrawSprite(spritetype* pSprite)
 				if (HOVER || data.zoom >= 1280 || pointdrag >= 0)
 				{
 					GetSpriteExtents(pSpr, &dx[0], &dy[0], &dx[1], &dy[1], &dx[2], &dy[2], &dx[3], &dy[3], 0x0);
-					while(i < 4)
-					{
-						dx[i] = cscalex(dx[i]);
-						dy[i] = cscaley(dy[i]);
-						i++;
-					}
+					ScalePoints(&dx[0], &dy[0], &dx[1], &dy[1]);
+					ScalePoints(&dx[2], &dy[2], &dx[3], &dy[3]);
 					
 					DrawLine(dx[0], dy[0], dx[1], dy[1], color, THICK, kPatDotted2); // T
 					DrawLine(dx[1], dy[1], dx[2], dy[2], color, THICK, kPatDotted2); // R
@@ -1529,8 +1543,8 @@ void SCREEN2D::DrawSpriteMarker(void)
 	{
 		case kMarkerOff:
 		case kMarkerOn:
-			if (pSpr->owner == sectorhighlight) c = kClrSprMarkOwn;
-			else c = kClrSprMark;
+			if (pSpr->owner == sectorhighlight) c = kColorLightGreen;
+			else c = kColorLightCyan;
 				
 			c = ColorGet(c, BLINK);
 			DrawIconFaceSpr_SMALL(x1, y1, c);
@@ -1540,9 +1554,9 @@ void SCREEN2D::DrawSpriteMarker(void)
 			break;
 		case kMarkerAxis:
 		case kMarkerWarpDest:
-			if (pSpr->owner == sectorhighlight)		c = kClrSprMarkOwn;
-			else if (pSpr->type == kMarkerWarpDest) c = kClrSprMarkWarp;
-			else c = kClrSprMark;
+			if (pSpr->owner == sectorhighlight)		c = kColorLightGreen;
+			else if (pSpr->type == kMarkerWarpDest) c = kColorBrown;
+			else c = kColorLightCyan;
 				
 			c = ColorGet(c, BLINK);
 			DrawIconMarker(x1, y1, c);
@@ -1558,7 +1572,15 @@ void SCREEN2D::DrawSpriteAmbient(void)
 	
 	if (OnScreen(x1, y1, 4))
 	{
-		c = ColorGet(kClrSprAmbOff + (pXSpr && pXSpr->state), BLINK);
+		if (pXSpr)
+		{
+			c = ColorGet((pXSpr->state) ? kColorYellow : kColorLightGray, BLINK);
+		}
+		else
+		{
+			c = GetSpriteColor(pSpr, BLINK);
+		}
+		
 		DrawIconFaceSpr_NORMAL(x1, y1, c);
 		DrawIconCross(x1, y1, c);
 	}
@@ -1571,14 +1593,17 @@ void SCREEN2D::DrawSpriteAmbient(void)
 			r[0] = (prefs.ambRadius & 0x02) ? mulscale10(pXSpr->data2, data.zoom) : 0;
 			r[1] = (prefs.ambRadius & 0x01) ? mulscale10(pXSpr->data1, data.zoom) : 0;
 			
-			c = (pXSpr->state) ? kClrEdAmbRad2On : kClrEdAmbRad2Off;
-			
 			i = 0;
 			while(i < 2)
 			{
 				if (r[i])
-					DrawCircle(x1, y1, r[i], ColorGet(c + i));
-				
+				{
+					if (i == 1)				c = (pXSpr->state) ? kColorYellow : kColorLightGray;
+					else if (!pXSpr->state)	c = kColorDarkGray;
+					else					c = kColorBrown;		
+					
+					DrawCircle(x1, y1, r[i], ColorGet(c));
+				}
 				i++;
 			}
 		}
@@ -1594,7 +1619,7 @@ void SCREEN2D::DrawSpriteStealth(void)
 		if (pXSpr && pXSpr->data1 >= 0)
 		{
 			more = (pXSpr->data2 > 0 || pXSpr->data3 > 0);
-			c = ColorGet(more ? kClrSprStealMore : kClrSprStealLess);
+			c = ColorGet((more) ? kColorLightRed : kColorLightCyan);
 			
 			if (pXSpr->data1 > 0)
 				DrawCircle(x1, y1, mulscale10(pXSpr->data1, data.zoom), c, false, kPatDashed);
@@ -1603,7 +1628,7 @@ void SCREEN2D::DrawSpriteStealth(void)
 			
 			if (OnScreen(x1, y1, 4))
 			{
-				c = ColorGet(more ? kClrSprStealMore : kClrSprStealLess, BLINK);
+				c = ColorGet((more) ? kColorLightRed : kColorLightCyan, BLINK);
 				DrawIconFaceSpr_NORMAL(x1, y1, c);
 				DrawIconCross(x1, y1, c, 4);
 			}
@@ -1627,7 +1652,7 @@ void SCREEN2D::DrawSpriteExplosion(void)
 	if (rngok(pSpr->type, 0, kExplosionMax))
 	{
 		r = mulscale10(explodeInfo[pSpr->type].radius, data.zoom);
-		c = ColorGet(kClrEdExpRad, h);
+		c = ColorGet((h) ? kColorLightGray : kColorDarkGray);
 		DrawCircle(x1, y1, r, c);
 		DrawIconCross(x1, y1, c, 4);
 		return;
@@ -1636,17 +1661,26 @@ void SCREEN2D::DrawSpriteExplosion(void)
 
 void SCREEN2D::DrawSpriteProjectile(void)
 {
-	char c = ColorGet((h) ? kClrSprMissile1 : kClrSprMissile2, HOVER);
+	char c = ColorGet((h) ? kColorLightBlue : kColorLightGreen, HOVER);
 	DrawCircle(x1, y1, mulscale12(pSpr->clipdist, data.zoom), c);
 	DrawIconFaceSpr_SMALL(x1, y1, c);
 	DrawIconCross(x1, y1, c, 1);
 }
 
+
 void SCREEN2D::DrawSpritePlayer(void)
 {
-	char c = kClrSprPly1;
-	if (pXSpr)
-		c += ClipHigh(pXSpr->data1, 8);
+	char c = kColorGrey24;
+	static char playerColors[kMaxPlayers] =
+	{
+		kColorWhite,		kColorLightBlue,
+		kColorLightRed,		kColorLightGreen,
+		kColorLightMagenta,	kColorLightGray,
+		kColorYellow,		kColorGrey24,
+	};
+	
+	if (pXSpr && rngok(pXSpr->data1, 0, kMaxPlayers))
+		c = playerColors[pXSpr->data1];
 	
 	c = ColorGet(c, BLINK);
 	DrawArrow(x1, y1, c, (int)pSpr->ang, (int)data.zoom, (int)96, (char)(pSpr->type == kMarkerSPStart));
@@ -1698,7 +1732,7 @@ void SCREEN2D::DrawGrid()
 	int i, cx, cy, xp, yp;
 	int dst;
 	
-	gfxSetColor(ColorGet(kClrEdGrd));
+	gfxSetColor(ColorGet(kColorGrey29));
 	x1 = cscalex(-boardWidth);	y1 = cscaley(-boardHeight);
 	x2 = cscalex(boardWidth);	y2 = cscaley(boardHeight);
 	
@@ -1758,10 +1792,15 @@ void SCREEN2D::LayerShow(char flags)
 
 void SCREEN2D::ShowMap(char flags)
 {
-	//int bwx1 = windowx1; windowx1 = view.wx1;
-	//int bwx2 = windowx2; windowx2 = view.wx2;
-	//int bwy1 = windowy1; windowy1 = view.wy1;
-	//int bwy2 = windowy2; windowy2 = view.wy2;
+	int op = pixelaspect;
+	Rect* b;
+	
+	pixelaspect = 65535;
+	if (prefs.clipView)
+	{
+		b = new Rect(windowx1, windowy1, windowx2, windowy2);
+		setview(view.wx1, view.wy1, view.wx2, view.wy2);
+	}
 	
 	flags = 12;
 	if (prefs.showMap > 1)
@@ -1775,6 +1814,16 @@ void SCREEN2D::ShowMap(char flags)
 		flags
 	);
 	
-	//windowx1 = bwx1;	windowx2 = bwx2;
-	//windowy1 = bwy1;	windowy2 = bwy2;
+	pixelaspect = op;
+	if (prefs.clipView)
+		setview(b->x0, b->y0, b->x1, b->y1);
+
+}
+
+void SCREEN2D::ScalePoints(int* x1, int* y1, int* x2, int* y2)
+{
+	if (x1) *x1 = cscalex(*x1);
+	if (y1) *y1 = cscaley(*y1);
+	if (x2) *x2 = cscalex(*x2);
+	if (y2) *y2 = cscaley(*y2);
 }

@@ -23,11 +23,6 @@
 
 #include "callback.h"
 #include "db.h"
-#include "eventq.h"
-#include "gameutil.h"
-#include "xmpsnd.h"
-#include "tile.h"
-#include "seq.h"
 #include "preview.h"
 
 static void Remove( int nSprite ) {

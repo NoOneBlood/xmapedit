@@ -23,7 +23,6 @@
 #ifndef _XMPSKY_H_
 #define _XMPSKY_H_
 #include "common_game.h"
-#include "nnexts.h"
 
 class Sky
 {
@@ -48,6 +47,7 @@ class Sky
 	static int ToggleFloorShade(int nSect, BOOL global);
 	static int FixPan(int nSect, int nFor, BOOL global);
 	static int MakeSimilar(int nSect, int nFor, BOOL global);
+	static int Disable(int nSect, int nFor, BOOL global);
 	//------------------------------------------------------------------------------------
 	static int GetMostUsed(int nSect, int nFor, BOOL global, int* nPic = NULL, int* nPal = NULL, int* nShade = NULL, int* nPy = NULL);
 	static void SetBits(int nPic, int* nUnique = NULL);

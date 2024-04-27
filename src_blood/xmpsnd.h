@@ -25,8 +25,6 @@
 
 #ifndef __XMPSND
 #define __XMPSND
-#include "resource.h"
-#include "gameutil.h"
 #include "music.h"
 #include "fx_man.h"
 #include "multivoc.h"

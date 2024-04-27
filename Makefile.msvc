@@ -181,8 +181,6 @@ ENGINEOBJS=$(BUILDSRC)\a-c.$o \
 	$(BUILDSRC)\kplib.$o \
 	$(BUILDSRC)\osd.$o \
 	$(BUILDSRC)\pragmas.$o \
-	$(BUILDSRC)\textfont.$o \
-	$(BUILDSRC)\smalltextfont.$o \
 	$(BUILDSRC)\winlayer.$o
 
 !if $(USE_POLYMOST)
@@ -252,6 +250,8 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\xmpqaved.$o \
 	$(XMAPEDSRC)\xmpsky.$o \
 	$(XMAPEDSRC)\xmpdoorwiz.$o \
+	$(XMAPEDSRC)\xmpmaped.$o \
+	$(XMAPEDSRC)\xmploop.$o \
 	$(XMAPEDSRC)\xmpshape.$o \
 	$(XMAPEDSRC)\xmpinput.$o \
 	$(XMAPEDSRC)\buildres.$(res) \

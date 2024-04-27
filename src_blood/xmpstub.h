@@ -25,13 +25,8 @@
 
 #ifndef __XMPSTUB_H
 #define __XMPSTUB_H
-#include "db.h"
-#include "gameutil.h"
-#include "inifile.h"
-#include "gfx.h"
 #include "edit2d.h"
-#include "xmpmisc.h"
-#include "editor.h"
+#include "edit3d.h"
 
 #define kPlayerRadius		32
 #define kTabWall  kMaxWalls
@@ -42,8 +37,12 @@
 #define kTabXSect kMaxXSectors
 #define kHClock 32
 
+#define ED2D (qsetmode != 200)
+#define ED3D (qsetmode == 200)
+#define ED23 gSplitMode.mode
+#define kSplitModeWndPad 2
+
 extern OBJECT_LIST gModernTypes;
-extern IniFile* gHints; // editor hints
 
 enum {
 kDetailSpriteNoVoxel1 		= 0x0008,
@@ -53,6 +52,7 @@ kDetailSpriteNoVoxel1 		= 0x0008,
 extern char buffer[kBufferSize];
 extern char buffer2[kBufferSize];
 extern char buffer3[kBufferSize];
+extern char gMapInfoStr[kBufferSize];
 
 struct SPECIAL_DATA_NAMES
 {
@@ -212,11 +212,11 @@ inline void processDrawRooms() { processDrawRooms(posx,posy,posz,ang,horiz,curse
 char* onOff(int var);
 char* isNot(int var);
 char* yesNo(int var);
-BOOL getDataNameOf(short otype, short idx, short didx, char* out);
 int xmpMenuCreate(char* name);
 int xmpMenuProcess();
 void xmpQuit(int code = 0);
 void xmpOptions(void);
+void xmpSetEditMode(char nMode);
 int xsysConnect(int nTypeA, int nIdxA, int nTypeB, int nIdxB);
 int xsysConnect2(int nTypeA, int nIdxA, int nTypeB, int nIdxB);
 void processMove();

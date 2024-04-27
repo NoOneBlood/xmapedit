@@ -24,15 +24,8 @@
 ***********************************************************************************/
 
 #include "common_game.h"
-#include "xmpstub.h"
-#include "eventq.h"
-#include "screen.h"
-#include "db.h"
-#include "nnexts.h"
+#include "xmpmaped.h"
 #include "preview.h"
-#include "xmptrig.h"
-#include "xmpconf.h"
-#include "xmpmisc.h"
 
 
 #define kPQLength		1024
@@ -127,7 +120,7 @@ class EventQueue
 	void Kill(int index, int type)
 	{
 		EVENT* evn;
-		register int i = 1;
+		int i = 1;
 		while(i <= length)
 		{
 			evn = &queue[i].evn;
@@ -140,7 +133,7 @@ class EventQueue
 	void Kill(int index, int type, CALLBACK_ID funcID)
 	{
 		EVENT* evn;
-		register int i = 1;
+		int i = 1;
 		while(i <= length)
 		{
 			evn = &queue[i].evn;

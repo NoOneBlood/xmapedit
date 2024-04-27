@@ -25,8 +25,8 @@
 #define __TILE_H
 
 #include "common_game.h"
+#include "tilefav.h"
 
-struct STATUS_BIT1 { int ok : 1; };
 struct SYSTEM_TILES{
 	unsigned int tileViewBg			: 17;
 	unsigned int gameMirrorStart	: 17;
@@ -43,6 +43,7 @@ struct SYSTEM_TILES{
 	unsigned int icoDrive1			: 17;
 	unsigned int icoDiskette		: 17;
 	unsigned int icoPreview			: 17;
+	unsigned int hudMask			: 17;
 	STATUS_BIT1 busy[kMaxTiles];
 	BOOL isBusy(int nTile) 	{ return (BOOL)busy[nTile].ok; }
 	void add(int nTile) 	{ busy[nTile].ok = 1; }
@@ -108,7 +109,7 @@ int tileGetUsedColors(int nTile, char colors[256]);
 int tileCountColors(int nTile);
 int tileExists(BYTE* image, int wh, int hg);
 
-
+void tilePaint(int nTile, int nPlu, int nShade = 0, int nVis = 0);
 BOOL tileAllocSysTile(short* dest, int w, int h);
 void tileInitSystemTiles();
 void tileUninitSystemTiles();

@@ -1,13 +1,17 @@
 #ifndef __XMPHUDLG_H
 #define __XMPHUDLG_H
-#include "common_game.h"
+#include "gfx.h"
+#include "inifile.h"
 
+struct MAPEDIT_HUD;
+
+#pragma pack(push, 1)
 struct DIALOG_ITEM
 {
 	char flags;
 	unsigned int enabled			: 1;
-	unsigned int x					: 10;
-	unsigned int y					: 10;
+	unsigned int x					: 8;
+	unsigned int y					: 8;
 	unsigned int tabGroup			: 10;
 	unsigned int type				: 8;
 	char *formatLabel;
@@ -16,26 +20,40 @@ struct DIALOG_ITEM
 	char **names;	
 	char (*pHelpFunc)(DIALOG_ITEM* pRoot, DIALOG_ITEM* pItem, BYTE key);
 	char *readyLabel;
+	int readyLabelLen;
 	int value;
+	unsigned int selected			: 1;
 };
+#pragma pack(pop)
 
 class DIALOG_HANDLER
 {
 	private:
-		DIALOG_ITEM* pDlg;
-		int nMaxGroup;
+		static IniFile* pHints;
+		static int editStatus;
+		DIALOG_ITEM *pDlg;
+		MAPEDIT_HUD *pHud;
+		ROMFONT* pFont;
 	public:
-		DIALOG_HANDLER(DIALOG_ITEM* pItem);
-		~DIALOG_HANDLER();
+		DIALOG_HANDLER(MAPEDIT_HUD* pHud, DIALOG_ITEM* pItem);
+		~DIALOG_HANDLER() { };
 		void Paint(void);
 		void Paint(DIALOG_ITEM* pItem, char focus);
-		void PrintText(DIALOG_ITEM* pItem, char fc, char bc);
+		void PrintText(DIALOG_ITEM* pItem, char fc, short bc);
+		void DrawCheckbox(DIALOG_ITEM* pItem, char fc, short bc);
+		void DrawHints(DIALOG_ITEM* pItem);
 		void SetLabel(DIALOG_ITEM* pItem, char *__format, ...);
 		void SetValue(int nGroup, int nValue);
 		int  GetValue(int nGroup);
-		
-		DIALOG_ITEM *FindGroup(int nGroup, int dir = 0);
+		char GetItemCoords(DIALOG_ITEM* pItem, int* x1, int* y1, int* x2, int* y2);
 		char Edit(void);
+		
+		DIALOG_ITEM* FirstItem();
+		DIALOG_ITEM* NextItem(DIALOG_ITEM* pItem);
+		DIALOG_ITEM* PrevItem(DIALOG_ITEM* pItem);
+		DIALOG_ITEM* LastItem(DIALOG_ITEM* pItem = NULL);
+		inline char CanAccess(DIALOG_ITEM* pItem) { return (pItem->tabGroup && pItem->enabled); }
+		
 };
 
 enum
@@ -46,7 +64,8 @@ LABEL,
 NUMBER,
 CHECKBOX,
 LIST,
-DIALOG
+DIALOG,
+ELT_SELECTOR,
 };
 
 
@@ -58,11 +77,74 @@ kSprDialogData4,
 };
 
 enum {
-kWallDialogData			= 23,
+kWallType				= 1,
+kWallRX,
+kWallRx = kWallRX,
+kWallTX,
+kWallTx = kWallTX,
+kWallState,
+kWallCmd,
+kWallGoingOn,
+kWallGoingOff,
+kWallBusyTime,
+kWallWaitTime,
+kWallRestState,
+kWallTrPush,
+kWallTrVector,
+kWallTrTouch,
+kWallKey,
+kWallPanX,
+kWallPanY,
+kWallPanAlways,
+kWallDecoupled,
+kWallOnce,
+kWallLocked,
+kWallInterrupt,
+kWallLockout,
+kWallData			= 23,
 };
 
 enum {
-kSectDialogData			= 33,
+kSectType				= 1,
+kSectRX,
+kSectRx = kWallRX,
+kSectTX,
+kSectTx = kWallTX,
+kSectState,
+kSectCmd,
+kSectDecoupled,
+kSectOnce,
+kSectLocked,
+kSectInterrupt,
+kSectLockout,
+kSectGoingOn,
+kSectBusyTimeOff,
+kSectBusyWaveOff,
+kSectWaitOff,
+kSectWaitTimeOff,
+
+kSectGoingOff,
+kSectBusyTimeOn,
+kSectBusyWaveOn,
+kSectWaitOn,
+kSectWaitTimeOn,
+
+kSectTrPush,
+kSectTrWPush,
+kSectTrEnter,
+kSectTrExit,
+
+kSectSndOffOn,
+kSectSndOffStop,
+kSectSndOnOff,
+kSectSndOnStop,
+
+kSectKey,
+kSectDepth,
+kSectUwater,
+kSectCrush,
+kSectData				= 33,
+kSectFX,
 };
 
 enum {
@@ -86,7 +168,7 @@ void EditSectorLighting(int nSector);
 void ShowSectorData(int nSector, BOOL xFirst, BOOL dialog = TRUE);
 void ShowWallData(int nWall, BOOL xFirst, BOOL dialog = TRUE);
 void ShowSpriteData(int nSprite, BOOL xFirst, BOOL dialog = TRUE);
-void ShowMapStatistics(void);
+void ShowMapInfo(BOOL showDialog);
 
 void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector);
 void dlgXSectorToDialog(DIALOG_HANDLER* pHandle, int nSector);
@@ -105,4 +187,6 @@ void dlgDialogToWall(DIALOG_HANDLER* pHandle, int nWall);
 void dlgWallToDialog(DIALOG_HANDLER* pHandle, int nWall);
 void dlgDialogToXWall(DIALOG_HANDLER* pHandle, int nWall);
 void dlgXWallToDialog(DIALOG_HANDLER* pHandle, int nWall);
+
+int dlgCopyObjectSettings(DIALOG_ITEM* pDialog, int nType, int nSrc, int nDst, char hglt);
 #endif

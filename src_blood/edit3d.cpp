@@ -21,28 +21,16 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 #include "common_game.h"
-#include "xmpstub.h"
-#include "gameutil.h"
-#include "db.h"
+#include "xmpmaped.h"
 #include "tile.h"
-#include "screen.h"
-#include "gui.h"
-#include "gfx.h"
-#include "editor.h"
-#include "tilefav.h"
 #include "prefabs.h"
 #include "grdshd.h"
 #include "hglt.h"
-#include "sectorfx.h"
 #include "aadjust.h"
 #include "preview.h"
-#include "xmphud.h"
 #include "xmpexplo.h"
-#include "xmpconf.h"
-#include "xmptools.h"
 #include "xmpsky.h"
 #include "xmpview.h"
-#include "xmpmisc.h"
 
 /*******************************************************************************
 									Defines
@@ -243,28 +231,7 @@ void SetSectorTheta( int nSector, int bobTheta )
 	}
 }
 
-
-/***********************************************************************
- * IsSectorHighlight()
- *
- * Determines if a sector is in the sector highlight list
- **********************************************************************/
-static BOOL IsSectorHighlight( int nSector )
-{
-	for (int i = 0; i < highlightsectorcnt; i++)
-		if (highlightsector[i] == nSector)
-			return TRUE;
-
-	return FALSE;
-}
-
-/*******************************************************************************
-	FUNCTION:		GetWallZPeg()
-
-	DESCRIPTION:	Calculate the z position that the wall texture is relative
-					to.
-*******************************************************************************/
-inline int GetWallZPeg( int nWall )
+int GetWallZPeg( int nWall )
 {
 	int z;
 
@@ -298,7 +265,7 @@ inline int GetWallZPeg( int nWall )
 }
 
 
-static void AlignWalls( int nWall0, int z0, int nWall1, int z1, int nTile )
+void AlignWalls( int nWall0, int z0, int nWall1, int z1, int nTile )
 {
 	dassert(nWall0 >= 0 && nWall0 < kMaxWalls);
 	dassert(nWall1 >= 0 && nWall1 < kMaxWalls);
@@ -308,8 +275,6 @@ static void AlignWalls( int nWall0, int z0, int nWall1, int z1, int nTile )
 	// do the x alignment
 	wall[nWall1].cstat &= ~kWallFlipMask;    // set to non-flip
 	wall[nWall1].xpanning = (BYTE)((wall[nWall0].xpanning + (wall[nWall0].xrepeat << 3)) % tilesizx[nTile]);
-
-	z1 = GetWallZPeg(nWall1);
 
 	int n = picsiz[nTile] >> 4;
 	if ( (1 << n) != tilesizy[nTile] )
@@ -423,7 +388,7 @@ static void BuildStairsF( int nSector, int nStepHeight )
 		j = wall[sector[nSector].wallptr + i].nextsector;
 		if (j != -1)
 		{
-			if ( IsSectorHighlight(j) && !visited[j] )
+			if ( sectInHglt(j) && !visited[j] )
 			{
 				SetFloorZ(j, sector[nSector].floorz - (nStepHeight << 8));
 				BuildStairsF(j, nStepHeight);
@@ -445,7 +410,7 @@ static void BuildStairsC( int nSector, int nStepHeight )
 		j = wall[sector[nSector].wallptr + i].nextsector;
 		if (j != -1)
 		{
-			if ( IsSectorHighlight(j) && !visited[j] )
+			if ( sectInHglt(j) && !visited[j] )
 			{
 				SetCeilingZ(j, sector[nSector].ceilingz - (nStepHeight << 8));
 				BuildStairsC(j, nStepHeight);
@@ -720,7 +685,7 @@ static spritetype* InsertGameSprite( int nSector, int x, int y, int z, int nAngl
 
 static spritetype* InsertModernSpriteType(int nSector, int x, int y, int z, int nAngle) {
 
-	register int i, length = 0;
+	int i, length = 0;
 	NAMED_TYPE modernTypes[128];
 	OBJECT* pObj = gModernTypes.Ptr();
 	while(pObj->type != OBJ_NONE)
@@ -1022,7 +987,7 @@ static void SectorShadePhase( int nSector, int dPhase )
 		j = wall[sector[nSector].wallptr + i].nextsector;
 		if (j != -1)
 		{
-			if ( IsSectorHighlight(j) && !visited[j] )
+			if ( sectInHglt(j) && !visited[j] )
 			{
 				int nXSector = sector[nSector].extra;
 				if (nXSector > 0)
@@ -1048,7 +1013,7 @@ static void SectorTheta( int nSector, int dTheta )
 		j = wall[sector[nSector].wallptr + i].nextsector;
 		if (j != -1)
 		{
-			if ( IsSectorHighlight(j) && !visited[j] )
+			if ( sectInHglt(j) && !visited[j] )
 			{
 				int nXSector = sector[nSector].extra;
 				if (nXSector > 0)
@@ -1254,7 +1219,7 @@ static void ProcessHighlightSectors( HSECTORFUNC FloorFunc, int nData ) {
 			{
 				case OBJ_FLOOR:
 				case OBJ_CEILING:
-					if (!IsSectorHighlight(pDb->index))
+					if (!sectInHglt(pDb->index))
 					{
 						if (!i)
 						{
@@ -1276,7 +1241,7 @@ static void ProcessHighlightSectors( HSECTORFUNC FloorFunc, int nData ) {
 		}
 	}
 
-	if (IsSectorHighlight(searchsector))
+	if (sectInHglt(searchsector))
 	{
 		for (i = 0; i < highlightsectorcnt; i++)
 			FloorFunc(highlightsector[i], nData);
@@ -1292,15 +1257,19 @@ void processMouseLook3D(BOOL readMouse) {
 	
 	if (readMouse)
 		gMouse.Read();
-
-	searchx = ClipRange(gMouse.X, 1, xdim - 2);
-	searchy = ClipRange(gMouse.Y, 1, ydim - 2);
+	
+	int x1 = windowx1, y1 = windowy1;
+	int x2 = windowx2, y2 = windowy2;
+	int wh = x2-x1, hg = y2-y1;
+	
+	searchx = ClipRange(gMouse.X, x1+1, x2-2);
+	searchy = ClipRange(gMouse.Y, y1+1, y2-2);
 	if (!gMouseLook.mode)
 		return;
 
 	// free look
 	int dx = abs(gMouse.dX2); int dy = abs(gMouse.dY2);
-	searchx = xdim >> 1; searchy = ydim >> 1;
+	searchx = x1+(wh>>1); searchy = y1+(hg>>1);
 	gMouse.X = searchx; gMouse.Y = searchy;
 	if (ctrl && keystatus[KEY_PAD5])
 	{
@@ -1460,10 +1429,10 @@ int spriteText(const char* text, TILEFONT* pFont, unsigned char nSize, int nSpac
 		switch(nAlign & 0x03)
 		{
 			case 0x03:
-				nnExtOffsetPos(-(nWidth>>1), 0, 0, pos.a, &pSpr->x, &pSpr->y, NULL);
+				offsetPos(-(nWidth>>1), 0, 0, pos.a, &pSpr->x, &pSpr->y, NULL);
 				break;
 			case 0x01:
-				nnExtOffsetPos(-nWidth, 0, 0, pos.a, &pSpr->x, &pSpr->y, NULL);
+				offsetPos(-nWidth, 0, 0, pos.a, &pSpr->x, &pSpr->y, NULL);
 				break;
 		}
 		
@@ -1487,8 +1456,8 @@ int spriteText(const char* text, TILEFONT* pFont, unsigned char nSize, int nSpac
 
 char dlgSpriteText()
 {
+	static TILEFONT userFont = {48, 0, (unsigned int)gMaxTiles};
 	static int nFont = 1;
-	TILEFONT userFont = {48, 0, (unsigned int)gMaxTiles};
 	TILEFONT* pFont;
 	
 	static int nSize = 64, nSpace = 32;
@@ -1615,6 +1584,7 @@ char dlgSpriteText()
 					else
 					{
 						sprintf(fontName, "[USER]");
+						userFont.start = nTile;
 						pFont = &userFont;
 					}
 				}
@@ -1628,6 +1598,8 @@ char dlgSpriteText()
 	scrRestore(1);
 	return (nRetn != mrCancel);
 }
+
+
 
 void ProcessKeys3D( void )
 {
@@ -1662,7 +1634,6 @@ void ProcessKeys3D( void )
 		}
 	}
 
-	processMove();
 	processMouseLook3D(TRUE);
 
 	if (!gPreviewMode && searchstat >= 0)
@@ -1988,10 +1959,10 @@ void ProcessKeys3D( void )
 								if (pSprA->x == pSprB->x && pSprA->y == pSprB->y && pSprA->z == pSprB->z)
 								{
 									// give user some time to drag out new sprites
-									
 									gObjectLock.type = searchstat;
 									gObjectLock.idx  = pSprB->index;
 									gObjectLock.time = totalclock + 256;
+									gMapedHud.SetMsgImp(256, "Locked on %s #%d", gSearchStatNames[searchstat], pSprB->index);
 									break;
 								}
 							}
@@ -2023,6 +1994,25 @@ void ProcessKeys3D( void )
 			z = 0x80000000;
 			j = (key == KEY_PAGEUP);
 			gStep = (shift) ? 0x100 : 0x400;
+			
+
+			if (ctrl && alt && (searchstat == OBJ_CEILING || searchstat == OBJ_FLOOR))
+			{
+				if (j)
+					gStep = -gStep;
+				
+				i = 1;
+				if (sectInHglt(searchindex)) i = hgltSectCallFunc(sectChgZ, gStep);
+				else sectChgZ(searchindex, gStep);
+				
+				if (gMisc.pan)
+					AlignSlopes();
+				
+				scrSetMessage("Z-offset %d sectors by %d", i, gStep);
+				BeepOk();
+				break;
+			}
+			
 			if (ctrl)
 				gStep >>= 4;
 			
@@ -2212,7 +2202,7 @@ void ProcessKeys3D( void )
 						wall[searchwall].pal = temppal;
 						break;
 					case OBJ_CEILING:
-						if ( IsSectorHighlight(searchsector) )
+						if ( sectInHglt(searchsector) )
 						{
 							for(i = 0; i < highlightsectorcnt; i++)
 							{
@@ -2244,7 +2234,7 @@ void ProcessKeys3D( void )
 						break;
 
 					case OBJ_FLOOR:
-						if (IsSectorHighlight(searchsector))
+						if (sectInHglt(searchsector))
 						{
 							for(i = 0; i < highlightsectorcnt; i++)
 							{
@@ -2476,7 +2466,7 @@ void ProcessKeys3D( void )
 			gStep = (shift) ? 32 : 256;
 			switch (searchstat) {
 				case OBJ_CEILING:
-					if (IsSectorHighlight(searchsector))
+					if (sectInHglt(searchsector))
 					{
 						for (i = 0; i < highlightsectorcnt; i++)
 							SetCeilingSlope(highlightsector[i], DecNext(sector[highlightsector[i]].ceilingslope, gStep));
@@ -2490,7 +2480,7 @@ void ProcessKeys3D( void )
 					BeepOk();
 					break;
 				case OBJ_FLOOR:
-					if ( IsSectorHighlight(searchsector) ) {
+					if ( sectInHglt(searchsector) ) {
 						for(i = 0; i < highlightsectorcnt; i++)
 							SetFloorSlope(highlightsector[i], DecNext(sector[highlightsector[i]].floorslope, gStep));
 						scrSetMessage("adjusted %i floors by %i", highlightsectorcnt, gStep);
@@ -2559,7 +2549,7 @@ void ProcessKeys3D( void )
 			gStep = (shift) ? 32 : 256;
 			switch (searchstat) {
 				case OBJ_CEILING:
-					if (IsSectorHighlight(searchsector)) {
+					if (sectInHglt(searchsector)) {
 						for (i = 0; i < highlightsectorcnt; i++)
 							SetCeilingSlope(highlightsector[i], IncNext(sector[highlightsector[i]].ceilingslope, gStep));
 						scrSetMessage("adjusted %i ceilings by %i", highlightsectorcnt, gStep);
@@ -2570,7 +2560,7 @@ void ProcessKeys3D( void )
 					BeepOk();
 					break;
 				case OBJ_FLOOR:
-					if (IsSectorHighlight(searchsector)) {
+					if (sectInHglt(searchsector)) {
 						for(i = 0; i < highlightsectorcnt; i++)
 							SetFloorSlope(highlightsector[i], IncNext(sector[highlightsector[i]].floorslope, gStep));
 						scrSetMessage("adjusted %i floors by %i", highlightsectorcnt, gStep);
@@ -2640,7 +2630,7 @@ void ProcessKeys3D( void )
 			// iterate sector visibility (higher numbers are less)
 			if (ctrl && alt)
 			{
-				if (IsSectorHighlight(searchsector))
+				if (sectInHglt(searchsector))
 				{
 					i = hgltSectCallFunc((HSECTORFUNC2*)sectChgVisibility, gStep);
 					scrSetMessage("%d sectors are %s visible", i, buffer);
@@ -2652,12 +2642,12 @@ void ProcessKeys3D( void )
 				}
 				
 				// to make changes noticeable
-				if (100 - IVAL2PERC(visibility, 4095) > 95)
-					visibility = 4095 - perc2val(95, 4095);
+				//if (100 - IVAL2PERC(visibility, 4095) > 95)
+					//visibility = 4095 - perc2val(95, 4095);
 			}
 			else if (keystatus[KEY_D])
 			{
-				gStep = (key == KEY_MINUS) ? 32 : -32;
+				gStep = (key == KEY_MINUS) ? 16 : -16;
 				visibility = ClipRange(visibility + gStep, 0, 4096);
 				scrSetMessage("Global visibility %d (%s)", visibility, buffer);
 			}
@@ -2693,7 +2683,7 @@ void ProcessKeys3D( void )
 				{
 					case OBJ_WALL:
 						j = wall[searchwall].picnum;
-						if ( TestBitString(show2dwall, searchwall) )	// highlighted?
+						if ( TestBitString(hgltwall, searchwall) )	// highlighted?
 						{
 							for (int i = 0; i < highlightcnt; i++)
 								if ( (highlight[i] & 0xC000) == 0 )
@@ -3045,17 +3035,31 @@ void ProcessKeys3D( void )
 			}
 			break;
 		case KEY_P:
-			// allow fall to palookup selection if not floor or ceiling
-			if (alt && (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING))
+			if (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING)
 			{
-				i = sectCstatToggle(searchsector, kSectParallax, searchstat);
-				if (isSkySector(searchsector, searchstat))	Sky::MakeSimilar(searchsector, searchstat, 0);
-				else if (searchstat == OBJ_CEILING)			sectCstatRem(searchsector, kSectShadeFloor, searchstat);
-				scrSetMessage("%s[%d] %s parallaxed", gSearchStatNames[searchstat], searchsector, isNot(isSkySector(searchsector, searchstat)));
-				BeepOk();
-				break;
+				if (ctrl && shift)
+				{
+					if (isSkySector(searchsector, searchstat))
+					{
+						Sky::Disable(searchsector, searchstat, alt);
+						BeepOk();
+						break;
+					}
+					
+					BeepFail();
+					break;
+				}
+				
+				if (alt)
+				{
+					sectCstatToggle(searchsector, kSectParallax, searchstat);
+					if (isSkySector(searchsector, searchstat)) Sky::MakeSimilar(searchsector, searchstat, 0);
+					else if (searchstat == OBJ_CEILING)			sectCstatRem(searchsector, kSectShadeFloor, searchstat);
+					scrSetMessage("%s[%d] %s parallaxed", gSearchStatNames[searchstat], searchsector, isNot(isSkySector(searchsector, searchstat)));
+					BeepOk();
+					break;
+				}
 			}
-			
 			{
 				char title[32];
 				char nPlu		= getPluOf(searchstat,		searchindex);
@@ -3447,7 +3451,7 @@ void ProcessKeys3D( void )
 					break;
 				}
 			}
-			else if (IsSectorHighlight(searchsector))
+			else if (sectInHglt(searchsector))
 			{
 				for (i = 0; i < highlightsectorcnt; i++) {
 					nSector = highlightsector[i];
@@ -3545,7 +3549,7 @@ void ProcessKeys3D( void )
 					break;
 				}
 			}
-			else if (IsSectorHighlight(searchsector))
+			else if (sectInHglt(searchsector))
 			{
 				for( i = 0; i < highlightsectorcnt; i++)
 				{
@@ -3595,7 +3599,7 @@ void ProcessKeys3D( void )
 
 		case KEY_PAD0:
 			// set the shade of something to 0 brightness
-			if ( IsSectorHighlight(searchsector) )
+			if ( sectInHglt(searchsector) )
 			{
 				for( i = 0; i < highlightsectorcnt; i++)
 				{
@@ -3632,12 +3636,6 @@ void ProcessKeys3D( void )
 			}
 			scrSetMessage("Shade reset.");
 			BeepOk();
-			break;
-		case KEY_PADENTER:
-			if (gListGrd.Length()) gListGrd.Clear();
-			vel = svel = angvel = hvel = doubvel = 0;
-			overheadeditor();
-			keyClear();
 			break;
 	 	case KEY_F2:
 			if (alt)

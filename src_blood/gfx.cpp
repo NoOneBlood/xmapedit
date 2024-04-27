@@ -21,15 +21,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include "common_game.h"
-#include "gfx.h"
-#include "replace.h"
-#include "gui.h"
+#include "screen.h"
 #include "tile.h"
-#include "xmpmisc.h"
-extern "C" {
-#include "a.h"
-}
 
 int clip[4][4];
 int clipCnt = 0;
@@ -96,7 +89,7 @@ void gfxBlitM2V(char* src, int bpl, int width, int height, int x, int y)
 	
 	begindrawing();
 	char* dest = (char*)frameplace+ylookup[y]+x;
-	register int i = height;
+	int i = height;
 	do
 	{
 		memcpy(dest, src, width);
@@ -115,10 +108,10 @@ void gfxBlitMT2V(char* src, char tc, int bpl, int width, int height, int x, int 
 	
 	begindrawing();
 	char* dest = (char*)frameplace+ylookup[y]+x;
-	register int i = height;
+	int i = height;
 	do
 	{
-		register int j = width;
+		int j = width;
 		do
 		{
 			if (*src != tc)
@@ -141,10 +134,10 @@ void gfxBlitMono(char *src, char mask, int bpl, int width, int height, int x, in
 	
 	begindrawing();
 	char* dest = (char*)frameplace+ylookup[y]+x;
-	register int i = height;
+	int i = height;
 	do
 	{
-		register int j = width;
+		int j = width;
 		do
 		{
 			if (*src&mask)
@@ -178,8 +171,8 @@ void gfxDrawBitmap(QBITMAP *qbm, int x, int y)
 
 	bitmap2.offset(-x, -y);
 
-	register int height = bitmap.height();
-	register int width = bitmap.width();
+	int height = bitmap.height();
+	int width = bitmap.width();
 
 	char* p = qbm->data;
 	
@@ -389,7 +382,7 @@ void gfxFillBox(int x0, int y0, int x1, int y1)
 	
 	begindrawing();
 	char* dest = (char*)frameplace+ylookup[y0]+x0;
-	register int hg = y1 - y0, wh = x1 - x0;
+	int hg = y1 - y0, wh = x1 - x0;
 	while(--hg >= 0)
 	{
 		memset(dest, gColor, wh);
@@ -453,9 +446,9 @@ void gfxRestoreClip()
 
 void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags)
 {
-	register int i = 0, j, k, m, c, l, s;
-	register int w = pFont->wh; s = pFont->ls;
-	register int h = pFont->hg;
+	int i = 0, j, k, m, c, l, s;
+	int w = pFont->wh; s = pFont->ls;
+	int h = pFont->hg;
 	BOOL shadow = (flags & 0x01);
 	
 	if (!pFont->data)
@@ -727,11 +720,27 @@ void gfxGetTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont, 
 
 void gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont, bool label)
 {
-	register int len = gfxGetTextLen(txt, pFont);
-	register int heigh = (pFont) ? pFont->height-2 : 8;
+	int len = gfxGetTextLen(txt, pFont);
+	int heigh = (pFont) ? pFont->height-2 : 8;
 	gfxSetColor(bg);
 	gfxFillBox(x-1, y-1, x+len+1, y+heigh+1);
 	gfxDrawText(x, y, fr, txt, pFont, label);
+}
+
+void gfxDrawCaption(int x, int y, int fr, int bg, int bgpad, char* txt, QFONT* pFont)
+{
+	int len = gfxGetTextLen(txt, pFont);
+	int heigh = (pFont) ? pFont->height : 8;
+	gfxSetColor(bg);
+	gfxFillBox(x-bgpad, y-bgpad, x+len+bgpad, y+heigh+bgpad);
+	gfxDrawText(x, y, fr, txt, pFont, FALSE);
+}
+
+void gfxPrinTextShadow(int x, int y, int col, char* text, QFONT *pFont, int shofs)
+{
+	if (pFont->type != kFontTypeRasterVert) gfxDrawText(x + shofs, y + shofs, gStdColor[30], text, pFont);
+	else viewDrawText(x + shofs, y + shofs, pFont, text, 127);
+	gfxDrawText(x, y, col, text, pFont);
 }
 
 void gfxDrawLabel(int x, int y, int color, char* pzLabel, QFONT* pFont)
@@ -748,7 +757,7 @@ void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup )
 	
 	dassert(pFont != NULL);
 
-	register int i, cx, cy, sizeX, sizeY;
+	int i, cx, cy, sizeX, sizeY;
 	QFONTCHAR *pInfo = &pFont->info[c];
 	if (!pInfo || !pInfo->w || !pInfo->h)
 		return;
@@ -783,7 +792,7 @@ void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup )
 	BYTE *p = (BYTE*)(frameplace + ylookup[dest.y0] + dest.x0);
 
 	x = dest.x0;
-	register int u = 0;
+	int u = 0;
 
 	while (x < dest.x1 && (x & 3) )
 	{
@@ -828,7 +837,7 @@ void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade, int nPLU,
 		return;
 	
 	uint8_t *s;
-	BYTE *pPalookup = (BYTE*)(palookup[nPLU] + (qgetpalookup(nPLU, shade) << 8));
+	BYTE *pPalookup = (BYTE*)(palookup[nPLU] + shgetpalookup(nPLU, shade));
 	setupmvlineasm(16);
 	
 	if ( nAlign != 0 )

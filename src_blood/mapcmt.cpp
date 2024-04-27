@@ -21,16 +21,10 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "common_game.h"
-#include "editor.h"
 #include "edit2d.h"
 #include "aadjust.h"
 #include "mapcmt.h"
-#include "xmpstr.h"
-#include "xmpmisc.h"
-#include "xmpstub.h"
-#include "gui.h"
-#include "db.h"
+#include "xmpmaped.h"
 #include "preview.h"
 
 short cmthglt = -1;
@@ -50,7 +44,6 @@ MAP_COMMENT_MGR::MAP_COMMENT_MGR()
 	
 	commentsCount	= 0;
 	comments 		= NULL;
-	cmtins			= NULL;
 	CRC				= 0;
 }
 
@@ -1043,7 +1036,7 @@ void MAP_COMMENT_MGR::Draw(SCREEN2D* pScr)
 			pScr->DrawArrow(x1, y1, x2, y2, foreColor, nZoom >> 2, (objType < 0) ? 130 : 0, cmt->thickTail, kPatDotted);
 		}
 		
-		pScr->CaptionPrint(cmt->text, x1, y1, kPad, foreColor, backColor, (backColor < 0), qFonts[fontID]);
+		pScr->CaptionPrint(cmt->text, x1, y1, 2, foreColor, backColor, (backColor < 0), qFonts[fontID]);
 	}
 }
 

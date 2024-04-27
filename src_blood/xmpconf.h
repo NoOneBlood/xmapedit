@@ -24,7 +24,6 @@
 #ifndef __XMPCONF
 #define __XMPCONF
 
-#include "inifile.h"
 #include "common_game.h"
 
 #define kConfigReqVersion	2
@@ -40,10 +39,8 @@
 #define kPalPaintDir		"xmapedit/palettes/paint"
 #define kLogFile			"xmapedit/xmapedit.log"
 #define kStdPalDB			"xmapedit/stdclr.ini"
-#define kScreen2DPrefs		"xmapedit/2dsclr.ini"
+#define kScreen2DPrefs		"xmapedit/2dsclrn.ini"
 #define kTempFileBase		"xmapedit/fil"
-#define kThemesDir			"xmapedit/themes"
-#define kDefaultTheme		"default"
 
 
 #define kDefaultBoardSize	196608
@@ -151,7 +148,7 @@ class MISC_PREFS {
 	unsigned int beep 				: 1;
 	unsigned int forceSetup			: 1;
 	unsigned int zlockAvail			: 1;
-	unsigned int editMode			: 1;
+	unsigned int editMode			: 2;
 	unsigned int circlePoints		: 8;
 	unsigned int forceEditorPos		: 1;
 	char tilesBaseName[5];
@@ -191,8 +188,11 @@ class MAPEDIT_HUD_SETTINGS {
 	unsigned int dynamicLayout2D	: 1;
 	unsigned int layout3D			: 4;
 	unsigned int dynamicLayout3D	: 1;
+	unsigned int layoutSPLIT		: 4;
+	unsigned int dynamicLayoutSPLIT	: 1;
 	unsigned int tileShowShade		: 1;
 	unsigned int tileScaleSize		: 10;
+	unsigned int fontPack			: 5;
 	void Init(IniFile* pIni, char* section);
 	void Save(IniFile* pIni, char* section);
 };
@@ -293,6 +293,15 @@ class SOUND {
 	void Init(IniFile* pIni, char* section);
 };
 
+struct SPLITMODE_DATA
+{
+	public:
+	unsigned int mode			: 8;
+	unsigned int vertical		: 1;
+	unsigned int swapSize		: 1;
+	unsigned int size			: 8;
+};
+
 class TILE_VIEWER {
 	public:
 	unsigned int tilesPerRow		: 4;
@@ -349,6 +358,7 @@ extern PLUPICKER gPluPrefs;
 extern ROTATION gRotateOpts;
 extern SCREEN gScreen;
 extern SOUND gSound;
+extern SPLITMODE_DATA gSplitMode;
 extern TILE_VIEWER gTileView;
 extern TIMERS gTimers;
 #endif

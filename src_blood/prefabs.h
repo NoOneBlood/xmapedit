@@ -22,7 +22,6 @@
 ***********************************************************************************/
 
 #include "common_game.h"
-#include "inifile.h"
 
 
 #define kPrefabVersion		3

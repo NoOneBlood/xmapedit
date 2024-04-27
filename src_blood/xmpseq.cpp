@@ -21,10 +21,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include "build.h"
 #include "common_game.h"
 #include "db.h"
-#include "eventq.h"
 #include "seq.h"
 #include "gameutil.h"
 #include "tile.h"

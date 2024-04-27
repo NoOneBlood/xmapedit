@@ -20,8 +20,6 @@
 ***********************************************************************************/
 #pragma once
 #include "compat.h"
-#include "common_game.h"
-
 #pragma pack(push, 1)
 struct ININODE
 {
@@ -47,12 +45,12 @@ class IniFile
 	public:
 		char filename[BMAX_PATH];
 		//---------------------------------------------------------------
-		IniFile(BYTE* pRaw, int nLength, char flags = INI_NORMAL);
+		IniFile(unsigned char* pRaw, int nLength, char flags = INI_NORMAL);
 		IniFile(char* fileName, char flags = INI_NORMAL);
 		~IniFile();
 		//---------------------------------------------------------------
 		void Init();
-		void Load(BYTE* pRaw, int nLength, char flags = INI_NORMAL);
+		void Load(unsigned char* pRaw, int nLength, char flags = INI_NORMAL);
 		char Save(char* saveName = NULL);
 		//---------------------------------------------------------------
 		int  NodeAdd(ININODE* pNode, int nPos);

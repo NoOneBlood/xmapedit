@@ -22,7 +22,7 @@
 ***********************************************************************************/
 #ifndef __GRDSHD_H
 #define __GRDSHD_H
-#include "xmpmisc.h"
+#include "common_game.h"
 
 extern OBJECT_LIST gListGrd;
 int grshShadeWalls(char toggle);

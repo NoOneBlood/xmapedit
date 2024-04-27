@@ -43,4 +43,20 @@ int strReplace(char* str, char cWhat, char cBy);
 
 char* enumStrGetChar(int offset, char* out = NULL, char* astr = NULL, char expcr = ',', char* def = NULL);
 int enumStrGetInt(int offset, char* astr = NULL, char expcr = ',', int retn = 0);
+void pathSplit2(char *pzPath, char* buff, char** dsk, char** dir, char** fil, char** ext);
+void pathCatSlash(char* pth, int l = -1);
+void pathRemSlash(char* pth, int l = -1);
+void removeExtension(char *str);
+char removeQuotes(char* str);
+
+char* getCurDir(char* pth, char* out, char addSlash = 0);
+char* getFiletype(char* pth, char* out, char addDot = 1);
+char* getRelPath(char* relto, char* targt);
+char* getFilename(char* pth, char* out, char addExt = 0);
+char* getPath(char* pth, char* out, char addSlash = 0);
+
+
+inline char slash(char ch)			{ return (ch == '\\' || ch == '/'); }
+inline void catslash(char* str)		{ strcat(str, "/"); }
+
 #endif

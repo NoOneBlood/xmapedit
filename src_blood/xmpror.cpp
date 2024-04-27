@@ -24,17 +24,12 @@
 ***********************************************************************************/
 
 
-#include "compat.h"
-#include "baselayer.h"
 #include "common_game.h"
-#include "db.h"
-#include "gameutil.h"
 #include "xmpror.h"
+#include "xmpmaped.h"
 #include "xmpview.h"
-#include "xmpconf.h"
 #include "xmparted.h"
-#include "gui.h"
-#include "editor.h"
+#include "tile.h"
 
 short mirrorcnt = 0, mirrorsector, mirrorwall[4];
 short mirrorPicWidth, mirrorPicHeight;
@@ -43,7 +38,7 @@ MIRROR mirror[kMaxROR];
 int CreateMirrorPic(int nObjTile, BOOL copy = TRUE)
 {
 	PICANM* pnm = &panm[nObjTile];
-	register int o = 0, nNewTile, nRetn = nObjTile;
+	int o = 0, nNewTile, nRetn = nObjTile;
 
 	if ((nNewTile = tileSearchFreeRange(pnm->frames)) >= 0)
 	{
@@ -94,7 +89,7 @@ void ClearMirrorPic()
 void InitMirrors()
 {
 	sectortype* pSect; walltype* pWall;
-	register int i, j, k, nSect, nLink, nLink2;
+	int i, j, k, nSect, nLink, nLink2;
 	
 	ClearMirrorPic();
 	
@@ -137,23 +132,13 @@ void InitMirrors()
 		}
 		else if (IsMirrorPic(pWall->overpicnum) && pWall->extra > 0 && pWall->type == kWallStack)
 		{
-			j = numwalls;
-			while(--j >= 0)
+			if (rngok(pWall->hitag, 0, numwalls))
 			{
-				if (j == i || wall[j].extra <= 0) continue;
-				else if (wall[j].type != kWallStack) continue;
-				else if (xwall[wall[j].extra].data == xwall[pWall->extra].data)
-				{
-					pWall->cstat 		   |= kWallOneWay;
-					pWall->overpicnum		= CreateMirrorPic(pWall->overpicnum, FALSE);
-					pWall->hitag  			= j;
-					wall[j].hitag 			= i;
-					
-					mirror[mirrorcnt].type 	= OBJ_WALL;
-					mirror[mirrorcnt].id  	= j;
-					mirrorcnt++;
-					break;
-				}
+				pWall->cstat 		   |= kWallOneWay;
+				pWall->overpicnum		= CreateMirrorPic(pWall->overpicnum, FALSE);
+				mirror[mirrorcnt].type 	= OBJ_WALL;
+				mirror[mirrorcnt].id  	= pWall->hitag;
+				mirrorcnt++;
 			}
 		}
 	}
@@ -222,7 +207,7 @@ void InitMirrors()
 
 void TranslateMirrorColors(int nShade, int nPalette)
 {
-	register int i, nPixels;
+	int i, nPixels;
 	
 	begindrawing();
 	
@@ -237,10 +222,17 @@ void TranslateMirrorColors(int nShade, int nPalette)
 	enddrawing();
 }
 
+void ROR_ClearGotpicAll()
+{
+	int i = mirrorcnt;
+	while(--i >= 0)
+		ClearBitString(gotpic, mirror[i].basePic);
+}
+
 bool DrawMirrors(int x, int y, int z, int a, int horiz)
 {
 	MIRROR* pRor;
-	register int i = mirrorcnt, dx, dy, dz;
+	int i = mirrorcnt, dx, dy, dz;
 
 	while(--i >= 0)
 	{
@@ -248,13 +240,11 @@ bool DrawMirrors(int x, int y, int z, int a, int horiz)
 		if (!TestBitString(gotpic, pRor->basePic))
 			continue;
 		
-		ClearBitString(gotpic, pRor->basePic);
-		
 		if (pRor->type == OBJ_WALL)
 		{
-			register short ca;
-			register int nSector, nNextWall;
-			register int nNextSector;
+			short ca;
+			int nSector, nNextWall;
+			int nNextSector;
 				
 			walltype *pWall = &wall[pRor->id];
 			nSector = sectorofwall(pRor->id);
@@ -310,6 +300,11 @@ bool DrawMirrors(int x, int y, int z, int a, int horiz)
 			viewProcessSprites(dx, dy, dz, a);
 			drawmasks();
 			
+			// fix double draw of hovered wall
+			if (searchstat == OBJ_MASKED)
+				gHovWall = -1;
+			
+			#ifdef ENABLE_EXPERIMENTAL_FEATURES
 			// experimental...
 			if (gModernMap)
 			{
@@ -334,8 +329,10 @@ bool DrawMirrors(int x, int y, int z, int a, int horiz)
 				if (nShade || nPal)
 					TranslateMirrorColors(nShade, nPal);
 			}
+			#endif
 		}
 		
+		ROR_ClearGotpicAll();
 		return true;
 	}
 	
@@ -375,7 +372,7 @@ bool IsLinkCorrect(spritetype* pSpr)
 //////////////////////////////////
 void warpInit(void)
 {
-    register int i, j, t;
+    int i, j, t;
 	memset(gUpperLink, -1, sizeof(gUpperLink));
 	memset(gLowerLink, -1, sizeof(gLowerLink));
 	for (i = 0; i < numsectors; i++)
@@ -441,15 +438,40 @@ void warpInit(void)
 			pSpr->owner = gLowerLink[j];
 			pSpr2->owner = gUpperLink[i];
 		}
-        
+	}
+	
+	//if (gModernMap)
+	{
+		i = numwalls;
+		while(--i >= 0)
+		{
+			walltype* pWallA = &wall[i];
+			if (pWallA->extra <= 0 || !irngok(pWallA->type, kWallStack - 1, kWallStack))
+				continue;
+			
+			j = numwalls;
+			while(--j >= 0)
+			{
+				walltype* pWallB = &wall[j];
+				if (j == i || pWallB->extra <= 0 || !irngok(pWallB->type, kWallStack - 1, kWallStack))
+					continue;
+				
+				if (xwall[pWallB->extra].data == xwall[pWallA->extra].data)
+				{
+					pWallB->hitag = i;
+					pWallA->hitag = j;
+					break;
+				}
+			}
+		}
 	}
 }
 
-int CheckLink(int *x, int *y, int *z, int *nSector)
+int CheckLinkSector(int *x, int *y, int *z, int* nSector)
 {
-    register int z1, z2;
-	register int nUpper = gUpperLink[*nSector];
-    register int nLower = gLowerLink[*nSector];
+    int z1, z2;
+	int nUpper = gUpperLink[*nSector];
+    int nLower = gLowerLink[*nSector];
 	
     if (nUpper >= 0)
     {
@@ -510,41 +532,83 @@ int CheckLink(int *x, int *y, int *z, int *nSector)
     return 0;
 }
 
-int CheckLink(spritetype *pSprite)
+
+int CheckLinkWall(int *x, int *y, int *z, int* nVar)
 {
-	register int nLink = 0;
-	register int nSector = pSprite->sectnum;
-	if (!rngok(nSector, 0, numsectors)) return 0;
-	else if ((nLink = CheckLink(&pSprite->x, &pSprite->y, &pSprite->z, &nSector)) > 0)
-	{
-		if (nSector != pSprite->sectnum)
-			ChangeSpriteSect(pSprite->index, nSector);
-	}
-	
-	return nLink;
+	#ifdef ENABLE_EXPERIMENTAL_FEATURES
+		int x1, y1, x2, y2, z1, z2;
+		walltype *pWallA = &wall[*nVar], *pWallB; XWALL *pXWallA, *pXWallB;
+		if (pWallA->extra < 0 || !irngok(pWallA->type, kWallStack - 1, kWallStack) || !rngok(pWallA->hitag, 0, numwalls))
+			return 0;
+		
+		pWallB = &wall[pWallA->hitag];
+		if (pWallB->extra < 0 || !irngok(pWallB->type, kWallStack - 1, kWallStack) || pWallB->hitag != *nVar)
+			return 0;
+		
+		pXWallA = &xwall[pWallA->extra];
+		pXWallB = &xwall[pWallB->extra];
+		if (pXWallA->locked || pXWallB->locked)
+			return 0;
+
+		avePointWall(*nVar, &x1, &y1, &z1);
+		avePointWall(pWallA->hitag, &x2, &y2, &z2);
+		
+		*x += x2-x1, *y += y2-y1, *z += z2-z1;
+		*nVar = sectorofwall(pWallA->hitag);
+		return pWallB->type;
+	#else
+		return 0;
+	#endif
 }
 
-int CheckLinkCamera(int *x, int *y, int *z, int *nSector)
+
+int CheckLink(int *x, int *y, int *z, int *nID, char wallLink)
 {
-	register int nSpr, nLink = 0;
-	register int px = *x, py = *y, pz = *z, nSect = *nSector;
-	if (rngok(nSect, 0, numsectors) && (nLink = CheckLink(&px, &py, &pz, &nSect)) > 0)
+	int px = *x, py = *y, pz = *z, nSect = *nID;
+	int nLink, nSpr;
+	
+	if (!wallLink)
 	{
-		if (gModernMap && gPreviewMode)
+		if ((nLink = CheckLinkSector(&px, &py, &pz, &nSect)) > 0)
 		{
-			if ((nSpr = gUpperLink[*nSector]) < 0 || sprite[nSpr].type != nLink)
+			if (gModernMap && gPreviewMode)
 			{
-				if ((nSpr = gLowerLink[*nSector]) < 0 || sprite[nSpr].type != nLink)
+				if ((nSpr = gUpperLink[*nID]) < 0 || sprite[nSpr].type != nLink)
+				{
+					if ((nSpr = gLowerLink[*nID]) < 0 || sprite[nSpr].type != nLink)
+						return 0;
+				}
+				
+				spritetype* pSpr = &sprite[nSpr];
+				if (pSpr->flags & 0x01)
 					return 0;
 			}
 			
-			spritetype* pSpr = &sprite[nSpr];
-			if (pSpr->flags & 0x01)
-				return 0;
+			*x = px, *y = py, *z = pz; *nID = nSect;
+			return nLink;
 		}
 		
-		*x = px, *y = py, *z = pz; *nSector = nSect;
+		return 0;
 	}
 	
-	return nLink;
+    return CheckLinkWall(x, y, z, nID);
+}
+
+int CheckLink(spritetype *pSprite, int nID, char wallLink)
+{
+	int nLink;
+	if ((nLink = CheckLink(&pSprite->x, &pSprite->y, &pSprite->z, &nID, wallLink)) > 0)
+	{
+		if (nID != pSprite->sectnum)
+			ChangeSpriteSect(pSprite->index, nID);
+		
+		return nLink;
+	}
+	
+	return 0;
+}
+
+int CheckLinkCamera(int *x, int *y, int *z, int *nID, char wallLink)
+{
+	return CheckLink(x, y, z, nID, wallLink);
 }

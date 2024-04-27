@@ -25,8 +25,6 @@
 #ifndef __FX
 #define __FX
 
-#include "common_game.h"
-
 enum FX_ID {
     FX_NONE = -1,
     FX_0 = 0,

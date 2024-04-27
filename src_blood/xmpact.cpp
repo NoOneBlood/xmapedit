@@ -23,16 +23,12 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "seq.h"
-#include "screen.h"
-#include "gameutil.h"
 #include "db.h"
 #include "aadjust.h"
 #include "preview.h"
-#include "gui.h"
-#include "editor.h"
-#include "xmpmisc.h"
+#include "tile.h"
 
 short gAffectedSectors[kMaxSectors], gAffectedXWalls[kMaxXWalls];
 SPRITEHIT gSpriteHit[kMaxXSprites];
@@ -218,7 +214,7 @@ int MoveThing(spritetype *pSprite)
 		}
 	}
 
-	if (CheckLink(pSprite))
+	if (CheckLink(pSprite, pSprite->sectnum, 0))
 		GetZRange(pSprite, &ceilZ, &ceilHit, &floorZ, &floorHit, pSprite->clipdist<<2, CLIPMASK0);
 
 	GetSpriteExtents(pSprite, &top, &bottom);
@@ -494,7 +490,7 @@ void MoveDude(spritetype *pSprite)
 	}
 
 
-	int nLink = CheckLink(pSprite);
+	int nLink = CheckLink(pSprite, pSprite->sectnum, 0);
 	if (nLink)
 		GetZRange(pSprite, &ceilZ, &ceilHit, &floorZ, &floorHit, wd, CLIPMASK0, PARALLAXCLIP_CEILING|PARALLAXCLIP_FLOOR);
 
@@ -955,6 +951,20 @@ int MoveMissile(spritetype *pSprite)
 				}
 			}
 		}
+		
+		if (vdi == 0 || vdi == 4)
+		{
+			int t = gHitInfo.hitwall;
+			if (CheckLink(pSprite, t, 1))
+			{
+				nSector = pSprite->sectnum;
+				x = pSprite->x;
+				y = pSprite->y;
+				z = pSprite->z;
+				vdi = -1;
+			}
+		}
+		
 		if (vdi == 4)
 		{
 			walltype *pWall = &wall[gHitInfo.hitwall];
@@ -995,15 +1005,21 @@ int MoveMissile(spritetype *pSprite)
 			vz += ClipLow(ceilZ-top, 0);
 			vdi = 1;
 		}
-
-		pSprite->x = x;
-		pSprite->y = y;
-		pSprite->z = z+vz;
-		updatesector(x, y, &nSector);
-		if (nSector >= 0 && nSector != pSprite->sectnum)
-			ChangeSpriteSect(nSprite, nSector);
 		
-		CheckLink(pSprite);
+		if (vdi < 0)
+		{
+			pSprite->x = x;
+			pSprite->y = y;
+			pSprite->z = z+vz;
+			updatesector(x, y, &nSector);
+			
+			if (nSector >= 0 && nSector != pSprite->sectnum)
+				ChangeSpriteSect(nSprite, nSector);
+			
+			CheckLink(pSprite, pSprite->sectnum, 0);
+		}
+		
+		
 		gHitInfo.hitsect = pSprite->sectnum;
 		gHitInfo.hitx = pSprite->x;
 		gHitInfo.hity = pSprite->y;

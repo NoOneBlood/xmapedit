@@ -28,7 +28,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //-------------------------------------------------------------------------
 #include "common_game.h"
 #include "xmpstr.h"
-#include "xmpmisc.h"
 
 NAMED_TYPE gBoolNames[] =
 {
@@ -468,4 +467,185 @@ int strReplace(char* str, char cWhat, char cBy)
 	}
 	
 	return c;
+}
+
+void pathSplit2(char *pzPath, char* buff, char** dsk, char** dir, char** fil, char** ext)
+{
+	int i = 0;
+	char items[4][BMAX_PATH];
+	memset(items, 0, sizeof(items));
+	if (!isempty(pzPath))
+		_splitpath(pzPath, items[0], items[1], items[2], items[3]);
+	
+	dassert(buff != NULL);
+	
+	if (dsk)
+	{
+		*dsk =& buff[i];
+		i+=sprintf(&buff[i], items[0])+1;
+	}
+	
+	if (dir)
+	{
+		*dir =& buff[i];
+		i+=sprintf(&buff[i], items[1])+1;
+	}
+	
+	if (fil)
+	{
+		*fil =& buff[i];
+		i+=sprintf(&buff[i], items[2])+1;
+	}
+	
+	if (ext)
+	{
+		*ext =& buff[i];
+		i+=sprintf(&buff[i], items[3])+1;
+	}
+}
+
+void pathCatSlash(char* pth, int l)
+{
+	if (l < 0)
+	{
+		if ((l = strlen(pth)) > 0 && !slash(pth[l-1]))
+			catslash(pth);
+	}
+	else if (!slash(l))
+		catslash(&pth[l]);
+}
+
+void pathRemSlash(char* pth, int l)
+{
+	int t = strlen(pth);
+	
+	if (l < 0)
+	{
+		if (t > 0 && slash(pth[t-1]))
+			pth[t-1] = '\0';
+	}
+	else if (slash(l) && l < t)
+		memmove(&pth[l], &pth[l+1], t-l+1);
+}
+
+void removeExtension(char *str)
+{
+	if (!isempty(str))
+	{
+		int i = strlen(str);
+		while(--i >= 0)
+		{
+			if (str[i] != '.') continue;
+			str[i] = '\0';
+			break;
+		}
+	}
+}
+
+char removeQuotes(char* str)
+{
+	if (!isempty(str))
+	{
+		int i, l = strlen(str);
+		if (l >= 2 && (str[0] == '"' || str[0] == '\'') && str[l - 1] == str[0])
+		{
+			l-=2;
+			for (i = 0; i < l; i++)
+				str[i] = str[i + 1];
+			
+			str[i] = '\0';
+			return 1;
+		}
+	}
+	
+	return 0;
+}
+
+char* getFilename(char* pth, char* out, char addExt)
+{
+	char tmp[_MAX_PATH]; char *fname = NULL, *ext = NULL;
+	pathSplit2(pth, tmp, NULL, NULL, &fname, &ext);
+	strcpy(out, fname);
+	if (addExt)
+		strcat(out, ext);
+	
+	return out;
+}
+
+char* getFiletype(char* pth, char* out, char addDot)
+{
+	char tmp[_MAX_PATH]; char *fname = NULL, *ext = NULL;
+	pathSplit2(pth, tmp, NULL, NULL, &fname, &ext);
+	if (!isempty(ext) && !addDot && *ext == '.')
+		ext++;
+	
+	if (ext)
+	{
+		strcpy(out, ext);
+		return out;
+	}
+	
+	return NULL;
+}
+
+char* getPath(char* pth, char* out, char addSlash)
+{
+	int i;
+	char tmp[_MAX_PATH]; char *dsk = NULL, *dir = NULL;
+	pathSplit2(pth, tmp, &dsk, &dir, NULL, NULL);
+	_makepath(out, dsk, dir, NULL, NULL);
+	
+	if (addSlash)
+	{
+		if ((i = strlen(out)) > 0 && !slash(out[i - 1]))
+			catslash(out);
+	}
+	
+	return out;
+}
+
+char* getRelPath(char* relto, char* targt)
+{
+	int l, s, i;
+	if ((l = strlen(relto)) <= strlen(targt))
+	{
+		s = targt[l];
+		
+		if (s)
+			targt[l] = '\0';
+		
+		for (i = 0; i < l; i++)
+		{
+			if (slash(relto[i]) && slash(targt[i])) continue;
+			if (toupper(relto[i]) != toupper(targt[i]))
+				break;
+		}
+		
+		if (s)
+			targt[l] = s;
+		
+		if (i >= l)
+			return &targt[l+1];
+	}
+	
+	return targt;
+}
+
+char* getCurDir(char* pth, char* out, char addSlash)
+{
+	int j = strlen(pth);
+	while(--j >= 0)
+	{
+		if (slash(pth[j]))
+		{
+			strcpy(out, &pth[j+1]);
+			if (addSlash)
+				catslash(out);
+
+			return out;
+		}
+	}
+	
+	strcpy(out, pth);
+	return out;
 }

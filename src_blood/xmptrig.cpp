@@ -23,20 +23,10 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "common_game.h"
 #include "db.h"
-#include "eventq.h"
-#include "sectorfx.h"
-#include "gameutil.h"
-#include "screen.h"
-#include "xmpsnd.h"
-#include "xmpstub.h"
 #include "seq.h"
 #include "preview.h"
-
-#include "editor.h"
-#include "xmpmisc.h"
-#include "gui.h"
+#include "xmpmaped.h"
 
 int basePath[kMaxSectors];
 int gBusyCount = 0;
@@ -1544,6 +1534,7 @@ void OperateTeleport(unsigned int nSector, XSECTOR *pXSector)
 {
 	int nDest = pXSector->marker0;
 	spritetype *pDest = &sprite[nDest];
+	char buff[256];
 
 	for (int nSprite = headspritesect[nSector]; nSprite >= 0; nSprite = nextspritesect[nSprite])
 	{
@@ -1572,11 +1563,11 @@ void OperateTeleport(unsigned int nSector, XSECTOR *pXSector)
 	if (cursectnum == nSector && marker >= 0 && sprite[marker].sectnum >= 0 && sprite[marker].sectnum != cursectnum)
 	{
 		int cnt = TeleFrag(0, sprite[marker].sectnum);
-		int i = sprintf(buffer, "Teleport from sector %d to %d", cursectnum, sprite[marker].sectnum);
+		int i = sprintf(buff, "Teleport from sector %d to %d", cursectnum, sprite[marker].sectnum);
 		if (cnt)
-			sprintf(&buffer[i], " (telefragged %d dudes!)", cnt);
+			sprintf(&buff[i], " (telefragged %d dudes!)", cnt);
 		
-		previewMessage(buffer);
+		previewMessage(buff);
 		posx = sprite[marker].x; posy = sprite[marker].y; posz = sprite[marker].z;
 		
 		i = nSector;

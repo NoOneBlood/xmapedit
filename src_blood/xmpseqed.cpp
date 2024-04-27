@@ -22,20 +22,13 @@
 ***********************************************************************************/
 
 #include "common_game.h"
-#include "build.h"
-#include "gui.h"
-#include "xmpstub.h"
-#include "screen.h"
+#include "xmpmaped.h"
 #include "tile.h"
 #include "xmpsnd.h"
-#include "edit3d.h"
-#include "editor.h"
 #include "xmptools.h"
 #include "xmpseqed.h"
 #include "xmpconf.h"
-#include "xmparted.h"
 #include "xmpevox.h"
-#include "xmpmisc.h"
 
 #define kMar 4
 #define kSurfSoundBase 800
@@ -69,12 +62,12 @@ void seqeditStart(char* seqFile) {
 	short sect;
 	BOOL showMenu = TRUE;
 	int i, screenMode = qsetmode;
-
+	
 	updatesector(posx, posy, &sect);
 	
 	i = getHighlightedObject();
 	gTool.cantest = (i && sect >= 0 && numsectors > 0);
-	gSeqEd.edit3d = (gTool.cantest && qsetmode == 200);
+	gSeqEd.edit3d = (gTool.cantest && screenMode == 200);
 
 	if (gTool.cantest && i != 200)
 	{
@@ -138,9 +131,8 @@ void seqeditStart(char* seqFile) {
 	gArtEd.modeMax	= gArtEd.mode;
 	
 	gTileView.bglayers++;
-	if (screenMode != 200)
-		scrSetGameMode(fullscreen, xdim, ydim); // must do it so processMove works correct
-	
+	xmpSetEditMode(0x01);
+
 	seqeditProcess();
 	
 	gTileView.bglayers--;
@@ -156,12 +148,12 @@ void seqeditStart(char* seqFile) {
 	gTool.pSprite = NULL;
 	Resource::Free(pSeq);
 	pSeq = NULL;
-	
-	if (screenMode != 200)
-		qsetmodeany(xdim, ydim);
-	
+
 	gScreen.msg[0].time = 0;
 	artedUninit();
+	
+	if (screenMode == 200)		xmpSetEditMode(0x01);
+	else						xmpSetEditMode(0x00);
 
 }
 
@@ -1114,7 +1106,7 @@ void seqeditDrawTile(SEQFRAME *pFrame, int zoom, int *nTileArg, int nOctant)
 
 	if ( !pFrame->invisible )
 		rotatesprite(gSeqEd.origin.x << 16, gSeqEd.origin.y << 16, zoom, ang, nTile, nShade,
-			(char)gSeqEd.curPal, flags, windowx1, windowy1, windowx2, windowy2);
+			(char)gSeqEd.curPal, kRSNoClip|flags, 0, 0, xdim-1, ydim-1);
 	
 	*nTileArg = nTile;
 }

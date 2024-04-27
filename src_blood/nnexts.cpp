@@ -23,19 +23,13 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "build.h"
-#include "editor.h"
-#include "xmpstub.h"
-#include "gameutil.h"
+#include "xmpmaped.h"
 #include "preview.h"
-#include "screen.h"
-#include "gui.h"
 #include "aadjust.h"
 #include "sectorfx.h"
 #include "seq.h"
-#include "xmpmisc.h"
 #include "nnextsif.h"
-#include "xmpstr.h"
+#include "tile.h"
 
 BOOL gEventRedirectsUsed = FALSE;
 IDLIST gProxySpritesList(false);	// list of additional sprites which can be triggered by Proximity
@@ -399,7 +393,7 @@ void debrisMove(int nSpr) {
         zvel[nSpr] += 58254;
     }
 
-    if ((i = CheckLink(pSpr)) != 0)
+    if ((i = CheckLink(pSpr, pSpr->sectnum, 0)) != 0)
 	{
         GetZRange(pSpr, &ceilZ, &ceilHit, &floorZ, &floorHit, clipDist, CLIPMASK0, PARALLAXCLIP_CEILING | PARALLAXCLIP_FLOOR);
         if (!(pSpr->cstat & kSprInvisible))
@@ -1462,7 +1456,7 @@ void modernTypeTrigger(int destObjType, int destObjIndex, EVENT event) {
 
 void nnExtResetGlobals()
 {
-    register int i;
+    int i;
 	
 	// reset lists
 	gProxySpritesList.Init();		gImpactSpritesList.Init();

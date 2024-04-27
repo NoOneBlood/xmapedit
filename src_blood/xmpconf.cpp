@@ -21,14 +21,9 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "xmpstub.h"
-#include "common_game.h"
-#include "editor.h"
-#include "aadjust.h"
-#include "gui.h"
-#include "xmpsnd.h"
-#include "xmpmisc.h"
+#include "xmpmaped.h"
 #include "xmpconf.h"
+#include "xmpsnd.h"
 
 
 IniFile* MapEditINI = NULL;
@@ -53,6 +48,7 @@ PLUPICKER gPluPrefs;
 ROTATION gRotateOpts;
 SCREEN gScreen;
 SOUND gSound;
+SPLITMODE_DATA gSplitMode;
 TILE_VIEWER gTileView;
 TIMERS gTimers;
 
@@ -60,7 +56,8 @@ void AUTOSAVE::Init(IniFile* pIni, char* section)
 {
 	max = ClipRange(pIni->GetKeyInt(section, "MaxSaveCopies", 1), 1, 999);
 	interval = 120 * pIni->GetKeyInt(section, "SaveInterval", 5 * 60);
-	strcpy(basename, pIni->GetKeyString(section, "FileName", "ASAVE"));
+	strcpy(buffer, pIni->GetKeyString(section, "FileName", "ASAVE"));
+	getFilename(buffer, basename, 0);
 }
 
 void AUTOADJUST::Init(IniFile* pIni, char* section)
@@ -250,16 +247,27 @@ void MAPEDIT_HUD_SETTINGS::Init(IniFile* pIni, char* section)
 	if (dynamicLayout2D)
 		layout2D = kHudLayoutFull;
 	
+	layoutSPLIT				= ClipHigh(pIni->GetKeyInt(section, "LayoutSPLIT", kHudLayoutCompact), kHudLayoutMax);
+	dynamicLayoutSPLIT		= (layoutSPLIT == kHudLayoutDynamic);
+	if (dynamicLayoutSPLIT)
+		layoutSPLIT = kHudLayoutFull;
+	
 	tileShowShade			= pIni->GetKeyBool(section, "TileShowShade", FALSE);
 	tileScaleSize			= ClipHigh(pIni->GetKeyInt(section, "TileSizeOutside", 100), 1023);
+	fontPack				= pIni->GetKeyInt(section, "FontPack", 3);
 }
 
 void MAPEDIT_HUD_SETTINGS::Save(IniFile* pIni, char* section)
 {
-	if (dynamicLayout3D) layout3D = kHudLayoutDynamic;
-	if (dynamicLayout2D) layout2D = kHudLayoutDynamic;
+	if (dynamicLayoutSPLIT) layoutSPLIT = kHudLayoutDynamic;
+	if (dynamicLayout3D)	layout3D = kHudLayoutDynamic;
+	if (dynamicLayout2D)	layout2D = kHudLayoutDynamic;
+	
+	
+	pIni->PutKeyInt(section, "LayoutSPLIT", layoutSPLIT);
 	pIni->PutKeyInt(section, "Layout3D", layout3D);
 	pIni->PutKeyInt(section, "Layout2D", layout2D);
+	pIni->PutKeyInt(section, "FontPack", fontPack);
 }
 
 void MISC_PREFS::Init(IniFile* pIni, char* section)
@@ -278,9 +286,13 @@ void MISC_PREFS::Init(IniFile* pIni, char* section)
 	this->zlockAvail		= !pIni->GetKeyBool(section, "SkipZStepMode", TRUE);
 
 	this->autoLoadMap	 	= pIni->GetKeyBool(section, "AutoLoadMap", FALSE); 
-	this->editMode			= pIni->GetKeyBool(section, "EditMode", FALSE);
+	this->editMode			= pIni->GetKeyInt(section, "EditMode", 0);
 	this->circlePoints		= 6;
 	this->forceEditorPos	= pIni->GetKeyBool(section, "ForceEditorStartPos", FALSE);
+	
+	gSplitMode.size			= pIni->GetKeyInt(section, "SplitPanelSize", 0);
+	gSplitMode.swapSize		= pIni->GetKeyBool(section, "SplitAutoSwapSize", 1);
+	gSplitMode.vertical		= pIni->GetKeyBool(section, "SplitVertical", 1);
 	
 	SCREEN2D* pScr = &gScreen2D;
 	pScr->prefs.useTransluc			= pIni->GetKeyBool(section,	"UseTranslucentEffects", TRUE);
@@ -301,8 +313,8 @@ void MISC_PREFS::Init(IniFile* pIni, char* section)
 
 	boardWidth				= 196608;
 	boardHeight				= boardWidth;
-	
-	sprintf(this->tilesBaseName, (!fileExists("TILES000.ART")) ? "SHARE" : "TILES");
+
+	strcpy(this->tilesBaseName, (!fileExists("TILES000.ART")) ? "SHARE" : "TILES");
 	
 }
 
@@ -311,12 +323,14 @@ void MISC_PREFS::Init(IniFile* pIni, char* section)
 void MISC_PREFS::Save(IniFile* pIni, char* section)
 {
 	pIni->PutKeyInt(section, "ZMode", zmode);
-	pIni->PutKeyInt(section, "EditMode", (qsetmode == 200));
+	pIni->PutKeyInt(section, "EditMode", (ED23) ? 0x02 : ED3D);
 	pIni->PutKeyInt(section, "GridSize", grid);
 	pIni->PutKeyInt(section, "Zoom", zoom);
 	pIni->PutKeyInt(section, "Beep", beep);
 	pIni->PutKeyInt(section, "ForceSetup", forceSetup);
-
+	pIni->PutKeyInt(section, "SplitPanelSize", gSplitMode.size);
+	pIni->PutKeyInt(section, "SplitAutoSwapSize", gSplitMode.swapSize);
+	pIni->PutKeyInt(section, "SplitVertical", gSplitMode.vertical);
 	pIni->PutKeyInt(section, "EyeHeight", kensplayerheight >> 8);
 	
 	SCREEN2D* pScr = &gScreen2D;

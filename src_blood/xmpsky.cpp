@@ -22,11 +22,8 @@
 ***********************************************************************************/
 
 #include "db.h"
-#include "screen.h"
 #include "xmpsky.h"
-#include "xmpstub.h"
-#include "xmpmisc.h"
-#include "tile.h"
+#include "xmpmaped.h"
 
 #define SET_GLOBAL_COUNTER(x) (x ? 0 : -1)
 static int helperGetMostHigh(int* pMost, int nCnt, int* r)
@@ -47,37 +44,19 @@ unsigned char Sky::tileRepeatCount = 0;
 int Sky::MakeSimilar(int nSect, int nFor, BOOL global)
 {
 	sectortype* pSect;
-	int nPic, nOPic, nPal, nShd, nPny, got;
+	int nPic, nPal, nShd, nPny, got;
 	char isCeil = (nFor == OBJ_CEILING);
 	IDLIST collected(true);
 	int32_t* pDb;
 
-	nOPic = (isCeil) ? sector[nSect].ceilingpicnum : sector[nSect].floorpicnum;
-	nPic  = nOPic;
+	nPic = (isCeil) ? sector[nSect].ceilingpicnum : sector[nSect].floorpicnum;
+	CollectSectors(&collected, (isCeil) ? ceilPicMatch : floorPicMatch, nSect, nPic, SET_GLOBAL_COUNTER(global));
+	collected.AddIfNot(nSect);
 
-	// search most used properties in global scope
+	// search for the rest most used properties in global scope
 	got = GetMostUsed(nSect, nFor, TRUE, &nPic, &nPal, &nShd, &nPny);
-	if ((got & 0x01))	// got most used sky tile
-	{
-		if (nOPic == nPic)	// sky tile == current non-parallax sector tile
-		{
-			// collect sectors that have same tile
-			CollectSectors(&collected, (isCeil) ? ceilPicMatch : floorPicMatch, nSect, nPic, SET_GLOBAL_COUNTER(global));
-		}
-		else
-		{
-			// only add current sector
-			collected.Add(nSect);
-		}
-	}
-	else
-	{
-		return 0; // nothing found?
-	}
 
-
-	// make all possible non-parallaxed sectors with same tile parallaxed
-	// and assimilate the sky
+	// parallax all possible non-parallaxed sectors with same tile and assimilate the sky
 	pDb = collected.GetPtr();
 	
 	while(*pDb >= 0)
@@ -88,7 +67,8 @@ int Sky::MakeSimilar(int nSect, int nFor, BOOL global)
 			if (!isSkySector(*pDb, nFor))
 				pSect->ceilingstat |= kSectParallax;
 			
-			if (got & 0x01)	pSect->ceilingpicnum 	= nPic;
+			pSect->ceilingpicnum = nPic;
+			
 			if (got & 0x02)	pSect->ceilingpal	 	= nPal;
 			if (got & 0x04)	pSect->ceilingshade	 	= nShd;
 			if (got & 0x08)	pSect->ceilingypanning	= nPny;
@@ -97,8 +77,9 @@ int Sky::MakeSimilar(int nSect, int nFor, BOOL global)
 		{
 			if (!isSkySector(*pDb, nFor))
 				pSect->floorstat |= kSectParallax;
+
+			pSect->floorpicnum 	= nPic;
 			
-			if (got & 0x01)	pSect->floorpicnum 		= nPic;
 			if (got & 0x02)	pSect->floorpal	 		= nPal;
 			if (got & 0x04)	pSect->floorshade	 	= nShd;
 			if (got & 0x08)	pSect->floorypanning	= nPny;
@@ -108,7 +89,23 @@ int Sky::MakeSimilar(int nSect, int nFor, BOOL global)
 	}
 	
 	return collected.GetLength();
+}
+
+int Sky::Disable(int nSect, int nFor, BOOL global)
+{
+	IDLIST collected(true);
+	CollectSectors(&collected, isSkySector, nSect, nFor, SET_GLOBAL_COUNTER(global));
+	int32_t* pDb = collected.GetPtr();
 	
+	while(*pDb >= 0)
+	{
+		sectCstatRem(*pDb, kSectParallax, nFor);
+		sectCstatRem(*pDb, kSectShadeFloor, OBJ_FLOOR);
+		pDb++;
+	}
+	
+	scrSetMessage("%s sky is %s", GlobalOrLocal(global), onOff(0));
+	return collected.GetLength();
 }
 
 int Sky::FixPan(int nSect, int nFor, BOOL global)

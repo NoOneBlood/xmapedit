@@ -8,7 +8,7 @@ kLinkMax			   ,
 
 void sectGetEdgeWalls(int nSector, short* lw, short* rw, short* tw, short* bw)
 {
-	register int s, e;
+	int s, e;
 	getSectorWalls(nSector, &s, &e);
 	
 	*lw = *rw = *tw = *bw = s;
@@ -81,7 +81,7 @@ class XMPROR
 	
 	int RoomConnected(int nType, int nIndex, int* nMarkA, int* nMarkB)
 	{
-		register int i, j, k, n, low1, low2;
+		int i, j, k, n, low1, low2;
 		spritetype *pMark1, *pMark2;
 		*nMarkA = *nMarkB = -1;
 		
@@ -313,7 +313,7 @@ class XMPROR
 	
 	BOOL Dialog()
 	{
-		register int i = 0;
+		int i = 0;
 		NAMED_TYPE linkTypes[kLinkMax];
 		while(i < LENGTH(linkTypes))
 		{

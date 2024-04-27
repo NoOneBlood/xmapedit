@@ -21,34 +21,21 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 #include "common_game.h"
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "tracker.h"
-#include "gameutil.h"
-#include "db.h"
-#include "edit2d.h"
-#include "xmpsnd.h"
-
-#include "mapcmt.h"
-#include "nnexts.h"
-#include "gui.h"
-#include "tile.h"
-#include "editor.h"
 #include "hglt.h"
 #include "aadjust.h"
-#include "preview.h"
-#include "xmpview.h"
-#include "xmpmisc.h"
 #include "xmpexplo.h"
-#include "xmptools.h"
-#include "xmpconf.h"
-#include "edit3d.h"
-#include "sectorfx.h"
+#include "mapcmt.h"
+#include "nnexts.h"
 
 
+SCREEN2D gScreen2D;
 DOOR_ROTATE* pGDoorR = NULL;
 DOOR_SLIDEMARKED* pGDoorSM = NULL;
 CIRCLEWALL* pGCircleW = NULL;
 LOOPSHAPE* pGLShape = NULL;
+LOOPBUILD* pGLBuild = NULL;
 
 short sectorhighlight;		// which sector mouse is inside in 2d mode
 short pointdrag = -1;
@@ -56,7 +43,6 @@ short pointdrag = -1;
 void CIRCLEWALL::Start(int nWall, int x, int y)
 {
 	int i = LENGTH(coords);
-	lockSectorDrawing();
 	line	= nWall;
 	count	= 6;
 	cenx 	= x;
@@ -73,7 +59,6 @@ void CIRCLEWALL::Start(int nWall, int x, int y)
 
 void CIRCLEWALL::Stop()
 {
-	unlockSectorDrawing();
 	line = -1;
 }
 
@@ -138,7 +123,7 @@ void CIRCLEWALL::Draw(SCREEN2D* pScr)
 	lines[count].x2 = lines[0].x1;
 	lines[count].y2 = lines[0].y1;		
 	
-	fc = pScr->ColorGet(kClrEdCircleFill, h);
+	fc = pScr->ColorGet(kColorGrey26);
 	if (pScr->prefs.useTransluc)
 	{
 		pScr->LayerOpen();
@@ -150,23 +135,22 @@ void CIRCLEWALL::Draw(SCREEN2D* pScr)
 		pScr->FillPolygon(lines, i, fc);
 	}
 	
-	while(--i)
+	while(--i > 0)
 	{
-		x1 = pScr->cscalex(coords[i].x);		x2 = pScr->cscalex(coords[i-1].x);
+		x1 = pScr->cscalex(coords[i].x);	x2 = pScr->cscalex(coords[i-1].x);
 		y1 = pScr->cscaley(coords[i].y);	y2 = pScr->cscaley(coords[i-1].y);
 		
 		fc = pScr->GetWallColor(line, false);
 		pScr->DrawLine(x1, y1, x2, y2,  fc, pWall->cstat & kWallBlock);
 		
-		fc = pScr->ColorGet(kClrVtxBord, h);
-		bc = pScr->ColorGet(kClrVtxFill, h);
+		fc = pScr->ColorGet(kColorGrey28);
+		bc = pScr->ColorGet(kColorBrown);
 		pScr->DrawVertex(x1, y1, fc, bc, pScr->vertexSize);
 		pScr->DrawVertex(x2, y2, fc, bc, pScr->vertexSize);
 	}
 		
 	x1 = pScr->cscalex(cenx); y1 = pScr->cscaley(ceny);
-	fc = pScr->ColorGet(kClrEdCircleCenter, 0);
-	pScr->DrawIconCross(x1, y1, fc, 6);
+	pScr->DrawIconCross(x1, y1, pScr->ColorGet(kColorYellow), 6);
 
 }
 
@@ -177,7 +161,7 @@ void CIRCLEWALL::Insert()
 	while(--i > 0)
 	{
 		j = rngok(wall[line].nextwall, 0, line);
-		insertpoint(line,coords[i].x, coords[i].y);
+		insertPoint(line,coords[i].x, coords[i].y);
 		line += j;
 	}
 	
@@ -190,7 +174,7 @@ char allWallsOfSectorInHglt(int nSect)
 	getSectorWalls(nSect, &s, &e);
 	while(s <= e)
 	{
-		if (!TestBitString(show2dwall, s++))
+		if (!TestBitString(hgltwall, s++))
 			return 0;
 	}
 	
@@ -491,121 +475,9 @@ void clampsprite_TEMP(short nspr) {
 	}
 }
 
-int sectCloneMarker(XSECTOR* pXOwner, spritetype* pWich)
+void helperDoGridCorrection(int* x, int* y)
 {
-	int nSpr; spritetype* pSpr;
-	if ((nSpr = InsertSprite(pWich->sectnum, kStatMarker)) < 0)
-		return -1;
-	
-	pSpr = &sprite[nSpr];
-	memcpy(pSpr, pWich, sizeof(spritetype));
-	pSpr->owner = pXOwner->reference;
-	pSpr->index = nSpr;
-	pSpr->extra = -1;
-	
-	switch(pSpr->type)
-	{
-		case kMarkerWarpDest:
-		case kMarkerAxis:
-		case kMarkerOff:
-			pXOwner->marker0 = nSpr; 
-			break;
-		case kMarkerOn:
-			pXOwner->marker1 = nSpr;
-			break;
-	}
-	
-	return nSpr;
-}
-
-char sectClone(int nSrc, int nDstS, int nDstW, int flags)
-{
-	int i, s, e, nWall = nDstW;
-	XSECTOR* pXSect;
-	
-	// clone walls
-	getSectorWalls(nSrc, &s, &e);
-	for (i = s; i <= e; i++, nWall++)
-	{
-		wall[nWall] = wall[i];
-		if (wall[nWall].extra > 0) // fix xwall
-		{
-			wall[nWall].extra					= dbInsertXWall(nWall);
-			xwall[wall[nWall].extra]			= xwall[wall[i].extra];
-			xwall[wall[nWall].extra].reference	= nWall;
-		}
-		
-		wall[nWall].point2 += nDstW-s;
-		if (wall[nWall].nextwall >= 0)
-		{
-			wall[nWall].nextsector	+= nDstS-nSrc;
-			wall[nWall].nextwall	+= nDstW-s;
-		}
-	}
-	
-	if (nWall > nDstW)
-	{
-		// clone sector
-		sector[nDstS]			= sector[nSrc];
-		sector[nDstS].wallnum	= nWall-nDstW;
-		sector[nDstS].wallptr	= nDstW;
-		
-		if (sector[nDstS].extra > 0) // fix xsector
-		{
-			sector[nDstS].extra						= dbInsertXSector(nDstS);
-			xsector[sector[nDstS].extra]			= xsector[sector[nSrc].extra];
-			xsector[sector[nDstS].extra].reference	= nDstS;
-			pXSect = &xsector[sector[nDstS].extra];
-			
-			if (flags & 0x03) // fix marker(s)
-			{
-				if (pXSect->marker0 >= 0 && sprite[pXSect->marker0].statnum == kStatMarker)
-				{
-					if ((i = sectCloneMarker(pXSect, &sprite[pXSect->marker0])) >= 0 && (flags & 0x02))
-					{
-						if (inside(sprite[pXSect->marker0].x, sprite[pXSect->marker0].y, nDstS))
-							ChangeSpriteSect(i, nDstS);
-					}
-				}
-				
-				if (pXSect->marker1 >= 0 && sprite[pXSect->marker1].statnum == kStatMarker)
-				{
-					if ((i = sectCloneMarker(pXSect, &sprite[pXSect->marker1])) >= 0 && (flags & 0x02))
-					{
-						if (inside(sprite[pXSect->marker1].x, sprite[pXSect->marker1].y, nDstS))
-							ChangeSpriteSect(i, nDstS);
-					}
-				}
-			}
-		}
-
-		if (flags & 0x01)
-		{
-			// clone sprites
-			for (i = headspritesect[nSrc]; i >= 0; i = nextspritesect[i])
-			{
-				// ignore these in this loop (even if don't own it)
-				if (sprite[i].statnum == kStatMarker)
-					continue;
-				
-				if ((s = InsertSprite(nDstS, sprite[i].statnum)) < 0)
-					break;
-				
-				sprite[s]			= sprite[i];
-				sprite[s].sectnum	= nDstS;
-				sprite[s].index		= s;
-				
-				if (sprite[s].extra > 0) // fix xsprite
-				{
-					sprite[s].extra						= dbInsertXSprite(s);
-					xsprite[sprite[s].extra]			= xsprite[sprite[i].extra];
-					xsprite[sprite[s].extra].reference	= s;
-				}
-			}
-		}
-	}
-	
-	return 1;
+	doGridCorrection(x, y, (!grid || !gridlock) ? 10 : grid);
 }
 
 void ProcessKeys2D( void )
@@ -613,12 +485,12 @@ void ProcessKeys2D( void )
 	static int capstat = 0, capx = 0, capy = 0, spridx = -1;
 	int x, y, j = 0, k = 0, z = 0, i = 0, type = 0, sect = -1;
 	int dax = 0, day = 0, daz = 0, swal, ewal;
+	int nStat, nThick; char* msg;
 	
 	short *hgltcntptr = NULL;
 	short sect2 = -1, ACTION = -1, idx = -1;
 	char keyhold = 0;
 	
-	processMove();
 	gMouse.Read();
 	searchx = ClipRange(searchx + gMouse.dX2, gMouse.left, gMouse.right);
 	searchy = ClipRange(searchy + gMouse.dY2, gMouse.top,  gMouse.bottom);
@@ -645,24 +517,7 @@ void ProcessKeys2D( void )
 	gMouse.Y = searchy;
 	gMouse.Draw();
 	
-	/// !!!
-	if (gHudPrefs.dynamicLayout2D)
-	{
-		if (newnumwalls >= numwalls)
-		{
-			if (gHudPrefs.layout2D == kHudLayoutFull)
-			{
-				gHudPrefs.layout2D = kHudLayoutCompact;
-				hudSetLayout(&gMapedHud, gHudPrefs.layout2D, &gMouse);
-			}
-		}
-		else if (gHudPrefs.layout2D != kHudLayoutFull)
-		{
-			gHudPrefs.layout2D = kHudLayoutFull;
-			hudSetLayout(&gMapedHud, gHudPrefs.layout2D, &gMouse);
-		}
-	}
-	
+
 	linehighlight = getlinehighlight(gMisc.hgltTreshold, x, y, zoom);
 	if (!(gMouse.buttons & 5))
 	{
@@ -731,9 +586,6 @@ void ProcessKeys2D( void )
 				else
 					gCommentMgr.SetXYTail(cmthglt & 0x3FFF, x, y);
 			}
-			
-			if ((cmthglt & 0xc000) != 0)
-				gMapedHud.SetComment(&gCommentMgr.comments[cmthglt & 0x3FFF]);
 		}
 		
 		if (gMouse.hold & 1)
@@ -764,22 +616,6 @@ void ProcessKeys2D( void )
 						capstat = 1;
 						break;
 					}
-					
-					if (gCommentMgr.commentsCount)
-					{
-						gCommentMgr.cmtins = (char*)realloc(gCommentMgr.cmtins, gCommentMgr.commentsCount);
-						memset(gCommentMgr.cmtins, 0, gCommentMgr.commentsCount);
-						for (i = 0; i < highlightsectorcnt; i++)
-						{
-							j = highlightsector[i];
-							for (k = 0; k < gCommentMgr.commentsCount; k++)
-							{
-								MAP_COMMENT* cmt =& gCommentMgr.comments[k];
-								if (inside(cmt->cx, cmt->cy, j) > 0) gCommentMgr.cmtins[k] |= 0x01;
-								if (inside(cmt->tx, cmt->ty, j) > 0) gCommentMgr.cmtins[k] |= 0x02;
-							}
-						}
-					}
 				}
 				else // drag
 				{
@@ -790,12 +626,10 @@ void ProcessKeys2D( void )
 					
 					x-=capx, y-=capy; capx+=x, capy+=y;
 					hgltSectCallFunc(sectChgXY, x, y, !shift);
-					
-					for (i = 0; i < gCommentMgr.commentsCount; i++)
+					if (capstat == 1)
 					{
-						MAP_COMMENT* cmt =& gCommentMgr.comments[i];
-						if (gCommentMgr.cmtins[i] & 0x01) cmt->cx+=x, cmt->cy+=y;
-						if (gCommentMgr.cmtins[i] & 0x02) cmt->tx+=x, cmt->ty+=y;
+						hgltSectDetach();
+						capstat++;
 					}
 					
 					if (hgltCheck(OBJ_SECTOR, startsectnum) >= 0)
@@ -995,7 +829,16 @@ void ProcessKeys2D( void )
 					}				
 					else if (ACTION == 1)
 					{
-						scrSetMessage("%d %s(s) was added in a highlight.", hglt2dAdd(searchstat, idx), gSearchStatNames[searchstat]);
+						if (searchstat == OBJ_SECTOR)
+						{
+							i = hgltAdd(searchstat, idx);
+						}
+						else
+						{
+							i = hglt2dAdd(searchstat, idx);
+						}
+						
+						scrSetMessage("%d %s(s) was added in a highlight.", i, gSearchStatNames[searchstat]);
 						BeepOk();
 					}
 					else
@@ -1020,21 +863,15 @@ void ProcessKeys2D( void )
 			}
 			else
 			{
-				//fixspritesectors();
-				//CleanUp();
-				
-				for (i = 0; i < numsectors; i++)
-				{
-					if (hgltCheck(OBJ_SECTOR, i) < 0)
-						sectorAttach(i);
-				}
-				
-				// fix repeats for walls
+				if (highlightsectorcnt > 0)
+					hgltSectAttach();
+
 				if ((pointdrag & 0xc000) == 0)
 				{
 					int x1, y1, x2, y2, x3, y3;
 					int s, k;
 					
+					k = 0;
 					j = pointdrag;
 					getWallCoords(j, &x3, &y3);
 					
@@ -1046,31 +883,38 @@ void ProcessKeys2D( void )
 						{
 							s = sectorofwall(i);
 							
-							deletepoint(i);
+							deletepoint(i); k = 1;
 							if (rngok(s, 0, numsectors) && sector[s].wallnum <= 1)
 								sectDelete(s);
-							
-							for (k = 0; k < numsectors; k++)
-								sectorAttach(k);
 						}
 					}
 					
+					if (k > 0)
+					{
+						k = numsectors;
+						while(--k >= 0)
+							sectAttach(k);
+						
+					}
+					
+					// fix repeats for walls
 					for (i = 0; i < numwalls; i++)
 					{
 						k = wall[i].point2;
+						getWallCoords(i, &x1, &y1, &x2, &y2);
 						
 						// current wall
 						if (!(wall[i].cstat & kWallMoveMask)) // skip kinetic motion marked
 						{
-							if (wall[i].x == wall[j].x && wall[i].y == wall[j].y)
-								fixrepeats((short)i); // must be i here!
+							if (x1 == x3 && y1 == y3)
+								fixrepeats(i); // must be i here!
 						}
 						
 						// wall that connects to current one
 						if (!(wall[k].cstat & kWallMoveMask))  // skip kinetic motion marked
 						{
-							if (wall[k].x == wall[j].x && wall[k].y == wall[j].y)
-								fixrepeats((short)i); // must be i here!
+							if (x2 == x3 && y2 == y3)
+								fixrepeats(i); // must be i here!
 						}
 					}
 				}
@@ -1081,9 +925,20 @@ void ProcessKeys2D( void )
 		
 		if (pointdrag < 0)
 		{
-			if (alt & 0x02) hgltReset(kHgltPoint), hgltType = kHgltSector, keyhold = 1;
+			if (alt & 0x02)
+			{
+				hgltReset(kHgltPoint);
+				hgltType = keyhold = 0;
+				if (!vel)
+					hgltType = kHgltSector, keyhold = 1;
+			}
 			else if (shift & 0x02)
-				hgltReset(kHgltSector), hgltType = kHgltPoint, keyhold = 1;
+			{
+				hgltReset(kHgltSector);
+				hgltType = keyhold = 0;
+				if (!vel)
+					hgltType = kHgltPoint, keyhold = 1;
+			}
 		}
 
 		if (hgltType)
@@ -1102,39 +957,66 @@ void ProcessKeys2D( void )
 			{
 				if (*hgltcntptr == 0)
 				{
-					hgltx2 = searchx, hglty2 = searchy;
+					hgltx2 = mousxplc, hglty2 = mousyplc;
 				}
 				else
 				{
 					hgltReset();
-					hgltx1 = searchx, hglty1 = searchy;
-					hgltx2 = searchx, hglty2 = searchy;
+					hgltx2 = mousxplc, hglty2 = mousyplc;
+					hgltx1 = mousxplc, hglty1 = mousyplc;
 					*hgltcntptr = 0;
 				}
 			}
 			else if (*hgltcntptr == 0)
 			{
-				gScreen2D.GetPoint(&hgltx1, &hglty1);
-				gScreen2D.GetPoint(&hgltx2, &hglty2);
 				if (hgltx1 > hgltx2) swapValues(&hgltx1, &hgltx2);
 				if (hglty1 > hglty2) swapValues(&hglty1, &hglty2);
 				
-				hglt2dAddInXYRange(hgltType, hgltx1, hglty1, hgltx2, hglty2);
-				if (hgltType == kHgltSector)
-					hgltDetachSectors();
-				
+				hglt2dAddInXYRange(hgltType, hgltx1, hglty1, hgltx2, hglty2);				
 				hgltType = 0;
+				
 				if (*hgltcntptr <= 0)
 					*hgltcntptr = -1;
 			}
 		}
 		
-		if (pGLShape)
+		if (pGLBuild)
 		{
-			int nStat = pGLShape->StatusGet();
+			msg = buffer;
+			msg+=sprintf(buffer, "Sector draw:");
+			helperDoGridCorrection(&x, &y);
+			
+			pGLBuild->Setup(x, y);
+			if ((nStat = pGLBuild->StatusGet()) >= 0)
+			{
+				msg+=sprintf(msg, " Press SPACE to");
+				switch(nStat)
+				{
+					case 0:
+						gMapedHud.SetMsgImp(16, "%s insert or BACKSPACE to remove a point", buffer);
+						break;
+					case 1:
+					case 2:
+						gMapedHud.SetMsgImp(16, "%s split sector", buffer);
+						break;
+					case 3:
+						gMapedHud.SetMsgImp(16, "%s insert walls", buffer);
+						break;
+					case 4:
+					case 5:
+						gMapedHud.SetMsgImp(16, "%s create new sector", buffer);
+						break;
+				}
+			}
+			else if ((msg = retnCodeCheck(nStat, gLoopBuildErrors)) != NULL)
+			{
+				gMapedHud.SetMsgImp(16, "%s %s", buffer, msg);
+			}
+		}
+		else if (pGLShape)
+		{
+			nStat = pGLShape->StatusGet();
 			sprintf(buffer, "Loop shape");
-			char doSetup = capstat;
-			char* errMsg;
 			
 			OBJECT obj;
 			obj.type = somethingintab; obj.index = tempidx;
@@ -1144,7 +1026,7 @@ void ProcessKeys2D( void )
 			if (capstat)
 				pGLShape->Setup(x, y, &obj);
 			
-			if (nStat >= 0 || (errMsg = retnCodeCheck(nStat, gLoopShapeErrors)) == NULL)
+			if (nStat >= 0 || (msg = retnCodeCheck(nStat, gLoopShapeErrors)) == NULL)
 			{
 				if (nStat)
 				{
@@ -1161,7 +1043,7 @@ void ProcessKeys2D( void )
 			}
 			else
 			{
-				gMapedHud.SetMsgImp(16, "%s error: %s", buffer, errMsg);
+				gMapedHud.SetMsgImp(16, "%s error: %s", buffer, msg);
 			}
 			
 			
@@ -1200,9 +1082,8 @@ void ProcessKeys2D( void )
 					}
 					if (key != KEY_SPACE || !alt)
 					{
-						keystatus[key] = 0;
+						keystatus[key] = 0, key = 0;
 						BeepOk();
-						key = 0;
 					}
 					break;
 			}
@@ -1232,7 +1113,7 @@ void ProcessKeys2D( void )
 							DELETE_AND_NULL(pGCircleW);
 							break;
 					}
-					keystatus[key] = 0;
+					keystatus[key] = 0, key = 0;
 					BeepOk();
 					break;
 			}
@@ -1240,32 +1121,71 @@ void ProcessKeys2D( void )
 		else if (pGDoorSM || pGDoorR)
 		{
 			sprintf(buffer, "Door wizard");
-			int nWidth = (grid <= 0) ? 128 : (2048 >> grid), nStat;
-			char* errMsg;
+			nThick = (grid <= 0) ? 128 : (2048 >> grid);
 			
 			if (pGDoorSM)
 			{
 				if (linehighlight >= 0)
 				{
+					x = mousxplc, y = mousyplc;
 					i = linehighlight;
-					getclosestpointonwall(mousxplc, mousyplc, i, &x, &y);
-					if (!shift && grid)
+
+					if (!shift)
+						helperDoGridCorrection(&x, &y);
+				
+					getclosestpointonwall(x, y, i, &x, &y);
+					if (!(pGDoorSM->Setup(i, nThick, x, y)))
 					{
-						if (wallVert(i)) 		doGridCorrection(&x, grid);
-						else if (wallHoriz(i))	doGridCorrection(&y, grid);
-						else 					doGridCorrection(&x, &y, 10);
-					}
-									
-					if (!(pGDoorSM->Setup(i, nWidth, x, y)))
-					{
-						errMsg = retnCodeCheck(pGDoorSM->StatusGet(), gDoorWizardErrors);
-						if (errMsg)
-							gMapedHud.SetMsgImp(16, "%s error: %s", buffer, errMsg);
+						msg = retnCodeCheck(pGDoorSM->StatusGet(), gDoorWizardErrors);
+						if (msg)
+							gMapedHud.SetMsgImp(16, "%s error: %s", buffer, msg);
 					}
 					else
 					{
 						gMapedHud.SetMsgImp(16, "%s: Press SPACE to insert %s-sided door here", buffer,
 						(pGDoorSM->info.twoSides) ? "DOUBLE" : "ONE");
+					}
+					
+					switch(key)
+					{
+						case KEY_PLUS:
+						case KEY_MINUS:
+						case KEY_SPACE:
+						case KEY_F2:
+							switch(key)
+							{
+								case KEY_PLUS:
+									pGDoorSM->SetPadding(pGDoorSM->info.padding + 32);
+									break;
+								case KEY_MINUS:
+									pGDoorSM->SetPadding(pGDoorSM->info.padding - 32);
+									break;
+								case KEY_F2:
+									pGDoorSM->prefs.twoSides^=1;
+									break;
+								case KEY_SPACE:
+									if (pGDoorSM->StatusGet() > 0)
+									{
+										i = pGDoorSM->info.sector;
+										sectortype* pSect = &sector[i];
+										switch(pSect->type)
+										{
+											case kSectorSlide:
+											case kSectorSlideMarked:
+												if (!Confirm("This sector already a slider. Continue anyway?"))
+													break;
+											default:
+												pGDoorSM->Insert();
+												DELETE_AND_NULL(pGDoorSM);
+												BeepOk();
+												break;
+										}
+									}
+									break;
+							}
+							keystatus[key] = 0, key = 0;
+							BeepOk();
+							break;
 					}
 				}
 				else
@@ -1273,70 +1193,26 @@ void ProcessKeys2D( void )
 					pGDoorSM->StatusClear();
 					gMapedHud.SetMsgImp(16, "%s: Hover a solid wall", buffer);
 				}
-				
-				switch(key)
-				{
-					case KEY_PLUS:
-					case KEY_MINUS:
-					case KEY_SPACE:
-					case KEY_F2:
-						switch(key)
-						{
-							case KEY_PLUS:
-								pGDoorSM->SetPadding(pGDoorSM->info.padding + 32);
-								break;
-							case KEY_MINUS:
-								pGDoorSM->SetPadding(pGDoorSM->info.padding - 32);
-								break;
-							case KEY_F2:
-								pGDoorSM->prefs.twoSides^=1;
-								break;
-							case KEY_SPACE:
-								if (pGDoorSM->StatusGet() > 0)
-								{
-									i = pGDoorSM->info.sector;
-									sectortype* pSect = &sector[i];
-									switch(pSect->type)
-									{
-										case kSectorSlide:
-										case kSectorSlideMarked:
-											if (!Confirm("This sector already a slider. Continue anyway?"))
-												break;
-										default:
-											pGDoorSM->Insert();
-											DELETE_AND_NULL(pGDoorSM);
-											BeepOk();
-											break;
-									}
-								}
-								break;
-						}
-						keystatus[key] = 0;
-						BeepOk();
-						break;
-				}
 			}
 			else if (pGDoorR)
 			{
 				if (linehighlight >= 0)
 				{
-					i = linehighlight;
 					x = mousxplc; y = mousyplc;
-					if (!shift && grid && (pGDoorR->info.mode == 2 || (!pGDoorR->info.mode && wall[i].nextsector < 0)))
-					{
-						if (wallVert(i)) 		doGridCorrection(&x, grid);
-						else if (wallHoriz(i))	doGridCorrection(&y, grid);
-						else 					doGridCorrection(&x, &y, 10);
-					}
-
-					pGDoorR->Setup(i, nWidth, x, y);
+					i = linehighlight;
+					
+					if (!shift)
+						helperDoGridCorrection(&x, &y);
+					
+					getclosestpointonwall(x, y, i, &x, &y);
+					pGDoorR->Setup(i, nThick, x, y);
 					nStat = pGDoorR->StatusGet();
 					
 					if (nStat < 0)
 					{
-						errMsg = retnCodeCheck(nStat, gDoorWizardErrors);
-						if (errMsg)
-							gMapedHud.SetMsgImp(16, "%s error: %s", buffer, errMsg);
+						msg = retnCodeCheck(nStat, gDoorWizardErrors);
+						if (msg)
+							gMapedHud.SetMsgImp(16, "%s error: %s", buffer, msg);
 					}
 					else
 					{
@@ -1391,7 +1267,7 @@ void ProcessKeys2D( void )
 									break;
 								}
 							}
-							keystatus[key] = 0;
+							keystatus[key] = 0, key = 0;
 							BeepOk();
 							break;
 					}
@@ -1407,37 +1283,88 @@ void ProcessKeys2D( void )
 		
 	switch (key)
 	{
-		
+		case KEY_BACKSPACE:
+			if (pGLBuild)
+			{
+				pGLBuild->RemPoint();
+				if (pGLBuild->NumPoints() <= 0)
+					DELETE_AND_NULL(pGLBuild);
+			}
+			break;
 		case KEY_SPACE:
 		case KEY_C:
-			if (pGDoorSM)	DELETE_AND_NULL(pGDoorSM);
-			if (pGDoorR)	DELETE_AND_NULL(pGDoorR);
-			if (pGCircleW)  DELETE_AND_NULL(pGCircleW);
-			if (pGLShape)	DELETE_AND_NULL(pGLShape);
-			if (key == KEY_SPACE)
+			i = 0;
+			if (pGDoorSM)	i = 1, DELETE_AND_NULL(pGDoorSM);
+			if (pGDoorR)	i = 1, DELETE_AND_NULL(pGDoorR);
+			if (pGCircleW)  i = 1, DELETE_AND_NULL(pGCircleW);
+			if (pGLShape)	i = 1, DELETE_AND_NULL(pGLShape);
+			if (i == 0)
 			{
-				if (alt)
+				if (key == KEY_SPACE)
 				{
-					if ((i = showButtons(gLoopShapeTypes, LENGTH(gLoopShapeTypes), "Select shape type...") - mrUser) >= 0)
+					if (alt)
 					{
-						pGLShape = new LOOPSHAPE(i, sectorhighlight, x, y);
-						scrSetMessage("Loop shape tool started.");
-						BeepOk();
+						if ((i = showButtons(gLoopShapeTypes, LENGTH(gLoopShapeTypes), "Select shape type...") - mrUser) >= 0)
+						{
+							if (pGLBuild)
+								DELETE_AND_NULL(pGLBuild);
+							
+							pGLShape = new LOOPSHAPE(i, sectorhighlight, x, y);
+							scrSetMessage("Loop shape tool started.");
+							BeepOk();
+						}
 					}
-					
-					keystatus[key] = 0;
-					key = 0;
-					break;
+					else
+					{
+						int nStat; char* p;
+						if (!pGLBuild)
+						{
+							pGLBuild = new LOOPBUILD();
+							helperDoGridCorrection(&x, &y);
+							if (!pGLBuild->Setup(x, y))
+							{
+								nStat = pGLBuild->StatusGet();
+								if ((p = retnCodeCheck(nStat, gLoopBuildErrors)) != NULL)
+									gMapedHud.SetMsgImp(128, "%s", p);
+								
+								DELETE_AND_NULL(pGLBuild);
+								BeepFail();
+								break;
+							}
+						}
+						
+						if ((nStat = pGLBuild->StatusGet()) >= 0)
+						{
+							switch(nStat)
+							{
+								case 0: 
+									pGLBuild->AddPoint(x, y);
+									BeepOk();
+									break;
+								default:
+									if (Beep(nStat > 0))
+									{
+										pGLBuild->Make();
+										DELETE_AND_NULL(pGLBuild);
+									}
+									break;
+							}
+						}
+					}
 				}
-			}
-	
-			if (key == KEY_C)
-			{
-				if (Beep(linehighlight >= 0))
+			
+				if (key == KEY_C)
 				{
-					pGCircleW			= new CIRCLEWALL(linehighlight, x, y);
-					pGCircleW->count	= gMisc.circlePoints;
-					break;
+					if (Beep(linehighlight >= 0))
+					{
+						pGCircleW			= new CIRCLEWALL(linehighlight, x, y);
+						pGCircleW->count	= gMisc.circlePoints;
+						
+						if (pGLBuild)
+							DELETE_AND_NULL(pGLBuild);
+						
+						break;
+					}
 				}
 			}
 			break;
@@ -1501,7 +1428,8 @@ void ProcessKeys2D( void )
 				}
 			}
 			
-			switch (searchstat) {
+			switch (searchstat)
+			{
 				case OBJ_WALL:
 					if (cpywall[kTabWall].extra > 0)
 					{
@@ -1566,7 +1494,7 @@ void ProcessKeys2D( void )
 				for (i = 0; i < highlightsectorcnt; i++)
 				{
 					sect = highlightsector[i];
-					sectClone(sect, nsects, nwalls, 0x03);
+					sectClone(sect, nsects, nwalls);
 					sectChgXY(nsects, 2048>>nGrid, 2048>>nGrid);
 					nwalls += sector[sect].wallnum;
 					nsects++;
@@ -1586,7 +1514,7 @@ void ProcessKeys2D( void )
 					sect = numsectors + i;
 					highlightsector[i] = sect;
 					getSectorWalls(sect, &swal, &ewal);
-					sectorDetach(sect);
+					sectDetach(sect);
 					
 					while(swal <= ewal)
 					{
@@ -1627,7 +1555,7 @@ void ProcessKeys2D( void )
 				
 				if (Beep(i >= numwalls))
 				{
-					insertpoint(linehighlight, x, y);
+					insertPoint(linehighlight, x, y);
 					scrSetMessage("New point inserted at X:%d Y:%d", x, y);
 				}
 			}

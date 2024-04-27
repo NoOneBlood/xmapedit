@@ -2,8 +2,9 @@
 resource "INI\DEFAULTS.INI" as 0;	// default xmapedit settings
 resource "INI\HINTS.INI" as 1;		// hints for HUD edit dialogs
 resource "INI\STDCLR.INI" as 2;		// standard color palette
-resource "INI\2DSCLR.INI" as 3;		// 2d screen colors
-resource "INI\OBJTYPES.INI" as 4;	// Type names and AutoAdjustSprites info
+resource "INI\2DSCLRN.INI" as 3;	// 2d screen colors
+resource "INI\OBJTYPES.INI" as 4;	// type names and AutoAdjustSprites info
+resource "INI\ROMFONT.INI" as 5;	// binary fonts information
 ///////////////////////////////
 
 
@@ -33,31 +34,21 @@ resource "QFN\VCOLOR\TFONT3.QFN" as 12;
 // MONOCHROME VGA ROM FONTS
 ///////////////////////////////
 resource "RFN\08X08DFL.RFN" as 0;
-resource "RFN\08X08DFS.RFN" as 1;
+resource "RFN\04X04DFS.RFN" as 1;
+resource "RFN\06X06SMR.RFN" as 2;
+resource "RFN\08X08NFN.RFN" as 3;
 //-------------------------------
-resource "RFN\08X08PH2.RFN" as 2;
-//resource "RFN\08X14PH2.RFN" as 3;
-//resource "RFN\08X16PH2.RFN" as 4;
+//resource "RFN\THIN\08X08OS2.RFN" as 8;
+//resource "RFN\THIN\08X10OS2.RFN" as 9;
+//resource "RFN\THIN\08X12OS2.RFN" as 10;
 //-------------------------------
-//resource "RFN\08X08HYL.RFN" as 5;
-//resource "RFN\08X14HYL.RFN" as 6;
-resource "RFN\08X16HYL.RFN" as 7;
+resource "RFN\08X08DFL.RFN" as 8;
+resource "RFN\08X10UNK.RFN" as 9;
+resource "RFN\08X14DST.RFN" as 10;
 //-------------------------------
-//resource "RFN\08X08LCD.RFN" as 8;
-//resource "RFN\08X14LCD.RFN" as 9;
-resource "RFN\08X16LCD.RFN" as 10;
-//-------------------------------
-resource "RFN\08X08TSB.RFN" as 11;
-//resource "RFN\08X14TSB.RFN" as 12;
-//resource "RFN\08X16TSB.RFN" as 13;
-//-------------------------------
-resource "RFN\08X08VTL.RFN" as 14;
-//resource "RFN\08X14VTL.RFN" as 15;
-//resource "RFN\08X16VTL.RFN" as 16;
-//-------------------------------
-resource "RFN\08X08FJ1.RFN" as 17;
-//resource "RFN\08X14FJ1.RFN" as 18;
-//resource "RFN\08X16FJ1.RFN" as 19;
+resource "RFN\08X14OS2.RFN" as 11;
+resource "RFN\08X16OS2.RFN" as 12;
+resource "RFN\08X18OS2.RFN" as 13;
 //-------------------------------
 ///////////////////////////////
 

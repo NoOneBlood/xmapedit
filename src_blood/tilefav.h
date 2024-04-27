@@ -20,9 +20,10 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
+#ifndef __TILEFAV_H
+#define __TILEFAV_H
 #define kMaxFavoriteTiles 1024
-#define kFavTilesFileName "xmapedit\\xmapedit.ftl"
+#define kFavTilesFileName "xmapedit/xmapedit.ftl"
 
 struct GAME_OBJECT_TILE {
 	short pic;
@@ -38,3 +39,4 @@ int favoriteTileSelect(int startPic, int nDefault, BOOL returnTile, int objType)
 spritetype* favTileInsert(int where, int nSector, int x, int y, int z, int nAngle);
 int tileInFaves(int picnum);
 void favoriteTileSave();
+#endif

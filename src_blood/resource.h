@@ -22,8 +22,6 @@
 ***********************************************************************************/
 #pragma once
 
-#include "qheap.h"
-
 #pragma pack(push, 1)
 
 enum DICTFLAGS {

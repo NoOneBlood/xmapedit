@@ -1,109 +1,39 @@
+/**********************************************************************************
+///////////////////////////////////////////////////////////////////////////////////
+// Copyright (C) 2023: Originally written by NoOne.
+// Screen drawing for 2D editing mode.
+//
+// This file is part of XMAPEDIT.
+//
+// XMAPEDIT is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License version 2
+// as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+//
+// See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+////////////////////////////////////////////////////////////////////////////////////
+***********************************************************************************/
+
 #ifndef __XMP2DSCR
 #define __XMP2DSCR
-#include "gfx.h"
-#include "xmpmisc.h"
+#include "db.h"
 #include "screen.h"
-#include "inifile.h"
-
-enum
-{
-kClrBase			= 0,
-kClrEdBase			= kClrBase,
-kClrEdBgd			= kClrEdBase,
-kClrEdGrd,
-kClrEdCurPos,
-kClrEdStartPos,
-kClrEdHgltPointB,
-kClrEdHgltPointF,
-kClrEdHgltSectB,
-kClrEdHgltSectF,
-kClrEdSprCountUnder,
-kClrEdCircleFill,
-kClrEdCircleCenter,
-kClrEdHgltSectBox,
-kClrEdWalNew,
-kClrEdFirstVtxBrd,
-kClrEdFirstVtxBgd,
-kClrEdWallAngled,
-kClrEdCaptWalNewT,
-kClrEdCaptWalNewB,
-kClrEdCaptWalFT,
-kClrEdCaptWalFB,
-kClrEdCaptWalAT,
-kClrEdCaptWalAB,
-kClrEdExpRad,
-kClrEdTracerPath,
-kClrEdTracerSlide,
-kClrEdTracerWarp,
-kClrEdAmbRad2On,
-kClrEdAmbRad1On,
-kClrEdAmbRad2Off,
-kClrEdAmbRad1Off,
-kClrEdMax,
-//------------------------------------------
-kClrSectBase		= kClrEdMax,
-kClrSectFillHovr	= kClrSectBase,
-kClrSectFillHglt,
-kClrSectFillMerg,
-kClrPrvSectOff,
-kClrPrvSectOn,
-kClrPrvSectMotFx,
-kClrCaptSectT,
-kClrCaptSectB,
-kClrTracerSec,
-kClrSectMax			= kClrTracerSec,
-//------------------------------------------
-kClrWalBase,
-kClrWalNext,
-kClrWalHscn,
-kClrWalMveF,
-kClrWalMveR,
-kClrCaptWalT,
-kClrCaptWalB,
-kClrVtxBord,
-kClrVtxFill,
-kClrTracerWal,
-kClrWalMax			= kClrTracerWal,
-//------------------------------------------
-kClrSprBase,
-kClrSprHscn,
-kClrSprInvs,
-kClrSprMveF,
-kClrSprMveR,
-kClrSprDude,
-kClrSprItem,
-kClrSprMark,
-kClrSprMarkPath,
-kClrSprMarkOwn,
-kClrSprMarkWarp,
-kClrSprStealMore,
-kClrSprStealLess,
-kClrSprMissile1,
-kClrSprMissile2,
-kClrSprAmbOff,
-kClrSprAmbOn,
-kClrSprPly1,
-kClrSprPly2,
-kClrSprPly3,
-kClrSprPly4,
-kClrSprPly5,
-kClrSprPly6,
-kClrSprPly7,
-kClrSprPly8,
-kClrCaptSprTHscn,
-kClrCaptSprTMveF,
-kClrCaptSprT,
-kClrTracerSpr,
-kClrSprMax		= kClrTracerSpr,
-kClrMax,
-};
 
 class SCREEN2D
 {
 	public:
-		char colors[kClrMax][2];
+		char colors[32][2];
 		// ---------------------------------------------------------------------
 		spritetype* pSpr; XSPRITE* pXSpr;
+		unsigned int numflines;
+		LINE2D* flines;
 		QFONT* pCaptFont;
 		QFONT* pEditFont;
 		// ---------------------------------------------------------------------
@@ -136,6 +66,7 @@ class SCREEN2D
 			unsigned int showHighlight		: 1;
 			unsigned int showTags			: 3;
 			unsigned int showFeatures		: 1;
+			unsigned int clipView			: 1;
 		}
 		prefs;
 		struct
@@ -147,9 +78,22 @@ class SCREEN2D
 			int zoom;
 		}
 		data;
-		SCREEN2D() { memset(colors, 255, sizeof(colors)); }
+		SCREEN2D()
+		{
+			memset(colors, 255, sizeof(colors));
+			SetView(0, 0, 0, 0);
+			flines = NULL;
+			data.zoom = 768;
+		}
+		~SCREEN2D()
+		{
+			if (flines)
+				free(flines);
+			
+			numflines = 0;
+		}
 		// ---------------------------------------------------------------------
-		void SetView(int x1, int y1, int x2, int y2);
+		void SetView(int x1, int y1, int x2, int y2, char clip = 0);
 		// ---------------------------------------------------------------------
 		void ColorInit(IniFile* pIni);
 		void ColorFill(char which, char color, int nStart);
@@ -159,6 +103,16 @@ class SCREEN2D
 		// ---------------------------------------------------------------------
 		void ScreenDraw(void);
 		void ScreenClear(void);
+		inline void ScreenDraw(int camx, int camy, int ang, int grid, int zoom)
+		{
+			data.ang		= ang;
+			data.grid		= grid;
+			data.zoom		= zoom;
+			data.camx		= posx;
+			data.camy		= posy;
+			
+			ScreenDraw();
+		}
 		// ---------------------------------------------------------------------
 		void DrawGrid(void);
 		void DrawLine(int x1, int y1, int x2, int y2, char c, char b, int drawPat = kPatNormal);
@@ -197,6 +151,7 @@ class SCREEN2D
 		void CaptionPrintSector(int nSect, char hover, QFONT* pFont);
 		void CaptionPrintSprite(int nSpr, char hover, QFONT* pFont);
 		void CaptionPrintWall(int nWall, char hover, QFONT* pFont);
+		void CaptionPrintLineEdit(int nOffs, int x1, int y1, int x2, int y2, char fc, char bc, QFONT* pFont);
 		void CaptionPrintWallEdit(int nWall, char fc, char bc, QFONT* pFont);
 		// ---------------------------------------------------------------------
 		void FillSector(int nSect, char c, char nStep = 2, int drawPat = kPatNormal);
@@ -215,11 +170,13 @@ class SCREEN2D
 		// ---------------------------------------------------------------------
 		char InHighlight(int x, int y);
 		void ScaleAngLine(int scale, int ang, int* x, int* y);
+		void ScalePoints(int* x1 = NULL, int* y1 = NULL, int* x2 = NULL, int* y2 = NULL);
 		char OnScreen(int x1, int y1, int x2, int y2);
+		
+		
 		inline char OnScreen(int x, int y, int s)	{ return OnScreen(x-s, y-s, x+s, y+s); }
 		inline int cscalex(int a)				 	{ return view.wcx + mulscale14(a - data.camx, data.zoom); }
 		inline int cscaley(int a)				 	{ return view.wcy + mulscale14(a - data.camy, data.zoom); }
 };
 
-extern SCREEN2D gScreen2D;
 #endif

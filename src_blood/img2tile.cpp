@@ -21,19 +21,11 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include "iob.h"
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "img2tile.h"
-#include "screen.h"
 #include "tile.h"
-#include "inifile.h"
-#include "gui.h"
 #include "common_game.h"
-
-#include "xmpstr.h"
 #include "xmparted.h"
-#include "xmpconf.h"
-#include "xmpmisc.h"
 
 #ifdef USE_KPLIB
 extern "C" {

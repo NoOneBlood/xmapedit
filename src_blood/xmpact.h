@@ -25,9 +25,6 @@
 #ifndef __XMPACT
 #define __XMPACT
 
-#include "build.h"
-#include "common_game.h"
-#include "db.h"
 
 
 struct POSTPONE

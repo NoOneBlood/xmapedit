@@ -22,14 +22,10 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "callback.h"
 #include "db.h"
-#include "eventq.h"
-#include "gameutil.h"
 #include "seq.h"
 #include "preview.h"
-#include "xmpstub.h"
-#include "screen.h"
+#include "xmpmaped.h"
 
 #define kMaxEffectSprites	512
 

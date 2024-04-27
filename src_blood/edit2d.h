@@ -1,17 +1,29 @@
-/*******************************************************************************
-	FILE:			EDIT2D.H
-
-	DESCRIPTION:
-
-	AUTHOR:			Peter M. Freese
-	CREATED:		02-18-96
-	COPYRIGHT:		Copyright (c) 1995 Q Studios Corporation
-*******************************************************************************/
+/**********************************************************************************
+///////////////////////////////////////////////////////////////////////////////////
+// Copyright (C) 1996: Originally written by Peter Freese.
+// Copyright (C) 2021: Updated by NoOne.
+//
+// This file is part of XMAPEDIT.
+//
+// XMAPEDIT is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License version 2
+// as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+//
+// See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+////////////////////////////////////////////////////////////////////////////////////
+***********************************************************************************/
 #ifndef __EDIT2D_H
 #define __EDIT2D_H
 #include "xmphud.h"
-#include "xmpdoorwiz.h"
-#include "xmpshape.h"
+#include "xmpmaped.h"
 
 extern short sectorhighlight;
 extern short pointdrag;
@@ -26,10 +38,6 @@ int findUnusedStack();
 void getclosestpointonwall(int x, int y, int nWall, int *nx, int *ny);
 int getlinehighlight(int nTresh, int x, int y, int nZoom);
 int getpointhighlight(int nTresh, int x, int y, int nZoom);
-
-inline void lockSectorDrawing() {gSectorDrawing = 0;}
-inline void unlockSectorDrawing() {gSectorDrawing = 1;}
-
 
 #define kMaxCirclePoints 64
 class CIRCLEWALL
@@ -57,9 +65,10 @@ class CIRCLEWALL
 		~CIRCLEWALL() 							{ Stop(); }
 };
 
+extern SCREEN2D gScreen2D;
 extern DOOR_ROTATE* pGDoorR;
 extern DOOR_SLIDEMARKED* pGDoorSM;
 extern CIRCLEWALL* pGCircleW;
 extern LOOPSHAPE* pGLShape;
-
+extern LOOPBUILD* pGLBuild;
 #endif

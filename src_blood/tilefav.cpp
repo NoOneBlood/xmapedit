@@ -20,19 +20,10 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include "build.h"
-#include "baselayer.h"
-#include "gameutil.h"
-#include "screen.h"
-#include "tile.h"
-#include "xmpstub.h"
 #include "common_game.h"
-#include "inifile.h"
+#include "tile.h"
+#include "xmpmaped.h"
 #include "aadjust.h"
-#include "xmpmisc.h"
-#include "tilefav.h"
-#include "xmpstr.h"
-#include "gui.h"
 
 short gFavTilesC = 0;
 GAME_OBJECT_TILE gFavTiles[];

@@ -20,24 +20,11 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
-#include "xmpconf.h"
-#include "xmpstub.h"
-#include "edit2d.h"
 #include "common_game.h"
-#include "build.h"
-#include "gfx.h"
-#include "gui.h"
-#include "gameutil.h"
-#include "screen.h"
+#include "xmpmaped.h"
 #include "preview.h"
-#include "grdshd.h"
 #include "seq.h"
 #include "aadjust.h"
-#include "sectorfx.h"
-#include "tile.h"
-#include "xmpmisc.h"
-#include "editor.h"
 #include "hglt.h"
 
 PREVIEW_MODE gPreview;
@@ -52,6 +39,7 @@ static PREVIEW_MODE_KEYS gPreviewKeys[] = {
 	{KEY_A,				FALSE, FALSE, FALSE,			3},
 	{KEY_Z,				FALSE, FALSE, FALSE,			3},
 	{KEY_PADENTER,		FALSE, FALSE, FALSE,			3},
+	{KEY_PADPERIOD,		FALSE, FALSE, FALSE,			3},
 	{KEY_CAPSLOCK,		FALSE, FALSE, FALSE,			3},
 	{KEY_TILDE,			FALSE, FALSE, FALSE,			3},
 	{KEY_RSHIFT,		FALSE, FALSE, FALSE,			3},
@@ -430,9 +418,12 @@ void previewStart() {
 	gPostCount = 0;
 	
 	memset(gPreview.scrEffects, 0, sizeof(gPreview.scrEffects));
-	memset(show2dsprite, 	0, sizeof(show2dsprite));
-	memset(show2dwall, 		0, sizeof(show2dwall));
-	memset(show2dsector, 	0, sizeof(show2dsector));
+	memset(show2dsprite, 		0, sizeof(show2dsprite));
+	memset(show2dwall, 			0, sizeof(show2dwall));
+	memset(show2dsector, 		0, sizeof(show2dsector));
+	memset(hgltspri, 			0, sizeof(hgltspri));
+	memset(hgltwall, 			0, sizeof(hgltwall));
+	
 	automapping = true;
 	
 	previewInitGameLite();
@@ -551,7 +542,7 @@ void previewStop() {
 		{
 			// restore wall highlight effect
 			if (hgltCheck(OBJ_WALL, s) >= 0)
-				SetBitString(show2dwall, s);
+				SetBitString(hgltwall, s);
 			
 			s++;
 		}
@@ -560,7 +551,7 @@ void previewStop() {
 		{
 			// restore sprite highlight effect
 			if (hgltCheck(OBJ_SPRITE, s) >= 0)
-				SetBitString(show2dsprite, s);
+				SetBitString(hgltspri, s);
 		}
 	}
 	

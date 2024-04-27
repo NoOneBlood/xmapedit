@@ -20,27 +20,15 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include <direct.h>
-
-#include "xmpstub.h"
-#include "seq.h"
-#include "editor.h"
-#include "xmpmisc.h"
-#include "xmpconf.h"
-#include "screen.h"
-#include "gui.h"
-#include "tile.h"
-#include "img2tile.h"
-#include "editor.h"
-#include "edit2d.h"
-#include "xmpsnd.h"
-#include "mapcmt.h"
+#include "xmpmaped.h"
 #include "xmparted.h"
+#include "xmpevox.h"
+#include "seq.h"
+#include "xmpmisc.h"
+#include "tile.h"
 #include "preview.h"
-#include "hglt.h"
 #include "aadjust.h"
-#include "xmpstr.h"
-#include "db.h"
+#include "mapcmt.h"
 
 int gNextWall[kMaxWalls];
 
@@ -416,91 +404,7 @@ char BIN2TXT::Decode(void)
 	return 1;
 }
 
-BYTE fileExists(char* filename, RESHANDLE* rffItem) {
 
-	BYTE retn = 0;
-	if (!filename) return retn;
-	else if (access(filename, F_OK) >= 0) // filename on the disk?
-		retn |= 0x0001;
-	
-	if (rffItem)
-	{
-		int len, i;
-		char tmp[BMAX_PATH]; char *fname = NULL, *fext = NULL;
-		pathSplit2(filename, tmp, NULL, NULL, &fname, &fext);
-		
-		if (!fname || !fext) return retn;
-		else if ((len = strlen(fext)) > 0)
-		{
-			if (fext[0] == '.')
-				fext =& fext[1];
-			
-			if ((*rffItem = gSysRes.Lookup(fname, fext)) != NULL) // filename in RFF?
-			{
-				retn |= 0x0002;
-			}
-			else
-			{
-				// fileID in RFF?
-				len = strlen(fname);
-				for (i = 0; i < len; i++) {
-					if (fname[i] < 48 || fname[i] > 57)
-						break;
-				}
-				
-				if (i == len && (*rffItem = gSysRes.Lookup(atoi(fname), fext)) != NULL)
-					retn |= 0x0004;
-			}
-		}
-	}
-	
-	return retn;
-}
-
-int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom)
-{
-	RESHANDLE pFile;
-	int i, hFile, nSize = 0;
-	dassert(out != NULL && *out == NULL);
-	if (loadFrom)
-		*loadFrom = -1;
-	
-	
-	if ((i = fileExists(filepath, &pFile)) == 0)
-		return -1;
-	
-	// file on the disk is the priority
-	if ((i & 0x01) && (hFile = open(filepath, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
-	{
-		if ((nSize = filelength(hFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
-		{
-			read(hFile, *out, nSize);
-			if (loadFrom)
-				*loadFrom = 0x01;
-		}
-		
-		close(hFile);
-	}
-	// load file from the RFF then
-	else if (pFile)
-	{
-		if ((nSize = gSysRes.Size(pFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
-		{
-			memcpy(*out, (BYTE*)gSysRes.Load(pFile), nSize);
-			if (loadFrom)
-				*loadFrom = 0x02;
-		}
-	}
-	
-	return (*out) ? nSize : -2;
-}
-
-void updateClocks() {
-	
-	gFrameTicks = totalclock - gFrameClock;
-	gFrameClock += gFrameTicks;
-	
-}
 
 
 void plsWait() {
@@ -534,7 +438,7 @@ void splashScreen(char* text) {
 	gfxHLine(y, 18, xdim - 18); y--;
 	y-=(pFont->height);
 	
-	sprintf(buff, "BUILD [%s]", __DATE__);
+	sprintf(buff, "BUILD [%s]", build_date);
 	gfxPrinTextShadow(18, y, gStdColor[18], strupr(buff), pFont);
 	
 	gfxSetColor(gStdColor[kColorRed]); y = ydim - 27;
@@ -549,38 +453,12 @@ void splashScreen(char* text) {
 	
 }
 
-void gfxPrinTextShadow(int x, int y, int col, char* text, QFONT *pFont, int shofs) {
-	if (pFont->type != kFontTypeRasterVert) gfxDrawText(x + shofs, y + shofs, gStdColor[30], text, pFont);
-	else viewDrawText(x + shofs, y + shofs, pFont, text, 127);
-	gfxDrawText(x, y, col, text, pFont);
-}
-
 void Delay(int time) {
 	int done = totalclock + time;
 	while (totalclock < done);
 }
 
-void BeepOk(void) {
 
-	if (!gMisc.beep) return;
-	gBeep.Play(kBeepOk);
-}
-
-
-void BeepFail(void) {
-	
-	if (!gMisc.beep) return;
-	gBeep.Play(kBeepFail);
-
-}
-
-BOOL Beep(BOOL cond) {
-	
-	if (cond) BeepOk();
-	else BeepFail();
-	return cond;
-	
-}
 
 int getClosestId(int nId, int nRange, char* nType, BOOL dir) {
 	
@@ -856,24 +734,6 @@ void eraseExtra() {
 	
 }
 
-BOOL objectLockShowStatus(int x, int y) {
-	
-	x = 0;
-	QFONT* pFont = qFonts[1];
-	if (gObjectLock.type >= 0)
-	{
-		if (qsetmode == 200)
-		{
-			sprintf(buffer, "LOCKED ON %s #%d (TIME LEFT %d)", gSearchStatNames[gObjectLock.type], gObjectLock.idx, gObjectLock.time - totalclock);
-			gfxPrinTextShadow(2, y, gStdColor[kColorYellow ^ h], strupr(buffer), pFont);
-		}
-		
-		return TRUE;
-	}
-	
-	return FALSE;
-}
-
 int getHighlightedObject() {
 	
 	if (qsetmode == 200)
@@ -935,96 +795,6 @@ int getHighlightedObject() {
 	
 }
 
-
-char* getFilename(char* pth, char* out, BOOL addExt) {
-
-	char tmp[_MAX_PATH]; char *fname = NULL, *ext = NULL;
-	pathSplit2(pth, tmp, NULL, NULL, &fname, &ext);
-	sprintf(out, fname);
-	if (addExt)
-		strcat(out, ext);
-	
-	return out;
-}
-
-char* getFiletype(char* pth, char* out, char addDot)
-{
-	char tmp[_MAX_PATH]; char *fname = NULL, *ext = NULL;
-	pathSplit2(pth, tmp, NULL, NULL, &fname, &ext);
-	if (!isempty(ext) && !addDot && *ext == '.')
-		ext++;
-	
-	if (ext)
-	{
-		strcpy(out, ext);
-		return out;
-	}
-	
-	return NULL;
-}
-
-char* getPath(char* pth, char* out, BOOL addSlash)
-{
-	int i;
-	char tmp[_MAX_PATH]; char *dsk = NULL, *dir = NULL;
-	pathSplit2(pth, tmp, &dsk, &dir, NULL, NULL);
-	_makepath(out, dsk, dir, NULL, NULL);
-	
-	if (addSlash)
-	{
-		if ((i = strlen(out)) > 0 && !slash(out[i - 1]))
-			catslash(out);
-	}
-	
-	return out;
-}
-
-char* getRelPath(char* relto, char* targt)
-{
-	int l, s, i;
-	if ((l = strlen(relto)) <= strlen(targt))
-	{
-		s = targt[l];
-		
-		if (s)
-			targt[l] = '\0';
-		
-		for (i = 0; i < l; i++)
-		{
-			if (slash(relto[i]) && slash(targt[i])) continue;
-			if (toupper(relto[i]) != toupper(targt[i]))
-				break;
-		}
-		
-		if (s)
-			targt[l] = s;
-		
-		if (i >= l)
-			return &targt[l+1];
-	}
-	
-	return targt;
-}
-
-char* getCurDir(char* pth, char* out, char addSlash)
-{
-	int j = strlen(pth);
-	while(--j >= 0)
-	{
-		if (slash(pth[j]))
-		{
-			strcpy(out, &pth[j+1]);
-			if (addSlash)
-				catslash(out);
-
-			return out;
-		}
-	}
-	
-	strcpy(out, pth);
-	return out;
-}
-
 void playSound(int sndId, int showMsg) {
 	
 	if (!sndActive)
@@ -1063,35 +833,6 @@ void playSound(int sndId, int showMsg) {
 			scrSetMessage(buffer);
 			break;
 	}
-}
-
-
-
-void doGridCorrection(int* x, int* y, int nGrid)
-{
-	if ((nGrid = ClipRange(nGrid, 0, kMaxGrids)) > 0)
-	{ 
-		if (x) *x = (*x+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
-		if (y) *y = (*y+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
-	}
-}
-
-void doGridCorrection(int* x, int nGrid)
-{
-	doGridCorrection(x, NULL, nGrid);
-}
-
-void doWallCorrection(int nWall, int* x, int* y, int shift)
-{
-	int nx, ny;
-	GetWallNormal(nWall, &nx, &ny);
-	*x = *x + (nx >> shift);
-	*y = *y + (ny >> shift);
-}
-
-void dozCorrection(int* z, int zStep)
-{
-	*z = *z & ~zStep;
 }
 
 void hit2pos(int* rtx, int* rty, int* rtz, int32_t clipmask) {
@@ -1186,61 +927,7 @@ void hit2sector(int *rtsect, int* rtx, int* rty, int* rtz, int gridCorrection, i
 	
 }
 
-void avePointSector(int nSector, int *x, int *y) {
-	
-	int dax = 0, day = 0, startwall, endwall, j;
-	getSectorWalls(nSector, &startwall, &endwall);
-	for(j = startwall; j <= endwall; j++)
-	{
-		dax += wall[j].x;
-		day += wall[j].y;
-	}
-	
-	if (endwall > startwall)
-	{
-		dax /= (endwall-startwall+1);
-		day /= (endwall-startwall+1);
-	}
-	
-	*x = dax;
-	*y = day;
 
-}
-
-void avePointWall(int nWall, int* x, int* y, int* z)
-{
-	int nSect = sectorofwall(nWall);
-	avePointWall(nWall, x, y);
-	
-	*z = 0;
-	if (nSect >= 0)
-	{
-		int cz, fz;
-		getzsofslope(nSect, *x, *y, &cz, &fz);
-		*z = fz - klabs((cz-fz)>>1);
-	}
-}
-
-void avePointWall(int nWall, int* x, int* y)
-{
-	*x = ((wall[nWall].x + wall[wall[nWall].point2].x) >> 1);
-	*y = ((wall[nWall].y + wall[wall[nWall].point2].y) >> 1);
-}
-
-void getSectorWalls(int nSect, int* swal, int *ewal)
-{
-	*swal = sector[nSect].wallptr;
-	*ewal = *swal + sector[nSect].wallnum - 1;
-}
-
-double getWallLength(int nWall, int nGrid)
-{
-	int nLen = getWallLength(nWall);
-	if (nGrid)
-		return (double)(nLen / (2048>>nGrid));
-	
-	return (double)nLen;
-}
 
 BOOL isModernMap() {
 
@@ -1254,7 +941,7 @@ BOOL isModernMap() {
 
 BOOL isMultiTx(short nSpr) {
 	
-	register int j = 0;
+	int j = 0;
 	if (sprite[nSpr].statnum < kStatFree && (sprite[nSpr].type == 25 || sprite[nSpr].type == 26))
 	{
 		for (BYTE i = 0; i < 4; i++)
@@ -1266,7 +953,7 @@ BOOL isMultiTx(short nSpr) {
 
 BOOL multiTxGetRange(int nSpr, int out[4])
 {
-	register int j;
+	int j;
 	XSPRITE* pXSpr = &xsprite[sprite[nSpr].extra];
 	memset(out, 0, sizeof(int)*4);
 	
@@ -1290,7 +977,7 @@ BOOL multiTxGetRange(int nSpr, int out[4])
 
 BOOL multiTxPointsRx(int rx, short nSpr) {
 	
-	register BYTE j; int txrng[4];
+	int j; int txrng[4];
 
 	// ranged
 	if (multiTxGetRange(nSpr, txrng))
@@ -1308,18 +995,25 @@ BOOL multiTxPointsRx(int rx, short nSpr) {
 	
 }
 
+void toggleResolution(int fs, int xres, int yres, int bpp)
+{
+	int mode = qsetmode;
+	scrSetGameMode(fs, xres, yres, bpp);
 
-
-void printextShadow(int xpos, int ypos, short col, char* text, int font) {
-	printext2(xpos, ypos, col, text, &vFonts[font], 0x01);
-}
-
-void printextShadowL(int xpos, int ypos, short col, char* text) {
-	printextShadow(xpos, ypos, col, text, 0);
-}
-
-void printextShadowS(int xpos, int ypos, short col, char* text) {
-	printextShadow(xpos, ypos, col, text, 1);
+	if (ED23)				mode = 0x02|0x80;
+	else if (mode == 200)	mode = 0x01|0x80;
+	else					mode = 0x00|0x80;
+	
+	if (tileLoadTile(gSysTiles.drawBuf))
+	{
+		tileFreeTile(gSysTiles.drawBuf);
+		tileAllocTile(gSysTiles.drawBuf, xdim, ydim);
+	}
+	
+	gTileView.InitWindow();
+	
+	flushperms();
+	xmpSetEditMode(mode);	
 }
 
 void findSectorMarker(int nSect, int *nIdx1, int *nIdx2) {
@@ -1368,34 +1062,6 @@ void findSectorMarker(int nSect, int *nIdx1, int *nIdx2) {
 	}
 }
 
-BYTE mostUsedColor(BYTE* pixels, int len, short noColor) {
-	
-	if (pixels == NULL || *pixels == NULL)
-		return 0;
-	
-	int colors[256], i = 0, j = 0, most = 0;
-	memset(colors, 0, sizeof(colors));
-	
-	for (i = 0; i < len; i++)
-	{
-		if (noColor >= 0 && pixels[i] == noColor)
-			continue;
-		
-		colors[pixels[i]]++;
-	}
-	
-	
-	for (i = 0; i < 256; i++)
-	{
-		if (colors[i] < most)
-			continue;
-		most = colors[i];
-		j = i;
-	}
-	
-	return (BYTE)j;
-	
-}
 
 
 void doAutoGrid() {
@@ -1427,8 +1093,8 @@ BOOL markerIsNode(int idx, int goal) {
 
 int setupSecrets() {
 	
-	register int secrets = 0, nSprite = -1;
-	register int i, j, s, e;
+	int secrets = 0, nSprite = -1;
+	int i, j, s, e;
 	
 	for (i = 0; i < numsectors; i++)
 	{
@@ -1534,26 +1200,6 @@ char* array2str(NAMED_TYPE* in, int inLen, char* out, int outLen) {
 	return out;
 }
 
-void gfxDrawCaption(int x, int y, int fr, int bg, int bgpad, char* txt, QFONT* pFont)
-{
-	int len = gfxGetTextLen(txt, pFont);
-	int heigh = (pFont) ? pFont->height : 8;
-	gfxSetColor(bg);
-	gfxFillBox(x-bgpad, y-bgpad, x+len+bgpad, y+heigh+bgpad);
-	gfxDrawText(x, y, fr, txt, pFont, FALSE);
-}
-
-
-void removeExtension (char *str) {
-	for (int i = Bstrlen(str) - 1; i >= 0; i--)
-	{
-		if (str[i] != '.') continue;
-		str[i] = '\0';
-		break;
-	}
-}
-
-
 // Fresh Supply needs this
 void resortFree() {
 	
@@ -1565,77 +1211,6 @@ void resortFree() {
 			InsertSpriteStat(i, kStatFree);
 		}
 	}
-}
-
-char* catslash(char* str)
-{
-	return strcat(str, "/");
-}
-
-void pathCatSlash(char* pth, int l)
-{
-	if (l < 0)
-	{
-		if ((l = strlen(pth)) > 0 && !slash(pth[l-1]))
-			catslash(pth);
-	}
-	else if (!slash(l))
-		catslash(&pth[l]);
-}
-
-void pathRemSlash(char* pth, int l)
-{
-	int t = strlen(pth);
-	
-	if (l < 0)
-	{
-		if (t > 0 && slash(pth[t-1]))
-			pth[t-1] = '\0';
-	}
-	else if (slash(l) && l < t)
-		memmove(&pth[l], &pth[l+1], t-l+1);
-}
-
-// rough approximation of what _splitpath2() does in WATCOM
-void pathSplit2(char *pzPath, char* buff, char** dsk, char** dir, char** fil, char** ext)
-{
-	int i = 0;
-	char items[4][BMAX_PATH];
-	memset(items, 0, sizeof(items));
-	if (pzPath && strlen(pzPath))
-		_splitpath(pzPath, items[0], items[1], items[2], items[3]);
-	
-	dassert(buff != NULL);
-	
-	if (dsk)
-	{
-		*dsk =& buff[i];
-		i+=sprintf(&buff[i], items[0])+1;
-	}
-	
-	if (dir)
-	{
-		*dir =& buff[i];
-		i+=sprintf(&buff[i], items[1])+1;
-	}
-	
-	if (fil)
-	{
-		*fil =& buff[i];
-		i+=sprintf(&buff[i], items[2])+1;
-	}
-	
-	if (ext)
-	{
-		*ext =& buff[i];
-		i+=sprintf(&buff[i], items[3])+1;
-	}
-	
-}
-
-BOOL chlRangeIsFine(int val) {
-	
-	return (val > 0 && val < 1024);
 }
 
 short getSector() {
@@ -1761,178 +1336,17 @@ int replaceByte(BYTE* buf, int len, BYTE valueA, BYTE valueB) {
 	return rpc;
 }
 
-BOOL fileAttrSet(char* file, int attr)
-{
-	return (_chmod(file, attr) == 0);
-}
-
-BOOL fileAttrSetRead(char* file)
-{
-	return fileAttrSet(file, S_IREAD);
-}
-
-BOOL fileAttrSetWrite(char* file)
-{
-	return fileAttrSet(file, S_IWRITE);
-}
-
-BOOL fileDelete(char* file)
-{
-	if (!fileExists(file)) return TRUE;
-	fileAttrSetWrite(file);
-	unlink(file);
-	
-	return (!fileExists(file));
-}
-BOOL rngok(int val, int rngA, int rngB)
-{
-	return (val >= rngA && val < rngB);
-}
-BOOL irngok(int val, int rngA, int rngB)
-{
-	return (val >= rngA && val <= rngB);
-}
-
-void setCstat(BOOL enable, short* pStat, int nStat)
-{
-	if (enable)
-	{
-		if (!(*pStat & nStat))
-			*pStat |= (short)nStat;
-	}
-	else if ((*pStat & nStat))
-		*pStat &= ~(short)nStat;
-}
-
-short wallCstatAdd(int nWall, short cstat, BOOL nextWall) {
-	
-	setCstat(TRUE, &wall[nWall].cstat, cstat);
-	if (nextWall && wall[nWall].nextwall >= 0)
-		setCstat(TRUE, &wall[wall[nWall].nextwall].cstat, cstat);
-
-	return wall[nWall].cstat;
-}
-
-short wallCstatRem(int nWall, short cstat, BOOL nextWall) {
-	
-	setCstat(FALSE, &wall[nWall].cstat, cstat);
-	if (nextWall && wall[nWall].nextwall >= 0)
-		setCstat(FALSE, &wall[wall[nWall].nextwall].cstat, cstat);
-	
-	return wall[nWall].cstat;
-}
-
-short wallCstatToggle(int nWall, short cstat, BOOL nextWall) {
-	
-	wall[nWall].cstat ^= cstat;
-	if (nextWall && wall[nWall].nextwall >= 0)
-	{
-		if ((wall[nWall].cstat & cstat))
-		{
-			if (!(wall[wall[nWall].nextwall].cstat & cstat))
-				wallCstatAdd(wall[nWall].nextwall, cstat, FALSE);
-		}
-		else
-		{
-			if ((wall[wall[nWall].nextwall].cstat & cstat))
-				wallCstatRem(wall[nWall].nextwall, cstat, FALSE);
-		}
-	}
-	
-	return wall[nWall].cstat;
-}
-
-short sectCstatAdd(int nSect, short cstat, int objType)
-{
-	if (objType == OBJ_FLOOR)
-	{
-		setCstat(TRUE, &sector[nSect].floorstat, cstat);
-		return sector[nSect].floorstat;
-	}
-	else
-	{
-		setCstat(TRUE, &sector[nSect].ceilingstat, cstat);
-		return sector[nSect].ceilingstat;
-	}
-}
-
-short sectCstatRem(int nSect, short cstat, int objType)
-{
-	if (objType == OBJ_FLOOR)
-	{
-		setCstat(FALSE, &sector[nSect].floorstat, cstat);
-		return sector[nSect].floorstat;
-	}
-	else
-	{
-		setCstat(FALSE, &sector[nSect].ceilingstat, cstat);
-		return sector[nSect].ceilingstat;
-	}
-}
-
-short sectCstatToggle(int nSect, short cstat, int objType) {
-	
-	if (objType == OBJ_FLOOR)
-	{
-		sector[nSect].floorstat ^= cstat;
-		return sector[nSect].floorstat;
-	}
-	else
-	{
-		sector[nSect].ceilingstat ^= cstat;
-		return sector[nSect].ceilingstat;
-	}
-}
-
-short sectCstatGet(int nSect, int objType)
-{
-	if (objType == OBJ_FLOOR) 
-		return sector[nSect].floorstat;
-	
-	return sector[nSect].ceilingstat;
-	
-}
-
-short sectCstatSet(int nSect, short cstat, int objType)
-{
-	if (objType == OBJ_FLOOR)
-	{
-		sector[nSect].floorstat = cstat;
-		return sector[nSect].floorstat;
-	}
-	else
-	{
-		sector[nSect].ceilingstat = cstat;
-		return sector[nSect].ceilingstat;
-	}
-	
-}
-
-int perc2val(int reqPerc, int val) {
-	
-	return (val*reqPerc) / 100;
-	
-}
-
-void swapValues(int *nSrc, int *nDest)
-{
-	int nTmp;
-	nTmp = *nSrc, *nSrc = *nDest, *nDest = nTmp;
-}
-
-int revertValue(int nVal)
-{
-	if (nVal < 0) return klabs(nVal);
-	else if (nVal > 0) return -nVal;
-	else return nVal;
-}
-
 int camHitscan(short* hsc, short* hwl, short* hsp, int* hx, int* hy, int* hz, unsigned int clipMask)
 {
+	int x1 = windowx1;	int x2 = windowx2;
+	int y1 = windowy1;	int y2 = windowy2;
+	int wh = x2-x1;
+	int hg = y2-y1;
+	
 	int dx, dy, dz;
     dx = divscale30(1, viewingrange);
-	dy = divscale14(searchx-(xdim>>1), xdim>>1);
-	dz = divscale27(searchy-(ydim>>1), scale(xdim,yxaspect,320)) + ((100-horiz)*2000);
+	dy = divscale14(searchx-(wh>>1), wh>>1);
+	dz = divscale27(searchy-(hg>>1), scale(wh,yxaspect,320)) + ((100-horiz)*2000);
 	RotateVector(&dx, &dy, ang);
 	
 	*hsc = *hwl = *hsp = -1;
@@ -1972,21 +1386,6 @@ char* getExt(int nExt)
 	return (nExt < 0 || nExt >= kExtMax) ? NULL : gExtNames[nExt];
 }
 
-void toggleResolution(int fs, int xres, int yres, int bpp)
-{
-	int mode = qsetmode;
-	scrSetGameMode(fs, xres, yres, bpp);
-	if (mode != 200)
-		qsetmodeany(xdim, ydim);
-	
-	if (tileLoadTile(gSysTiles.drawBuf))
-	{
-		tileFreeTile(gSysTiles.drawBuf);
-		tileAllocTile(gSysTiles.drawBuf, xdim, ydim);
-	}
-	
-	gScreen2D.SetView(0, 0, xdim-1, ydim-1);
-}
 
 int DlgSaveChanges(char* text, BOOL askForArt) {
 
@@ -2039,6 +1438,46 @@ int DlgSaveChanges(char* text, BOOL askForArt) {
 
 }
 
+char dlgSaveAndOrQuit(void)
+{
+	int r = 1;
+	char artChanges = (gArtEd.asksave != 0);
+	char mapChanges = (gMapLoaded && ((numsectors > 0 && numwalls > 0) || numsprites > 0));
+	char askSave = (artChanges || mapChanges);
+	
+	if (askSave)
+	{
+		switch(r = DlgSaveChanges("Save changes?", gArtEd.asksave))
+		{
+			case 2:
+			case 1:
+				if (mapChanges)
+					boardSave(gPaths.maps, FALSE);
+				
+				if (r > 1)
+				{
+					extVoxUninit();
+					tileUninitSystemTiles();
+					artedSaveArtFiles();
+					artedSaveDatFiles();
+				}
+				// no break
+			case 0:
+				xmpQuit();
+				return 1;
+			default:
+				return 0;
+		}
+	}
+	
+	if (Confirm("Really want to quit?"))
+	{
+		xmpQuit();
+		return 1;
+	}
+	
+	return 0;
+}
 
 int countUniqBytes(BYTE* pBytes, int len)
 {
@@ -2117,48 +1556,9 @@ BOOL floorPicMatch(int nSect, int nPic)
 	return (sector[nSect].floorpicnum == nPic);
 }
 
-BOOL makeBackup(char* filename)
-{
-	if (!fileExists(filename))
-		return TRUE;
-	
-	char temp[_MAX_PATH];
-	sprintf(temp, filename);
-	ChangeExtension(temp, ".bak");
-	if (fileExists(temp))
-		unlink(temp);
-	
-	return (rename(filename, temp) == 0);
-}
 
-void getWallCoords(int nWall, int* x1, int* y1, int* x2, int* y2)
-{
-	if (x1)	*x1 = wall[nWall].x;
-	if (y1)	*y1 = wall[nWall].y;
-	if (x2)	*x2 = wall[wall[nWall].point2].x;
-	if (y2)	*y2 = wall[wall[nWall].point2].y;
-}
 
-int getPrevWall(int nWall)
-{	
-	register int swal, ewal;
-	getSectorWalls(sectorofwall(nWall), &swal, &ewal);
-	while(swal <= ewal)
-	{
-		if (wall[swal].point2 == nWall)
-			return swal;
-		
-		swal++;
-	}
-	
-	return -1;
-}
 
-void wallDetach(int nWall)
-{
-	wall[nWall].nextsector	= -1;
-	wall[nWall].nextwall 	= -1;
-}
 
 BOOL isUnderwaterSector(XSECTOR* pXSect) { return pXSect->underwater; }
 BOOL isUnderwaterSector(sectortype* pSect) { return (pSect->extra > 0 && isUnderwaterSector(&xsector[pSect->extra])); }
@@ -2270,8 +1670,8 @@ void collectUsedChannels(unsigned char used[1024])
 int collectObjectsByChannel(int nChannel, BOOL rx, OBJECT_LIST* pOut, char flags)
 {
 	BOOL ok, link = FALSE, unlink = FALSE;
-	register int c = 0, j, s, e, f;
-	register int i = numsectors;
+	int c = 0, j, s, e, f;
+	int i = numsectors;
 		
 	//return 0;
 	
@@ -2685,427 +2085,10 @@ BOOL isSearchSector()
 	return (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING);
 }
 
-void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* zt, int* zb, char flags)
-{
-	int t, cx, cy, xoff = 0;
-	int nPic = pSpr->picnum, nAng = pSpr->ang;
-	int xrep = pSpr->xrepeat, wh = tilesizx[nPic];
-	
-	*x1 = *x2 = pSpr->x;
-	*y1 = *y2 = pSpr->y;
-	
-	if (flags & 0x01)
-	{
-		xoff = panm[nPic].xcenter;
-	}
-	
-	if (flags & 0x02)
-	{
-		xoff += pSpr->xoffset;
-	}
-	
-	if (pSpr->cstat & kSprFlipX)
-		xoff = -xoff;
-	
-	cx = sintable[nAng & kAngMask] * xrep;
-	cy = sintable[(nAng + kAng90 + kAng180) & kAngMask] * xrep;
-	t = (wh>>1)+xoff;
-	
-	*x1 -= mulscale16(cx, t);	*x2 = *x1 + mulscale16(cx, wh);
-	*y1 -= mulscale16(cy, t);	*y2 = *y1 + mulscale16(cy, wh);
-	
-	if (zt || zb)
-	{
-		int tzt, tzb;
-		GetSpriteExtents(pSpr, &tzt, &tzb);
-		if (zt)
-			*zt = tzt;
-		
-		if (zb)
-			*zb = tzb;
-	}
-}
 
 
-void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, char flags)
-{
-	int t, i, cx, cy, xoff = 0, yoff = 0;
-	int nPic = pSpr->picnum, nAng = pSpr->ang & kAngMask;
-	int xrep = pSpr->xrepeat, wh = tilesizx[nPic];
-	int yrep = pSpr->yrepeat, hg = tilesizy[nPic];
-	int nCos = sintable[(nAng + kAng90) & kAngMask];
-	int nSin = sintable[nAng];
-	
-	*x1 = *x2 = *x3 = *x4 = pSpr->x;
-	*y1 = *y2 = *y3 = *y4 =  pSpr->y;
-	
-	if (flags & 0x01)
-	{
-		xoff = panm[nPic].xcenter;
-		yoff = panm[nPic].ycenter;
-	}
-	
-	if ((flags & 0x02) && (pSpr->cstat & kSprRelMask) != kSprSloped)
-	{
-		xoff += pSpr->xoffset;
-		yoff += pSpr->yoffset;
-	}
-	
-	if (pSpr->cstat & kSprFlipX)
-		xoff = -xoff;
-	
-	if (pSpr->cstat & kSprFlipY)
-		yoff = -yoff;
-	
-	if (!(flags & 0x04))
-	{
-		if (wh % 2) wh++;
-		if (hg % 2) hg++;
-	}
-	
-	cx = ((wh>>1)+xoff)*xrep;
-	cy = ((hg>>1)+yoff)*yrep;
-		
-	*x1 += dmulscale16(nSin, cx, nCos, cy);
-	*y1 += dmulscale16(nSin, cy, -nCos, cx);
-	
-	t = wh*xrep;
-	*x2 = *x1 - mulscale16(nSin, t);
-	*y2 = *y1 + mulscale16(nCos, t);
-	
-	t = hg*yrep;
-	i = -mulscale16(nCos, t);	*x3 = *x2 + i; *x4 = *x1 + i;
-	i = -mulscale16(nSin, t);	*y3 = *y2 + i; *y4 = *y1 + i;
-}
 
-void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, int* zt, int* zb, char flags)
-{
-	GetSpriteExtents(pSpr, x1, y1, x2, y2, x3, y3, x4, y4, flags);
-		
-	if (zt || zb)
-	{
-		int tzt, tzb;
-		GetSpriteExtents(pSpr, &tzt, &tzb);
-		if (zt)
-			*zt = tzt;
-		
-		if (zb)
-			*zb = tzb;
-	}
-}
 
-void loopGetWalls(int nStartWall, int* swal, int *ewal)
-{
-	int i;
-	*swal = *ewal = i = nStartWall;
-	while(wall[i].point2 != nStartWall) 
-	{
-		if (wall[i].point2 < *swal) *swal = wall[i].point2;
-		if (wall[i].point2 > *ewal) *ewal = wall[i].point2;
-		i = wall[i].point2;
-	}
-
-}
-
-void loopGetEdgeWalls(int nFirst, int nLast, int* l, int* r, int* t, int* b)
-{
-	*l = *r = *t = *b = nFirst;
-	
-	while(nFirst <= nLast)
-	{
-		if (wall[nFirst].x < wall[*l].x) *l = nFirst;
-		if (wall[nFirst].x > wall[*r].x) *r = nFirst;
-		if (wall[nFirst].y < wall[*t].y) *t = nFirst;
-		if (wall[nFirst].y > wall[*b].y) *b = nFirst;
-		nFirst++;
-	}
-}
-
-void loopGetBox(int nFirst, int nLast, int* x1, int* y1, int* x2, int *y2)
-{
-	int l, r, t, b;
-	loopGetEdgeWalls(nFirst, nLast, &l, &r, &t, &b);
-	
-	*x1 = wall[l].x;	*x2 = *x1 + (wall[r].x - *x1);
-	*y1 = wall[t].y;	*y2 = *y1 + (wall[b].y - *y1);
-	
-	if (*x1 > *x2)
-		swapValues(x1, x2);
-	
-	if (*y1 > *y2)
-		swapValues(y1, y2);
-}
-
-void loopChgPos(int s, int e, int bx, int by, int flags)
-{
-	while(s <= e)
-		posChg(&wall[s].x, &wall[s].y, bx, by, flags), s++;
-}
-
-void loopRotate(int s, int e, int cx, int cy, int nAng, int flags)
-{
-	while(s <= e)
-		posRotate(&wall[s].x, &wall[s].y, nAng, cx, cy, flags), s++;
-}
-
-void loopFlip(int s, int e, int cx, int cy, int flags)
-{
-	// based on eduke32
-	////////////////////////////////////
-	
-	int32_t* pWalls = (int32_t*)malloc(sizeof(int32_t)*kMaxWalls);
-	int i = numwalls, j, t, x1, y1, x2, y2, wA, wB;
-	int nSLoop, nELoop;
-	walltype buf;
-	
-	dassert(pWalls != NULL);
-	
-	while(--i >= 0)
-		pWalls[i] = i;
-	
-	// save position of wall at start of loop
-	getWallCoords(s, &x1, &y1, NULL, NULL);
-	nSLoop = s; nELoop = e;
-	
-	// flip walls
-	for (i = s; i <= e; i++)
-	{
-		getWallCoords(i, NULL, NULL, &x2, &y2);
-		if (flags & 0x01)
-		{
-			wall[i].x = (cx - x2) + cx;
-			wall[i].y = y2;
-		}
-		else
-		{
-			wall[i].x = x2;
-			wall[i].y = (cy - y2) + cy;
-		}
-		
-		if (wall[i].point2 == nSLoop)
-		{
-			nELoop = i;
-			if (flags & 0x01)
-			{
-				wall[nELoop].x = (cx - x1) + cx;
-				wall[nELoop].y = y1;
-			}
-			else
-			{
-				wall[nELoop].x = x1;
-				wall[nELoop].y = (cy - y1) + cy;
-			}
-			
-			t = (nELoop - nSLoop)>>1;
-			for (j = 1; j <= t; j++)
-			{
-				wA = nSLoop + j;
-				wB = nELoop - j + 1;
-				
-				memcpy(&buf, &wall[wA], sizeof(walltype));
-				memcpy(&wall[wA], &wall[wB], sizeof(walltype));
-				memcpy(&wall[wB], &buf, sizeof(walltype));
-
-				pWalls[wA] = wB;
-				pWalls[wB] = wA;
-			}
-			
-			// make point2 point to next wall in loop
-			for (j = nSLoop; j < nELoop; j++) wall[j].point2 = j + 1;
-			wall[nELoop].point2 = nSLoop;
-			nSLoop = nELoop + 1;
-			
-			// save position of wall at start of loop
-			getWallCoords(nSLoop, &x1, &y1, NULL, NULL);
-		}
-	}
-	
-	// fix nextwalls
-	for (i = s; i <= e; i++)
-	{
-		if (wall[i].nextwall >= 0)
-			wall[i].nextwall = pWalls[wall[i].nextwall];
-	}
-	
-	free(pWalls);
-}
-
-void loopDelete(int s, int e)
-{
-	int x1, y1, x2, y2, x3, y3;
-	int i = numwalls;
-	
-	getWallCoords(s, &x3, &y3);
-	while(s <= e)
-		wall[s].x = x3, wall[s].y = y3, s++;
-
-	while(--i >= 0)
-	{
-		getWallCoords(i, &x1, &y1, &x2, &y2);
-		if ((x1 == x2 && y1 == y2) && ((x3 == x1 && y3 == y1) || (x3 == x2 && y3 == y2)))
-			deletepoint(i);
-	}
-}
-
-void midPointLoop(int nFirst, int nLast, int* ax, int *ay)
-{
-	int x1, y1, x2, y2;
-	loopGetBox(nFirst, nLast, &x1, &y1, &x2, &y2);
-	
-	*ax = x1 + ((x2 - x1)>>1);
-	*ay = y1 + ((y2 - y1)>>1);
-}
-
-// get max grid size for XY at which it could be created
-int getXYGrid(int x, int y, int min, int max)
-{
-	int g, dx = x, dy = y;
-	for (g = min; g < max; g++)
-	{
-		doGridCorrection(&x, &y, g);
-		if (x == dx && y == dy)
-			break;
-		
-		x = dx;
-		y = dy;
-	}
-	
-	return g;
-}
-
-void sectRotate(int nSect, int cx, int cy, int nAng, int flags)
-{
-	char rPoint = (klabs(nAng) != kAng90);
-	int i, s, e;
-	
-	// rotate walls
-	getSectorWalls(nSect, &s, &e);
-	loopRotate(s, e, cx, cy, nAng, rPoint); // inside loop
-	if ((flags & 0x02) && wall[s].nextwall >= 0)
-	{
-		// outer loop
-		loopGetWalls(wall[s].nextwall, &s, &e);
-		loopRotate(s, e, cx, cy, nAng, rPoint);
-	}
-	
-	// rotate sprites
-	for (i = headspritesect[nSect]; i >= 0; i = nextspritesect[i])
-	{
-		spritetype* pSpr = &sprite[i];
-		
-		posRotate(&pSpr->x, &pSpr->y, nAng, cx, cy, rPoint);
-		if (pSpr->statnum != kStatMarker && pSpr->statnum != kStatPathMarker)
-			pSpr->ang = (pSpr->ang + nAng) & kAngMask;
-	}
-}
-
-void sectFlip(int nSect, int cx, int cy, int flags, int)
-{
-	char flipX = ((flags & 0x01) > 0);
-	int i, s, e;
-		
-	// flip walls
-	getSectorWalls(nSect, &s, &e);
-	loopFlip(s, e, cx, cy, flags); // inside loop
-	if ((flags & 0x02) && wall[s].nextwall >= 0)
-	{
-		// outer loop
-		loopGetWalls(wall[s].nextwall, &s, &e);
-		loopFlip(s, e, cx, cy, flags);
-	}
-	
-	// flip sprites
-	for (i = headspritesect[nSect]; i >= 0; i = nextspritesect[i])
-	{
-		spritetype* pSpr = &sprite[i];
-		posFlip(&pSpr->x, &pSpr->y, cx, cy, flipX);
-		if (pSpr->statnum != kStatMarker && pSpr->statnum != kStatPathMarker)
-		{
-			if (flipX)
-				pSpr->ang = (kAng180 + (kAng360 - pSpr->ang)) & kAngMask;
-			else
-				pSpr->ang = (kAng360 - pSpr->ang) & kAngMask;
-		}
-	}
-	
-	if (flipX)
-	{
-		sector[nSect].ceilingstat ^= kSectFlipX;
-		sector[nSect].floorstat ^= kSectFlipX;
-	}
-	else
-	{
-		sector[nSect].ceilingstat ^= kSectFlipY;
-		sector[nSect].floorstat ^= kSectFlipY;
-	}
-}
-
-void sectorDetach(int nSector)
-{
-	int x1, y1, x2, y2;
-	int sw, ew, sw2, ew2, i, j, k, sect;
-	getSectorWalls(nSector, &sw, &ew); i = sw;
-
-	 // first white out walls from the both sides
-	while(i <= ew)
-	{
-		if (wall[i].nextwall >= 0)
-		{
-			wallDetach(wall[i].nextwall);
-			wallDetach(i);
-		}
-		
-		i++;
-	}
-	
-	// restore red walls if sibling sectors stay highlight
-	if (highlightsectorcnt > 0)
-	{
-		while(--i >= sw)
-		{
-			getWallCoords(i, &x1, &y1, &x2, &y2);
-			
-			j = highlightsectorcnt;
-			while(j--)
-			{
-				sect = highlightsector[j];
-				getSectorWalls(sect, &sw2, &ew2);
-				for (k = sw2; k <= ew2; k++)
-				{
-					if (wall[wall[k].point2].x != x1 || wall[k].x != x2) continue;
-					if (wall[wall[k].point2].y != y1 || wall[k].y != y2) continue;
-					
-					wall[i].nextsector = sect;		wall[i].nextwall = k;
-					wall[k].nextsector = nSector;	wall[k].nextwall = i;
-				}
-			}
-		}
-	}
-	
-}
-
-void sectorAttach(int nSector)
-{
-	register int i, j, sw, ew;
-	getSectorWalls(nSector, &sw, &ew); i = sw;
-	
-	while(i <= ew)
-	{
-		checksectorpointer(i++, nSector);
-	}
-
-	// if near sectors stay highlighted
-	while (--i >= sw)
-	{
-		if (wall[i].nextwall < 0) continue;
-		for (j = 0; j < highlightsectorcnt; j++)
-		{
-			if (highlightsector[j] != wall[i].nextsector) continue;
-			wall[wall[i].nextwall].nextwall = wall[wall[i].nextwall].nextsector = -1;
-			wall[i].nextwall = wall[i].nextsector = -1;
-		}
-	}
-}
 
 int isMarkerSprite(int nSpr)
 {
@@ -3124,66 +2107,6 @@ int isMarkerSprite(int nSpr)
 	return 0;
 }
 
-
-char removeQuotes(char* str)
-{
-	if (str)
-	{
-		int i, l = strlen(str);
-		if (l >= 2 && (str[0] == '"' || str[0] == '\'') && str[l - 1] == str[0])
-		{
-			l-=2;
-			for (i = 0; i < l; i++)
-				str[i] = str[i + 1];
-			
-			str[i] = '\0';
-			return 1;
-		}
-	}
-	
-	return 0;
-}
-
-void nnExtOffsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z)
-{
-    // left, right
-    if (oX)
-    {
-        if (x) *x -= mulscale30(oX, Cos(nAng + kAng90));
-        if (y) *y -= mulscale30(oX, Sin(nAng + kAng90));
-    }
-
-    // forward, backward
-    if (oY)
-    {
-        if (x) *x += mulscale30r(Cos(nAng), oY);
-        if (y) *y += mulscale30r(Sin(nAng), oY);
-    }
-
-    // top, bottom
-    if (oZ && z)
-        *z += oZ;
-
-}
-
-char sectorHasMoveRObjects(int nSect)
-{
-	int s, e;
-	getSectorWalls(nSect, &s, &e);
-	while(s <= e)
-	{
-		if (wall[s++].cstat & kWallMoveReverse)
-			return true;
-	}
-		
-	for (s = headspritesect[nSect]; s >= 0; s = nextspritesect[s])
-	{
-		if (sprite[s].cstat & kSprMoveReverse)
-			return true;
-	}
-	
-	return false;
-}
 
 int reverseSectorPosition(int nSect, char flags)
 {
@@ -3268,465 +2191,8 @@ int countSpritesOfSector(int nSect)
 	return c;
 }
 
-void ceilGetEdgeZ(int nSector, int* zBot, int* zTop)
-{
-	int s, e, x, y, z;
-	sectortype* pSect = &sector[nSector];
-	
-	*zTop = *zBot = pSect->ceilingz;
-	if ((pSect->ceilingstat & kSectSloped) && pSect->ceilingslope)
-	{
-		getSectorWalls(nSector, &s, &e);
-		
-		while(s <= e)
-		{
-			getWallCoords(s++, &x, &y);
-			z = getceilzofslope(nSector, x, y);
-			if (zBot && z < *zBot) *zBot = z;
-			if (zTop && z > *zTop) *zTop = z;
-		}
-	}
-}
 
 
-void floorGetEdgeZ(int nSector, int* zBot, int* zTop)
-{
-	int s, e, x, y, z;
-	sectortype* pSect = &sector[nSector];
-	
-	
-	*zTop = *zBot = pSect->floorz;
-	if ((pSect->floorstat & kSectSloped) && pSect->floorslope)
-	{
-		getSectorWalls(nSector, &s, &e);
-		
-		while(s <= e)
-		{
-			getWallCoords(s++, &x, &y);
-			z = getflorzofslope(nSector, x, y);
-			if (zBot && z > *zBot) *zBot = z;
-			if (zTop && z < *zTop) *zTop = z;
-		}
-	}
-	
-	//Alert("FLOOR %d:  %d / %d", nSector, *zTop, *zBot);
-}
-
-void sectGetEdgeZ(int nSector, int* fz, int* cz)
-{
-	int s, e, x, y, z;
-	getSectorWalls(nSector, &s, &e);
-	
-	*fz = sector[nSector].floorz;
-	*cz = sector[nSector].ceilingz;
-	while(s <= e)
-	{
-		getWallCoords(s++, &x, &y);
-		if (fz && (z = getflorzofslope(nSector, x, y)) > *fz)
-			*fz = z;
-		
-		if (cz && (z = getceilzofslope(nSector, x, y)) < *cz)
-			*cz = z;
-	}
-}
-
-int getSectorHeight(int nSector)
-{
-	int fz, cz;
-	sectGetEdgeZ(nSector, &fz, &cz);
-	return fz-cz;
-}
-
-void flipWalls(int nStart, int nOffs)
-{
-	int e = nStart + ((nOffs-nStart)>>1);
-	int s = nStart, t;
-	
-	while(s < e)
-	{ 
-		t = nStart + nOffs - s - 1;
-		
-		swapValues(&gNextWall[s], &gNextWall[t]);
-		swapValues(&wall[s].x, &wall[t].x);
-		swapValues(&wall[s].y, &wall[t].y);
-		s++;
-	}
-}
-
-void setFirstWall(int nSect, int nWall)
-{
-	int start, length, shift;
-	int i, j, k;
-	walltype tempWall;
-
-	// rotate the walls using the shift copy algorithm
-
-	start = sector[nSect].wallptr;
-	length = sector[nSect].wallnum;
-
-	dassert(nWall >= start && nWall < start + length);
-	shift = nWall - start;
-
-	if (shift == 0)
-		return;
-
-	i = k = start;
-
-	for (int n = length; n > 0; n--)
-	{
-		if (i == k)
-			tempWall = wall[i];
-
-		j = i + shift;
-		while (j >= start + length)
-			j -= length;
-
-		if (j == k)
-		{
-			wall[i] = tempWall;
-			i = ++k;
-			continue;
-		}
-		wall[i] = wall[j];
-		i = j;
-	}
-
-	for (i = start; i < start + length; i++)
-	{
-		if ( (wall[i].point2 -= shift) < start )
-			wall[i].point2 += length;
-
-		if ( wall[i].nextwall >= 0 )
-			wall[wall[i].nextwall].nextwall = (short)i;
-	}
-
-	CleanUp();
-}
-
-char loopInside(int nSect, POINT2D* pPoint, int c, char full)
-{
-	int nPrev, nAng, nLen, i, r;
-	POINT2D *a = pPoint, *b;
-	POSOFFS pos;
-
-	for (i = 0; i < c; i++)
-	{
-		if (!inside(a[i].x, a[i].y, nSect))
-			return 0;
-	}
-	
-	if (full)
-	{
-		for (i = 0; i < c; i++)
-		{
-			if (i < c - 1)
-			{
-				a = &pPoint[i]; b = &pPoint[i+1];
-			}
-			else
-			{
-				a = &pPoint[0]; b = &pPoint[c-1];
-			}
-			
-			nAng = (getangle(b->x - a->x, b->y - a->y) + kAng90) & kAngMask;
-			nLen = exactDist(b->x - a->x, b->y - a->y);
-			pos.New(nAng, a->x, a->y);
-			
-			while(pos.Distance() < nLen)
-			{
-				if (!inside(pos.x, pos.y, nSect))
-					return 0;
-				
-				r = ClipLow(nLen >> 4, 2);
-				if (r % 2)
-					r++;
-				
-				nPrev = pos.Distance();
-				while(nPrev == pos.Distance())
-					pos.Right(r+=2);
-			}
-		}
-	}
-	
-	return 1;
-}
-
-char insidePoints(int x, int y, POINT2D* point, int c)
-{
-	int i, x1, y1, x2, y2;
-	unsigned int cnt = 0;
-	
-	for (i = 0; i < c; i++)
-	{
-		if (i < c - 1)
-		{
-			x1 = point[i].x-x,	x2 = point[i+1].x-x;
-			y1 = point[i].y-y,	y2 = point[i+1].y-y;
-		}
-		else
-		{
-			x1 = point[0].x-x,	x2 = point[c-1].x-x;
-			y1 = point[0].y-y,	y2 = point[c-1].y-y;
-		}
-		
-		if ((y1^y2) < 0)
-			cnt ^= ((x1^x2) >= 0) ? (x1) : ((x1*y2-x2*y1)^y2);
-	}
-	
-	return ((cnt >> 31) > 0);
-}
-
-char sectWallsInsidePoints(int nSect, POINT2D* point, int c)
-{
-	int s, e;
-	
-	// make sure all points inside a sector
-	///////////////////////
-	
-	if (loopInside(nSect, point, c, 1))
-	{
-		// make sure points didn't cover island walls
-		///////////////////////
-		
-		getSectorWalls(nSect, &s, &e);
-		while(s <= e)
-		{
-			if (insidePoints(wall[s].x, wall[s].y, point, c) == 1)
-				return 1;
-			
-			s++;
-		}
-		
-		return 0;
-	}
-	
-	return 1;
-}
-
-int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectortype* pSModel)
-{
-	walltype* pWall; sectortype* pSect;
-	int nStartWall = (nSect >= 0) ? sector[nSect].wallptr : numwalls;
-	int nWall = nStartWall, i = 0; char insertInside = (nSect >= 0);
-	int t;
-		
-	if (!insertInside)
-	{
-		// create new white sector
-		pSect = &sector[numsectors];
-
-		if (pSModel)
-		{
-			memcpy(pSect, pSModel, sizeof(sectortype));
-		}
-		else
-		{
-			memset(pSect, 0, sizeof(sectortype));
-			
-			pSect->floorz	= 8192<<2;
-			pSect->ceilingz	= -pSect->floorz;
-			pSect->extra	= -1;
-		}
-		
-		pSect->wallptr	= nWall;
-		pSect->wallnum	= nCount;		
-		numsectors++;
-	}
-	
-	movewalls(nWall, nCount); // increases numwalls automatically
-	
-	while(i < nCount)
-	{
-		pWall = &wall[nWall++];
-		
-		if (pWModel)
-			memcpy(pWall, pWModel, sizeof(walltype));
-		
-		pWall->point2		= nWall;
-		pWall->nextwall		= -1;
-		pWall->nextsector	= -1;
-		
-		pWall->x			= pInfo[i].x;
-		pWall->y			= pInfo[i].y;
-		i++;
-	}
-	
-	pWall->point2 = nStartWall;
-	
-	if (clockdir(nStartWall) == 1)
-		flipWalls(nStartWall, nStartWall + nCount);
-	
-	if (insertInside)
-	{
-		t = nSect;
-		sector[t].wallnum += nCount;
-		while(t++ < numsectors)
-			sector[t].wallptr += nCount;
-		
-		if (clockdir(nStartWall) == 0)
-			flipWalls(nStartWall, nStartWall + nCount);
-		
-		for (i = headspritesect[nSect]; i >= 0; i = nextspritesect[i])
-		{
-			spritetype* pSpr = &sprite[i]; t = nSect;
-			if (FindSector(pSpr->x, pSpr->y, pSpr->z, &t) && t != nSect)
-			{
-				ChangeSpriteSect(pSpr->index, t);
-				i = headspritesect[nSect];
-			}
-		}
-	}
-	
-	
-	return nStartWall;
-}
-
-void insertPoints(WALLPOINT_INFO* pInfo, int nCount)
-{
-	for (int i = 0; i < nCount; i++)
-		insertpoint(pInfo[i].w, pInfo[i].x, pInfo[i].y);
-}
-
-int makeSquareSector(int ax, int ay, int area)
-{
-	int nWall = -1;
-	LOOPSHAPE shape(kLoopShapeSquare, -1, ax, ay); // create square sector
-	shape.Setup(ax + area, ay + area, NULL);
-	switch(shape.StatusGet())
-	{
-		default:
-			nWall = shape.Insert();
-			// no break;
-		case -1:
-		case -2:
-		case -4:
-		case -5:
-			shape.Stop();
-			break;
-	}
-	
-	return (nWall >= 0) ? sectorofwall(nWall) : nWall;
-}
-
-int redSectorCanMake(int nStartWall)
-{
-	
-	int addwalls = -1;
-	if (wall[nStartWall].nextwall >= 0) return -1;
-	else if (numsectors >= kMaxSectors) return -4;
-	else if ((addwalls = whitelinescan(nStartWall)) < numwalls) return -2;
-	else if (addwalls >= kMaxWalls) return -3;
-	else return addwalls;
-}
-
-
-int redSectorMake(int nStartWall)
-{
-	dassert(nStartWall >= 0 && nStartWall < numwalls);
-	
-	int i, addwalls, swal, ewal;
-	if ((addwalls = redSectorCanMake(nStartWall)) <= 0)
-		return addwalls;
-
-	for (i = numwalls; i < addwalls; i++)
-	{
-		wall[wall[i].nextwall].nextwall = i;
-		wall[wall[i].nextwall].nextsector = numsectors;
-	}
-		
-	sectortype* pSect =& sector[numsectors];
-	getSectorWalls(numsectors, &swal, &ewal);
-	
-	for (i = swal; i <= ewal; i++)
-	{
-		// we for sure don't need cstat inheriting for walls
-		wall[i].cstat = wall[wall[i].nextwall].cstat = 0;
-		fixrepeats(wall[i].nextwall);
-		fixrepeats(i);
-	}
-	numwalls = addwalls;
-	numsectors++;
-	return 0;
-}
-
-int redSectorMerge(int nThis, int nWith)
-{
-	int i, j, k, f, m, swal, ewal, tmp, nwalls = numwalls;
-	short join[2]; join[0] = nThis, join[1] = nWith;
-
-	for(i = 0; i < 2; i++)
-	{
-		getSectorWalls(join[i], &swal, &ewal);
-		for(j = swal; j <= ewal; j++)
-		{
-			if (wall[j].cstat == 255)
-				continue;
-			
-			tmp = i;
-			if (wall[j].nextsector == join[1-tmp])
-			{
-				wall[j].cstat = 255;
-				continue;
-			}
-
-			f = j;
-			k = nwalls;
-			do
-			{
-				memcpy(&wall[nwalls],&wall[f],sizeof(walltype));
-				wall[nwalls].point2 = nwalls+1;
-				nwalls++;
-				wall[f].cstat = 255;
-
-				f = wall[f].point2;
-				if (wall[f].nextsector == join[1-tmp])
-				{
-					f = wall[wall[f].nextwall].point2;
-					tmp = 1 - tmp;
-				}
-			}
-			while ((wall[f].cstat != 255) && (wall[f].nextsector != join[1 - tmp]));
-			wall[nwalls - 1].point2 = k;
-		}
-	}
-	
-	if (nwalls <= numwalls)
-		return 0;
-
-	memcpy(&sector[numsectors], &sector[join[0]], sizeof(sectortype));
-	sector[numsectors].wallnum = nwalls - numwalls;
-	sector[numsectors].wallptr = numwalls;
-
-	for(i = numwalls;i < nwalls; i++)
-	{
-		if (wall[i].nextwall < 0) continue;
-		wall[wall[i].nextwall].nextsector = numsectors;
-		wall[wall[i].nextwall].nextwall = i;
-	}
-
-	for(i = 0; i < 2; i++)
-	{
-		getSectorWalls(join[i], &swal, &ewal);
-		for(j = swal; j <= ewal; j++)
-			wall[j].nextwall = wall[j].nextsector = -1;
-
-		j = headspritesect[join[i]];
-		while (j != -1)
-		{
-			k = nextspritesect[j];
-			ChangeSpriteSect(j, numsectors);
-			j = k;
-		}
-	}
-	
-	numwalls = nwalls, numsectors++;
-	if (join[0] < join[1])
-		join[1]--;
-	
-	deletesector(join[0]);
-	deletesector(join[1]);
-	return 0;
-}
 
 char isIslandSector(int nSect)
 {
@@ -3856,6 +2322,10 @@ char scanWallOfSector(SCANWALL* pIn, SCANWALL* pOut)
 		pOut->pos.New((GetWallAngle(pOut->w) + kAng90) & kAngMask, hx, hy, hz);
 		return 1;
 	}
+	else
+	{
+		pOut->pos.New(pIn->pos.a, hx, hy, hz);
+	}
 	
 	return 0;
 }
@@ -3935,174 +2405,5 @@ int words2flags(const char* str, NAMED_TYPE* pDb, int nLen)
     return nRetn;
 }
 
-char isDir(char* pPath)
-{
-	BDIR* pDir = NULL;
-	if (fileExists(pPath) && (pDir = Bopendir(pPath)) != NULL)
-		Bclosedir(pDir);
-	
-	return (pDir != NULL);
-}
 
-char isFile(char* pPath)
-{
-	int hFile = -1;
-	if (fileExists(pPath) && (hFile = open(pPath, O_BINARY|O_RDWR, S_IREAD|S_IWRITE)) >= 0)
-		close(hFile);
-	
-	return (hFile >= 0);
-	
-}
 
-SCANDIRENT* dirScan(char* path, char* filter, int* numfiles, int* numdirs, char flags)
-{
-	BDIR* pDir; Bdirent* pFile;
-	SCANDIRENT* db = NULL, tmp;
-	char *ext, *p, buf[BMAX_PATH];
-	char newpath[BMAX_PATH];
-	
-	int i, t;
-	
-	if (numdirs)	*numdirs = 0;
-	if (numfiles)	*numfiles = 0;
-	
-	if (!isempty(filter))
-	{
-		if (filter[0] == '.')
-			filter = &filter[1];
-		
-		enumStrGetChar(0, buf, (char*)filter, '.', NULL);
-	}
-
-	if (isempty(path))
-		path = ".";
-	
-	if (flags & 0x01)
-	{
-		strcpy(newpath, path); pathCatSlash(newpath);
-		_fullpath(newpath, newpath, BMAX_PATH);
-		path = newpath;
-	}
-	
-	t = 0;
-	if ((pDir = Bopendir(path)) != NULL)
-	{
-		while ((pFile = Breaddir(pDir)) != NULL)
-		{
-			memset(&tmp, 0, sizeof(tmp));
-			
-			if (pFile->mode & BS_IFDIR)
-			{
-				if (!numdirs) continue;
-				if (strcmp(pFile->name, "..") == 0)	continue;
-				if (strcmp(pFile->name, ".")  == 0)	continue;
-				*numdirs = *numdirs + 1;
-			}
-			else if (numfiles)
-			{
-				i = 0; ext = NULL;
-				pathSplit2(pFile->name, tmp.name, NULL, NULL, NULL, &ext);
-				if (!isempty(filter))
-				{
-					while((p = enumStrGetChar(i++, buf, NULL, '.')) != NULL)
-					{
-						if (ext[0] == '.') ext = &ext[1];
-						if (stricmp(ext, buf) == 0) break;
-					}
-					
-					if (!p)
-						continue;
-				}
-				
-				if (!isempty(ext))
-					strcpy(tmp.type, ext);
-
-				*numfiles = *numfiles + 1;
-			}
-			else
-			{
-				continue;
-			}
-			
-			if (flags & 0x01)
-			{
-				strcpy(tmp.full, path);
-				strcat(tmp.full, pFile->name);
-			}
-			
-			strcpy(tmp.name, pFile->name);
-			tmp.flags = pFile->mode;
-			tmp.mtime = pFile->mtime;
-			
-			db = (SCANDIRENT*)realloc(db, sizeof(SCANDIRENT) * (t + 1));
-			dassert(db != NULL);
-			
-			memcpy(&db[t++], &tmp, sizeof(SCANDIRENT));
-		}
-		
-		Bclosedir(pDir);
-	}
-	
-	return db;
-}
-
-SCANDIRENT* driveScan(int* numdrives)
-{
-	SCANDIRENT *drives = NULL, *pDrv;
-	char *drv, *drp;
-	int i = 0;
-	
-	drv = drp = Bgetsystemdrives();
-	*numdrives = 0;
-	
-	if (drv)
-	{
-		while(*drp)
-		{
-			drives = (SCANDIRENT*)realloc(drives, sizeof(SCANDIRENT)*(i+1));
-			dassert(drives != NULL);
-			
-			pDrv = &drives[i];
-			memset(pDrv, 0, sizeof(SCANDIRENT));
-			strcpy(pDrv->full, drp); strcpy(pDrv->name, drp);
-			drp+=strlen(drp)+1;
-			i++;
-		}
-		
-		*numdrives = i;
-		free(drv);
-	}
-	
-	return drives;
-}
-
-char dirRemoveRecursive(char* path)
-{
-	BDIR* pDir; Bdirent* pFile;
-	static char cwd[BMAX_PATH];
-	
-	if (chdir(path) == 0)
-	{
-		if ((pDir = Bopendir(".")) != NULL)
-		{
-			while ((pFile = Breaddir(pDir)) != NULL && chmod(pFile->name, S_IWRITE) == 0)
-			{
-				if (pFile->mode & BS_IFDIR)
-				{
-					if (strcmp(pFile->name, "..") == 0)	continue;
-					if (strcmp(pFile->name, ".")  == 0)	continue;
-					if (!dirRemoveRecursive(pFile->name))
-						break;
-				}
-				else if (unlink(pFile->name) != 0)
-					break;
-			}
-			
-			Bclosedir(pDir);
-		}
-		
-		return (getcwd(cwd, sizeof(cwd)) && chdir("../") == 0 && rmdir(cwd) == 0);
-	}
-	
-	return 0;
-}

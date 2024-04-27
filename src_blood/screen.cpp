@@ -22,19 +22,8 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-extern "C" {
-#include "a.h"
-}
-
-#include "common_game.h"
-#include "gfx.h"
 #include "screen.h"
-#include "gui.h"
-#include "inifile.h"
-#include "xmpstr.h"
 #include "xmpconf.h"
-#include "xmpmisc.h"
-#include "editor.h"
 
 PALETTE gamepal;
 RGB baseDAC[256];
@@ -266,7 +255,8 @@ void scrInit(void)
 
 void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits)
 {
-    int nSafe = -1;
+	char t = (vidMode != 0);   
+	int nSafe = -1;
 	int wh, hg;
 	int i;
 	
@@ -290,7 +280,7 @@ void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits)
 			ThrowError("Unable to set any video mode!");
 	}
 	
-    gfxSetClip(windowx1, windowy1, windowx2, windowy2);
+    gfxSetClip(windowx1, windowy1, windowx2+t, windowy2+t);
 	xdimgame = xdim; ydimgame = ydim;
 }
 

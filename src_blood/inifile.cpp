@@ -20,9 +20,6 @@
 ***********************************************************************************/
 
 #include "common_game.h"
-#include "inifile.h"
-#include "xmpmisc.h"
-#include "xmpstr.h"
 
 enum
 {
@@ -79,7 +76,7 @@ IniFile::IniFile(char* fileName, char flags)
 	}
 }
 
-IniFile::IniFile(BYTE* pBytes, int nLength, char flags)
+IniFile::IniFile(unsigned char* pBytes, int nLength, char flags)
 {
 	BYTE* pRaw;
 	Init();
@@ -93,7 +90,7 @@ IniFile::IniFile(BYTE* pBytes, int nLength, char flags)
 	}
 }
 
-void IniFile::Load(BYTE* pRaw, int nLength, char flags)
+void IniFile::Load(unsigned char* pRaw, int nLength, char flags)
 {
 	char *ss, *se, *hi, *lo;
 	ININODE newNode;
@@ -349,7 +346,8 @@ void IniFile::NodeRemove(int nID)
 	
 	numnodes--;
 	node = (ININODE*)realloc(node, sizeof(ININODE)*numnodes);
-	dassert(node != NULL);
+	if (numnodes > 0)
+		dassert(node != NULL);
 }
 
 char IniFile::NodeComment(int nID, char hashChr)

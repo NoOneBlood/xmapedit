@@ -81,7 +81,6 @@ Low priority:
 # include "polymosttexcache.h"
 # include "mdsprite_priv.h"
 #endif
-extern char textfont[2048], smalltextfont[2048];
 
 int rendmode = 0;
 int usemodels=1, usehightile=1, usegoodalpha=0;
@@ -4532,6 +4531,7 @@ int polymost_plotpixel(int x, int y, unsigned char col)
 
 static int polymost_preparetext(void)
 {
+	
 	unsigned char *cptr;
 	unsigned int *tbuf, *tptr;
 	int h,i,j,l;
@@ -4550,7 +4550,8 @@ static int polymost_preparetext(void)
 		texttexture = 0;
 		return -1;
 	}
-
+	
+	#if 0
 	cptr = (unsigned char*)textfont;
 	for (h=0;h<256;h++) {
 		tptr = tbuf + (h%32)*8 + (h/32)*256*8;
@@ -4572,14 +4573,14 @@ static int polymost_preparetext(void)
 			tptr += 256;
 		}
 	}
-
+	#endif
+	
 	glfunc.glActiveTexture(GL_TEXTURE0);
 	glfunc.glBindTexture(GL_TEXTURE_2D, texttexture);
 	glfunc.glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,256,128,0,GL_RGBA,GL_UNSIGNED_BYTE,(GLvoid*)tbuf);
 	glfunc.glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 	glfunc.glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
 	free(tbuf);
-
 	return 0;
 }
 

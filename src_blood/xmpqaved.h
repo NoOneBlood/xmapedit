@@ -34,6 +34,7 @@ class QAVEDIT
 	#define kImportTimes 512
 
 	private:
+	#pragma pack(push, 1)
 	struct TIME
 	{
 		int ticks;
@@ -47,6 +48,7 @@ class QAVEDIT
 		unsigned int layer		: 4;
 		unsigned int ok			: 1;
 	};
+	#pragma pack(pop)
 	
 	QAV        *pQav;
 	FRAMEINFO  *pFrame;

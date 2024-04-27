@@ -13,6 +13,7 @@ extern int _buildargc;
 extern const char **_buildargv;
 
 extern char quitevent, appactive;
+extern char (*onquiteventcallback)(void);
 
 
 

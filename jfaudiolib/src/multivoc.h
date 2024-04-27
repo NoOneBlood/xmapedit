@@ -33,6 +33,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define MV_MinVoiceHandle  1
 
+#if _MSC_VER <= 1310
+	#ifndef _INTPTR_T_DEFINED
+		#ifdef _WIN64
+			typedef __int64             intptr_t;
+		#else
+			typedef _W64 int            intptr_t;
+		#endif
+		#define _INTPTR_T_DEFINED
+	#endif
+
+	#ifndef _UINTPTR_T_DEFINED
+		#ifdef _WIN64
+			typedef unsigned __int64    uintptr_t;
+		#else
+			typedef _W64 unsigned int   uintptr_t;
+		#endif
+		#define _UINTPTR_T_DEFINED
+	#endif
+#endif
+
 extern int MV_ErrorCode;
 
 enum MV_Errors

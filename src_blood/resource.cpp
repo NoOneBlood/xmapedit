@@ -21,11 +21,7 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 #include "common_game.h"
-#include "crc32.h"
-#include "cache1d.h"
 #include "qheap.h"
-#include "xmpmisc.h"
-#include "xmpstr.h"
 
 #ifdef USE_QHEAP
 QHeap *Resource::heap;

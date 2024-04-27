@@ -20,6 +20,7 @@ baselayer_glinfo glinfo;
 
 static void onvideomodechange(int UNUSED(newmode)) { }
 void (*baselayer_onvideomodechange)(int) = onvideomodechange;
+char (*onquiteventcallback)(void) = 0;
 
 #if USE_POLYMOST
 static int osdfunc_setrendermode(const osdfuncparm_t *parm)

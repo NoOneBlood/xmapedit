@@ -25,7 +25,6 @@
 #ifndef __XMPQAV
 #define __XMPQAV
 #include "common_game.h"
-#include "build.h"
 
 #define kQavOrientationLeft 16384
 #define kQavOrientationQ16 32768

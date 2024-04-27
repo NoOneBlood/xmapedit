@@ -25,10 +25,7 @@
 #define __XMPARTED
 #include "common_game.h"
 #include "xmptools.h"
-#include "gfx.h"
-#include "seq.h"
 #include "screen.h"
-#include "tile.h"
 
 #define kMaxArtFiles 256
 #define kArtBlockMapSign "<-XrT\x1A"

@@ -25,10 +25,8 @@
 #ifndef __MAPCMT_H
 #define __MAPCMT_H
 
-#include "inifile.h"
 #include "common_game.h"
 #include "xmp2dscr.h"
-#include "gfx.h"
 
 #define kCommentMaxLength 128
 #define kCommentExt ".mct"
@@ -36,8 +34,8 @@
 
 extern short cmthglt;
 
-struct MAP_COMMENT {
-	
+struct MAP_COMMENT
+{
 	int cx, cy;
 	int tx, ty;
 	int objType, objIdx;
@@ -49,7 +47,6 @@ struct MAP_COMMENT {
 	unsigned int fontID				: 4;
 	unsigned int id					: 8;
 	unsigned int initRebind		 	: 1;
-	
 };
 
 class MAP_COMMENT_MGR {
@@ -60,7 +57,6 @@ class MAP_COMMENT_MGR {
 	kFontLarge			= 5,
 	};
 	
-	#define kPad 2
 	#define kDefaultCRC 0
 	#define kDefaultFont kFontNormal
 	#define kNoTail 0x7FFFFFF
@@ -71,7 +67,6 @@ class MAP_COMMENT_MGR {
 	public:
 		MAP_COMMENT* comments;
 		unsigned int commentsCount;
-		char* cmtins;
 		
 		MAP_COMMENT_MGR();
 		int  LoadFromIni(IniFile* pFile);

@@ -22,16 +22,9 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "build.h"
+#include "common_game.h"
 #include "db.h"
-#include "callback.h"
-#include "eventq.h"
-#include "tile.h"
-#include "gameutil.h"
-#include "xmpact.h"
-#include "xmpfx.h"
-#include "xmpgib.h"
-#include "xmpsnd.h"
+#include "preview.h"
 
 
 

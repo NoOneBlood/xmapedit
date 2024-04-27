@@ -26,7 +26,6 @@
 #include "common_game.h"
 #include "eventq.h"
 #include "db.h"
-#include "gui.h"
 
 
 
@@ -67,102 +66,7 @@
 #define kCdudeFileExt               "CDU"
 
 extern BOOL gEventRedirectsUsed;
-class IDLIST
-{
-	typedef void (*IDLIST_PROCESS_FUNC)(int32_t nId);
-	
-	private:
-        int32_t*  db;
-        uint32_t  length;
-    public:
-		IDLIST(bool spawnDb)
-		{
-			length = 0;
-			db = NULL;
-			if (spawnDb)
-				Init();
-		}
-        ~IDLIST() { Free(); }
-		
-        void Init()
-        {
-            Free();
-		    db = (int32_t*)Bmalloc(sizeof(int32_t));
-			dassert(db != NULL);
-            db[0] = -1;
-        }
 
-        void Free()
-        {
-            length = 0;
-            if (db)
-                Bfree(db), db = NULL;
-        }
-
-        int Add(int nID)
-        {
-            register int t = length;
-            db[length++] = nID;
-			db = (int32_t*)Brealloc(db, (length + 1)*sizeof(int32_t));
-			dassert(db != NULL);
-            db[length] = -1;
-			return t;
-        }
-		
-		int AddIfNot(int nID)
-		{
-            register int t;
-			if ((t = Find(nID)) >= 0)
-				return t;
-			
-			return Add(nID);
-		}
-
-        bool Remove(int nID, bool isListId = false)
-        {
-			if (!isListId && (nID = Find(nID)) < 0)
-				return false;
-			
-			if (nID < length)
-				memmove(&db[nID], &db[nID+1], (length-nID)*sizeof(int32_t));
-			
-			if (length > 0)
-			{
-				db = (int32_t*)Brealloc(db, length*sizeof(int32_t));
-				dassert(db != NULL);
-				db[--length] = -1;
-			}
-			else
-			{
-				Init();
-			}
-			
-			return true;
-        }
-
-        int Find(int nID)
-        {
-			register int i = length;
-			while(--i >= 0 && db[i] != nID);
-            return i;
-        }
-		
-		BOOL Exists(int nID)	{ return (Find(nID) >= 0); }
-        int32_t* GetPtr()		{ return (int32_t*)db; }
-		uint32_t GetLength()	{ return length; }
-		uint32_t SizeOf()		{ return (length+1)*sizeof(int32_t); }
-		
-		void Process(IDLIST_PROCESS_FUNC pFunc)
-		{
-			if (!length)
-				return;
-			
-			int32_t* pDb = db;
-			while(*pDb >= 0)
-				pFunc(*pDb++);
-		}
-        
-};
 
 
 extern IDLIST gProxySpritesList;

@@ -21,10 +21,10 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 #pragma once
-#include "build.h"
 #include "common_game.h"
 
-struct HITINFO {
+struct HITINFO
+{
     short hitsect;
     short hitwall;
     short hitsprite;

@@ -20,18 +20,9 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
-#include "build.h"
-#include "editor.h"
-#include "compat.h"
-#include "common_game.h"
-#include "crc32.h"
 #include "db.h"
-
 #include "mapcmt.h"
 #include "xmpconf.h"
-#include "xmpstub.h"
-#include "xmpror.h"
 #include "xmpmisc.h"
 #include "xmpsky.h"
 

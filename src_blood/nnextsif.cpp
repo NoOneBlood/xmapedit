@@ -23,17 +23,12 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "build.h"
 #include "common_game.h"
-#include "editor.h"
 #include "tile.h"
 #include "seq.h"
 #include "nnextsif.h"
 #include "preview.h"
-#include "xmpact.h"
-#include "xmpstub.h"
-#include "xmpror.h"
-#include "xmpmisc.h"
+#include "xmpmaped.h"
 
 
 #define kMaxConditions				600
@@ -217,7 +212,7 @@ static char sectCmpFloorSlope(void) 	{ return Cmp(pSect->floorheinum); }
 static char sectCmpCeilSlope(void)  	{ return Cmp(pSect->ceilingheinum); }
 static char sectChkSprTypeInSect(void)
 {
-	register int i;
+	int i;
 	for (i = headspritesect[objIndex]; i >= 0; i = nextspritesect[i])
 	{
 		if (!Cmp(sprite[i].type)) continue;
@@ -229,7 +224,7 @@ static char sectChkSprTypeInSect(void)
 
 static char sectHelperCmpHeight(char ceil)
 {
-	register int nHeigh1, nHeigh2;
+	int nHeigh1, nHeigh2;
 	switch (pSect->type)
 	{
 		case kSectorZMotion:
@@ -271,7 +266,7 @@ static char sectCmpDepth(void)			{ return Cmp((xAvail) ? pXSect->Depth : 0); }
 static char wallCmpOverpicnum(void)		{ return Cmp(pWall->overpicnum); }
 static char wallChkIsMirror(void)
 {
-	register int i = mirrorcnt;
+	int i = mirrorcnt;
 	while(--i >= 0)
 	{
 		if (mirror[i].type == 0 && mirror[i].id == objIndex)
@@ -703,9 +698,9 @@ static char sprChkOwner(void)
 static char sprChkSector(void) 		{ return wallHelperChkSector(pSpr->sectnum); }
 static char sprCmpVelocityNew(void)
 {
-	register int xv = xvel[pSpr->index];
-	register int yv = yvel[pSpr->index];
-	register int zv = zvel[pSpr->index];
+	int xv = xvel[pSpr->index];
+	int yv = yvel[pSpr->index];
+	int zv = zvel[pSpr->index];
 
 	switch(arg1)
 	{
@@ -723,9 +718,9 @@ static char sprCmpChkVelocity(void)
 	if (arg3)
 		return sprCmpVelocityNew();
 	
-	register int xv = xvel[pSpr->index];
-	register int yv = yvel[pSpr->index];
-	register int zv = zvel[pSpr->index];
+	int xv = xvel[pSpr->index];
+	int yv = yvel[pSpr->index];
+	int zv = zvel[pSpr->index];
 
 	switch(arg1)
 	{
@@ -745,10 +740,10 @@ static char sprChkUnderwater(void) 		{ return isUnderwaterSector(pSpr->sectnum);
 static char sprChkDmgImmune(void) 		{ return errCondNotImplemented(); } // !!!
 static char sprHelperChkHitscan(int nWhat)
 {
-	register int nAng = pSpr->ang & kAngMask;
-	register int nOldStat = pSpr->cstat;
-	register int nHit  = -1, nSlope = 0;
-	register int nMask = -1;
+	int nAng = pSpr->ang & kAngMask;
+	int nOldStat = pSpr->cstat;
+	int nHit  = -1, nSlope = 0;
+	int nMask = -1;
 	
 	if ((nOldStat & kSprRelMask) == kSprSloped)
 		nSlope = spriteGetSlope(pSpr->index);
@@ -831,7 +826,7 @@ static char sprChkHitscanSpr(void)		{ return sprHelperChkHitscan(4); }
 static char sprChkHitscanMasked(void)	{ return sprHelperChkHitscan(5); }
 static char sprChkIsTarget(void)
 {
-	register int i;
+	int i;
 	for (i = headspritestat[kStatDude]; i >= 0; i = nextspritestat[i])
 	{
 		if (pSpr->index == i)
@@ -853,8 +848,8 @@ static char sprCmpHealth(void)  // !!!
 {
 	if (xAvail)
 	{
-		register int t;
-		register int fullHealth = 100 << 4;
+		int t;
+		int fullHealth = 100 << 4;
 
 		if (IsDudeSprite(pSpr))
 			t = (pXSpr->data4 > 0) ? ClipRange(pXSpr->data4 << 4, 1, 65535) : fullHealth;
@@ -893,7 +888,7 @@ static char sprChkTouchWall(void)
 /**---------------------------------------------------------------------------**/
 static char sprChkTouchSpite(void)
 {
-	register int i, id = -1;
+	int i, id = -1;
 	SPRITEHIT* pHit;
 
 	if (xAvail)
@@ -963,7 +958,7 @@ static char sprCmpBurnTime(void)
 {
 	if (xAvail)
 	{
-		register int t = (IsDudeSprite(pSpr)) ? 2400 : 1200;
+		int t = (IsDudeSprite(pSpr)) ? 2400 : 1200;
 		if (!Cmp((kPercFull * pXSpr->burnTime) / t)) return false;
 		else if (PUSH && spriRangeIsFine(pXSpr->burnSource)) Push(EVOBJ_SPRITE, pXSpr->burnSource);
 		return true;
@@ -974,7 +969,7 @@ static char sprCmpBurnTime(void)
 /**---------------------------------------------------------------------------**/
 static char sprChkIsFlareStuck(void)
 {
-	register int i;
+	int i;
 	for (i = headspritestat[kStatFlare]; i >= 0; i = nextspritestat[i])
 	{
 		spritetype* pFlare = &sprite[i];
@@ -1322,7 +1317,7 @@ static void Error(char* pFormat, ...)
 
 static void TriggerObject(int nSerial)
 {
-	register int oType, oIndex;
+	int oType, oIndex;
 	Unserialize(nSerial, &oType, &oIndex);
 	nnExtTriggerObject(oType, oIndex, pXCond->command);
 }
@@ -1491,7 +1486,7 @@ void conditionsTrackingAlloc()
 
 void conditionsTrackingClear()
 {
-	register int i = gTrackingConditionsListLength;
+	int i = gTrackingConditionsListLength;
 	if (gTrackingConditionsList)
 	{
 		while(--i >= 0)
@@ -1515,8 +1510,8 @@ void conditionsTrackingProcess()
 {
 	EVENT evn; OBJECT* o;
 	evn.funcID = kCallbackMax; evn.cmd = kCmdOn;
-	register int i = gTrackingConditionsListLength;
-	register int t;
+	int i = gTrackingConditionsListLength;
+	int t;
 
 	while(--i >= 0)
 	{

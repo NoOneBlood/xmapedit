@@ -21,33 +21,13 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "common_game.h"
-#include "editor.h"
 #include "tile.h"
 #include "aadjust.h"
-#include "xmpstub.h"
-#include "gui.h"
-#include "screen.h"
+#include "xmpmaped.h"
 #include "fire.h"
-#include "tilefav.h"
-#include "inifile.h"
-#include "edit3d.h"
-#include "replace.h"
-#include "osd.h"
-#include "crc32.h"
-#include "xmpror.h"
 #include "img2tile.h"
-#include "xmparted.h"
-#include "xmpexplo.h"
-#include "xmpconf.h"
-#include "xmpmisc.h"
 #include "xmptools.h"
 #include "xmpevox.h"
-
-#include "cache1d.h"
-extern "C" {
-#include "a.h"
-}
 
 
 
@@ -315,8 +295,8 @@ BOOL tileAllocSysTile(short* dest, int w, int h) {
 
 void tileInitSystemTiles() {
 
-	register int i, len;
-	register short nTile;
+	int i, len;
+	short nTile;
 	RESHANDLE hIco;
 	
 	if (tileAllocSysTile(&nTile, 128, 128))
@@ -337,6 +317,11 @@ void tileInitSystemTiles() {
 		gSysTiles.add(i);
 	
 	gSysTiles.add(2342); // dynamic fire
+	
+	if (tileAllocSysTile(&nTile, 4, 4))
+	{
+		gSysTiles.hudMask = nTile;
+	}
 	
 	gSysTiles.angArrow = 4126; BYTE* pArrow = tileLoadTile(2332);
 	if (pArrow && tileAllocSysTile(&nTile, tilesizx[2332], tilesizy[2332]));
@@ -489,6 +474,12 @@ void tileUninitSystemTiles() {
 	{
 		tilePurgeTile(gSysTiles.icoDiskette, TRUE);
 		tileFreeTile(gSysTiles.icoDiskette);
+	}
+	
+	if (gSysTiles.hudMask)
+	{
+		tilePurgeTile(gSysTiles.hudMask, TRUE);
+		tileFreeTile(gSysTiles.hudMask);
 	}
 }
 
@@ -908,11 +899,11 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 			{
 				if (gTileView.transBackground && gSysTiles.tileViewBg && gTileView.bglayers)
 				{
-					gTileView.scrSave = (BYTE*)Resource::Alloc(xdim*ydim);
+					gTileView.scrSave = (BYTE*)Resource::Alloc(bytesperline*ydim);
 					for (i = 0; i < gTileView.bglayers; i++)
-						rotatesprite(xdim<<15, ydim<<15, 0x10000 << 6, 0, gSysTiles.tileViewBg, 0, 0, (char)(0x20 | 0x04 | 0x01), windowx1, windowy1, windowx2, windowy2);
+						rotatesprite(xdim<<15, ydim<<15, 0x10000 << 6, 0, gSysTiles.tileViewBg, 0, 0, (char)(kRSTransluc2 | kRSNoClip), 0, 0, xdim-1, ydim-1);
 					
-					memcpy(gTileView.scrSave, (void*)frameplace, xdim*ydim);
+					memcpy(gTileView.scrSave, (void*)frameplace, bytesperline*ydim);
 				}
 			}
 			else if (!gTileView.transBackground)
@@ -950,7 +941,7 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 		}
 		else
 		{
-			memcpy((void*)frameplace, gTileView.scrSave, xdim*ydim);
+			memcpy((void*)frameplace, gTileView.scrSave, bytesperline*ydim);
 		}
 
 		handleevents();
@@ -1409,8 +1400,8 @@ BYTE tileGetSurfType( int nHit )
 
 short tileSearchFreeRange(int range) {
 
-	register short j = 0;
-	register short i = kMaxTiles;
+	int j = 0;
+	int i = kMaxTiles;
 	
 	while(--i >= 0)
 	{
@@ -1465,7 +1456,7 @@ int tileGetUsedColors(int nTile, char colors[256])
 
 BYTE tileGetMostUsedColor(int nTile, short noColor)
 {
-	return mostUsedColor(tileLoadTile(nTile), tilesizx[nTile]*tilesizy[nTile], noColor);
+	return mostUsedByte(tileLoadTile(nTile), tilesizx[nTile]*tilesizy[nTile], noColor);
 }
 
 int tileGetPic(int nTile)
@@ -1569,7 +1560,7 @@ void tileDrawTile(int x, int y, short pic, int size, short plu, char flags, scha
 	else setupvlineasm(nShift);
 
 	for (i = 0; i < 4; i++)
-		palookupoffse[i] = (intptr_t)(palookup[plu] + (qgetpalookup(0, shade) << 8));
+		palookupoffse[i] = (intptr_t)(palookup[plu] + shgetpalookup(0, shade));
 
 	if (!size)
 	{
@@ -1640,6 +1631,26 @@ int tileExists(BYTE* image, int wh, int hg) {
 	}
 	
 	return -1;
+}
+
+void tilePaint(int nTile, int nPlu, int nShade, int nVis)
+{
+	BYTE *pTile, *pPlu;
+	int l;
+
+	if ((pTile = tileLoadTile(nTile)) != NULL)
+	{
+		pPlu = (BYTE*)(palookup[nPlu] + shgetpalookup(nVis, nShade));
+		l = tilesizx[nTile]*tilesizy[nTile];
+		
+		while(--l >= 0)
+		{
+			if (*pTile != 255)
+				*pTile = pPlu[*pTile];
+			
+			pTile++;
+		}
+	}
 }
 
 
@@ -1802,9 +1813,3 @@ void tileShowInfoWindow(int nTile) {
 	ShowModal(&dialog);
 
 }
-
-/* void tileDrawTile2(int x, int y, int ang, short pic, int size, short plu, char flags, schar shade)
-{
-	rotatesprite(x << 16, y << 16, size, ang, pic, shade,
-	(char)plu, 0, windowx1, windowy1, windowx2, windowy2);
-} */

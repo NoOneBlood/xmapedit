@@ -26,7 +26,7 @@
 #pragma pack(push, 1)
 
 #define kMaxQFonts 13
-#define kMaxVFonts 32
+#define kMaxVFonts 16
 
 // font types
 enum
@@ -101,11 +101,13 @@ struct QFONT
 
 struct ROMFONT
 {
-	BYTE* data;
-	unsigned int wh			: 5;
-	unsigned int hg			: 5;
-	signed   int ls			: 6; 
-	int GetLength(char* str, int s = 255) { return strlen(str) * ((s == 255) ? ls : s); }
+	unsigned char* data;
+	unsigned int size		: 16;	// sizeof
+	unsigned int uc			: 1;	// uppercase only
+	unsigned int wh			: 8;	// width
+	unsigned int hg			: 8;	// height
+	unsigned int ls			: 8;	// letter spacing
+	unsigned int lh			: 8;	// line height
 };
 
 #pragma pack(pop)
@@ -140,9 +142,16 @@ void gfxDrawTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont,
 void gfxDrawTextRect(Rect* pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines = 0x7FFFFFFF);
 void gfxGetTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines = 0x7FFFFFFF);
 void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade = 0, int nPLU = 0, int nAlign = 0);
+void gfxDrawCaption(int x, int y, int fr, int bg, int bgpad, char* txt, QFONT* pFont);
+void gfxPrinTextShadow(int x, int y, int col, char* text, QFONT *pFont = NULL, int shofs = 1);
 void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup );
 void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags = 0x0);
 
 inline void gfxRect(Rect* pRect)		{ gfxRect(pRect->x0, pRect->y0, pRect->x1, pRect->y1);		}
 inline void gfxFillBox(Rect* pRect)		{ gfxFillBox(pRect->x0, pRect->y0, pRect->x1, pRect->y1);	}
 inline void gfxSetClip(Rect* pRect)		{ gfxSetClip(pRect->x0, pRect->y0, pRect->x1, pRect->y1);	}
+
+inline void printextShadow(int xpos, int ypos, short col, char* text, ROMFONT* pFont)	{ printext2(xpos, ypos, col, text, pFont, 0x01); }
+inline void printextShadow(int xpos, int ypos, short col, char* text, int font)			{ printext2(xpos, ypos, col, text, &vFonts[font], 0x01); }
+inline void printextShadowL(int xpos, int ypos, short col, char* text)					{ printextShadow(xpos, ypos, col, text, 0); }
+inline void printextShadowS(int xpos, int ypos, short col, char* text)					{ printextShadow(xpos, ypos, col, text, 1); }

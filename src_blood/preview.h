@@ -29,7 +29,6 @@
 #include "xmpgib.h"
 #include "xmpror.h"
 #include "db.h"
-#include "inifile.h"
 #include "nnexts.h"
 
 
@@ -41,10 +40,13 @@ kScrEffectQuake2			= 1, // for explosions
 kScrEffectMax			   	   ,
 };
 
-struct DONEOFTOTAL
-{
-	unsigned int done				: 32;
-	unsigned int total				: 32;
+
+struct PREVIEW_MODE_KEYS {
+	unsigned int key			: 8;
+	unsigned int reqShift		: 1;
+	unsigned int reqCtrl		: 1;
+	unsigned int reqAlt			: 1;
+	unsigned int mode			: 3;	// 2d, 3d, both
 };
 
 class PREVIEW_MODE {
@@ -76,13 +78,6 @@ class PREVIEW_MODE {
 	void Save(IniFile* pIni, char* section);
 };
 
-struct PREVIEW_MODE_KEYS {
-	unsigned int key			: 8;
-	unsigned int reqShift		: 1;
-	unsigned int reqCtrl		: 1;
-	unsigned int reqAlt			: 1;
-	unsigned int mode			: 3;	// 2d, 3d, both
-};
 
 extern PREVIEW_MODE gPreview;
 

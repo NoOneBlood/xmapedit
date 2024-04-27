@@ -25,8 +25,6 @@
 
 #ifndef __XMPROR
 #define __XMPROR
-#include "xmpmisc.h"
-#include "tile.h"
 
 #define kMaxROR 16
 #define kMirrorPic 504
@@ -50,7 +48,7 @@ void RestoreMirrorPic();
 void ClearMirrorPic();
 //---------------------------------------------------
 void warpInit(void);
-int CheckLink(spritetype *pSprite);
-int CheckLink(int *x, int *y, int *z, int *nSector);
-int CheckLinkCamera(int *x, int *y, int *z, int *nSector);
+int CheckLink(spritetype *pSprite, int nID, char wallLink);
+int CheckLink(int *x, int *y, int *z, int *nID, char wallLink);
+int CheckLinkCamera(int *x, int *y, int *z, int *nID, char wallLink);
 #endif

@@ -21,16 +21,12 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 #include "prefabs.h"
-#include "gui.h"
-#include "editor.h"
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "aadjust.h"
 #include "tile.h"
 #include "hglt.h"
-#include "xmpstr.h"
 #include "xmparted.h"
 #include "xmpview.h"
-#include "xmpmisc.h"
 
 // offsets for enumStr
 enum {

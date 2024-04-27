@@ -27,7 +27,6 @@
 #define __IMG2TILE_H
 
 #include "screen.h"
-#include "gfx.h"
 
 //#define I2TDEBUG 1
 #define USE_KPLIB 1

@@ -20,22 +20,12 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
-#include "common_game.h"
-#include "xmpstub.h"
-#include "editor.h"
-#include "gameutil.h"
-#include "screen.h"
-#include "edit2d.h"
-#include "edit3d.h"
 #include "hglt.h"
-#include "gui.h"
-#include "grdshd.h"
+#include "xmpmaped.h"
 #include "screen.h"
-#include "edit2d.h"
-#include "xmpconf.h"
-#include "xmpmisc.h"
+#include "grdshd.h"
 
+BITARRAY16 hgltspri, hgltwall;
 int hgltx1 = 0, hgltx2 = 0, hglty1 = 0, hglty2 = 0;
 short hgltType = 0;
 
@@ -47,19 +37,51 @@ NAMED_TYPE gHgltSectAutoRedWallErrors[] =
 	{-999, NULL},
 };
 
-void sprFixSector(spritetype* pSprite, int) {
+void sprFixSector(spritetype* pSpr, int flags)
+{
+	int x = pSpr->x, y = pSpr->y;
+	int cz, fz, i, s, e, z;
 	
-	register int i;
-	int dax = pSprite->x, day = pSprite->y, daz;
-	
-	if (inside(dax,day,pSprite->sectnum) != 1) {
-		daz = ((tilesizy[pSprite->picnum]*pSprite->yrepeat)<<2);
-		for(i = 0; i < numsectors; i++) {
-			if (inside(dax, day, i) == 1 && pSprite->z >= getceilzofslope((short)i, dax, day)
-				&& pSprite->z-daz <= getflorzofslope((short)i,dax,day)) {
-						ChangeSpriteSect(pSprite->index, (short)i);
-						break;
+	if (inside(x, y, pSpr->sectnum) != 1)
+	{
+		z = ((tilesizy[pSpr->picnum]*pSpr->yrepeat)<<2);
+		for (i = 0; i < numsectors; i++)
+		{
+			if (inside(x, y, i))
+			{
+				getzsofslope(i, x, y, &cz, &fz);
+				if (pSpr->z >= cz && pSpr->z-z <= fz)
+				{
+					ChangeSpriteSect(pSpr->index, i);
+					break;
 				}
+			}
+		}
+	}
+	
+	if (pSpr->statnum == kStatMarker && pSpr->type != kMarkerWarpDest)
+	{
+		if (rngok(pSpr->owner, 0, numsectors) && pSpr->sectnum != pSpr->owner)
+		{
+			if (flags & 0x01)
+			{
+				ChangeSpriteSect(pSpr->index, pSpr->owner);
+				return;
+			}
+			
+			getSectorWalls(pSpr->owner, &s, &e);
+			while(s <= e)
+			{
+				int x1, y1, x2, y2;
+				getWallCoords(s, &x1, &y1, &x2, &y2);
+				if (pointOnLine(x, y, x1, y1, x2, y2))
+				{
+					ChangeSpriteSect(pSpr->index, pSpr->owner);
+					return;
+				}
+			
+				s++;
+			}
 		}
 	}
 	
@@ -69,7 +91,7 @@ void sprFixSector(spritetype* pSprite, int) {
 int hgltSprCount() {
 	
 	int total = 0;
-	for (register int i = 0; i < highlightcnt; i++) {
+	for (int i = 0; i < highlightcnt; i++) {
 		if ((highlight[i] & 0xC000) != 0 && hgltSprIsFine(highlight[i] & 16383))
 			total++;
 	}
@@ -80,7 +102,7 @@ int hgltSprCount() {
 int hgltSprCallFunc(HSPRITEFUNC SpriteFunc, int nData) {
 	
 	int retn = 0;
-	register int i, j;
+	int i, j;
 	if (getHighlightedObject() == 200 && !sprInHglt(searchwall)) {
 		SpriteFunc(&sprite[searchwall], nData);
 		return 0;
@@ -104,56 +126,43 @@ int hgltSprCallFunc(HSPRITEFUNC SpriteFunc, int nData) {
 }
 
 
-int hgltSectCallFunc(HSECTORFUNC2 SectorFunc, int arg1, int arg2, int arg3, int arg4) {
-	
-	int retn = 0; register int i, j;
-	
-/* 	i = getSector();
-	if (i < 0 && highlightsectorcnt <= 0) return 0;
-	else if (i >= 0 && hgltCheck(OBJ_SECTOR, i) < 0)
-	{
-		SectorFunc(i, arg1, arg2, arg3, arg4);
-		return 1;
-	} */
+int qsSortByIndexASC(short *nID1, short *nID2) { return *nID1 - *nID2; }
 
-	for (i = highlightsectorcnt - 1; i >= 0 ; i--)
-	{
-		SectorFunc(highlightsector[i], arg1, arg2, arg3, arg4);
-		retn++;
-	}
-
-	return retn;
-}
-
-void hgltDetachSectors()
+int hgltSectDelete()
 {
 	int i = highlightsectorcnt;
-	int j, s, e;
+	int r = i;
+
+	if (i > 1) // sort the highlight to make sure it process the right sector
+		qsort(highlightsector, highlightsectorcnt,
+			sizeof(highlightsector[0]),
+				(int(*)(const void*,const void*))qsSortByIndexASC);
+
+	while(--i >= 0) // start from the bottom of array
+		deletesector(highlightsector[i]);
+	
+	highlightsectorcnt = -1;
+	return r;
+}
+
+int hgltSectCallFunc(HSECTORFUNC2 SectorFunc, int arg1, int arg2, int arg3, int arg4)
+{
+	int i = highlightsectorcnt;
+	int r = 0;
 	
 	while(--i >= 0)
 	{
-		getSectorWalls(highlightsector[i], &s, &e);
-		while(s <= e)
-		{
-			if (wall[s].nextwall >= 0)
-			{
-				j = highlightsectorcnt;
-				while(--j >= 0 && highlightsector[j] != wall[s].nextsector);
-				if (j < 0)
-				{
-					wallDetach(wall[s].nextwall);
-					wallDetach(s);
-				}
-			}
-			
-			s++;
-		}
+		SectorFunc(highlightsector[i], arg1, arg2, arg3, arg4);
+		r++;
 	}
+	
+	return r;
 }
+
 
 short hgltCheck(int type, int idx) {
 	
-	register int i;
+	int i;
 	switch (type) {
 		case OBJ_WALL:
 		case OBJ_MASKED:
@@ -183,7 +192,7 @@ short hgltCheck(int type, int idx) {
 
 BOOL hgltRemove(int type, int idx) {
 	
-	register int i = -1;
+	int i = -1;
 	switch (type) {
 		case OBJ_WALL:
 		case OBJ_MASKED:
@@ -191,8 +200,8 @@ BOOL hgltRemove(int type, int idx) {
 			if (highlightcnt > 0) {
 				
 				if ((i = hgltCheck(type, idx)) < 0) return FALSE;
-				else if (type != OBJ_SPRITE) ClearBitString(show2dwall, idx);
-				else ClearBitString(show2dsprite, idx);
+				else if (type != OBJ_SPRITE) ClearBitString(hgltwall, idx);
+				else ClearBitString(hgltspri, idx);
 				while(i < highlightcnt - 1) {
 					highlight[i] = highlight[i + 1];
 					i++;
@@ -208,7 +217,7 @@ BOOL hgltRemove(int type, int idx) {
 			if (highlightsectorcnt > 0) {
 				
 				if ((i = hgltCheck(type, idx)) < 0) return FALSE;
-				else sectorAttach(idx);
+				else sectAttach(idx);
 				while (i < highlightsectorcnt - 1) {
 					highlightsector[i] = highlightsector[i + 1];
 					i++;
@@ -226,7 +235,7 @@ BOOL hgltRemove(int type, int idx) {
 
 int hgltAdd(int type, int idx) {
 	
-	register int retn = -1;
+	int retn = -1;
 	switch (type) {
 		case OBJ_SPRITE:
 		case OBJ_WALL:
@@ -235,11 +244,11 @@ int hgltAdd(int type, int idx) {
 			switch (type) {
 				case OBJ_SPRITE:
 					highlight[highlightcnt++] = (short)(idx + 16384);
-					SetBitString(show2dsprite, idx);
+					SetBitString(hgltspri, idx);
 					break;
 				default:
 					highlight[highlightcnt++] = (short)idx;
-					SetBitString(show2dwall, idx);
+					SetBitString(hgltwall, idx);
 					break;
 			}
 			break;
@@ -272,7 +281,7 @@ int hgltAdd(int type, int idx) {
 
 short hglt2dAddInXYRange(int hgltType, int x1, int y1, int x2, int y2) {
 
-	register int i, j; int swal, ewal, cnt = 0;
+	int i, j; int swal, ewal, cnt = 0;
 	for (i = 0; i < numsectors; i++)
 	{
 		if (hgltType & kHgltPoint)
@@ -321,7 +330,7 @@ short hglt2dAddInXYRange(int hgltType, int x1, int y1, int x2, int y2) {
 short hglt2dAdd(int type, int idx) {
 	
 	short cnt = 0;
-	register int i = 0; int x, y, sect;
+	int i = 0; int x, y, sect;
 	switch (type) {
 		case OBJ_SPRITE:
 		case OBJ_WALL:
@@ -351,7 +360,6 @@ short hglt2dAdd(int type, int idx) {
 		case OBJ_SECTOR:
 			if (hgltCheck(type, idx) >= 0) break;
 			hgltAdd(type, idx), cnt++;
-			sectorDetach(idx);
 			break;
 	}
 	
@@ -362,7 +370,7 @@ short hglt2dAdd(int type, int idx) {
 short hglt2dRemove(int type, int idx) {
 
 	short cnt = 0;
-	register int i = 0; int x, y;
+	int i = 0; int x, y;
 	switch (type)
 	{
 		case OBJ_SPRITE:
@@ -402,7 +410,7 @@ short hglt2dRemove(int type, int idx) {
 
 void hgltReset(int which) {
 	
-	register int i;
+	int i;
 	if ((which & kHgltPoint) && highlightcnt > 0) {
 		
 		for (i = highlightcnt - 1; i >= 0; i--) {
@@ -428,7 +436,7 @@ void hgltReset(int which) {
 
 void hgltSprGetEdgeSpr(short* ls, short* rs, short* ts, short* bs, short* zts, short* zbs) {
 	
-	register short j = -1; register int i;
+	short j = -1; int i;
 	int zTop = 0, zBot = 0, zb = 0, zt = 0;
 	
 	for (i = 0; i < highlightcnt; i++) {
@@ -594,7 +602,7 @@ void hgltSprClamp(int ofsAboveCeil, int ofsBelowFloor, int which) {
 	
 }
 
-void hglt2Xlist(OBJECT_LIST* pList, char which)
+void hglt2List(OBJECT_LIST* pList, char asX, char which)
 {
 	int i, s, e, t;
 	
@@ -603,22 +611,43 @@ void hglt2Xlist(OBJECT_LIST* pList, char which)
 		for (i = 0; i < highlightsectorcnt; i++)
 		{
 			t = highlightsector[i];
-			if (GetXSect(&sector[t]))
-				pList->Add(OBJ_SECTOR, sector[t].extra);
+			if (asX)
+			{
+				if (GetXSect(&sector[t]))
+					pList->Add(OBJ_SECTOR, sector[t].extra);
+			}
+			else
+			{
+				pList->Add(OBJ_SECTOR, t);
+			}
 			
 			getSectorWalls(t, &s, &e);
 			while(s <= e)
 			{
-				if (GetXWall(&wall[s]))
-					pList->Add(OBJ_WALL, wall[s].extra);
+				if (asX)
+				{
+					if (GetXWall(&wall[s]))
+						pList->Add(OBJ_WALL, wall[s].extra);
+				}
+				else
+				{
+					pList->Add(OBJ_WALL, s);
+				}
 				
 				s++;
 			}
 
 			for (s = headspritesect[t]; s >= 0; s = nextspritesect[s])
 			{
-				if (GetXSpr(&sprite[s]))
-					pList->Add(OBJ_SPRITE, sprite[s].extra);
+				if (asX)
+				{
+					if (GetXSpr(&sprite[s]))
+						pList->Add(OBJ_SPRITE, sprite[s].extra);
+				}
+				else
+				{
+					pList->Add(OBJ_SPRITE, s);
+				}
 			}
 		}
 	}
@@ -630,14 +659,28 @@ void hglt2Xlist(OBJECT_LIST* pList, char which)
 			if ((highlight[i] & 0xC000) == 0x4000)
 			{
 				s = highlight[i] & 0x3FFF;
-				if (GetXSpr(&sprite[s]))
-					pList->Add(OBJ_SPRITE, sprite[s].extra);
+				if (asX)
+				{
+					if (GetXSpr(&sprite[s]))
+						pList->Add(OBJ_SPRITE, sprite[s].extra);
+				}
+				else
+				{
+					pList->Add(OBJ_SPRITE, s);
+				}
 			}
 			else
 			{
 				s = highlight[i];
-				if (GetXWall(&wall[s]))
-					pList->Add(OBJ_WALL, wall[s].extra);
+				if (asX)
+				{
+					if (GetXWall(&wall[s]))
+						pList->Add(OBJ_WALL, wall[s].extra);
+				}
+				else
+				{
+					pList->Add(OBJ_WALL, s);
+				}
 			}
 		}
 		
@@ -724,7 +767,7 @@ void hgltIsolateChannels(char which)
 	OBJECT_LIST hglt; OBJECT* pObj;
 	int i, j, k = 0;
 
-	hglt2Xlist(&hglt, which);
+	hglt2List(&hglt, 1, which);
 	collectUsedChannels(used);
 	
 	for (i = 100; i < l; i++)
@@ -758,7 +801,7 @@ void hgltIsolatePathMarkers(int which)
 {
 	spritetype *pMarkA, *pMarkB; int nOld, nA, nB;
 	OBJECT_LIST hglt; OBJECT *a, *b;
-	hglt2Xlist(&hglt, which);
+	hglt2List(&hglt, 1, which);
 	
 	
 	a = hglt.Ptr();
@@ -813,7 +856,7 @@ void hgltIsolateRorMarkers(int which)
 {
 	spritetype *pMarkA, *pMarkB; int nOld, nA, nB;
 	OBJECT_LIST hglt; OBJECT *a, *b;
-	hglt2Xlist(&hglt, which);
+	hglt2List(&hglt, 1, which);
 	
 	a = hglt.Ptr();
 	while(a->type != OBJ_NONE)
@@ -863,7 +906,7 @@ void hgltSprSetXYZ(int x, int y, int z) {
 
 void hgltSprChgXYZ(int xstep, int ystep, int zstep) {
 	
-	register int i, j;
+	int i, j;
 	for (i = 0; i < highlightcnt; i++) {
 		if ((highlight[i] & 0xC000) == 0)
 			continue;
@@ -997,7 +1040,7 @@ void hgltSprPutOnWall(int nwall, int x, int y) {
 
 void hgltSprRotate(int step) {
 
-	register int i, j;
+	int i, j;
 	int dax = 0, day = 0;
 	
 	
@@ -1124,11 +1167,58 @@ char hgltSectInsideBox(int x, int y)
 	return (irngok(x, x1, x2) && irngok(y, y1, y2));
 }
 
+void hgltSectDetach()
+{
+	int i = highlightsectorcnt;
+	int n, s, e;
+	
+	BITARRAY16 done;
+	while(--i >= 0)
+	{
+		getSectorWalls(highlightsector[i], &s, &e);
+		while(s <= e)
+		{
+			n = wall[s].nextsector;
+			if (n >= 0 && (TestBitString(done, n) || hgltCheck(OBJ_SECTOR, n) < 0))
+			{
+				SetBitString(done, n);
+				wallDetach(wall[s].nextwall);
+				wallDetach(s);
+			}
+			
+			s++;
+		}
+	}
+}
+
+void hgltSectAttach()
+{
+	int i = highlightsectorcnt;
+	int n, t, s, e;
+	
+	while(--i >= 0)
+	{
+		t = highlightsector[i];
+		getSectorWalls(t, &s, &e);
+		while(s <= e)
+		{
+			if (wall[s].nextwall < 0 && (n = findNextWall(s)) >= 0)
+			{
+				wallAttach(s, sectorofwall(n), n);
+				wallAttach(n, t, s);
+			}
+			
+			s++;
+		}
+	}
+}
+
 int hgltSectFlip(int flags)
 {
 	int cx, cy;
 	hgltSectMidPoint(&cx, &cy);
-
+	hgltSectDetach();
+	
 	if (flags & 0x04)
 	{
 		IDLIST done(true);
@@ -1140,16 +1230,18 @@ int hgltSectFlip(int flags)
 			loopFlip(s, e, cx, cy, flags);
 	}
 	
-
 	// flip sectors inside highlight
-	return hgltSectCallFunc(sectFlip, cx, cy, flags);
+	int r = hgltSectCallFunc(sectFlip, cx, cy, flags);
+	hgltSectAttach();
+	return r;
 }
 
 int hgltSectRotate(int flags, int nAng)
 {
 	int cx, cy;
 	hgltSectMidPoint(&cx, &cy);
-
+	hgltSectDetach();
+	
 	if (flags & 0x04)
 	{
 		IDLIST done(true);
@@ -1162,7 +1254,9 @@ int hgltSectRotate(int flags, int nAng)
 	}
 	
 	// rotate sectors inside highlight
-	return hgltSectCallFunc(sectRotate, cx, cy, nAng, flags);
+	int r = hgltSectCallFunc(sectRotate, cx, cy, nAng, flags);
+	hgltSectAttach();
+	return r;
 }
 
 char hgltListOuterLoops(int* nStart, int* s, int* e, IDLIST* pDone, char which)
@@ -1180,8 +1274,8 @@ char hgltListOuterLoops(int* nStart, int* s, int* e, IDLIST* pDone, char which)
 			// attempt to find outer loop pointer here...
 			////////////////////////////////////////////////
 			
-			if (wall[j].nextwall >= 0)					continue;	// must be solid because sectors detached
-			else if (pDone->Exists(j))					continue;	// visited
+			//if (wall[j].nextwall >= 0)					continue;	// must be solid because sectors detached
+			if (pDone->Exists(j))					continue;	// visited
 			else if ((nNext = findNextWall(j)) < 0)		continue;	// not detached
 			else if ((nSect = sectorofwall(nNext)) < 0)	continue;	// corrupted wall?
 			else if (hgltCheck(OBJ_SECTOR, nSect) >= 0)	continue;	// inside highlight
@@ -1425,7 +1519,7 @@ int ED32_hgltSectAutoRedWall()
 			nMove = pRef->wallptr + pRef->wallnum;
 			n = (nNewWalls - numwalls); // number of walls in just constructed loop
 			
-			flipWalls(numwalls, nNewWalls);
+			flipwalls(numwalls, nNewWalls);
 			
 			pRef->wallnum += n;
 			if (nRef != numsectors - 1)
@@ -1636,6 +1730,26 @@ void sectChgXY(int nSector, int bx, int by, int flags, int)
 	}
 }
 
+void sectChgZ(int nSect, int bz, int a2, int flags, int a4)
+{
+	int s;
+	sectortype* pSect = &sector[nSect];
+	XSECTOR* pXSect = GetXSect(pSect);
+	
+	pSect->floorz		+= bz;
+	pSect->ceilingz		+= bz;
+	
+	if (pXSect && (pXSect->onFloorZ || pXSect->offFloorZ))
+	{
+		pXSect->onFloorZ	+= bz;
+		pXSect->offFloorZ	+= bz;
+	}
+
+	for (s = headspritesect[nSect]; s >= 0; s = nextspritesect[s])
+		sprite[s].z += bz;
+	
+}
+
 BOOL hgltShowStatus(int x, int y) {
 	
 	QFONT* pFont = qFonts[5];
@@ -1779,39 +1893,23 @@ void sectChgShade(int nSect, int nOf, int nShade, int, int)
 		sector[nSect].floorshade   = ClipRange(sector[nSect].floorshade   + nShade, -128, 63);
 }
 
-void sectDelete(int nSector, int arg1, int arg2, int arg3, int arg4) {
-	
-	int i, j; BOOL found = 0;
+void sectDelete(int nSector, int arg1, int arg2, int arg3, int arg4)
+{
+	int i;
+	deletesector(nSector);
 	if (highlightsectorcnt > 0)
 	{
-		for (j = 0; j < highlightsectorcnt; j++)
-		{
-			if (highlightsector[j] == nSector)
-			{
-				deletesector(nSector);
-				for(i = highlightsectorcnt - 1; i >= 0; i--)
-				{
-					if (highlightsector[i] >= nSector)
-						highlightsector[i]--;
-				}
-				found = 1;
-				break;
-			}
-		}
+		// exclude this one from highlight, if any
+		hgltRemove(OBJ_SECTOR, nSector);
 		
-		if (!found)
+		i = highlightsectorcnt;
+		while(--i >= 0)
 		{
-			for (j = 0; j < highlightsectorcnt; j++) sectorAttach(highlightsector[j]);
-			deletesector(nSector);
+			// must fix the highlight indexes
+			if (highlightsector[i] >= nSector)
+				highlightsector[i]--;
 		}
-		
-		highlightsectorcnt = -1;
 	}
-	else
-	{
-		deletesector(nSector);
-	}
-	
 }
 
 void sectSetupZOffset(int nSect, int nParentOld, int nParentNew, int flags, int)

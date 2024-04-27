@@ -23,13 +23,8 @@
 #ifndef __GUI_H
 #define __GUI_H
 
-#include "build.h"
-#include "baselayer.h"
-#include "resource.h"
-#include "gfx.h"
+#include "common_game.h"
 #include "screen.h"
-#include "xmpmisc.h"
-#include "xmpexplo.h"
 
 
 #define kColorBackground	gStdColor[20]

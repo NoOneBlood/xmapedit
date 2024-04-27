@@ -338,25 +338,21 @@ EXTERN short pointhighlight, linehighlight, highlightcnt;
 
 EXTERN short joinsector[2];
 EXTERN int mousxplc, mousyplc;
-EXTERN char gSectorDrawing, gNoclip;
+EXTERN char gNoclip;
 EXTERN int clipmoveboxtracenum;
-EXTERN int newnumwalls;
 
 void fixrepeats(short i);
 unsigned char changechar(unsigned char dachar, int dadir, unsigned char smooshyalign, unsigned char boundcheck);
-void fixspritesectors( void );
-void overheadeditor( void );
 int checksectorpointer( short nWall, short nSector );
-void copysector(short soursector, short destsector, short deststartwall, unsigned char copystat);
 void updatenumsprites( void );
 short whitelinescan(short dalinehighlight);
 int clockdir(short wallstart);
 int movewalls(int start, int offs);
+void flipwalls(short numwalls, short newnumwalls);
 void deletepoint(short point);
 void insertpoint(short linehighlight, int dax, int day);
 int deletesector(short sucksect);
 int adjustmark(int *xplc, int *yplc, short danumwalls);
-int checkautoinsert(int dax, int day, short danumwalls);
 //////////////////////////
 
 /*************************************************************************
@@ -471,7 +467,7 @@ EXTERN int(*changespritesect_replace)(short spritenum, short newsectnum);
 EXTERN int(*changespritestat_replace)(short spritenum, short newstatnum);
 EXTERN void(*loadvoxel_replace)(int voxindex);
 EXTERN void(*loadtile_replace)(short tilenume);
-EXTERN void(*printmessage16_replace)(char name[82]);
+EXTERN void (*printext_replace)(int xpos, int ypos, short col, short backcol, const char *name, char fontsize);
 
 int    preinitengine(void);	// a partial setup of the engine used for launch windows
 int    initengine(void);

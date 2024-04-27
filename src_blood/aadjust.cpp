@@ -21,28 +21,17 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
+#include "common_game.h"
 #include "db.h"
-#include "build.h"
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "aadjust.h"
-#include "xmpconf.h"
-#include "xmpmisc.h"
 #include "tile.h"
-#include "tilefav.h"
-#include "gameutil.h"
-#include "screen.h"
 #include "nnexts.h"
-#include "hglt.h"
 #include "xmptrig.h"
 #include "sectorfx.h"
-#include "seq.h"
-#include "gui.h"
-#include "edit3d.h"
 #include "mapcmt.h"
 #include "xmpror.h"
 #include "tracker.h"
-#include "xmpstr.h"
 
 BYTE markerDB[6][3] = {
 	
@@ -498,7 +487,7 @@ int adjFillTilesArray(int objectGroup)
 
 int FixMarker(int nSect, int nMrk, int nMrkType)
 {
-	register int t;
+	int t;
 	if (!rngok(nMrk, 0, kMaxSprites) || sprite[nMrk].statnum != kStatMarker || sprite[nMrk].type != nMrkType)
 		nMrk = -1;
 	

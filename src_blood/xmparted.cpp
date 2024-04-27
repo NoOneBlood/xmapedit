@@ -21,19 +21,15 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "build.h"
-#include "editor.h"
-#include "screen.h"
 #include "common_game.h"
 #include "fire.h"
+#include "tile.h"
 #include "img2tile.h"
-#include "xmpstub.h"
-#include "xmpconf.h"
+#include "xmpmaped.h"
 #include "xmparted.h"
 #include "xmptools.h"
 #include "xmpexplo.h"
 #include "xmpevox.h"
-#include "xmpmisc.h"
 
 
 int nArtFiles = 0;
@@ -674,7 +670,7 @@ int artedDrawTile(int nTile, int nOctant, int nShade)
 		FireProcess();
 
 	rotatesprite(gArtEd.origin.x << 16, gArtEd.origin.y << 16, gTool.tileZoom, ang, nTile, (char)nShade,
-				gTileView.palookup, flags, windowx1, windowy1, windowx2, windowy2);
+				gTileView.palookup, flags, 0, 0, xdim-1, ydim-1);
 
 	return nTile;
 }

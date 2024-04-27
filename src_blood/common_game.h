@@ -23,11 +23,25 @@
 ***********************************************************************************/
 
 #pragma once
+#include <direct.h>
+#include <cmath>
 #include "build.h"
 #include "baselayer.h"
 #include "cache1d.h"
 #include "pragmas.h"
 #include "resource.h"
+#include "editor.h"
+#include "crc32.h"
+#include "compat.h"
+#include "replace.h"
+#include "inifile.h"
+#include "osd.h"
+#include "iob.h"
+#include "xmpstr.h"
+extern "C" {
+#include "a.h"
+}
+
 #ifdef _MSC_VER
 # include "msinttypes/stdint.h"
 # include "msinttypes/inttypes.h"
@@ -105,6 +119,22 @@ typedef unsigned char	uint8;
 typedef unsigned short	uint16;
 typedef unsigned int	uint32;
 
+typedef uint8_t BITARRAY32[(32768+7)>>3];
+typedef uint8_t BITARRAY16[(16384+7)>>3];
+typedef uint8_t BITARRAY08[(8192+7)>>3];
+typedef uint8_t BITARRAY04[(4096+7)>>3];
+
+#define kSEQSig					"SEQ\x1A"
+#define kQavSig					"QAV\x1A"
+#define kBloodMapSig			"BLM\x1A"
+
+#define PIX2MET(n) 				(n / (32<<4))
+#define MET2PIX(n) 				(n * (32<<4))
+#define IVAL2PERC(val, full) 	((val * 100) / full)
+#define DELETE_AND_NULL(x) 		delete(x), x = NULL;
+#define FREE_AND_NULL(x)		free(x), x = NULL;
+#define MIDPOINT(a, b) 			(a+((b-a)>>1))
+#define QSETMODE(x, y)			qsetmode = ((x<<16)|(y&0xffff))
 #define TRUE			1
 #define FALSE			0
 
@@ -217,6 +247,22 @@ kColorLightRed				= 12,
 kColorLightMagenta			= 13,
 kColorYellow				= 14,
 kColorWhite					= 15,
+kColorGrey16				= 16,
+kColorGrey17				= 17,
+kColorGrey18				= 18,
+kColorGrey19				= 19,
+kColorGrey20				= 20,
+kColorGrey21				= 21,
+kColorGrey22				= 22,
+kColorGrey23				= 23,
+kColorGrey24				= 24,
+kColorGrey25				= 25,
+kColorGrey26				= 26,
+kColorGrey27				= 27,
+kColorGrey28				= 28,
+kColorGrey29				= 29,
+kColorGrey30				= 30,
+kColorGrey31				= 31,
 };
 
 // sector cstat /////////////////////////////////////////////////////
@@ -705,37 +751,105 @@ struct POINT2D {
 struct POINT3D {
     int x, y, z;
 };
+
+struct LINE2D
+{
+	int x1, y1, x2, y2;
+};
+
+struct STATUS_BIT1
+{
+	uint8_t ok : 1;
+};
+
+struct RGB
+{
+    unsigned char r, g, b;
+};
+typedef RGB PALETTE[256];
+
+
+struct WALLPOINT_INFO
+{
+	int w, x, y;
+};
+
+struct OBJECT
+{
+	unsigned int type			: 8;
+	unsigned int index			: 16;
+};
+
+struct SCANDIRENT
+{
+	char full[BMAX_PATH];
+	char name[BMAX_PATH];
+	char type[BMAX_PATH];
+	unsigned int flags;
+	unsigned int crc;
+	signed   int extra;
+	time_t mtime;
+};
+
+struct DONEOFTOTAL
+{
+	unsigned int done				: 32;
+	unsigned int total				: 32;
+};
 #pragma pack(pop)
 
 unsigned int qrand(void);
 void ChangeExtension(char *pzFile, const char *pzExt);
 bool FileLoad(char *fname, void *buffer, unsigned int size);
 bool FileSave(char *fname, void *buffer, unsigned int size);
-
+char fileExists(char* filename, RESHANDLE* rffItem = NULL);
 int GetOctant(int x, int y);
 void RotateVector(int *dx, int *dy, int nAngle);
 void RotatePoint(int *x, int *y, int nAngle, int ox, int oy);
 void trigInit(Resource &Res);
+void GetSpriteExtents(spritetype* pSprite, int *top, int *bottom);
+void offsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z);
+unsigned char mostUsedByte(unsigned char* bytes, int l, short nExcept);
+void BeepOk(void);
+void BeepFail(void);
+char Beep(char cond);
 
-inline int Sin(int ang)
-{
-    return costable[(ang - 512) & 2047];
+
+inline char rngok(int val, int rngA, int rngB)		{ return (val >= rngA && val < rngB); }
+inline char irngok(int val, int rngA, int rngB)		{ return (val >= rngA && val <= rngB); }
+inline char chlRangeIsFine(int val)					{ return (val > 0 && val < 1024); }
+
+inline char fileAttrSet(char* file, int attr)		{ return (_chmod(file, attr) == 0); }
+inline char fileAttrSetRead(char* file)				{ return fileAttrSet(file, S_IREAD);}
+inline char fileAttrSetWrite(char* file)			{ return fileAttrSet(file, S_IWRITE); }
+inline int perc2val(int nPerc, int nVal)			{ return (nVal*nPerc) / 100; }
+void swapValues(int *nSrc, int *nDest);
+int revertValue(int nVal);
+
+int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom = NULL);
+char fileDelete(char* file);
+char isDir(char* pPath);
+char isFile(char* pPath);
+SCANDIRENT* dirScan(char* path, char* filter, int* numfiles, int* numdirs, char flags = 0x0);
+SCANDIRENT* driveScan(int* numdrives);
+char dirRemoveRecursive(char* path);
+char makeBackup(char* filename);
+
+void doGridCorrection(int* x, int* y, int nGrid);
+void doGridCorrection(int* x, int nGrid);
+void doWallCorrection(int nWall, int* x, int* y, int shift = 14);
+void dozCorrection(int* z, int zStep = 0x3FF);
+
+inline void updateClocks()
+{	
+	gFrameTicks = totalclock - gFrameClock;
+	gFrameClock += gFrameTicks;	
 }
 
-inline int Cos(int ang)
-{
-    return costable[ang & 2047];
-}
-
-inline int scale(int a1, int a2, int a3, int a4, int a5)
-{
-    return a4 + (a5-a4) * (a1-a2) / (a3-a2);
-}
-
-inline int QRandom2(int a1)
-{
-    return mulscale14(qrand(), a1)-a1;
-}
+inline int Sin(int ang) { return costable[(ang - 512) & 2047]; }
+inline int Cos(int ang) { return costable[ang & 2047]; }
+inline int scale(int a1, int a2, int a3, int a4, int a5) { return a4 + (a5-a4) * (a1-a2) / (a3-a2); }
+inline int QRandom2(int a1) { return mulscale14(qrand(), a1)-a1; }
 
 inline int IncBy(int a, int b)
 {
@@ -771,59 +885,18 @@ inline int DecRotate(int n, int mod)
 	return n;
 }
 
-inline int IncNext(int n, int mod)
-{
-	return (n + mod) & ~(mod - 1);
-}
-
-inline int DecNext(int n, int mod)
-{
-	return (n - 1) & ~(mod - 1);
-}
-
-inline int ClipLow(int a, int b)
-{
-    if (a < b)
-        return b;
-    return a;
-}
-
-inline int ClipHigh(int a, int b)
-{
-    if (a >= b)
-        return b;
-    return a;
-}
-
-inline int ClipRange(int a, int b, int c)
-{
-    if (a < b)
-        return b;
-    if (a > c)
-        return c;
-    return a;
-}
-
-inline int interpolate(int a, int b, int c)
-{
-    return a+mulscale16(b-a,c);
-}
-
-inline void SetBitString(unsigned char *pArray, int nIndex)
-{
-    pArray[nIndex>>3] |= 1<<(nIndex&7);
-}
-
-inline void ClearBitString(unsigned char *pArray, int nIndex)
-{
-    pArray[nIndex >> 3] &= ~(1 << (nIndex & 7));
-}
-
-inline char TestBitString(unsigned char *pArray, int nIndex)
-{
-    return pArray[nIndex>>3] & (1<<(nIndex&7));
-}
-
+inline int IncNext(int n, int mod)								{ return (n + mod) & ~(mod - 1); }
+inline int DecNext(int n, int mod)								{ return (n - 1) & ~(mod - 1); }
+inline int ItrNext(char neg, int n, int mod)					{ return (neg) ? DecNext(n, mod) : IncNext(n, mod); }
+inline int ClipLow(int a, int b)								{ return (a < b) ? b : a; }
+inline int ClipHigh(int a, int b)								{ return (a > b) ? b : a; }
+inline int ClipRange(int a, int b, int c)						{ return (a < b) ? b : (a > c) ? c : a;	}
+inline int interpolate(int a, int b, int c)						{ return a+mulscale16(b-a,c); }
+inline void SetBitString(unsigned char *pArray, int nIndex)		{ pArray[nIndex>>3] |= 1<<(nIndex&7); }
+inline void ClearBitString(unsigned char *pArray, int nIndex)	{ pArray[nIndex >> 3] &= ~(1 << (nIndex & 7)); }
+inline char TestBitString(unsigned char *pArray, int nIndex)	{ return pArray[nIndex>>3] & (1<<(nIndex&7)); }
+inline int tgetpalookup(int a1, int a2)							{ return ClipRange((a1 >> 8) + a2, 0, numpalookups - 1); }
+inline int shgetpalookup(int a1, int a2)						{ return tgetpalookup(a1, a2) << 8; }
 inline int dmulscale30r(int a, int b, int c, int d)
 {
     int64_t acc = 1<<(30-1);
@@ -864,42 +937,301 @@ inline int wrand(void)
 	wrandomseed = 1103515245 * wrandomseed + 12345;
     return (wrandomseed >> 16) & 0x7FFF;
 }
+inline char Chance(int a1)									{ return rand() < (a1>>1); }
+inline unsigned int Random(int a1)							{ return mulscale15(rand(), a1); }
+inline int BiRandom(int a1)									{ return mulscale14(rand(), a1)-a1; }
+inline int BiRandom2(int a1)								{ return mulscale15(wrand()+wrand(), a1) - a1; }
 
-inline char Chance(int a1)
+class IDLIST
 {
-    return rand() < (a1>>1);
-}
+	typedef void (*IDLIST_PROCESS_FUNC)(int32_t nId);
+	
+	private:
+        int32_t*  db;
+        uint32_t  length;
+    public:
+		IDLIST(bool spawnDb)
+		{
+			length = 0;
+			db = NULL;
+			if (spawnDb)
+				Init();
+		}
+        ~IDLIST() { Free(); }
+		
+        void Init()
+        {
+            Free();
+		    db = (int32_t*)Bmalloc(sizeof(int32_t));
+			dassert(db != NULL);
+            db[0] = -1;
+        }
 
-inline unsigned int Random(int a1)
+        void Free()
+        {
+            length = 0;
+            if (db)
+                Bfree(db), db = NULL;
+        }
+
+        int Add(int nID)
+        {
+            int t = length;
+            db[length++] = nID;
+			db = (int32_t*)Brealloc(db, (length + 1)*sizeof(int32_t));
+			dassert(db != NULL);
+            db[length] = -1;
+			return t;
+        }
+		
+		int AddIfNot(int nID)
+		{
+            int t;
+			if ((t = Find(nID)) >= 0)
+				return t;
+			
+			return Add(nID);
+		}
+
+        bool Remove(int nID, bool isListId = false)
+        {
+			if (!isListId && (nID = Find(nID)) < 0)
+				return false;
+			
+			if (nID < length)
+				memmove(&db[nID], &db[nID+1], (length-nID)*sizeof(int32_t));
+			
+			if (length > 0)
+			{
+				db = (int32_t*)Brealloc(db, length*sizeof(int32_t));
+				dassert(db != NULL);
+				db[--length] = -1;
+			}
+			else
+			{
+				Init();
+			}
+			
+			return true;
+        }
+
+        int Find(int nID)
+        {
+			int i = length;
+			while(--i >= 0 && db[i] != nID);
+            return i;
+        }
+		
+		BOOL Exists(int nID)	{ return (Find(nID) >= 0); }
+        int32_t* GetPtr()		{ return (int32_t*)db; }
+		uint32_t GetLength()	{ return length; }
+		uint32_t SizeOf()		{ return (length+1)*sizeof(int32_t); }
+		
+		void Process(IDLIST_PROCESS_FUNC pFunc)
+		{
+			if (!length)
+				return;
+			
+			int32_t* pDb = db;
+			while(*pDb >= 0)
+				pFunc(*pDb++);
+		}
+        
+};
+
+class OBJECT_LIST
 {
-    return mulscale15(rand(), a1);
-}
+	private:
+		OBJECT *db;
+		unsigned int externalCount;
+		unsigned int internalCount;
+		void MarkEnd()
+		{
+			db[externalCount].type  = OBJ_NONE;
+			db[externalCount].index = 0;
+		}
+		
+		void Init()
+		{
+			db = (OBJECT*)malloc(sizeof(OBJECT));
+			externalCount = 0, internalCount = 1;
+			MarkEnd();
+		}
+		
+		void Free()
+		{
+			if (db)
+				free(db);
+			
+			externalCount = 0;
+			internalCount = 0;
+			db = NULL;
+		}
+	public:
+		OBJECT_LIST()   		{ Init(); }
+		~OBJECT_LIST()  		{ Free(); }
+		OBJECT* Ptr()			{ return &db[0]; }
+		OBJECT* Ptr(int nID)	{ return &db[nID]; }
+		int Length()			{ return externalCount; }
+		
+		int Add(int nType, int nIndex, BOOL check = FALSE)
+		{
+			int retn = -1;
+			if (check && (retn = Find(nType, nIndex)) >= 0)
+				return retn;
+			
+			db = (OBJECT*)realloc(db, sizeof(OBJECT) * (internalCount + 1));
+			dassert(db != NULL);
 
-inline int BiRandom(int a1)
+			db[externalCount].type  = nType;
+			db[externalCount].index = nIndex;
+			retn = externalCount;
+			externalCount++;
+			internalCount++;
+			
+			MarkEnd();
+			return retn;
+		}
+		
+		OBJECT* Remove(int nType, int nIndex)
+		{
+			int nID, t;
+			if ((nID = Find(nType, nIndex)) < 0)
+				return &db[externalCount];
+			
+			t = nID;
+			while(t < externalCount) db[t] = db[t+1], t++;
+			db = (OBJECT*)realloc(db, sizeof(OBJECT) * internalCount);
+			dassert(db != NULL);
+			externalCount--;
+			internalCount--;
+			return &db[nID];
+		}
+		
+		int Find(int nType, int nIndex)
+		{
+			int i;
+			for (i = 0; i < externalCount; i++)
+			{
+				if (db[i].type == nType && db[i].index == nIndex)
+					return i;
+			}
+			
+			return -1;
+		}
+		
+		void Clear() { Free(); Init(); }
+		char Exists(int nType, int nIndex) { return (Find(nType, nIndex) >= 0); }
+};
+
+
+class POSOFFS
 {
-    return mulscale14(rand(), a1)-a1;
-}
+	private:
+		int bx, by, bz, ba;
+	public:
+		int x, y, z, a;
+		//------------------------------------------------------------------------------------------
+		POSOFFS(int aA, int aX, int aY, int aZ)		{ New(aA, aX, aY, aZ); }
+		POSOFFS(int aA, int aX, int aY)				{ New(aA, aX, aY, 0); }
+		POSOFFS() {};
+		//------------------------------------------------------------------------------------------
+		void New(int aA, int aX, int aY, int aZ)
+		{
+			x = bx = aX;
+			y = by = aY;
+			z = bz = aZ;
+			a = ba = aA;
+		}
+		void Reset(char which = 0x0F)
+		{
+			if (which & 0x01) x = bx;
+			if (which & 0x02) y = by;
+			if (which & 0x04) z = bz;
+			if (which & 0x08) a = ba;
+		}
+		void New(int aA, int aX, int aY)					{ New(aA, aX, aY, 0); }
+		//------------------------------------------------------------------------------------------
+		void Offset (int byX, int byY, int byZ)				{ offsetPos(byX, byY, byZ, a, &x, &y, &z); }
+		void Left(int nBy) 									{ Offset(-klabs(nBy), 0, 0); }
+		void Right(int nBy)									{ Offset(klabs(nBy), 0, 0); }
+		void Backward(int nBy)								{ Offset(0, -klabs(nBy), 0); }
+		void Forward(int nBy)								{ Offset(0, klabs(nBy), 0); }
+		void Up(int nBy)									{ Offset(0, 0, -klabs(nBy)); }
+		void Down(int nBy)									{ Offset(0, 0, klabs(nBy)); }
+		void Turn(int nAng)									{ a = (a + nAng) & kAngMask; }
+		//------------------------------------------------------------------------------------------
+		#if 0
+		void Offset (int byX, int byY, int* aX, int* aY) 	{ Offset(byX, byY, 0); *aX = x; *aY = y; }
+		void Left(int nBy, int* aX, int* aY)				{ Left(nBy); 		*aX = x; *aY = y; }
+		void Right(int nBy, int* aX, int* aY)				{ Right(nBy);		*aX = x; *aY = y; }
+		void Backward(int nBy, int* aX, int* aY)			{ Backward(nBy);	*aX = x; *aY = y; }
+		void Forward(int nBy, int* aX, int* aY)				{ Forward (nBy);	*aX = x; *aY = y; }
+		void Up(int nBy, int* aZ)							{ Up(nBy);			*aZ = z; }
+		void Down(int nBy, int* aZ)							{ Down(nBy);		*aZ = z; }
+		#endif
+		//------------------------------------------------------------------------------------------
+		int  Distance()										{ return exactDist(x - bx, y - by);}
+		int  Angle()										{ return getangle(x - bx, y - by); }
+};
 
-inline int BiRandom2(int a1)
+class BITSTRING
 {
-    return mulscale15(wrand()+wrand(), a1) - a1;
-}
-
-void GetSpriteExtents(spritetype* pSprite, int *top, int *bottom);
-
-struct Point
-{
-	int x, y;
-	Point(int x, int y) : x(x), y(y) {};
-	Point& operator+=( const Point& p ) { x += p.x; y += p.y; return *this; }
-	Point& operator-=( const Point& p ) { x -= p.x; y -= p.y; return *this; }
-	bool operator==( const Point& p ) const { return x == p.x && y == p.y; }
+	private:
+		uint8_t* db;
+		uint32_t nLargest, nAdd;
+	public:
+		BITSTRING(int nAdd = 16384)
+		{
+			this->db		= NULL;
+			this->nAdd		= nAdd;
+			this->nLargest	= 0;
+		}
+		~BITSTRING()
+		{
+			if (db)
+				FREE_AND_NULL(db);
+		}
+		void Add(uint32_t nID)
+		{
+			if (nID >= nLargest)
+			{
+				uint32_t c = nLargest>>3;
+				uint32_t l;
+				
+				nLargest = l = nID+nAdd+8, l >>=3;
+				db = (uint8_t*)realloc(db, sizeof(uint8_t)*l);
+				dassert(db != NULL);
+				
+				memset(&db[c], 0, l-c);
+			}
+			
+			db[nID>>3] |= 1<<(nID&7);
+		}
+		
+		void Remove(uint32_t nID)
+		{
+			if (nID < nLargest)
+				db[nID>>3] &= ~(1<<(nID&7));
+		}
+		
+		inline char Exists(uint32_t nID)
+		{
+			return (nID < nLargest && (db[nID>>3] & (1<<(nID&7))));
+		}
 };
 
 class Rect {
 public:
     int x0, y0, x1, y1;
-    Rect(int _x0, int _y0, int _x1, int _y1)
+    Rect()
+	{
+		x0 = 0;
+		y0 = 0;
+		x1 = 0;
+		y1 = 0;
+	}
+	Rect(int _x0, int _y0, int _x1, int _y1)
     {
         x0 = _x0; y0 = _y0; x1 = _x1; y1 = _y1;
     }

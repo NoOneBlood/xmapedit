@@ -22,7 +22,7 @@
 ***********************************************************************************/
 
 #include "xmpdoorwiz.h"
-#include "xmpstub.h"
+#include "xmpmaped.h"
 #include "aadjust.h"
 #include "eventq.h"
 #include "db.h"
@@ -93,6 +93,12 @@ char dlgDoorWizard()
 
 						if (i < 0)
 						{
+							if (pGDoorR) 		DELETE_AND_NULL(pGDoorR);
+							if (pGDoorSM) 		DELETE_AND_NULL(pGDoorSM);
+							if (pGLBuild)		DELETE_AND_NULL(pGLBuild);
+							if (pGLShape)		DELETE_AND_NULL(pGLShape);
+							if (pGCircleW)		DELETE_AND_NULL(pGCircleW);
+							
 							pGDoorSM					= new DOOR_SLIDEMARKED(nDoorType, nPad);
 							pGDoorSM->prefs.reverse		= (gDoorOptions[1].checkbox->checked > 0);
 							pGDoorSM->prefs.trPush		= (gDoorOptions[2].checkbox->checked > 0);
@@ -123,6 +129,12 @@ char dlgDoorWizard()
 						
 						if (i < 0)
 						{
+							if (pGDoorR) 		DELETE_AND_NULL(pGDoorR);
+							if (pGDoorSM) 		DELETE_AND_NULL(pGDoorSM);
+							if (pGLBuild)		DELETE_AND_NULL(pGLBuild);
+							if (pGLShape)		DELETE_AND_NULL(pGLShape);
+							if (pGCircleW)		DELETE_AND_NULL(pGCircleW);
+							
 							pGDoorR						= new DOOR_ROTATE();
 							pGDoorR->info.reverse		= (gDoorOptions[1].checkbox->checked > 0);
 							pGDoorR->info.trPush		= (gDoorOptions[2].checkbox->checked > 0);
@@ -169,14 +181,10 @@ void DOOR_ROTATE::Start()
 	info.twoSides		= 0;
 	info.mode			= 0;
 	status				= 0;
-	
-	
-	lockSectorDrawing();
 }
 
 void DOOR_ROTATE::Stop()
 {
-	unlockSectorDrawing();
 }
 
 char DOOR_ROTATE::Setup(int nWall, int nWidth, int x, int y)
@@ -455,7 +463,6 @@ void DOOR_ROTATE::Insert()
 {
 	int i, t, c;
 	SIDEINFO* pSide;
-	int oWallPtr;
 	
 	walltype model;
 	memset(&model, 0, sizeof(model));
@@ -465,9 +472,7 @@ void DOOR_ROTATE::Insert()
 	model.extra			= -1;
 	model.yrepeat		=  8;
 	
-	oWallPtr = sector[info.parentSector].wallptr;
 	c = 0;
-	
 	for (i = 0; i <= info.twoSides; i++)
 	{
 		pSide = &info.side[i];
@@ -486,14 +491,11 @@ void DOOR_ROTATE::Insert()
 			c += 4;
 		}
 	}
-	
-	if (c) // fix first wall of the sector, so geometry stay the same
-		setFirstWall(info.parentSector, oWallPtr + c);
 }
 
 void DOOR_ROTATE::Draw(SCREEN2D* pScr)
 {
-	if (!info.canDraw)
+ 	if (!info.canDraw)
 		return;
 	
 	int x1, y1, x2, y2, i, j, t;
@@ -503,25 +505,25 @@ void DOOR_ROTATE::Draw(SCREEN2D* pScr)
 	POINT2D* point; SIDEINFO* pSide;
 	
 	// draw closed position lines
-	t = mulscale14(info.width, pScr->data.zoom); c = pScr->ColorGet(kClrSprMark, 0);
+	t = mulscale14(info.width, pScr->data.zoom); c = pScr->ColorGet(kColorLightCyan);
 	x1 = pScr->cscalex(info.line.x1);	x2 = pScr->cscalex(info.line.x2);
 	y1 = pScr->cscaley(info.line.y1);	y2 = pScr->cscaley(info.line.y2);
 	if (info.solidWall)
 	{
-		nnExtOffsetPos(0, -t, 0, info.angle, &x1, &y1, NULL);
-		nnExtOffsetPos(0, -t, 0, info.angle, &x2, &y2, NULL);
+		offsetPos(0, -t, 0, info.angle, &x1, &y1, NULL);
+		offsetPos(0, -t, 0, info.angle, &x2, &y2, NULL);
 	}
 	
 	pScr->DrawLine(x1, y1, x2, y2, c, 0, kPatDotted);
 	
-	nnExtOffsetPos(0, t, 0, info.angle, &x1, &y1, NULL);
-	nnExtOffsetPos(0, t, 0, info.angle, &x2, &y2, NULL);
+	offsetPos(0, t, 0, info.angle, &x1, &y1, NULL);
+	offsetPos(0, t, 0, info.angle, &x2, &y2, NULL);
 	pScr->DrawLine(x1, y1, x2, y2, c, 0, kPatDotted);
 	
 	// draw door walls
 	for (i = 0; i <= info.twoSides; i++)
 	{
-		c = pScr->ColorGet(kClrWalNext, 0);
+		c = pScr->ColorGet(kColorRed);
 		pSide = &info.side[i];
 		point = pSide->point;
 		
@@ -541,8 +543,7 @@ void DOOR_ROTATE::Draw(SCREEN2D* pScr)
 			fill[j].x1 = x1;	fill[j].x2 = x2;
 			fill[j].y1 = y1;	fill[j].y2 = y2;
 			
-			x1 = pScr->cscalex(x1);	x2 = pScr->cscalex(x2);
-			y1 = pScr->cscaley(y1);	y2 = pScr->cscaley(y2);
+			pScr->ScalePoints(&x1, &y1, &x2, &y2);
 			pScr->DrawLine(x1, y1, x2, y2, c, 0, kPatDotted);
 		}
 		
@@ -551,17 +552,17 @@ void DOOR_ROTATE::Draw(SCREEN2D* pScr)
 		if (pScr->prefs.useTransluc)
 		{
 			pScr->LayerOpen();
-			pScr->FillPolygon(fill, LENGTH(fill), clr2std(c), 1);
+			pScr->FillPolygon(fill, LENGTH(fill), pScr->ColorGet(c), 1);
 			pScr->LayerShowAndClose(kRSTransluc);
 		}
 		else
 		{
-			pScr->FillPolygon(fill, LENGTH(fill), clr2std(c), 2);
+			pScr->FillPolygon(fill, LENGTH(fill), pScr->ColorGet(c), 2);
 		}
 		
 		
 		// draw marker position
-		point = &pSide->point[4]; c = pScr->ColorGet(kClrSprMark, 0);
+		point = &pSide->point[4]; c = pScr->ColorGet(kColorLightCyan);
 		x1 = pScr->cscalex(point->x); y1 = pScr->cscaley(point->y);
 		pScr->DrawIconCross(x1, y1, c, 3);
 	}
@@ -583,13 +584,10 @@ void DOOR_SLIDEMARKED::Start(int nType, int nPad)
 	prefs.type	 		= nType;
 	info.padding 		= nPad;
 	status				= 0;
-	
-	lockSectorDrawing();
 }
 
 void DOOR_SLIDEMARKED::Stop()
 {
-	unlockSectorDrawing();
 }
 
 char DOOR_SLIDEMARKED::Setup(int nWall, int nWidth, int x, int y)
@@ -887,12 +885,12 @@ void DOOR_SLIDEMARKED::Draw(SCREEN2D* pScr)
 	
 	x1 = pScr->cscalex(info.line.x1);	x2 = pScr->cscalex(info.line.x2);
 	y1 = pScr->cscaley(info.line.y1);	y2 = pScr->cscaley(info.line.y2);
-	pScr->DrawLine(x1, y1, x2, y2, pScr->ColorGet(kClrSprMark), 0, kPatDotted);
+	pScr->DrawLine(x1, y1, x2, y2, pScr->ColorGet(kColorLightCyan), 0, kPatDotted);
 	
 	for (i = 0; i <= info.twoSides; i++)
 	{
 		pInfo	= info.points[i];
-		fc		= pScr->ColorGet((i) ? kClrWalMveR : kClrWalMveF, 0);
+		fc		= pScr->ColorGet((i) ? kColorLightGreen : kColorLightBlue);
 		
 		nAng = info.angle;
 		if (i == 1)
@@ -904,7 +902,7 @@ void DOOR_SLIDEMARKED::Draw(SCREEN2D* pScr)
 				x1 = pScr->cscalex(pInfo[3].x);	x2 = pScr->cscalex(pInfo[4].x);
 				y1 = pScr->cscaley(pInfo[3].y);	y2 = pScr->cscaley(pInfo[4].y);
 				if (info.padding < 0)
-					nnExtOffsetPos(0, nPad, 0, nAng, &x1, &y1, NULL);
+					offsetPos(0, nPad, 0, nAng, &x1, &y1, NULL);
 				t = nWidth;
 				break;
 			case 1:
@@ -915,8 +913,8 @@ void DOOR_SLIDEMARKED::Draw(SCREEN2D* pScr)
 		}
 		
 		pScr->DrawLine(x1, y1, x2, y2, fc, 0, kPatDotted);
-		nnExtOffsetPos(t, 0, 0, nAng, &x1, &y1, NULL);
-		nnExtOffsetPos(t, 0, 0, nAng, &x2, &y2, NULL);
+		offsetPos(t, 0, 0, nAng, &x1, &y1, NULL);
+		offsetPos(t, 0, 0, nAng, &x2, &y2, NULL);
 		pScr->DrawLine(x1, y1, x2, y2, fc, 0, kPatDotted);
 		
 		x1 = pScr->cscalex(pInfo[2].x);	x2 = pScr->cscalex(pInfo[3].x);

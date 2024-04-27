@@ -20,10 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
 #include "tracker.h"
-#include "xmpstub.h"
-#include "nnexts.h"
+#include "xmpmaped.h"
 #include "preview.h"
 
 unsigned char CXTracker::tx;
@@ -156,11 +154,11 @@ void CXTracker::Draw(SCREEN2D* pScr)
 			{
 				case OBJ_SECTOR:
 					avePointSector(pDb->index, &x2, &y2);
-					color = pScr->ColorGet(kClrTracerSec, h);
+					color = pScr->ColorGet(kColorYellow, h);
 					break;
 				case OBJ_WALL:
 					avePointWall(pDb->index, &x2, &y2);
-					color = pScr->ColorGet(kClrTracerWal, h);
+					color = pScr->ColorGet(kColorLightRed, h);
 					break;
 				case OBJ_SPRITE:
 					if (gPreviewMode && previewSpriteRemoved(&sprite[pDb->index]))
@@ -169,7 +167,7 @@ void CXTracker::Draw(SCREEN2D* pScr)
 					}
 					else
 					{
-						color = pScr->ColorGet(kClrTracerSpr, h);
+						color = pScr->ColorGet(kColorLightCyan, h);
 						x2 = sprite[pDb->index].x;
 						y2 = sprite[pDb->index].y;
 					}

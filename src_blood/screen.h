@@ -23,13 +23,9 @@
 ***********************************************************************************/
 #ifndef SCREEN_H
 #define SCREEN_H
-#pragma pack(push, 1)
-struct RGB
-{
-    unsigned char r, g, b;
-};
-#pragma pack(pop)
-typedef RGB PALETTE[256];
+#include "common_game.h"
+#include "gfx.h"
+#include "gui.h"
 
 
 extern PALETTE gamepal;

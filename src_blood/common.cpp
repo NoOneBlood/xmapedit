@@ -22,9 +22,9 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "build.h"
-#include "baselayer.h"
 #include "common_game.h"
+#include "gameutil.h"
+#include "xmpconf.h"
 
 PICANM* panm;
 int gFrameClock;
@@ -101,7 +101,7 @@ void RotatePoint(int *x, int *y, int nAngle, int ox, int oy)
 
 void trigInit(Resource &Res)
 {
-    register int i;
+    int i;
 	DICTNODE *pTable = Res.Lookup("cosine","dat");
 	if (!pTable)				ThrowError("Cosine table not found");
 	if (pTable->size != 2048)	ThrowError("Cosine table incorrect size");	
@@ -160,6 +160,389 @@ bool FileSave(char *fname, void *buffer, unsigned int size)
 	close(hFile);
 
 	return (n == size);
+}
+
+char fileExists(char* filename, RESHANDLE* rffItem)
+{
+	char retn = 0;
+	if (!filename) return retn;
+	else if (access(filename, F_OK) >= 0) // filename on the disk?
+		retn |= 0x0001;
+	
+	if (rffItem)
+	{
+		int len, i;
+		char tmp[BMAX_PATH]; char *fname = NULL, *fext = NULL;
+		pathSplit2(filename, tmp, NULL, NULL, &fname, &fext);
+		
+		if (!fname || !fext) return retn;
+		else if ((len = strlen(fext)) > 0)
+		{
+			if (fext[0] == '.')
+				fext =& fext[1];
+			
+			if ((*rffItem = gSysRes.Lookup(fname, fext)) != NULL) // filename in RFF?
+			{
+				retn |= 0x0002;
+			}
+			else
+			{
+				// fileID in RFF?
+				len = strlen(fname);
+				for (i = 0; i < len; i++) {
+					if (fname[i] < 48 || fname[i] > 57)
+						break;
+				}
+				
+				if (i == len && (*rffItem = gSysRes.Lookup(atoi(fname), fext)) != NULL)
+					retn |= 0x0004;
+			}
+		}
+	}
+	
+	return retn;
+}
+
+char isDir(char* pPath)
+{
+	BDIR* pDir = NULL;
+	if (fileExists(pPath) && (pDir = Bopendir(pPath)) != NULL)
+		Bclosedir(pDir);
+	
+	return (pDir != NULL);
+}
+
+char isFile(char* pPath)
+{
+	int hFile = -1;
+	if (fileExists(pPath) && (hFile = open(pPath, O_BINARY|O_RDWR, S_IREAD|S_IWRITE)) >= 0)
+		close(hFile);
+	
+	return (hFile >= 0);
+	
+}
+
+int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom)
+{
+	RESHANDLE pFile;
+	int i, hFile, nSize = 0;
+	dassert(out != NULL && *out == NULL);
+	if (loadFrom)
+		*loadFrom = -1;
+	
+	
+	if ((i = fileExists(filepath, &pFile)) == 0)
+		return -1;
+	
+	// file on the disk is the priority
+	if ((i & 0x01) && (hFile = open(filepath, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
+	{
+		if ((nSize = filelength(hFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
+		{
+			read(hFile, *out, nSize);
+			if (loadFrom)
+				*loadFrom = 0x01;
+		}
+		
+		close(hFile);
+	}
+	// load file from the RFF then
+	else if (pFile)
+	{
+		if ((nSize = gSysRes.Size(pFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
+		{
+			memcpy(*out, (BYTE*)gSysRes.Load(pFile), nSize);
+			if (loadFrom)
+				*loadFrom = 0x02;
+		}
+	}
+	
+	return (*out) ? nSize : -2;
+}
+
+SCANDIRENT* dirScan(char* path, char* filter, int* numfiles, int* numdirs, char flags)
+{
+	BDIR* pDir; Bdirent* pFile;
+	SCANDIRENT* db = NULL, tmp;
+	char *ext, *p, buf[BMAX_PATH];
+	char newpath[BMAX_PATH];
+	
+	int i, t;
+	
+	if (numdirs)	*numdirs = 0;
+	if (numfiles)	*numfiles = 0;
+	
+	if (!isempty(filter))
+	{
+		if (filter[0] == '.')
+			filter = &filter[1];
+		
+		enumStrGetChar(0, buf, (char*)filter, '.', NULL);
+	}
+
+	if (isempty(path))
+		path = ".";
+	
+	if (flags & 0x01)
+	{
+		strcpy(newpath, path); pathCatSlash(newpath);
+		_fullpath(newpath, newpath, BMAX_PATH);
+		path = newpath;
+	}
+	
+	t = 0;
+	if ((pDir = Bopendir(path)) != NULL)
+	{
+		while ((pFile = Breaddir(pDir)) != NULL)
+		{
+			memset(&tmp, 0, sizeof(tmp));
+			
+			if (pFile->mode & BS_IFDIR)
+			{
+				if (!numdirs) continue;
+				if (strcmp(pFile->name, "..") == 0)	continue;
+				if (strcmp(pFile->name, ".")  == 0)	continue;
+				*numdirs = *numdirs + 1;
+			}
+			else if (numfiles)
+			{
+				i = 0; ext = NULL;
+				pathSplit2(pFile->name, tmp.name, NULL, NULL, NULL, &ext);
+				if (!isempty(filter))
+				{
+					while((p = enumStrGetChar(i++, buf, NULL, '.')) != NULL)
+					{
+						if (ext[0] == '.') ext = &ext[1];
+						if (stricmp(ext, buf) == 0) break;
+					}
+					
+					if (!p)
+						continue;
+				}
+				
+				if (!isempty(ext))
+					strcpy(tmp.type, ext);
+
+				*numfiles = *numfiles + 1;
+			}
+			else
+			{
+				continue;
+			}
+			
+			if (flags & 0x01)
+			{
+				strcpy(tmp.full, path);
+				strcat(tmp.full, pFile->name);
+			}
+			
+			strcpy(tmp.name, pFile->name);
+			tmp.flags = pFile->mode;
+			tmp.mtime = pFile->mtime;
+			
+			db = (SCANDIRENT*)realloc(db, sizeof(SCANDIRENT) * (t + 1));
+			dassert(db != NULL);
+			
+			memcpy(&db[t++], &tmp, sizeof(SCANDIRENT));
+		}
+		
+		Bclosedir(pDir);
+	}
+	
+	return db;
+}
+
+SCANDIRENT* driveScan(int* numdrives)
+{
+	SCANDIRENT *drives = NULL, *pDrv;
+	char *drv, *drp;
+	int i = 0;
+	
+	drv = drp = Bgetsystemdrives();
+	*numdrives = 0;
+	
+	if (drv)
+	{
+		while(*drp)
+		{
+			drives = (SCANDIRENT*)realloc(drives, sizeof(SCANDIRENT)*(i+1));
+			dassert(drives != NULL);
+			
+			pDrv = &drives[i];
+			memset(pDrv, 0, sizeof(SCANDIRENT));
+			strcpy(pDrv->full, drp); strcpy(pDrv->name, drp);
+			drp+=strlen(drp)+1;
+			i++;
+		}
+		
+		*numdrives = i;
+		free(drv);
+	}
+	
+	return drives;
+}
+
+char dirRemoveRecursive(char* path)
+{
+	BDIR* pDir; Bdirent* pFile;
+	static char cwd[BMAX_PATH];
+	
+	if (chdir(path) == 0)
+	{
+		if ((pDir = Bopendir(".")) != NULL)
+		{
+			while ((pFile = Breaddir(pDir)) != NULL && chmod(pFile->name, S_IWRITE) == 0)
+			{
+				if (pFile->mode & BS_IFDIR)
+				{
+					if (strcmp(pFile->name, "..") == 0)	continue;
+					if (strcmp(pFile->name, ".")  == 0)	continue;
+					if (!dirRemoveRecursive(pFile->name))
+						break;
+				}
+				else if (unlink(pFile->name) != 0)
+					break;
+			}
+			
+			Bclosedir(pDir);
+		}
+		
+		return (getcwd(cwd, sizeof(cwd)) && chdir("../") == 0 && rmdir(cwd) == 0);
+	}
+	
+	return 0;
+}
+
+char makeBackup(char* filename)
+{
+	if (!fileExists(filename))
+		return TRUE;
+	
+	char temp[_MAX_PATH];
+	sprintf(temp, filename);
+	ChangeExtension(temp, ".bak");
+	if (fileExists(temp))
+		unlink(temp);
+	
+	return (rename(filename, temp) == 0);
+}
+
+char fileDelete(char* file)
+{
+	if (!fileExists(file)) return TRUE;
+	fileAttrSetWrite(file);
+	unlink(file);
+	
+	return (!fileExists(file));
+}
+
+void swapValues(int *nSrc, int *nDest)
+{
+	int nTmp;
+	nTmp = *nSrc, *nSrc = *nDest, *nDest = nTmp;
+}
+
+int revertValue(int nVal)
+{
+	if (nVal < 0) return klabs(nVal);
+	else if (nVal > 0) return -nVal;
+	else return nVal;
+}
+
+void offsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z)
+{
+    // left, right
+    if (oX)
+    {
+        if (x) *x -= mulscale30(oX, Cos(nAng + kAng90));
+        if (y) *y -= mulscale30(oX, Sin(nAng + kAng90));
+    }
+
+    // forward, backward
+    if (oY)
+    {
+        if (x) *x += mulscale30r(Cos(nAng), oY);
+        if (y) *y += mulscale30r(Sin(nAng), oY);
+    }
+
+    // top, bottom
+    if (oZ && z)
+        *z += oZ;
+
+}
+
+unsigned char mostUsedByte(unsigned char* bytes, int l, short nExcept)
+{
+	if (bytes == NULL || *bytes == NULL)
+		return 0;
+	
+	int count[256], i, j = 0, m = 0;
+	memset(count, 0, sizeof(count));
+	
+	while(--l >= 0)
+	{
+		if (nExcept < 0 || bytes[l] != nExcept)
+			count[bytes[l]]++;
+	}
+	
+	for (i = 0; i < 256; i++)
+	{
+		if (count[i] >= m)
+		{
+			m = count[i];
+			j = i;
+		}
+	}
+	
+	return (unsigned char)j;
+	
+}
+
+void BeepOk(void)
+{
+	if (!gMisc.beep) return;
+	gBeep.Play(kBeepOk);
+}
+
+
+void BeepFail(void)
+{
+	if (!gMisc.beep) return;
+	gBeep.Play(kBeepFail);
+}
+
+char Beep(char cond)
+{
+	if (cond) BeepOk();
+	else BeepFail();
+	return cond;
+}
+
+void doGridCorrection(int* x, int* y, int nGrid)
+{
+	if (!irngok(nGrid, 1, 11))
+		return;
+	
+	if (x) *x = (*x+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
+	if (y) *y = (*y+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
+}
+
+void doGridCorrection(int* x, int nGrid)
+{
+	doGridCorrection(x, NULL, nGrid);
+}
+
+void doWallCorrection(int nWall, int* x, int* y, int shift)
+{
+	int nx, ny;
+	GetWallNormal(nWall, &nx, &ny);
+	*x = *x + (nx >> shift);
+	*y = *y + (ny >> shift);
+}
+
+void dozCorrection(int* z, int zStep)
+{
+	*z = *z & ~zStep;
 }
 
 void _SetErrorLoc(const char *pzFile, int nLine)

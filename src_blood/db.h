@@ -21,9 +21,7 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 #pragma once
-
 #include "common_game.h"
-#include "iob.h"
 
 #define kMaxXSprites 			kMaxSprites
 #define kMaxXWalls 				kMaxWalls

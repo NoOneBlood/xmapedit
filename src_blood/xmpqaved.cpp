@@ -22,15 +22,12 @@
 ***********************************************************************************/
 
 
-#include "gui.h"
+#include "common_game.h"
+#include "tile.h"
 #include "xmptools.h"
 #include "xmpqaved.h"
-#include "xmpstub.h"
-#include "xmpmisc.h"
+#include "xmpmaped.h"
 #include "preview.h"
-#include "editor.h"
-#include "build.h"
-#include "crc32.h"
 
 QAVEDIT gQaved;
 
@@ -65,10 +62,10 @@ NAMED_TYPE gImportOptions[] = {
 void QAVEDIT::Start(char* filename)
 {
 	int i, screenMode = qsetmode;
-
+	
 	AnimNew();
 	if (filename)
-		sprintf(gPaths.qavs, filename);
+		strcpy(gPaths.qavs, filename);
 
 	if (!filename || !AnimLoad(gPaths.qavs))
 	{
@@ -97,11 +94,7 @@ void QAVEDIT::Start(char* filename)
 	}
 	
 	gTileView.bglayers++;
-	if (screenMode != 200)
-		scrSetGameMode(fullscreen, xdim, ydim); // must do it so processMove works correct
-	
-	if (gMapLoaded)
-		previewStart();
+	xmpSetEditMode(0x01);
 	
 	artedInit(); 	// switch to art editing mode as well and don't allow to disable it
 	gArtEd.mode		= kArtEdModeBatch;
@@ -122,13 +115,11 @@ void QAVEDIT::Start(char* filename)
 	Quit();
 	
 	gTileView.bglayers--;
-	if (screenMode != 200)
-		qsetmodeany(xdim, ydim);
-	
-	if (gMapLoaded) previewStop();
 	gScreen.msg[0].time = 0;
 	artedUninit();
 	
+	if (screenMode == 200)		xmpSetEditMode(0x01);
+	else						xmpSetEditMode(0x00);
 }
 
 
@@ -337,7 +328,7 @@ void QAVEDIT::ProcessLoop()
 				if (edit3d)
 				{
 					horiz = 100;
-					if (cursectnum <= 0 || !gMapLoaded)
+					if (cursectnum < 0 || !gMapLoaded)
 					{
 						Alert("3D mode unavailable.");
 						edit3d = 0;
@@ -1048,7 +1039,7 @@ void QAVEDIT::LayerHighlight(int nFrame, int nLayer)
 	x0 = ((pQav->x-xoffs)<<16), x1 = pLayer->x<<16;
 	y0 = ((pQav->y-yoffs)<<16), y1 = pLayer->y<<16;
 	rotatesprite(x0+x1, y0+y1, ClipLow(pLayer->z, 0x2800), (kAng90 + pLayer->angle) & kAngMask, nTile,
-		nShade, 0, kRSScale|kRSYFlip|kRSTransluc, windowx1, windowy1, windowx2, windowy2);
+		nShade, 0, kRSNoClip|kRSScale|kRSYFlip|kRSTransluc, 0, 0, xdim-1, ydim-1);
 }
 
 void QAVEDIT::LayerClip(int nFrame, int nLayer)

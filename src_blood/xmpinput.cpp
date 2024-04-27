@@ -24,9 +24,7 @@
 
 
 #include "common_game.h"
-#include "editor.h"
-#include "gui.h"
-#include "gfx.h"
+#include "screen.h"
 #include "xmpinput.h"
 
 
@@ -135,7 +133,7 @@ void MOUSE::ReadCoords()
 {
 	VelocityProcess();
 	
-	register int mx, my, dummy;
+	int mx, my, dummy;
 	getmousevalues(&mx, &my, &dummy);
 
 	mx *= velX;

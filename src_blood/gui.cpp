@@ -20,18 +20,9 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include "common_game.h"
-#include "editor.h"
-#include "xmpstub.h"
-#include "gfx.h"
-#include "gameutil.h"
-#include "gui.h"
+#include "xmpmaped.h"
 #include "screen.h"
 #include "tile.h"
-#include "osd.h"
-#include "xmpstr.h"
-#include "xmpconf.h"
-#include "xmpmisc.h"
 
 #define kBlinkTicks		100
 #define kBlinkOnTicks	80
@@ -346,7 +337,7 @@ void Text::Paint( int x, int y, BOOL )
 		}
 		
 		if (j > 0)
-			fntcol = mostUsedColor((BYTE*)font->data, j, 255);
+			fntcol = mostUsedByte((BYTE*)font->data, j, 255);
 	}
 
 	if (bgColor >= 0)
@@ -1822,29 +1813,24 @@ GEVENT_TYPE GetEvent( GEVENT *event )
 	return event->type;
 }
 
-void LoadFontSymbols(ROMFONT* pFont)
+void fontupr(ROMFONT* pFont)
 {
-	BYTE* data = pFont->data;
-	int h = pFont->hg;
-	int w = pFont->wh;
+	char r[2][2] = {{65, 97}, {192, 224}}, l, u;
+	int s = pFont->size, h = pFont->hg;
+	int i, n = h*25;
 	
-	unsigned char CheckBox[2][8] = {
-		{ 0xFF, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0xFF },
-		{ 0xFF, 0xC3, 0xA5, 0x99, 0x99, 0xA5, 0xC3, 0xFF }
-	};
-	unsigned char RadioButton[2][8] = {
-		{ 0x3C, 0x42, 0x81, 0x81, 0x81, 0x81, 0x42, 0x3C },
-		{ 0x3C, 0x42, 0x99, 0xBD, 0xBD, 0x99, 0x42, 0x3C }
-	};
-	
-	memset(&data[2*h], 0, (w*h)*4);
-	memcpy(&data[2*h], CheckBox[0], 16);
-	memcpy(&data[4*h], RadioButton[0], 16);
+	if (pFont->data)
+	{
+		for (i = 0; i < LENGTH(r); i++)
+		{
+			l = r[i][1]; u = r[i][0];
+			if ((l*h+n) >= s || (u*h+n) >= s)
+				break;
+			
+			memcpy(&pFont->data[l*h], &pFont->data[u*h], n);
+		}
+	}
 }
-
-extern "C" unsigned char textfont[];
-extern "C" unsigned char smalltextfont[];
-
 
 void GUIInit() {
 
@@ -1888,31 +1874,51 @@ void GUIInit() {
 	}
 	
 	// load vga rom fonts
-	for (i = 0; i < LENGTH(vFonts); i++)
+	if ((hRes = gGuiRes.Lookup(5, "INI")) != NULL)
 	{
-		ROMFONT* pRFont =& vFonts[i];
-		if (i <= 1)
+		char key[256], val[256], *pKey, *pVal;
+		int nPrev = -1, nVal, i, o;
+		
+		IniFile* pIni = new IniFile((BYTE*)gGuiRes.Load(hRes), gGuiRes.Size(hRes));
+		while(pIni->GetNextString(&pKey, &pVal, &nPrev, "FontInfo"))
 		{
-			pRFont->wh = 8;
-			pRFont->hg = 8;
-			pRFont->ls = (i == 0) ? 8 : 4;
-			pRFont->data = (BYTE*)((i == 0) ? &textfont : &smalltextfont);
-			LoadFontSymbols(pRFont);
-		}
-		else if ((hRes = gGuiRes.Lookup(i, "RFN")) != NULL)
-		{
-			memset(temp, 0, sizeof(temp));
-			strncpy(temp, hRes->name, 5);
-			pRFont->wh = enumStrGetInt(0, temp, 'X'); // get width from name
-			pRFont->hg = enumStrGetInt(1, NULL, 'X'); // get height from name
+			if (!isufix(pKey) || !rngok(i = atoi(pKey), 0, LENGTH(vFonts)))
+				continue;
 			
-			if (pRFont->wh && pRFont->hg)
+			if ((hRes = gGuiRes.Lookup(i, "RFN")) != NULL)
 			{
+				o = 0;
+				ROMFONT* pRFont =& vFonts[i];
+				while((o = enumStr(o, pVal, val)) > 0)
+				{
+					if (isufix(val) && irngok(nVal = atoi(val), 4, 32))
+					{
+						if (o == 1)			pRFont->wh = nVal;
+						else if (o == 2)	pRFont->hg = nVal;
+						else if (o == 3)	pRFont->ls = nVal;
+						else if (o == 4)	pRFont->lh = nVal;
+						else break;
+					}
+					else if (isbool(val))
+					{
+						if (o == 5)	pRFont->uc = nVal;
+						else break;
+					}
+				}
+				
+				pRFont->size = gGuiRes.Size(hRes);
 				pRFont->data = (BYTE*)gGuiRes.Lock(hRes);
-				LoadFontSymbols(pRFont);
-				pRFont->ls = pRFont->wh;
+				if (pRFont->uc)
+					fontupr(pRFont);
 			}
 		}
+	}
+	
+	// make all NULL fonts use default ROM font
+	for (i = 0; i < LENGTH(vFonts); i++)
+	{
+		if (!vFonts[i].data)
+			vFonts[i] = vFonts[0];
 	}
 }
 
@@ -2244,8 +2250,8 @@ int showStandardWindow(char* text, char* buttons, char* caption = "")
 	
 	QFONT* pTextFont = pFont;
 	BOOL newStyle = (strchr(text, '\n') || strchr(text, '\r'));
-	register int dialogWidth = kDlgMinW, dialogHeight = kDlgMinH;
-	register int i, t;
+	int dialogWidth = kDlgMinW, dialogHeight = kDlgMinH;
+	int i, t;
 	char* pTxt;
 
 	if (!newStyle)
@@ -2268,7 +2274,7 @@ int showStandardWindow(char* text, char* buttons, char* caption = "")
 	
 	dialogWidth  += (kPadd<<2);
 	if (newStyle)
-		dialogHeight += (pText->height+(kPad<<1));
+		dialogHeight += (pText->height+(kPadd<<1));
 	
 	Window dialog(0, 0, dialogWidth, dialogHeight, caption); // create the dialog
 	Container* pButtons = new Container(0, 0, 0, 0);
