@@ -237,9 +237,7 @@ int getPluOf(int oType, int oIdx);
 int getPicOf(int oType, int oIdx);
 int getShadeOf(int oType, int oIdx);
 void setShadeOf(int nShade, int oType, int oIdx);
-
-BOOL isSearchSector();
-
+void iterShadeOf(int nStep, int oType, int oIdx);
 
 void posChg(int* x, int* y, int bx, int by, char chgRel);
 void posFlip(int* x, int* y, int cx, int cy, char flipX);
@@ -262,8 +260,9 @@ BOOL testXSectorForLighting(int nXSect);
 void collectUsedChannels(unsigned char used[1024]);
 char isIslandSector(int nSect);
 char isNextWallOf(int nSrc, int nDest);
-int findNextWall(int nWall);
+int findNextWall(int nWall, char forceSearch = 0);
 int findNamedID(const char* str, NAMED_TYPE* pDb, int nLen);
+spritetype* findPlayerStart(int nPlayer);
 int words2flags(const char* str, NAMED_TYPE* pDb, int nLen);
 
 char hasByte(BYTE* pBytes, int l, char nByte);

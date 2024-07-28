@@ -41,10 +41,11 @@
 #define kStdPalDB			"xmapedit/stdclr.ini"
 #define kScreen2DPrefs		"xmapedit/2dsclrn.ini"
 #define kTempFileBase		"xmapedit/fil"
+#define kKeyMapperFile		"xmapedit/keyremap.ini"
 
 
 #define kDefaultBoardSize	196608
-
+#define kMaxExtApps 		8
 #define kMaxGrids 			11
 #define kGridMul 			2
 #define kStartGridValue 	100
@@ -58,6 +59,13 @@ kBeepMax		   ,
 extern int gMaxTiles;
 extern IniFile* MapEditINI;
 
+struct EXTERNAL_APP
+{
+	char path[BMAX_PATH];
+	char cmd[1024];
+	char extra;
+};
+
 class AUTOSAVE {
 	public:
 	unsigned int max				: 10;
@@ -65,6 +73,7 @@ class AUTOSAVE {
 	unsigned int interval			: 32;
 	char basename[BMAX_PATH];
 	void Init(IniFile* pIni, char* section);
+	void Save(IniFile* pIni, char* section);
 };
 
 class AUTOADJUST {
@@ -117,6 +126,19 @@ class COMMENT_SYS_PREFS {
 	public:
 	unsigned int enabled			: 1;
 	unsigned int compareCRC			: 1;
+	void Init(IniFile* pIni, char* section);
+	void Save(IniFile* pIni, char* section);
+};
+
+
+
+
+
+class EXTERNAL_APPS
+{
+	public:
+	EXTERNAL_APP apps[kMaxExtApps];
+	unsigned int numapps			: 8;
 	void Init(IniFile* pIni, char* section);
 	void Save(IniFile* pIni, char* section);
 };
@@ -215,9 +237,10 @@ class MOUSE_PREFS {
 	public:
 	unsigned int controls			: 2;
 	unsigned int fixedGrid			: 5;
-	unsigned int speedX				: 10;
-	unsigned int speedY				: 10;
+	unsigned int speedX				: 12;
+	unsigned int speedY				: 12;
 	void Init(IniFile* pIni, char* section);
+	void Save(IniFile* pIni, char* section);
 };
 
 
@@ -284,13 +307,16 @@ class SCREEN {
 	unsigned int msgShowCur		: 8;
 	unsigned int msgFont		: 8;
 	unsigned int msgTime		: 32;
+	signed   int maxFPS			: 10;
 	void Init(IniFile* pIni, char* section);
 	void Save(IniFile* pIni, char* section);
 };
 
 class SOUND {
 	public:
+	unsigned int ambientAlways	: 1;
 	void Init(IniFile* pIni, char* section);
+	void Save(IniFile* pIni, char* section);
 };
 
 struct SPLITMODE_DATA
@@ -345,6 +371,7 @@ extern AUTOGRID gAutoGrid;
 extern BEEP gBeep;
 extern COMMENT_SYS_PREFS gCmtPrefs;
 extern COMPATIBILITY gCompat;
+extern EXTERNAL_APPS gExtApps;
 extern FILEBROWSER_PREFS gDirBroPrefs;
 extern LIGHT_BOMB gLightBomb;
 extern IMPORT_WIZARD_PREFS gImportPrefs;
@@ -361,4 +388,6 @@ extern SOUND gSound;
 extern SPLITMODE_DATA gSplitMode;
 extern TILE_VIEWER gTileView;
 extern TIMERS gTimers;
+
+int initKeyMapper();
 #endif

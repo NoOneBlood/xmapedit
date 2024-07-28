@@ -62,7 +62,7 @@ Here is some of options:
  * `RELEASE=0`		– build for debugging.
  * `USE_ASM=1`		- enable the use of assembly code which can give performance boost on older systems.
 
-Launching the XMAPEDIT
+Launching compiled XMAPEDIT
 ----------------------
 1. Create `xmapedit` directory in the Blood directory.
 2. Copy `xmapedit.exe` in the Blood directory.

@@ -852,7 +852,7 @@ void artedSaveDatFiles() {
 BOOL tileInHglt(int nTile) { return (BOOL)gHgltTiles[nTile].ok; }
 BOOL isSysTile(int nTile) { return (BOOL)gSysTiles.isBusy(nTile); }
 void artedSurfaceSet(int nTile, int value) { surfType[nTile] = (BYTE)value; }
-void artedShadeSet(int nTile, int value) { tileShade[nTile] = (schar)ClipRange(value, -127, 63); }
+void artedShadeSet(int nTile, int value) { tileShade[nTile] = (schar)ClipRange(value, -127, NUMPALOOKUPS(1)); }
 void arttedShadeIterate(int nTile, int value) {
 	int val = tileShade[nTile];
 	artedShadeSet(nTile, val + value);

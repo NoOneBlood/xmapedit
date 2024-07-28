@@ -11,9 +11,12 @@ extern "C" {
 
 extern int _buildargc;
 extern const char **_buildargv;
+extern const char* helpfilename;
+extern const char helpkey;
 
 extern char quitevent, appactive;
 extern char (*onquiteventcallback)(void);
+extern char scanremap[256];
 
 
 
@@ -150,6 +153,10 @@ int wm_filechooser(const char *initialdir, const char *initialfile, const char *
 int wm_idle(void *);
 void wm_setapptitle(const char *name);
 void wm_setwindowtitle(const char *name);
+void wm_showwindow();
+void wm_hidewindow();
+void wm_showhelp(const char* name, int nCommand);
+void wm_remapkey(unsigned char key, unsigned char newkey);
 
 #if USE_OPENGL
 int loadgldriver(const char *driver);   // or NULL for platform default

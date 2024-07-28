@@ -874,29 +874,16 @@ void ProcessKeys2D( void )
 					k = 0;
 					j = pointdrag;
 					getWallCoords(j, &x3, &y3);
+					worldSprCallFunc(sprFixSector, 0x01);
 					
 					i = numwalls;
 					while(--i >= 0)
 					{
 						getWallCoords(i, &x1, &y1, &x2, &y2);
 						if ((x1 == x2 && y1 == y2) && ((x3 == x1 && y3 == y1) || (x3 == x2 && y3 == y2)))
-						{
-							s = sectorofwall(i);
-							
-							deletepoint(i); k = 1;
-							if (rngok(s, 0, numsectors) && sector[s].wallnum <= 1)
-								sectDelete(s);
-						}
+							deletePoint(i);
 					}
-					
-					if (k > 0)
-					{
-						k = numsectors;
-						while(--k >= 0)
-							sectAttach(k);
-						
-					}
-					
+										
 					// fix repeats for walls
 					for (i = 0; i < numwalls; i++)
 					{
@@ -1488,44 +1475,31 @@ void ProcessKeys2D( void )
 		case KEY_INSERT:
 			if (highlightsectorcnt > 0)
 			{
-				int nIdx1, nIdx2;
-				int nsects = numsectors, nwalls = numwalls;
-				int nGrid  = (grid <= 0) ? 10 : grid;
-				for (i = 0; i < highlightsectorcnt; i++)
-				{
-					sect = highlightsector[i];
-					sectClone(sect, nsects, nwalls);
-					sectChgXY(nsects, 2048>>nGrid, 2048>>nGrid);
-					nwalls += sector[sect].wallnum;
-					nsects++;
-				}
+				int nGrid = (grid <= 0) ? 10 : grid;
+				i = highlightsectorcnt;
 				
-				for (i = 0; i < highlightsectorcnt; i++)
+				while(--i >= 0)
 				{
 					sect = highlightsector[i];
-					getSectorWalls(sect, &swal, &ewal);
-					for (j = swal; j <= ewal; j++)
-					{
-						checksectorpointer(wall[j].nextwall, wall[j].nextsector);
-						checksectorpointer(j, sect);
-					}
+					sectClone(sect, numsectors, numwalls);
+					sectChgXY(numsectors, 2048>>nGrid, 2048>>nGrid, 0x01);
 					
-					j = swal;
-					sect = numsectors + i;
-					highlightsector[i] = sect;
 					getSectorWalls(sect, &swal, &ewal);
-					sectDetach(sect);
+					j = sector[numsectors].wallptr;
 					
 					while(swal <= ewal)
 					{
-						gNextWall[swal] = wall[j].nextwall;
+						gNextWall[j] = wall[swal].nextwall;
+						wallDetach(j);
+						numwalls++;
 						swal++;
 						j++;
 					}
+					
+					highlightsector[i] = numsectors++;
 				}
 				
-				numsectors = nsects, numwalls = nwalls;
-				updatenumsprites();
+				hgltSectAttach(); // call this to attach the sectors inside highlight
 				scrSetMessage("%d sector(s) duplicated and stamped.", highlightsectorcnt);
 				BeepOk();
 			}
@@ -1678,24 +1652,12 @@ void ProcessKeys2D( void )
 					/*&& Confirm("Try to create red loops for sectors in a highlight?")*/
 				)
 				{
-					int nTrials = 3, nLoops	= 0;
-					while(--nTrials >= 0 && (i = hgltSectAutoRedWall()) >= 0)
-						nLoops+=i;
+					int flags = 0x0;
+					if (!shift)
+						flags |= 0x01;
 					
-					if (nLoops >= 0)
-					{
-						scrSetMessage("%d inner loops created.", nLoops);
-						if (Beep(nLoops > 0))
-							hgltReset(kHgltSector);
-					}
-					else if (i < 0)
-					{
-						BeepFail();
-						char* errMsg = retnCodeCheck(i, gHgltSectAutoRedWallErrors);
-						if (errMsg)
-							Alert("Auto-inner loop error #%d: %s", klabs(i), errMsg);
-					}
-					
+					Beep((i = hgltSectAutoRedWall(flags)) > 0);
+					scrSetMessage("%d inner loops created.", i);
 					break;
 				}
 

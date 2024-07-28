@@ -78,6 +78,7 @@ char *gSectorNames[1024];
 char *gSectorCaptions[1024];
 char *gSectorDataNames[1024][1];
 
+char* gCrypticArt = "CPART15.AR_";
 char buffer[kBufferSize]  = "";
 char buffer2[kBufferSize] = "";
 char buffer3[kBufferSize] = "";
@@ -723,7 +724,7 @@ void xmpSplitModeCountWindowSize(Rect* pOne, Rect* pTwo)
 {
 	const char kPad = kSplitModeWndPad;
 	int hg = gMapedHud.main.y2-gMapedHud.HeightNoLogo();
-	int t  = (fullscreen) ? 0 : 2;
+	int t  = (fullscreen) ? 0 : 1;
 	int sz = gSplitMode.size;
 	
 	if (hg <= 0)
@@ -740,7 +741,7 @@ void xmpSplitModeCountWindowSize(Rect* pOne, Rect* pTwo)
 		
 		pTwo->x0 = sz+(kPad>>1);
 		pTwo->y0 = 0;
-		pTwo->x1 = xdim-t-1;
+		pTwo->x1 = xdim-t;
 		pTwo->y1 = hg;
 	}
 	else
@@ -749,12 +750,12 @@ void xmpSplitModeCountWindowSize(Rect* pOne, Rect* pTwo)
 		
 		pOne->x0 = 1;
 		pOne->y0 = 1;
-		pOne->x1 = xdim-t-1;
+		pOne->x1 = xdim-t;
 		pOne->y1 = sz-(kPad>>1);
 		
 		pTwo->x0 = 1;
 		pTwo->y0 = sz+(kPad>>1);
-		pTwo->x1 = xdim-t-1;
+		pTwo->x1 = xdim-t;
 		pTwo->y1 = hg;
 	}
 }
@@ -809,7 +810,6 @@ void xmpSplitModeProcess(Rect* r3D, Rect* r2D)
 	
 	char mLook3D	= (gMouseLook.mode > 0);
 	char clipMouse	= (pMouse->buttons || ctrl || alt || shift || mLook3D);
-	char vFrameCol	= clr2std(kColorGrey29);
 	char rFrameCol	= fade(384);
 
 	if (ED23 & 0x08)
@@ -1010,9 +1010,12 @@ void ExtCheckKeys( void )
 			CleanUp();
 		}
 		
+		if (gSound.ambientAlways)
+			ambProcess();
+		
 		hgltShowStatus(4, (totalclock < gScreen.msg[0].time) ? 14 : 4);
 		
-		if (totalclock > gTimers.autosave)
+		if (gAutosave.interval && totalclock > gTimers.autosave)
 		{
 			if (asksave)
 			{
@@ -1146,7 +1149,7 @@ char dlgMapSettings()
 	
 	dy1 += fBSize->height + 16;
 	FieldSet* fVis 			= new FieldSet(dx1+2, dy1, dwh-kPad1, enh<<1, "GLOBAL VISIBILITY", kColorDarkGray, kColorDarkGray);
-	EditNumber* eVis		= new EditNumber(kPad1, cy, enw, enh, 100 - IVAL2PERC(visibility, 4095), kValPerc, 0, 100);
+	EditNumber* eVis		= new EditNumber(kPad1, cy, enw, enh, visibility, kValNone, 0, kMaxVisibility);
 	Checkbox* cFog			= new Checkbox(eVis->left+eVis->width+kPad1, (fVis->height>>1)-(pFont->height>>1)-1, gFogMode, "Enable fog");
 
 	
@@ -1216,8 +1219,8 @@ char dlgMapSettings()
 				Sky::customBitsFlag		= false;
 				boardWidth				= MET2PIX(eW->value);
 				boardHeight				= MET2PIX(eH->value);
-				visibility				= 4095 - perc2val(eVis->value, 4095);
-				gFogMode				= cFog->checked;
+				visibility				= eVis->value;
+				gFogMode				|= cFog->checked;
 				
 				scrLoadPLUs();
 				
@@ -1369,6 +1372,8 @@ static int OSDFUNC_ShiftSysStatnum(const osdfuncparm_t *arg)
 }
 
 
+const char* helpfilename	= "xmapedit.chm";
+const char helpkey			= KEY_F1;
 
 int ExtInit(int argc, char const * const argv[])
 {
@@ -1508,6 +1513,7 @@ int ExtInit(int argc, char const * const argv[])
 	// initialize keyboard & mouse
 	initinput();
 	initmouse();
+	initKeyMapper();
 	// ---------------------------------------------------------------------------
 	// setup mouse
 	gMousePrefs.Init(MapEditINI, 			"Mouse");
@@ -1537,17 +1543,7 @@ int ExtInit(int argc, char const * const argv[])
 	// ---------------------------------------------------------------------------
 	// initialize ART related stuff
 	buildprintf("Initialising tiles...\n");
-	sprintf(buffer, "Resources.ART");
-	sprintf(buffer2, "15");
-	sprintf(buffer3, "CPART15.AR_");
-	gPaths.InitResourceART(MapEditINI, buffer);
-	if (iniGenerated && fileExists(buffer3))
-	{
-		// user can alter defaults.ini
-		if (!MapEditINI->KeyExists(buffer, buffer2) && Confirm("Enable Cryptic Passage ART?"))
-			MapEditINI->PutKeyString(buffer, buffer2, buffer3);
-	}
-
+	gPaths.InitResourceART(MapEditINI, "Resources.ART");
 	tileInitFromIni();
 	tileInitSystemTiles();
 	favoriteTileInit();
@@ -1614,6 +1610,7 @@ int ExtInit(int argc, char const * const argv[])
 	initNames();			dbInit();
 	gObjectLock.Init();		gBeep.Init();
 	AutoAdjustSpritesInit();
+	gExtApps.Init(MapEditINI, "ExternalCommands");
 
 	memset(joinsector, -1, sizeof(joinsector));
 	gSeqEd.filename 			= gPaths.seqs;
@@ -1621,6 +1618,10 @@ int ExtInit(int argc, char const * const argv[])
 	gTool.objIndex 				= -1;
 	// ---------------------------------------------------------------------------
 	buildprintf("Init completed!\n\n\n");
+	#if USE_OPENGL
+	if (GL_swapIntervalTest())
+		GL_fps2SwapInterval(gScreen.maxFPS);
+	#endif
 	xmpSetEditMode(gMisc.editMode);
 	boardStartNew();
 	splashScreen();
@@ -1683,7 +1684,7 @@ int ExtInit(int argc, char const * const argv[])
 				Alert("Could not open \"%s\".", buffer);
 				if ((tmp = browseOpen(gPaths.maps, ".map")) == NULL)
 				{
-					xmpQuit(1);
+					xmpMenuProcess();
 					break;
 				}
 				
@@ -1691,7 +1692,9 @@ int ExtInit(int argc, char const * const argv[])
 				// no break
 			}
 			case kToolMapEdit:
-				gMapLoaded = (boardLoad(buffer) == 0);
+				if (boardLoad(buffer) != 0)
+					strcpy(gPaths.maps, kDefaultMapName);
+				gMapLoaded = 1;
 				break;
 			case kToolArtEdit:
 			case kToolSeqEdit:
@@ -1738,11 +1741,14 @@ void ExtUnInit(void)
 		gMisc.Save(MapEditINI, 			"General");
 		gTileView.Save(MapEditINI,		"TileViewer");
 		gPluPrefs.Save(MapEditINI,		"PalookupViewer");
+		gAutosave.Save(MapEditINI, 		"AutoSave");
 		gAutoGrid.Save(MapEditINI, 		"AutoGrid");
+		gMousePrefs.Save(MapEditINI, 	"Mouse");
 		gMouseLook.Save(MapEditINI, 	"MouseLook");
 		gPreview.Save(MapEditINI, 		"PreviewMode");
 		gPaths.Save(MapEditINI, 		"Visited");
 		gScreen.Save(MapEditINI, 		"Screen");
+		gSound.Save(MapEditINI, 		"Sound");
 		gHudPrefs.Save(MapEditINI,  	"HUD");
 		gCmtPrefs.Save(MapEditINI,  	"Comments");
 		gImportPrefs.Save(MapEditINI, 	"ImportWizard");
@@ -1836,22 +1842,243 @@ int xsysConnect2(int nTypeA, int nIdxA, int nTypeB, int nIdxB) {
 	return 0;
 }
 
-int worldSprCallFunc(HSPRITEFUNC pFunc, int nData = 0)
+char parseAppCommandStr(char* str, char* out, char* episodeIni, char* editFile)
 {
-	int i, c = 0;
-	for (i = 0; i < kMaxSprites; i++)
+	enum
 	{
-		spritetype* pSpr = &sprite[i];
-		if (pSpr->statnum < kMaxStatus)
+		kTokCWD,
+		kTokFile,
+		kTokGameRes,
+		kTokSoundRes,
+		kTokGameIni,
+	};
+	
+	static NAMED_TYPE tokens[] =
+	{
+		{kTokCWD, 			"CWD"},
+		{kTokFile, 			"FILE"},
+		{kTokGameRes, 		"BLOOD_RFF"},
+		{kTokSoundRes, 		"SOUNDS_RFF"},
+		{kTokGameIni, 		"EPISODE_INI"},
+	};
+	
+	char tmp[BMAX_PATH]; NAMED_TYPE* pToken;
+	char *p, *t, *o, *s, *f;
+	int i, l, u;
+	
+	*out = '\0', o = out, p = str;
+	while((s = strchr(p, '%')) != NULL)
+	{
+		strSubStr(p, NULL, s, o);
+		o += (s-p);
+		p = s+1;
+		
+		for (i = 0; i < LENGTH(tokens); i++)
 		{
-			pFunc(pSpr, nData);
-			c++;
+			pToken = &tokens[i];
+			t = pToken->name;
+			u = l = 0;
+			s = p;
+
+			while(*t != '\0' && *s != '\0')
+			{
+				/** the WHOLE word here must be written in upper XOR lower case!!! **/
+				/** -------------------------------------------------------------- **/
+				
+				if (*t == *s && !isalpha(*t))	; // it's ok
+				else if (toupper(*t) == *s)		u++;
+				else if (tolower(*t) == *s)		l++;
+				else break;
+				
+				s++, t++;
+			}
+			
+			if ((*t != '\0') || (u && l))
+				continue;
+			
+			f = NULL;
+			switch(pToken->id)
+			{
+				case kTokFile:		f = editFile;						break;
+				case kTokGameRes:	f = gPaths.bloodRFF;				break;
+				case kTokSoundRes:	f = gPaths.soundRFF;				break;
+				case kTokGameIni:	f = episodeIni;						break;
+				case kTokCWD:		getcwd(tmp, sizeof(tmp)); f = tmp;	break;
+				default:
+					continue;
+			}
+			
+			if (f)
+			{
+				if (u > 0 && irngok(pToken->id, kTokFile, kTokGameIni))
+					_fullpath(tmp, f, BMAX_PATH), f = tmp;
+					
+				o+=sprintf(o, "%s", f);
+			}
+			
+			p+=(t-pToken->name);
+			break;
 		}
 	}
 	
-	return c;
+	return (o != out);
 }
 
+int boardTestExternal(EXTERNAL_APPS* pDb, int* sysErrNo = NULL)
+{
+	if (sysErrNo)
+		*sysErrNo = 0;
+
+	#ifdef _WIN32
+		
+		char* testfilename = "__test__"; IniFile *pEpisode, *pPreview;
+		char *pPath, *key, *val, *p; EXTERNAL_APP* pApp; spritetype* pSpr;
+		char aptext[kMaxExtApps][80], tmp[sizeof(EXTERNAL_APP)], boardpath[BMAX_PATH];
+		int bpsx[2], bpsy[2], bpsz[2], bang[2], bsec[2], i = 0, nSysStat;
+		EXTERNAL_APP* apps = pDb->apps; int numapps = pDb->numapps;
+		STRCUTSTYLE cutStyle = {ALG_RIGHT, '.', 5};
+		NAMED_TYPE apnames[kMaxExtApps];
+		char episodeGenerated = 0;
+		int nPrevNode = -1;
+
+		if (system(NULL) == 0)
+			return -1;
+
+		// in case user is planning to test the board
+		// in vanilla blood, we have to use 8.3 names
+		// format, which means we have to create test
+		// ini as well
+			
+		sprintf(tmp, "%s.ini", testfilename);
+		if (fileExists(tmp))
+			fileDelete(tmp);
+		
+		p = "Episode1";
+		pEpisode = new IniFile(tmp);
+		pEpisode->PutKeyString(p, "Title", p);
+		pEpisode->PutKeyString(p, "Map1", testfilename);
+		pEpisode->PutKeyString(testfilename, "Title", "Test map");
+		
+		if ((pPreview = gPreview.pEpisode) != NULL)
+		{
+			getFilename(gPaths.maps, boardpath, 0);
+
+			while(!episodeGenerated)
+			{
+				sprintf(tmp, "Episode%d", ++i);
+				if (!pPreview->SectionExists(tmp))
+					break;
+				
+				while(pPreview->GetNextString(&key, &val, &nPrevNode, tmp))
+				{
+					if (key && val && stricmp(val, boardpath) == 0)
+					{
+						val = "Episode1", p = "Title";
+						pEpisode->PutKeyString(val, p, pPreview->GetKeyString(tmp, p, tmp));
+						pEpisode->PutKeyString(val, "Map1", testfilename);
+						
+						nPrevNode = -1;
+						while(pPreview->GetNextString(&key, &val, &nPrevNode, boardpath))
+							pEpisode->PutKeyString(testfilename, key, val);
+						
+						episodeGenerated = 1;
+						break;
+					}
+				}
+			}
+		}
+		
+		pEpisode->Save();
+		
+		getPath(gPaths.maps, boardpath, 1);
+		strcat(boardpath, testfilename);
+		strcat(boardpath, ".map");
+		if (fileExists(boardpath))
+			fileDelete(boardpath);
+		
+		i = 0;
+		if (numapps > 1)
+		{
+			while(i < numapps)
+			{
+				pApp = &apps[i];
+				p = tmp, p+=sprintf(p, "%s ", pApp->path);
+				if (*pApp->cmd == '\0' || !parseAppCommandStr(pApp->cmd, p, pEpisode->filename, boardpath))
+					strcpy(p, boardpath);
+				
+				strCut(tmp, aptext[i], LENGTH(aptext[0]), &cutStyle);
+				apnames[i].name = aptext[i];
+				apnames[i].id = i;
+				i++;
+			}
+			
+			if ((i = showButtons(apnames, numapps, "Command to start...") - mrUser) < 0)
+				return -3;
+		}
+		else if (numapps == 0)
+			return -2;
+		
+
+		
+		pApp = &apps[i];
+		if (fileExists(pApp->path))
+		{
+			p = tmp, p+=sprintf(p, "%s ", "taskkill /f /im");
+			getFilename(pApp->path, p, 1);
+			system(tmp);
+		}
+		else
+		{
+			return -5;
+		}
+		
+		p = tmp, p+=sprintf(p, "start %s ", pApp->path);
+		if (*pApp->cmd == '\0' || !parseAppCommandStr(pApp->cmd, p, pEpisode->filename, boardpath))
+			strcpy(p, boardpath);
+
+		bpsx[0] = startposx;	bpsy[0] = startposy;
+		bpsz[0] = startposz;	bang[0] = startang;
+		
+		if ((pSpr = findPlayerStart(0)) != NULL)
+		{
+			bpsx[1] = pSpr->x;			bpsy[1] = pSpr->y;
+			bpsz[1] = pSpr->z;			bang[1] = pSpr->ang;
+			bsec[1] = pSpr->sectnum;
+		}
+		
+		setStartPos(posx, posy, posz, ang, 1); boardSave(boardpath, 1);
+		setStartPos(bpsx[0], bpsy[0], bpsz[0], bang[0], 0);
+		showframe();
+		
+		if (pSpr)
+		{
+			pSpr->x = bpsx[1];			pSpr->y   = bpsy[1];
+			pSpr->z = bpsz[1];			pSpr->ang = bang[1];
+			
+			if (bsec[1] >= 0)
+				ChangeSpriteSect(pSpr->index, bsec[1]);
+		}
+		
+		p = tmp;
+		wm_hidewindow();
+		if ((nSysStat = system(p)) > 0)
+			p = &tmp[6], nSysStat = system(p); // not all windows may have "start"...
+		
+		if (nSysStat == 0)
+		{
+			return 1;
+		}
+		else
+		{
+			if (sysErrNo)
+				*sysErrNo = nSysStat;
+		}
+		
+		return 0;
+	#else
+		return -4;
+	#endif
+}
 
 BOOL processKeysShared() {
 
@@ -1969,7 +2196,8 @@ BOOL processKeysShared() {
 			{
 				if (keystatus[KEY_PADPERIOD])
 				{
-					xmpSetEditMode(ED3D|0x80);
+					i = ED3D, i |=0x80;
+					xmpSetEditMode(i);
 				}
 				else if (ED3D) ED23 |= 0x10;
 				else if (ED2D) ED23 |= 0x08;
@@ -2765,7 +2993,7 @@ BOOL processKeysShared() {
 			updatesector(posx, posy, &cursectnum);
 			if (cursectnum >= 0)
 			{
-				setStartPos(posx, posy, posz, ang);
+				setStartPos(posx, posy, posz, ang, gMisc.forceEditorPos);
 				scrSetMessage("Set start position at x=%d, y=%d, z=%d, in sector #%d", startposx, startposy, startposz, startsectnum);
 				BeepOk();
 			}
@@ -3149,97 +3377,411 @@ BOOL processKeysShared() {
 	return TRUE;
 }
 
-void xmpOptions(void) {
+void xmpOptions(void)
+{	
+	#define AFTERH(a, b) (a->left+a->width+b)
+	#define AFTERV(a, b) (a->top+a->height+b)
+
+	int i, j = 2, f = desktopfreq, w, h, t, numfps = 0, curFps = 0;
+	char* screenModeNames[] = { "Windowed", "Borderless", "Exclusive" };
+	char fpsText[32][8], resText[MAXVALIDMODES][16], gammaText[11][4];
+	NAMED_TYPE fpsNames[32], resNames[MAXVALIDMODES], gammaNames[11];
+	char cCrypticText[128], curRes[16], *resArt = "Resources.ART", *p;
+	IniFile* pConf = MapEditINI;	
+
+	sprintf(curRes, "%dx%d", xdim, ydim);
 	
+	for (i = 0; i < LENGTH(gammaText); i++)
+	{
+		sprintf(gammaText[i], "%02d", i);
+		gammaNames[i].name	= gammaText[i];
+		gammaNames[i].id	= i;
+	}
+	
+	strcpy(fpsText[numfps], "None");
+	fpsNames[numfps].name = fpsText[numfps];
+	fpsNames[numfps].id = 0;
+	numfps++;
+	
+	#if USE_OPENGL
+	if (GL_swapIntervalTest())
+	{
+		if (f % 2)
+			f++;
+
+		curFps = GL_fps2SwapInterval(gScreen.maxFPS);
+		
+		strcpy(fpsText[numfps], "Freq");
+		fpsNames[numfps].name	= fpsText[numfps];
+		fpsNames[numfps].id		= 1;
+		numfps++;
+		
+		while((t = f / j) > 50)
+		{
+			sprintf(fpsText[numfps], "%d", t);
+			fpsNames[numfps].name = fpsText[numfps];
+			fpsNames[numfps].id = j;
+			numfps++;
+			j++;
+		}
+		
+		if (curFps >= numfps)
+		{
+			gScreen.maxFPS = -2;
+			GL_fps2SwapInterval(gScreen.maxFPS);
+			curFps = 1;
+		}
+	}
+	#endif
+	
+	
+	Window dialog(0, 0, 310, 400, "Options");
+	
+	// video
+	//---------------------
+	FieldSet* fVideo		= new FieldSet(8, 8, dialog.client->width-16, 96, "SCREEN", kColorRed, kColorBlack, 8);
+	w = fVideo->client->width-16;
+	
+	FieldSet* fResolution	= new FieldSet(0, 0, perc2val(w, 38), 36, "RESOLUTION", kColorDarkGray, kColorDarkGray, 8);
+	FieldSet* fScreenMode	= new FieldSet(AFTERH(fResolution, 4), 0, perc2val(w, 38), 36, "MODE", kColorDarkGray, kColorDarkGray, 8);
+	FieldSet* fMaxFps		= new FieldSet(AFTERH(fScreenMode, 4), 0, perc2val(w, 24), 36, "MAX FPS", kColorDarkGray, kColorDarkGray, 8);
+
+	TextButton* bResolution = new TextButton(0, 0, fResolution->width-16, fResolution->height-16, curRes, 100);
+	TextButton* bScreenMode = new TextButton(0, 0, fScreenMode->width-16, fScreenMode->height-16, screenModeNames[fullscreen], 101);
+	TextButton* bMaxFps		= new TextButton(0, 0, fMaxFps->width-16, fMaxFps->height-16, fpsText[curFps], 102);
+	
+	w = fResolution->width+fScreenMode->width+4;
+	FieldSet* fVideoOther	= new FieldSet(0, AFTERV(fMaxFps, 8), w, 32, "MORE", kColorDarkGray, kColorDarkGray, 8);
+	Checkbox* cUseTransluc	= new Checkbox(0, 4, gScreen2D.prefs.useTransluc, "Use translucency in 2D Mode");
+	
+	FieldSet* fVideoGamma	= new FieldSet(AFTERH(fVideoOther, 4), AFTERV(fMaxFps, 8), fMaxFps->width, 32, "GAMMA", kColorDarkGray, kColorDarkGray, 6);
+	TextButton* bGamma		= new TextButton(0, 0, fVideoGamma->client->width-4, 20, gammaText[gGamma], 103);
+	
+	bResolution->fontColor	= kColorBlue;
+	bScreenMode->fontColor	= kColorGreen;
+	bMaxFps->fontColor		= kColorMagenta;
+	bGamma->fontColor		= kColorCyan;
+/* 	if (numfps == 1)
+	{
+		bMaxFps->disabled		= 1;
+		bMaxFps->canFocus		= 0;
+		bMaxFps->fontColor		= kColorDarkGray;
+	} */
+	
+	fResolution->Insert(bResolution);
+	fScreenMode->Insert(bScreenMode);
+	fMaxFps->Insert(bMaxFps);
+	
+	fVideo->Insert(fResolution);
+	fVideo->Insert(fScreenMode);
+	fVideo->Insert(fMaxFps);
+	
+	fVideoOther->Insert(cUseTransluc);
+	fVideo->Insert(fVideoOther);
+	
+	fVideoGamma->Insert(bGamma);
+	fVideo->Insert(fVideoGamma);
+
+
+
+	// sound
+	//---------------------
+	w = dialog.client->width-24;
+	FieldSet* fAudio		= new FieldSet(8, AFTERV(fVideo,10), perc2val(w, 50), 76, "SOUND", kColorRed, kColorBlack, 8);
+	FieldSet* fAsave		= new FieldSet(AFTERH(fAudio, 8), AFTERV(fVideo,10), perc2val(w, 50), 76, "AUTOSAVE", kColorRed, kColorBlack, 8);
+	
+	FieldSet* fAudioVol		= new FieldSet(0, 0, fAudio->client->width-8, 30, "VOLUME", kColorDarkGray, kColorDarkGray, 8);
+	w = fAudioVol->client->width-8;
+	
+	Label* lSndVol			= new Label(0, 5, "SFX");
+	EditNumber* eSndVol		= new EditNumber(AFTERH(lSndVol, 4), 0, 28, 18, IVAL2PERC(FXVolume, 255), kValNone, 0, 100);
+	Label* lMusVol			= new Label(AFTERH(eSndVol, 6), 5, "MUS");
+	EditNumber* eMusVol		= new EditNumber(AFTERH(lMusVol, 4), 0, 28, 18, IVAL2PERC(MusicVolume, 255), kValNone, 0, 100);
+	Checkbox* cAmbient		= new Checkbox(0, 38, gSound.ambientAlways, "Ambient always");
+	Checkbox* cBeeps		= new Checkbox(0, 50, gMisc.beep, "Beeps");
+	
+	fAudioVol->Insert(lSndVol);
+	fAudioVol->Insert(eSndVol);
+	
+	fAudioVol->Insert(lMusVol);
+	fAudioVol->Insert(eMusVol);
+	
+	fAudio->Insert(fAudioVol);
+	fAudio->Insert(cAmbient);
+	fAudio->Insert(cBeeps);
+	
+	
+	
+	// autosave
+	//---------------------
+	w = fAsave->client->width-8;
+	Label* lAsaveName		= new Label(0, 6, "Name:");
+	EditText* eAsaveName	= new EditText(w-(pFont->width*8), 0, pFont->width*8, 20, gAutosave.basename);
+	
+	Label* lInterval		= new Label(0, 27, "Interval (sec):");
+	EditNumber* eInterval	= new EditNumber(w-28, 22, 28, 20, gAutosave.interval/120, kValNone, 0, 999);
+	
+	Label* lMaxSaves		= new Label(0, 49, "Max saves:");
+	EditNumber* eMaxSaves	= new EditNumber(w-28, 44, 28, 20, gAutosave.max, kValNone, 1, 999);
+	
+	fAsave->Insert(lAsaveName);
+	fAsave->Insert(eAsaveName);
+	fAsave->Insert(lInterval);
+	fAsave->Insert(eInterval);
+	
+	fAsave->Insert(lMaxSaves);
+	fAsave->Insert(eMaxSaves);
+	
+	
+	
+	
+	// mouse
+	//---------------------
+	FieldSet* fMouse		= new FieldSet(8, AFTERV(fAudio, 10), dialog.client->width-16, 58, "MOUSE", kColorRed, kColorBlack, 8);
+	w = fMouse->client->width-16;
+	
+	FieldSet* fMSpeed		= new FieldSet(0, 0, perc2val(w, 38), 36, "SENSITIVITY", kColorDarkGray, kColorDarkGray, 8);
+	FieldSet* fMLook		= new FieldSet(AFTERH(fMSpeed, 8), 0, perc2val(w, 62), 36, "MOUSE LOOK", kColorDarkGray, kColorDarkGray, 8);
+	
+	w = fMSpeed->width-28;
+	EditNumber* eMSpeedX	= new EditNumber(0, 0, perc2val(w, 50), 24, gMousePrefs.speedX, kValNone, 0, 2048);
+	Label* lMSpeed			= new Label(AFTERH(eMSpeedX, 4), 8, "X");
+	EditNumber* eMSpeedY	= new EditNumber(AFTERH(lMSpeed, 4), 0, perc2val(w, 50), 24, gMousePrefs.speedY, kValNone, 0, 2048);
+	
+	Label* lMSlope			= new Label(0, 8, "Slope:");
+	EditNumber* eMSlope		= new EditNumber(AFTERH(lMSlope, 4), 0, pFont->width*6, 24, gMouseLook.maxSlope, kValNone, 0, 300);
+	Checkbox* cMSlopeInv	= new Checkbox(AFTERH(eMSlope, 8), 0, gMouseLook.invert, "Invert");
+	Checkbox* cMLookStrafe	= new Checkbox(AFTERH(eMSlope, 8), 12, gMouseLook.strafe, "Strafe");
+	
+	fMSpeed->Insert(eMSpeedX);
+	fMSpeed->Insert(lMSpeed);
+	fMSpeed->Insert(eMSpeedY);
+	
+	fMLook->Insert(lMSlope);
+	fMLook->Insert(eMSlope);
+	fMLook->Insert(cMSlopeInv);
+	fMLook->Insert(cMLookStrafe);
+	
+	fMouse->Insert(fMSpeed);
+	fMouse->Insert(fMLook);
+	
+	
+	
+	// other
+	//---------------------
+	FieldSet* fOther		= new FieldSet(8, AFTERV(fMouse, 10), dialog.client->width-16, 74, "OTHER", kColorRed, kColorBlack, 8);
+
+	t = fileExists(gCrypticArt);
+	sprintf(cCrypticText, "Enable Cryptic Passage ART (%s)", (t) ? "restart req" : "not found");
+	p = pConf->GetKeyString(resArt, "15", NULL);
+	
+	Checkbox* cCrypticArt	= new Checkbox(0, 0, (t && p && Bstrcasecmp(p, gCrypticArt) == 0), cCrypticText);
+	cCrypticArt->disabled	= (t == 0 || gArtEd.asksave); // may corrupt art when have unsaved changes
+	cCrypticArt->canFocus	= !cCrypticArt->disabled;
+	
+	Checkbox* cSetEditPos	= new Checkbox(0, 12, gMisc.forceEditorPos, "Use editor start position for player 1");
+	Checkbox* cSaveAsModern	= new Checkbox(0, 24, gCompat.modernMap, "Save all maps as modern compatible", 104);
+	Checkbox* cAutoLoadMRU	= new Checkbox(0, 36, gMisc.autoLoadMap, "Auto load previously edited map");
+	Checkbox* cAutoSecrets	= new Checkbox(0, 48, gMisc.autoSecrets, "Auto set secrets counter");
+	
+	
+	fOther->Insert(cCrypticArt);
+	fOther->Insert(cSetEditPos);
+	fOther->Insert(cSaveAsModern);
+	fOther->Insert(cAutoLoadMRU);
+	fOther->Insert(cAutoSecrets);
+	
+
+
+
+	// bottom
+	//---------------------
+	t = dialog.client->height-AFTERV(fOther, 18);
+	Panel* pBottom			= new Panel(8, AFTERV(fOther, 12), dialog.client->width-16, t);
+	TextButton* bOk			= new TextButton(0, 0, 100, pBottom->height, "&Close", mrOk);
+	Checkbox* cForceSetup	= new Checkbox(AFTERH(bOk, 8), AFTERV(bOk, 0)-(pBottom->height>>1)-5, gMisc.forceSetup, "Open at startup");
+	
+	w = bOk->width+cForceSetup->width+16;
+	bOk->left			= dialog.client->left+((dialog.client->width>>1)-(w>>1));
+	cForceSetup->left	= AFTERH(bOk, 8);
+	bOk->fontColor		= kColorRed;
+
+	pBottom->Insert(bOk);
+	pBottom->Insert(cForceSetup);
+	
+	dialog.Insert(fVideo);
+	dialog.Insert(fAudio);
+	dialog.Insert(fAsave);
+	dialog.Insert(fMouse);
+	dialog.Insert(fOther);
+	dialog.Insert(pBottom);
+
 	while( 1 )
 	{
 		splashScreen();
-		
-		QFONT* pFont = qFonts[0];
-		char text[MAXVALIDMODES][16]; NAMED_TYPE modes[MAXVALIDMODES];
-		int i, j, k, len, x, y, w, h, half, fh = pFont->height;
-		int dw = 280, dh = 130, btw = 80, bth = 20;
-		int pad = 8, bw, bh;
-		BOOL reallyLow = FALSE;
-		half = (bth>>1)+(fh>>1);
-
-		Window dialog(0, 0, dw, dh, "Options");
-		FieldSet* pField1 = new FieldSet(pad, pad, dw-(pad*3), (bth<<1)-(pad>>1), "RESOLUTION");
-		TextButton* pVideoChange = new TextButton(pad, pad, btw, bth, "Chan&ge...", 100);
-		
-		Checkbox* pFullscreen = new Checkbox(btw+(pad<<1), half, fullscreen, "&Fullscreen", 101);
-		sprintf(buffer, "%dx%d", xdim, ydim); len = gfxGetTextLen(buffer, pFont);
-		Label* pLabel = new Label(dw-(pad<<2)-len, half+2, buffer, kColorBlue);
-		
-		
-		sprintf(buffer, "Show this &window at startup"); len = gfxGetLabelLen(buffer, pFont) + 14;
-		Checkbox* pForceSetup = new Checkbox((dw>>1)-(len>>1), dh-bth-(pad*5), gMisc.forceSetup, buffer);
-		TextButton* pClose = new TextButton((dw>>1)-(btw>>1), dh-bth-(pad*3), btw, bth, "&Close", mrOk);
-		pClose->fontColor = kColorRed;
-		
-		pField1->Insert(pVideoChange);
-		pField1->Insert(pFullscreen);
-		pField1->Insert(pLabel);
-		dialog.Insert(pClose);
-		dialog.Insert(pField1);
-		dialog.Insert(pForceSetup);
-
 		ShowModal(&dialog);
-
-		gMisc.forceSetup = pForceSetup->checked;
 		
-		switch (dialog.endState) {
+		//if (dialog.endState == mrOk)
+		{
+			gMisc.forceSetup			= cForceSetup->checked;
+			gScreen2D.prefs.useTransluc = cUseTransluc->checked;
+			gMisc.autoLoadMap			= cAutoLoadMRU->checked;
+			gMisc.autoSecrets			= cAutoSecrets->checked;
+			gMisc.forceEditorPos		= cSetEditPos->checked;
+			
+			if (!cCrypticArt->disabled && cCrypticArt->pressed)
+			{
+				if (cCrypticArt->checked)
+				{
+					// just overwrite tiles015 definition
+					pConf->PutKeyString(resArt, "15", gCrypticArt);
+				}
+				else
+				{
+					// remove tiles015 key only if defined as cryptic
+					if ((p = pConf->GetKeyString(resArt, "15")) != NULL && Bstrcasecmp(p, gCrypticArt) == 0)
+						pConf->KeyRemove(resArt, "15");
+				}
+			}
+			
+			gMouse.velX = gMouse.velDX	= gMousePrefs.speedX = eMSpeedX->value;
+			gMouse.velY = gMouse.velDY	= gMousePrefs.speedY = eMSpeedY->value;
+
+			gMouseLook.maxSlope			= eMSlope->value;
+			gMouseLook.maxSlopeF		= ClipHigh(gMouseLook.maxSlope, (widescreen) ? 100 : 200);
+			gMouseLook.strafe			= cMLookStrafe->checked;
+			
+			if (cMSlopeInv->checked) gMouseLook.invert |= 0x01;
+			else gMouseLook.invert &= ~0x01;
+			
+			gMisc.beep				= cBeeps->checked;
+			gSound.ambientAlways	= cAmbient->checked;
+			
+			sndSetFXVolume(perc2val(eSndVol->value, 255));
+			sndSetMusicVolume(perc2val(eMusVol->value, 255));
+			sndKillAllSounds();
+			ambKillAll();
+			
+			getFilename(eAsaveName->string, gAutosave.basename, 0);
+			gAutosave.interval	= 120*eInterval->value;
+			gAutosave.current 	= ClipHigh(gAutosave.current, eMaxSaves->value);
+			gAutosave.max		= eMaxSaves->value;
+			
+			if (gMapLoaded)
+				CleanUp();
+		}
+		
+		bResolution->pressed	=	bMaxFps->pressed	= 0;
+		bScreenMode->pressed	=	bOk->pressed		= 0;
+		bGamma->pressed									= 0;
+		
+		switch(dialog.endState)
+		{
 			case 100:
 				while( 1 )
 				{
-					memset(text, 0, sizeof(text));
-					for (i = k = 0; i < validmodecnt; i++)
+					for (i = 0; i < validmodecnt; i++)
 					{
-						if ((w = validmode[i].xdim) <= 0 || (h = validmode[i].ydim) <= 0) continue;
-						else if ((w < 640 || h < 480) && !reallyLow)
-							continue;
+						sprintf(resText[i], "%dx%d", validmode[i].xdim, validmode[i].ydim);
+						resNames[i].name = resText[i];
+						resNames[i].id = i;
+					}
+					
+					if ((i = showButtons(resNames, validmodecnt, "Select resolution") - mrUser) >= 0)
+					{
+						w = validmode[i].xdim;
+						h = validmode[i].ydim;
+						if (w == xdim && h == ydim)
+							break;
 						
-						sprintf(buffer, "%dx%d", w, h);
-						//for (j = 0; j < i && stricmp(buffer, text[j]); j++); // we don't need duplicates
-						//if (j >= i)
-						{
-							sprintf(text[k], buffer);
-							modes[k].name = text[k];
-							modes[k].id = i;
-							k++;
-						}
-					}
-					
-					if ((i = showButtons(modes, k, "Select resolution") - mrUser) < 0)
-						break;
-										
-					w = validmode[i].xdim, h = validmode[i].ydim;
-					if (w == xdim && h == ydim)
-						break;
-					
-					bw = xdim, bh = ydim;
-					toggleResolution(pFullscreen->checked, w, h); splashScreen();
-					xdimgame = xdim, ydimgame = ydim;
-					if (w != xdim || h != ydim)
-						Alert("Failed to set resolution: %dx%d!", w, h);
-					
-					if (!Confirm("Keep %dx%d resolution?", xdim, ydim))
-					{
-						toggleResolution(pFullscreen->checked, bw, bh); splashScreen();
-						xdimgame = bw, ydimgame = bh;
-						continue;
-					}
-					else
-					{
-						xdim2d = xdim, ydim2d = ydim; // set same resolution for 2d mode?
+						toggleResolution(fullscreen, w, h);
+						splashScreen();
+						
+						if (w != xdim || h != ydim)
+							Alert("Failed to set resolution: %dx%d! Using nearest mode (%dx%d)...", w, h, xdim, ydim);
+						
+						sprintf(curRes, "%dx%d", xdim, ydim);
+						xdimgame = xdim2d = xdim;
+						ydimgame = ydim2d = ydim;
 					}
 					break;
 				}
 				continue;
 			case 101:
-				if (pFullscreen->checked == fullscreen) break;
-				toggleResolution(pFullscreen->checked, xdimgame, ydimgame);
-				splashScreen();
+				if ((i = showButtons(screenModeNames, LENGTH(screenModeNames), "Screen mode") - mrUser) >= 0)
+				{
+					toggleResolution(i, xdimgame, ydimgame);
+					bScreenMode->text = screenModeNames[i];
+				}
+				continue;
+			case 102:
+				if (numfps > 1)
+				{
+					#if USE_OPENGL
+					if (!nogl && GL_swapIntervalTest())
+					{
+						if ((i = showButtons(fpsNames, numfps, "Max FPS") - mrUser) >= 0)
+						{
+							bMaxFps->text = fpsNames[i].name;
+							
+							switch(i)
+							{
+								case 0:
+								case 1:
+									gScreen.maxFPS = -(1+i);
+									GL_fps2SwapInterval(gScreen.maxFPS);
+									break;
+								default:
+									gScreen.maxFPS = GL_swapInterval2Fps(i);
+									GL_fps2SwapInterval(gScreen.maxFPS);
+									break;
+							}
+						}
+						
+						continue;
+					}
+					#endif
+				}
+				
+				Alert
+				(
+					"FPS limit available only with OpenGL.\n"
+					"Make sure \"WGL_EXT_swap_control\" extension\n"
+					"supported by your device."
+				);
+				
+				continue;
+			case 103:
+				if ((i = showButtons(gammaNames, LENGTH(gammaNames), "Gamma") - mrUser) >= 0)
+				{
+					bGamma->text = gammaNames[i].name;
+					gGamma = gammaNames[i].id;
+					scrSetPalette(gMisc.palette);
+				}
+				continue;
+			case 104:
+				if
+				(
+					cSaveAsModern->checked &&
+					Confirm
+					(
+						"Modern compatible maps still playable in vanilla, hovewer will operate incorrectly!\n"
+						"Use this option only when maps supposed to have modern features\n"
+						"which is supported by such source ports as NBlood.\n\n"
+						"Enable this feature now?"
+					)
+				)
+				{
+					gCompat.modernMap = 1;
+					gMisc.showTypes = MO;
+				}
+				else
+				{
+					cSaveAsModern->checked = 0;
+					gCompat.modernMap = 0;
+					if (gMisc.showTypes == MO)
+						gMisc.showTypes = VA;
+				}
 				continue;
 			case mrOk:
 			case mrCancel:
@@ -3247,6 +3789,7 @@ void xmpOptions(void) {
 			default:
 				continue;
 		}
+		
 		break;
 	}
 	
@@ -3268,9 +3811,9 @@ void xmpAbout(void) {
 
 	GUI_TEXT text[] = {
 
-		{"The XMAPEDIT", 1, 0, 4, 11},
-		{"{date}", 2, 0, 4, 11},
-		{"www.cruo.bloodgame.ru/xmapedit", 1, 0, 4, 11},
+		{"The XMAPEDIT", 1, 0, 4, 0},
+		{"{date}", 2, 0, 4, 0},
+		{"www.cruo.bloodgame.ru/xmapedit", 1, 0, 4, 0},
 		{"\0", 0, 0, 0},
 
 		{"Created by", 1, 0, 0, 0},
@@ -3279,13 +3822,17 @@ void xmpAbout(void) {
 		{"\0", 0, 0, 0},
 
 		{"Tested by", 1, 0, 0, 0},
-		{"Spill,  Seizhak,  daMann", 1, 0, 1, 1},
+		{"Spill,  Seizhak,  daMann,  BloodyTom", 1, 0, 1, 1},
 		{"Tekedon,  Nyyss0nen", 1, 0, 1, 1},
 		{"and others", 1, 0, 1, 1},
 		{"\0", 0, 0, 0},
-
+		
+		{"Manual written by", 1, 0, 0, 0},
+		{"Seizhak", 1, 0, 5, 5},
+		{"\0", 0, 0, 0},
+		
 		{"Original MAPEDIT version by", 1, 0, 0, 0},
-		{"Peter Freese", 1, 0, 4, 5},
+		{"Peter Freese", 1, 0, 5, 5},
 		{"Nick Newhard", 1, 0, 1, 5},
 		{"\0", 0, 0, 0},
 
@@ -3376,6 +3923,9 @@ int xmpMenuCreate(char* name) {
 	TextButton* pSaveBoard = new TextButton(4, y, 84,  bh, "&Save board", mrSave);
 	TextButton* pSaveBoardAs = new TextButton(88, y, 40,  bh, "&As...", mrSaveAs); y+=bh;
 	TextButton* pReloadBoard = new TextButton(4, y, 40,  bh, "&Re", mrReload);
+	TextButton* pLoadBoard = new TextButton(44, y, 84,   bh, "&Load board", mrLoad); y+=bh;
+	TextButton* pTestBoard = new TextButton(4, y, 124,   bh, "&Test board", mrTest); y+=bh;
+	
 	if (!fileExists(gPaths.maps, &hFile))
 	{
 		pReloadBoard->fontColor = kColorDarkGray;
@@ -3385,15 +3935,18 @@ int xmpMenuCreate(char* name) {
 
 	if (!gMapLoaded)
 	{
-		pSaveBoard->fontColor = pSaveBoardAs->fontColor = pReloadBoard->fontColor = kColorDarkGray;
-		pSaveBoard->disabled  = pSaveBoardAs->disabled  = pReloadBoard->disabled  = TRUE;
-		pSaveBoard->canFocus  = pSaveBoardAs->canFocus  = pReloadBoard->canFocus  = FALSE;
+		pSaveBoard->fontColor = pSaveBoardAs->fontColor = pReloadBoard->fontColor = pTestBoard->fontColor = kColorDarkGray;
+		pSaveBoard->disabled  = pSaveBoardAs->disabled  = pReloadBoard->disabled  = pTestBoard->disabled = TRUE;
+		pSaveBoard->canFocus  = pSaveBoardAs->canFocus  = pReloadBoard->canFocus  =  pTestBoard->canFocus = FALSE;
 	}
 
 	dialog.Insert(pSaveBoard);
 	dialog.Insert(pSaveBoardAs);
 	dialog.Insert(pReloadBoard);
-	dialog.Insert(new TextButton(44, y, 84,   bh, "&Load board", mrLoad));						y+=bh;
+	
+	
+	dialog.Insert(pLoadBoard);
+	dialog.Insert(pTestBoard);
 	dialog.Insert(new TextButton(4,  y, 124,  bh, "&Import board", mrToolImportWizard));		y+=bh;
 	TextButton* pBoardOpts = new TextButton(4, y, 124, bh, "Setup &Board", mrBoardOptions); 	y+=bh;
 	if (!gMapLoaded)
@@ -3482,10 +4035,19 @@ int xmpMenuCreate(char* name) {
 
 }
 
+NAMED_TYPE gTestBoardErrors[] =
+{
+	{-1, "Command processor not found"},
+	{-2, "No external commands to process"},
+	{-4, "Unavailable on this platform"},
+	{-5, "Selected external app not found"},
+	{-999, NULL},
+};
+
 int xmpMenuProcess() {
 
-	char* filename = NULL;
-	int result = mrMenu, len = 0, i = 0;
+	char* tmp = NULL;
+	int result = mrMenu, len = 0, i = 0, t;
 	RESHANDLE hRes = NULL;
 
 	while( 1 )
@@ -3517,6 +4079,27 @@ int xmpMenuProcess() {
 				xmpOptions();
 				result = mrMenu;
 				break;
+			case mrTest:
+				if ((i = boardTestExternal(&gExtApps, &t)) <= 0)
+				{
+					sprintf(buffer, "External test error");
+					
+					switch( i )
+					{
+						case 0:
+							Alert("%s: Unable to process this command (errorlev %d)", buffer, t);
+						case -3:
+							break;
+						default:
+							if ((tmp = retnCodeCheck(i, gTestBoardErrors)) == NULL) break;
+							Alert("%s #%d: %s", buffer, klabs(i), tmp);
+							break;
+					}
+
+					result = mrMenu;
+					break;
+				}
+				return result;
 			case mrToolPreviewMode:
 				if (!previewMenuProcess())
 				{
@@ -3605,7 +4188,6 @@ int xmpMenuProcess() {
 				boardStartNew();
 				strcpy(gPaths.maps, kDefaultMapName);
 				scrSetMessage("New board started.");
-				gMapLoaded = TRUE;
 				return result;
 			case mrSave:
 			case mrSaveAs:
@@ -3628,9 +4210,9 @@ int xmpMenuProcess() {
 						return result;
 					default:
 						result = mrMenu;
-						if ((filename = browseSave(gPaths.maps, ".map")) != NULL)
+						if ((tmp = browseSave(gPaths.maps, ".map")) != NULL)
 						{
-							sprintf(gPaths.maps, filename);
+							sprintf(gPaths.maps, tmp);
 							result = mrSave;
 						}
 						break;
@@ -3641,25 +4223,26 @@ int xmpMenuProcess() {
 				// no break
 			case mrLoad:
 			case mrLoadAsave:
-				if (result != mrLoad) filename = gPaths.maps;
+				if (result != mrLoad) tmp = gPaths.maps;
 				else
 				{
-					if ((filename = browseOpen(gPaths.maps, ".map", "Load board")) == NULL)
+					if ((tmp = browseOpen(gPaths.maps, ".map", "Load board")) == NULL)
 					{
 						result = mrMenu;
 						break;
 					}
 
-					sprintf(gPaths.maps, filename);
+					sprintf(gPaths.maps, tmp);
 				}
 
-				if (!fileExists(filename, &hRes))
+				if (!fileExists(tmp, &hRes))
 				{
-					Alert("The board file \"%s\" not found!", filename);
+					Alert("The board file \"%s\" not found!", tmp);
 					result = mrMenu;
 					break;
 				}
-				if (boardLoad(filename) == -2) break;
+				
+				if (boardLoad(tmp) == -2) break;
 				return result;
 			case mrQuit:	
 				result = mrMenu;
@@ -3688,6 +4271,11 @@ void processMove() {
 	int i, hit, px = posx, py = posy, pz = posz, xvect = 0, yvect = 0;
 	keyGetHelper(NULL, &ctrl, &shift, &alt);
 	
+	int nTicks = gFrameTicks;
+	if (nTicks == gFrameClock)
+		nTicks = 0;
+	
+	
 	if (!in2d && (gMouse.hold & 2) && gMouse.wheel)
 	{
 		if (zmode == 0)
@@ -3695,39 +4283,39 @@ void processMove() {
 		
 		if (gMouse.wheel < 0)
 		{
-			posz = posz - (kVelStep1<<6) * gFrameTicks;
+			posz = posz - (kVelStep1<<6) * nTicks;
 		}
 		else if (gMouse.wheel > 0)
 		{
-			posz = posz + (kVelStep1<<6) * gFrameTicks;
+			posz = posz + (kVelStep1<<6) * nTicks;
 			
 		}
 	}
 	else if (keystatus[KEY_UP])
-		vel = min(vel + kVelStep1 * gFrameTicks, 127);
+		vel = min(vel + kVelStep1 * nTicks, 127);
 	else if (keystatus[KEY_DOWN])
-		vel = max(vel - kVelStep1 * gFrameTicks, -128);
+		vel = max(vel - kVelStep1 * nTicks, -128);
 	
 	
 	if (keystatus[KEY_LEFT])
 	{
 		if (strafe)
 		{
-			svel   = min(svel   + kVelStep3 * gFrameTicks, 127);
+			svel   = min(svel   + kVelStep3 * nTicks, 127);
 			angvel = 0;
 		}
 		else
-			angvel = max(angvel - kVelStep3 * gFrameTicks, -128);
+			angvel = max(angvel - kVelStep3 * nTicks, -128);
 	}
 	else if (keystatus[KEY_RIGHT])
 	{
 		if (strafe)
 		{
-			svel 	= max(svel   - kVelStep3 * gFrameTicks, -128);
+			svel 	= max(svel   - kVelStep3 * nTicks, -128);
 			angvel  = 0;
 		}
 		else
-			angvel = min(angvel + kVelStep3 * gFrameTicks, 127);
+			angvel = min(angvel + kVelStep3 * nTicks, 127);
 	}
 	
 	
@@ -3737,19 +4325,19 @@ void processMove() {
 		if (shift)
 			i = 10;
 		
-		ang = (short)((ang + (angvel * gFrameTicks) / i) & kAngMask);
+		ang = (short)((ang + (angvel * nTicks) / i) & kAngMask);
 		
 		if (angvel > 0)
-			angvel = max(angvel - kVelStep4 * gFrameTicks, 0);
+			angvel = max(angvel - kVelStep4 * nTicks, 0);
 		else
-			angvel = min(angvel + kVelStep4 * gFrameTicks, 0);
+			angvel = min(angvel + kVelStep4 * nTicks, 0);
 	}
 
 	if (vel || svel)
 	{
-		doubvel = gFrameTicks;
+		doubvel = nTicks;
 		if (shift)
-			doubvel += gFrameTicks;
+			doubvel += nTicks;
 		
 		doubvel += perc2val(doubvel, 40);
 		
@@ -3759,9 +4347,9 @@ void processMove() {
 			yvect += mulscale30(vel * doubvel >> 2, Sin(ang));
 			
 			if (vel > 0) 
-				vel = max(vel - kVelStep2 * gFrameTicks, 0);
+				vel = max(vel - kVelStep2 * nTicks, 0);
 			else
-				vel = min(vel + kVelStep2 * gFrameTicks, 0);
+				vel = min(vel + kVelStep2 * nTicks, 0);
 		}
 		
 		if (svel)
@@ -3770,9 +4358,9 @@ void processMove() {
 			yvect -= mulscale30(svel * doubvel >> 2, Cos(ang));
 			
 			if (svel > 0) 
-				svel = max(svel - kVelStep1 * gFrameTicks, 0);
+				svel = max(svel - kVelStep1 * nTicks, 0);
 			else
-				svel = min(svel + kVelStep1 * gFrameTicks, 0);
+				svel = min(svel + kVelStep1 * nTicks, 0);
 		}
 		
 
@@ -3926,10 +4514,10 @@ void processMove() {
 
 		if (goalz != posz)
 		{
-			if (posz < goalz) hvel += 64 * gFrameTicks >> 1;
+			if (posz < goalz) hvel += 64 * nTicks >> 1;
 			if (posz > goalz) hvel = ((goalz-posz)>>3);
 				
-			posz += hvel * gFrameTicks >> 1;
+			posz += hvel * nTicks >> 1;
 			if (posz > loz-kMoveVal1) posz = loz-kMoveVal1, hvel = 0;
 			if (posz < hiz+kMoveVal1) posz = hiz+kMoveVal1, hvel = 0;
 		}
@@ -3974,10 +4562,10 @@ void processMove() {
 
 		if (goalz != posz)
 		{
-			if (posz < goalz) hvel += (128 * gFrameTicks) >> 1;
-			if (posz > goalz) hvel -= (128 * gFrameTicks) >> 1;
+			if (posz < goalz) hvel += (128 * nTicks) >> 1;
+			if (posz > goalz) hvel -= (128 * nTicks) >> 1;
 			
-			posz += (hvel * gFrameTicks) >> 1;
+			posz += (hvel * nTicks) >> 1;
 			if (posz > loz-kMoveVal1) posz = loz-kMoveVal1, hvel = 0;
 			if (posz < hiz+kMoveVal1) posz = hiz+kMoveVal1, hvel = 0;
 		}
@@ -4083,44 +4671,58 @@ void processMove() {
 	}
 }
 
-void setStartPos(int x, int y, int z, int ang)
+int getClosestSector(int x, int y)
 {
+	int nDist = 0x80000000, nSect = -1;
+	int i, d, s, e, x1, y1;
+		
+	i = numsectors;
+	while(--i >= 0)
+	{
+		getSectorWalls(i, &s, &e);
+		while(s <= e)
+		{
+			getWallCoords(s, &x1, &y1);
+			if ((d = approxDist(x1-x, y1-y)) < nDist)
+				nDist = d, nSect = i;
+			
+			s++;
+		}
+	}
+	
+	return nSect;
+}
+
+
+
+void setStartPos(int x, int y, int z, int ang, char forceEditorPos)
+{
+	spritetype* pSpr; int nSect;
 	updatesector(x, y, &startsectnum);
+	
+	if ((nSect = startsectnum) >= 0 && FindSector(x, y, z, &nSect)) startsectnum = nSect;
+	else if (startsectnum < 0 && (startsectnum = getClosestSector(x, y)) >= 0)
+		avePointSector(startsectnum, &x, &y);
+	
 	z = (startsectnum >= 0) ? getflorzofslope(startsectnum, x, y) : 0;
 	
 	startposx = x;
 	startposy = y;
-	startposz = z - kensplayerheight;
+	startposz = z;
 	startang  = ang;
 	
-	if (gMisc.forceEditorPos)
+	if (forceEditorPos && (pSpr = findPlayerStart(0)) != NULL)
 	{
-		spritetype* pSpr; XSPRITE* pXSpr;
-		int i;
+		pSpr->ang	= startang;
+		pSpr->x 	= startposx;
+		pSpr->y 	= startposy;
+		pSpr->z 	= startposz;
 		
-		for (i = headspritestat[0]; i >= 0; i = nextspritestat[i])
-		{
-			pSpr = &sprite[i];
-			if (pSpr->type == kMarkerSPStart && pSpr->extra > 0)
-			{
-				pXSpr = &xsprite[pSpr->extra];
-				if (pXSpr->data1 == 0)
-				{
-					pSpr->ang	= startang;
-					pSpr->x 	= startposx;
-					pSpr->y 	= startposy;
-					pSpr->z 	= startposz;
-					
-					if (startsectnum >= 0)
-						ChangeSpriteSect(pSpr->index, startsectnum);
-					
-					clampSprite(pSpr);
-					break;
-				}
-			}
-		}
+		if (startsectnum >= 0)
+			ChangeSpriteSect(pSpr->index, startsectnum);
+		
+		clampSprite(pSpr);
 	}
-	
 }
 
 void boardPreloadTiles()
@@ -4407,7 +5009,7 @@ int boardSave(char* filename, BOOL autosave)
 		gMapRev++;
 		
 	CleanUp();
-	setStartPos(startposx, startposy, startposz, startang); // this updates startsectnum as well
+	setStartPos(startposx, startposy, startposz, startang, gMisc.forceEditorPos); // this updates startsectnum as well
 	if ((i = dbSaveMap(filename, (mapversion == 7 || gCompat.modernMap))) != 0)
 	{
 		if (!autosave)
@@ -4480,6 +5082,7 @@ void boardStartNew()
 	shape.Stop();
 	
 	startsectnum = cursectnum = 0;
+	gMapLoaded = 1;
 }
 
 static NAMED_TYPE gObjectInfoGroups[] =

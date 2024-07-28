@@ -1799,7 +1799,7 @@ void SCREEN2D::ShowMap(char flags)
 	if (prefs.clipView)
 	{
 		b = new Rect(windowx1, windowy1, windowx2, windowy2);
-		setview(view.wx1, view.wy1, view.wx2, view.wy2);
+		setview(view.wx1, view.wy1, ClipHigh(view.wx2, xdim-1), ClipHigh(view.wy2, ydim-1));
 	}
 	
 	flags = 12;

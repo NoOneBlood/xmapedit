@@ -967,6 +967,29 @@ int insertPoint(int nWall, int x, int y)
 	return 1;
 }
 
+void deletePoint(int nWall)
+{
+	int nSect, i;
+	if ((nSect = sectorofwall(nWall)) >= 0)
+	{
+		if (sector[nSect].wallnum <= 2)
+		{
+			sectDelete(nSect);
+			return;
+		}
+		
+		sector[nSect].wallnum--;
+		for(i=nSect+1;i<numsectors;i++)
+			sector[i].wallptr--;
+
+		wall[lastwall(nWall)].point2 = wall[nWall].point2;
+		if (wall[nWall].nextwall >= 0)
+			wallDetach(wall[nWall].nextwall);
+		
+		movewalls(nWall, -1);
+	}
+}
+
 void wallDetach(int nWall)
 {
 	if (nWall >= 0)
@@ -1294,7 +1317,6 @@ int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectort
 			memset(pWall, 0, sizeof(walltype));
 			pWall->xrepeat = pWall->yrepeat = 8;
 			pWall->extra = -1;
-			fixrepeats(nWall);
 		}
 
 		pWall->point2		= ++nWall;
@@ -1321,19 +1343,31 @@ int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectort
 		if (clockdir(nStartWall) == 0)
 			flipwalls(nStartWall, nStartWall + nCount);
 		
-		for (i = headspritesect[nSect]; i >= 0; i = nextspritesect[i])
+		t = nSect;
+		for (i = 0; i < kMaxSprites; i++)
 		{
-			spritetype* pSpr = &sprite[i]; t = nSect;
-			if (FindSector(pSpr->x, pSpr->y, pSpr->z, &t) && t != nSect)
-			{
-				ChangeSpriteSect(pSpr->index, t);
-				i = headspritesect[nSect];
-			}
+			spritetype* pSpr = &sprite[i];
+			if (pSpr->statnum < kMaxStatus && pSpr->sectnum == nSect
+				&& FindSector(pSpr->x, pSpr->y, &t) && t != nSect)
+					ChangeSpriteSect(pSpr->index, t);
 		}
 
 		setFirstWall(nSect, nStartWall + nCount); // fix wallptr, so slope dir won't change
 		nStartWall+=(sector[nSect].wallnum-nCount);
 	}
+	
+	
+	if (!pWModel)
+	{
+		nWall = nStartWall;
+		do
+		{
+			fixrepeats(nWall);
+			nWall = wall[nWall].point2;
+		}
+		while(nWall != nStartWall);
+	}
+	
 	
 	return nStartWall;
 }
@@ -1403,6 +1437,8 @@ int redSectorMake(int nStartWall)
 	}
 	numwalls = addwalls;
 	numsectors++;
+	
+	worldSprCallFunc(sprFixSector);
 	return 0;
 }
 
@@ -1686,4 +1722,64 @@ char fixXWall(int nID)
 	}
 	
 	return 0;
+}
+
+int worldSprCallFunc(HSPRITEFUNC pFunc, int nData)
+{
+	int i, c = 0;
+	for (i = 0; i < kMaxSprites; i++)
+	{
+		spritetype* pSpr = &sprite[i];
+		if (pSpr->statnum < kMaxStatus)
+		{
+			pFunc(pSpr, nData);
+			c++;
+		}
+	}
+	
+	return c;
+}
+
+int collectWallsOfNode(IDLIST* pList, int nWall)
+{
+	int nWallNum = numwalls;
+	int  n = 0;
+	int t;
+
+	pList->Add(nWall);
+	t = nWall;
+	
+	do
+	{
+		if (wall[t].nextwall >= 0)
+		{
+			t = wall[wall[t].nextwall].point2;
+			pList->Add(t);
+		}
+		else
+		{
+			t = nWall;
+			do
+			{
+				if (wall[lastwall(t)].nextwall >= 0)
+				{
+					t = wall[lastwall(t)].nextwall;
+					pList->Add(t);
+				}
+				else
+				{
+					pList->Add(lastwall(t));
+					break;
+				}
+				
+				nWallNum--;
+			}
+			while (t != nWall && nWallNum > 0);
+			break;
+		}
+		
+		nWallNum--;
+	}
+	while (t != nWall && nWallNum > 0);
+	return pList->GetLength();
 }

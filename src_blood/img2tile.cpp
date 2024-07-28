@@ -1049,40 +1049,6 @@ IMG2TILEFUNC imgGetConvFunc(int nImgType)
 	return (IMG2TILEFUNC)getFuncPtr(gImgFuncs, LENGTH(gImgFuncs), nImgType);
 }
 
-
-BYTE countBestColor(PALETTE in, int r, int g, int b, int wR, int wG, int wB)
-{
-	int i, dr, dg, db;
-	int dist, matchDist = 0x7FFFFFFF, match;
-	
-	for (i = 0; i < 256; i++)
-	{
-		dist = 0;
-		dg = (int)in[i].g - g;
-		dist += wG * dg * dg;
-		if (dist >= matchDist)
-			continue;
-
-		dr = (int)in[i].r - r;
-		dist += wR * dr * dr;
-		if (dist >= matchDist)
-			continue;
-
-		db = (int)in[i].b - b;
-		dist += wB * db * db;
-		if (dist >= matchDist)
-			continue;
-
-		matchDist = dist;
-		match = i;
-
-		if (dist == 0)
-			break;
-	}
-
-	return (BYTE)match;
-}
-
 BYTE LookupClosestColor(BYTE* inverseMap, int r, int g, int b )
 {
 	r >>= 2;

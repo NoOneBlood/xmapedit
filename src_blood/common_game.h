@@ -93,6 +93,7 @@ void __dassert(const char* pzExpr, const char* pzFile, int nLine);
 
 #define kMaxPlayers 8
 #define MAXVOXMIPS 5
+#define kMaxVisibility 0x20000
 
 
 extern "C" {
@@ -103,6 +104,13 @@ extern intptr_t palookupoffse[4], bufplce[4];
 extern int hitscangoalx, hitscangoaly;
 extern int pow2long[32];
 extern int tilefileoffs[MAXTILES];
+extern int desktopxdim,desktopydim,desktopbpp,desktopfreq,desktopmodeset;
+
+#if USE_OPENGL
+	extern int glswapinterval;
+	extern int set_glswapinterval(const osdfuncparm_t *parm);
+	extern unsigned char nogl;
+#endif
 }
 
 typedef uint8_t			BYTE;
@@ -123,6 +131,7 @@ typedef uint8_t BITARRAY32[(32768+7)>>3];
 typedef uint8_t BITARRAY16[(16384+7)>>3];
 typedef uint8_t BITARRAY08[(8192+7)>>3];
 typedef uint8_t BITARRAY04[(4096+7)>>3];
+typedef uint8_t BITSECTOR[(kMaxSectors+7)>>3];
 
 #define kSEQSig					"SEQ\x1A"
 #define kQavSig					"QAV\x1A"
@@ -135,6 +144,9 @@ typedef uint8_t BITARRAY04[(4096+7)>>3];
 #define FREE_AND_NULL(x)		free(x), x = NULL;
 #define MIDPOINT(a, b) 			(a+((b-a)>>1))
 #define QSETMODE(x, y)			qsetmode = ((x<<16)|(y&0xffff))
+#define NUMPALOOKUPS(x)			(numpalookups-x)
+
+
 #define TRUE			1
 #define FALSE			0
 
@@ -709,6 +721,16 @@ enum {
     kSectorMax = 620,
 };
 
+enum
+{
+ALG_LEFT			= 0x00,
+ALG_TOP				= 0x00,
+ALG_CENTER			= 0x01,
+ALG_MIDDLE			= 0x02,
+ALG_RIGHT			= 0x04,
+ALG_BOTTOM			= 0x08,
+};
+
 #define kMaxObjectType 1024
 
 extern int gFrameClock;
@@ -941,6 +963,14 @@ inline char Chance(int a1)									{ return rand() < (a1>>1); }
 inline unsigned int Random(int a1)							{ return mulscale15(rand(), a1); }
 inline int BiRandom(int a1)									{ return mulscale14(rand(), a1)-a1; }
 inline int BiRandom2(int a1)								{ return mulscale15(wrand()+wrand(), a1) - a1; }
+
+#if USE_OPENGL
+char GL_swapIntervalTest();
+int GL_swapInterval2Fps(int interval);
+int GL_fps2SwapInterval(int fps);
+#endif
+
+BYTE countBestColor(PALETTE in, int r, int g, int b, int wR = 1, int wG = 1, int wB = 1);
 
 class IDLIST
 {

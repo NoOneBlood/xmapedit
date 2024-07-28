@@ -31,6 +31,7 @@
 #include "sectorfx.h"
 #include "mapcmt.h"
 #include "xmpror.h"
+#include "xmpsnd.h"
 #include "tracker.h"
 
 BYTE markerDB[6][3] = {
@@ -514,6 +515,61 @@ int FixMarker(int nSect, int nMrk, int nMrkType)
 	return nMrk;
 }
 
+void cleanUpSectWalls(int nSect)
+{
+	walltype* pWall;
+	int nNextW, nNextS;
+	int s, e;
+	
+	getSectorWalls(nSect, &s, &e);
+	
+	while(s <= e)
+	{
+		pWall	= &wall[s];
+		nNextS	= pWall->nextsector;
+		nNextW	= pWall->nextwall;
+		
+		/** try to fix incorrectly attached next walls or detach it **/
+		/** ------------------------------------------------------- **/
+
+		if ((nNextW >= 0) ^ (nNextS >= 0))
+		{
+			wallDetach(nNextW);
+			wallDetach(s);
+			
+			if ((nNextW = findNextWall(s)) >= 0)
+			{
+				if ((nNextS = sectorofwall(nNextW)) >= 0)
+				{
+					wallAttach(s, nNextS, nNextW);
+					wallAttach(nNextW, nSect,  s);
+				}
+			}
+		}
+		
+		// useless x-object check
+		if (pWall->extra > 0)
+		{
+			if (pWall->type == 0 && obsoleteXObject(OBJ_WALL, pWall->extra))
+			{
+				dbDeleteXWall(pWall->extra);
+			}
+			else
+			{
+				XWALL* pXWall =& xwall[pWall->extra];
+				if(pXWall->txID && !pXWall->triggerOn && !pXWall->triggerOff)
+					pXWall->triggerOn = pXWall->triggerOff = 1;
+			}
+		}
+		
+		// clear useless cstat for white walls...
+		if (pWall->nextwall < 0)
+			pWall->cstat &= ~(kWallMasked | kWallOneWay | kWallBlock | kWallHitscan | kWallSwap | kWallTransluc | kWallTranslucR);
+		
+		s++;
+	}
+}
+
 void CleanUp() {
 
 	int  i, j;
@@ -587,6 +643,9 @@ void CleanUp() {
 	}
 	
 	spritesortcnt = 0;
+	
+	if (gSound.ambientAlways)
+		ambInit();
 	
 	warpInit();
 	InitSectorFX();
@@ -706,37 +765,7 @@ void CleanUpMisc() {
 			pSector->floorstat &= ~kSectSloped;
 		}
 		
-		getSectorWalls(i, &s, &e);
-		for (j = s; j <= e; j++)
-		{
-			walltype* pWall = &wall[j];
-			
-			// useless x-object check
-			if (pWall->extra > 0)
-			{
-				if (pWall->type == 0 && obsoleteXObject(OBJ_WALL, pWall->extra))
-					dbDeleteXWall(pWall->extra);
-				else
-				{
-					XWALL* pXWall =& xwall[pWall->extra];
-					if(pXWall->txID && !pXWall->triggerOn && !pXWall->triggerOff)
-						pXWall->triggerOn = pXWall->triggerOff = 1;
-				}
-			}
-			
-			if (pWall->nextwall >= 0)
-				continue;
-
-			// clear useless cstat for white walls...
-			if (pWall->cstat & kWallMasked) pWall->cstat &= ~kWallMasked;
-			if (pWall->cstat & kWallBlock) pWall->cstat &= ~kWallBlock;
-			if (pWall->cstat & kWallHitscan) pWall->cstat &= ~kWallHitscan;
-			if (pWall->cstat & kWallOneWay) pWall->cstat &= ~kWallOneWay;
-			if (pWall->cstat & kWallSwap) pWall->cstat &= ~kWallSwap;
-			if (pWall->cstat & kWallTransluc) pWall->cstat &= ~kWallTransluc;
-			if (pWall->cstat & kWallTranslucR) pWall->cstat &= ~kWallTranslucR;
-		}
-		
+		cleanUpSectWalls(i);
 		
 		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
 		{

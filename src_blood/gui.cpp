@@ -613,6 +613,14 @@ void Container::Paint( int x, int y, BOOL /* hasFocus */ )
 
 void Container::HandleEvent( GEVENT *event )
 {
+	if (disabled)
+	{
+		if (event->type > 0)
+			event->Clear();
+		
+		return;
+	}
+	
 	if ( event->type & evMouse )
 	{
 		// make event relative to this container
@@ -630,7 +638,7 @@ void Container::HandleEvent( GEVENT *event )
 			// iterate in reverse order since widgets on top have priority
 			for ( Widget *w = head.prev; w != &head; w = w->prev)
 			{
-				if (w->Contains(event->mouse.x, event->mouse.y))
+				if (!w->disabled && w->Contains(event->mouse.x, event->mouse.y))
 				{
 					drag = w;
 					if (event->type == evMouseDown && drag->canFocus)
@@ -655,7 +663,7 @@ void Container::HandleEvent( GEVENT *event )
 		{
 			for ( Widget *w = head.prev; w != &head; w = w->prev)
 			{
-				if (w->hotKey && keyAsciiSH[event->key.make] == w->hotKey && w->canFocus )
+				if (!w->disabled && w->hotKey && keyAsciiSH[event->key.make] == w->hotKey && w->canFocus)
 				{
 					while(focus != w)
 						pRoot->SetFocus(1);
@@ -665,8 +673,9 @@ void Container::HandleEvent( GEVENT *event )
 				}
 			}
 		}
-
-		focus->HandleEvent(event);
+		
+		if (!focus->disabled)
+			focus->HandleEvent(event);
 
 		// if key event not handled by focus, then broadcast to all childen with matching hot key
 		if ( event->type != evNone )
@@ -674,7 +683,7 @@ void Container::HandleEvent( GEVENT *event )
 			for ( Widget *w = head.prev; w != &head; w = w->prev)
 			{
 				// set focus to the widget with the matching hot key
-				if (w->hotKey && keyAsciiSH[event->key.make] == w->hotKey && w->canFocus )
+				if (!w->disabled && w->hotKey && keyAsciiSH[event->key.make] == w->hotKey && w->canFocus )
 				{
 					while(focus != w)
 						pRoot->SetFocus(1);
@@ -720,7 +729,7 @@ void FieldSet::Paint( int x, int y, BOOL hasFocus ) {
 	gfxVLine(x+w1, y, y+h);
 	gfxHLine(y+h, x, x+w1);
 	
-	if (len)
+	if (len > 0)
 	{
 		gfxHLine(y, x, x+w2);
 		gfxHLine(y, x+w2+len+(pad<<1), x+w1);
@@ -835,13 +844,6 @@ void Button::Paint( int x, int y, BOOL /* hasFocus */ )
 
 void Button::HandleEvent( GEVENT *event )
 {
-	
-	if (disabled) {
-		if (event->type > 0) event->Clear();
-		return;
-	}
-		
-	
 	if ( event->type == evKeyDown )
 	{
 		if (event->key.ascii == ' ' || (hotKey && keyAsciiSH[event->key.make] == hotKey))
@@ -950,7 +952,7 @@ Checkbox::Checkbox(int left, int top, BOOL value, char* l) : Widget(left, top, 0
 	checked 	= value;
 	result		= 0;
 	canFocus	= TRUE;
-	disabled	= FALSE;
+	pressed		= FALSE;
 	
 	if (l)
 	{
@@ -968,7 +970,7 @@ Checkbox::Checkbox(int left, int top, BOOL value, char* l, int rslt) : Widget(le
 	checked 	= value;
 	result		= rslt;
 	canFocus	= TRUE;
-	disabled	= FALSE;
+	pressed		= FALSE;
 	
 	if (l)
 	{
@@ -1026,9 +1028,6 @@ void Checkbox::Paint(int x, int y, BOOL hasFocus) {
 }
 
 void Checkbox::HandleEvent( GEVENT *event ) {
-	
-	if (disabled)
-		return;
 	
 	if (event->type == evKeyDown && (event->key.ascii == ' ' || cmpHotKey(hotKey, event->key.make))) {
 
@@ -1110,8 +1109,7 @@ void ColorButton::Paint( int x, int y, BOOL)
 
 void ColorButton::HandleEvent(GEVENT *event)
 {
-	if (disabled) return;
-	else if ((event->type & evMouse) && !event->mouse.button)
+	if ((event->type & evMouse) && !event->mouse.button)
 	{
 		switch (event->type) {
 			case evMouseDown:
@@ -1472,12 +1470,16 @@ EditText::EditText( int left, int top, int width, int height, char *s, int flags
 
 void EditText::Paint( int x, int y, BOOL hasFocus )
 {
+	char bc = gStdColor[(disabled) ? 20 : (hasFocus ? 15 : 16)];
+	char fc = gStdColor[(disabled) ? 26 : (hasFocus ? 0 : 30)];
+	
 	DrawBevel(x, y, x + width - 1, y + height - 1, kColorShadow, kColorHighlight);
 	DrawRect(x + 1, y + 1, x + width - 2, y + height - 2, gStdColor[hasFocus ? 0 : 26]);
-	gfxSetColor(gStdColor[hasFocus ? 15 : 16]);
+	
+	gfxSetColor(bc);
 	gfxFillBox(x + 2, y + 2, x + width - 3, y + height - 3);
 
-	if (string[0]) gfxDrawText(x + 3, y + height / 2 - 4, gStdColor[0], string, pFont);
+	if (string[0]) gfxDrawText(x + 3, y + height / 2 - 4, fc, string, pFont);
 	else if (placeholder[0])
 		gfxDrawText(x + 3, y + height / 2 - 4, gStdColor[25], placeholder, pFont);
 	
@@ -1644,9 +1646,18 @@ void EditNumber::HandleEvent( GEVENT *event )
 					{
 						if (value < maxValue)
 						{
-							memmove(&string[pos+1], &string[pos], len - pos);
-							string[pos++] = event->key.ascii;
-							string[++len] = '\0';
+							if (pos <= 0 && value <= minValue && minValue != -99999999
+								&& string[pos] != event->key.ascii)
+							{
+									string[pos] = event->key.ascii;
+									pos++;
+							}
+							else
+							{
+								memmove(&string[pos+1], &string[pos], len - pos);
+								string[pos++] = event->key.ascii;
+								string[++len] = '\0';
+							}
 						}
 					}
 					
@@ -1994,17 +2005,26 @@ int ShowModal(Container *dialog, int flags)
 			GetEvent(&event);
 
 			// trap certain dialog keys
-			if ( event.type == evKeyDown )
+			if (event.type == evKeyDown)
 			{
-				switch (event.key.ascii) {
+				switch (event.key.ascii)
+				{
 					case 27:
-						dialog->EndModal(mrCancel);
-						continue;
+						if (!(flags & kModalNoTrapEsc))
+						{
+							dialog->EndModal(mrCancel);
+							continue;
+						}
+						break;
 					case 13:
-						dialog->EndModal(mrOk);
-						continue;
+						if (!(flags & kModalNoTrapEnter))
+						{
+							dialog->EndModal(mrOk);
+							continue;
+						}
+						break;
 					case 9:
-						if ( event.key.shift ) while (!desktop.SetFocus(-1));
+						if (event.key.shift) while (!desktop.SetFocus(-1));
 						else while (!desktop.SetFocus(+1));
 						continue;
 				}
@@ -2016,15 +2036,19 @@ int ShowModal(Container *dialog, int flags)
 		desktop.Paint(0, 0, FALSE);
 		gMouse.Draw();
 		showframe();
-
+		
+		
 		// restore the save under after page flipping
 #if USE_POLYMOST
 		if (getrendermode() < 3)
 #endif
 		{
-			begindrawing();
-			memcpy((void*)frameplace, saveUnder, saveSize);
-			enddrawing();
+			if (!(flags & kModalNoRestoreFrame) || dialog->isModal)
+			{
+				begindrawing();
+				memcpy((void*)frameplace, saveUnder, saveSize);
+				enddrawing();
+			}
 		}
 	}
 	
@@ -2369,6 +2393,60 @@ BOOL Confirm(char *__format, ...) {
 
 char fade(int rate) {
 	return gStdColor[23 + mulscale30(8, Sin(gFrameClock * kAng360 / rate))];
+}
+
+
+int colorPicker(BYTE* colors, char* title, int nDefault, int flags) {
+	
+	int i, dx1, dy1, dx2, dy2, dwh, dhg;
+	const int r = 16, c = 16, pad = 4;
+	int scsp =(ydim >> 7);
+	int sz = (8 + scsp);
+	
+	int bh = ClipLow(4 + (4*scsp), 20);
+	int dw = (c*sz) + (pad * 5);
+	int dh = (r*sz) + (pad * 5) + (bh + (bh>>2));
+	
+	Window dialog(0, 0, dw, dh, title);
+	dialog.getEdges(&dx1, &dy1, &dx2, &dy2);
+	dialog.getSize(&dwh, &dhg);
+	
+	ColorSelect* pColor = new ColorSelect(1, 1, r, c, sz, colors);
+	Panel* pColorCont	= new Panel(dx1, dy1, pColor->width+5, pColor->height+4, 1, 1, -1);
+	pColorCont->Insert(pColor);
+	
+	TextButton* pOk 	= new TextButton(dx1, dy2-bh, 60, bh, "&Select", mrOk);
+	TextButton* pCancel = new TextButton(dx1+64, dy2-bh, 60, bh, "&Cancel", mrCancel);
+	TextButton* pNone 	= new TextButton(dx2-62, dy2-bh, 60, bh, "&None", 100);
+	
+	pOk->fontColor = kColorBlue;
+	
+	if (!(flags & 0x01))
+	{
+		pNone->disabled  = 1;
+		pNone->canFocus  = 0;
+		pNone->fontColor = kColorDarkGray;
+	}
+	else
+	{
+		pNone->fontColor = kColorGreen;
+	}
+	
+	pCancel->fontColor = kColorRed;
+	
+	dialog.Insert(pColorCont);
+	dialog.Insert(pOk);
+	dialog.Insert(pCancel);
+	dialog.Insert(pNone);
+
+	switch (ShowModal(&dialog)) {
+		case mrOk:
+			return pColor->value;
+		case 100:
+			return -1;
+		default:
+			return nDefault;
+	}
 }
 
 /*

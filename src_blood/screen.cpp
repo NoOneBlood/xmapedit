@@ -40,22 +40,7 @@ unsigned int nScrSaveSiz = 0;
 
 char scrFindClosestColor(int red, int green, int blue)
 {
-    int dist = 0x7fffffff;
-    int best;
-    for (int i = 0; i < 256; i++)
-    {
-        int sum = (palette[i*3+1]-green)*(palette[i*3+1]-green);
-        if (sum >= dist) continue;
-        sum += (palette[i*3+0]-red)*(palette[i*3+0]-red);
-        if (sum >= dist) continue;
-        sum += (palette[i*3+2]-blue)*(palette[i*3+2]-blue);
-        if (sum >= dist) continue;
-        best = i;
-        dist = sum;
-        if (sum == 0)
-            break;
-    }
-    return best;
+    return countBestColor(palTable[curPalette], red, green, blue);
 }
 
 void scrCreateStdColors(void)

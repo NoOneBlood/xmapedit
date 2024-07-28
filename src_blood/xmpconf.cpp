@@ -35,6 +35,7 @@ AUTOGRID gAutoGrid;
 BEEP gBeep;
 COMMENT_SYS_PREFS gCmtPrefs;
 COMPATIBILITY gCompat;
+EXTERNAL_APPS gExtApps;
 FILEBROWSER_PREFS gDirBroPrefs;
 LIGHT_BOMB gLightBomb;
 IMPORT_WIZARD_PREFS gImportPrefs;
@@ -58,6 +59,13 @@ void AUTOSAVE::Init(IniFile* pIni, char* section)
 	interval = 120 * pIni->GetKeyInt(section, "SaveInterval", 5 * 60);
 	strcpy(buffer, pIni->GetKeyString(section, "FileName", "ASAVE"));
 	getFilename(buffer, basename, 0);
+}
+
+void AUTOSAVE::Save(IniFile* pIni, char* section)
+{
+	pIni->PutKeyInt(section, "MaxSaveCopies", max);
+	pIni->PutKeyInt(section, "SaveInterval", interval / 120);
+	pIni->PutKeyString(section, "FileName", basename);
 }
 
 void AUTOADJUST::Init(IniFile* pIni, char* section)
@@ -178,6 +186,47 @@ void COMPATIBILITY::Init(IniFile* pIni, char* section)
 		default:
 			gMaxTiles = kMaxTiles - 128;
 			break;
+	}
+}
+
+void EXTERNAL_APPS::Init(IniFile* pIni, char* section)
+{
+	char *key, *val, *qs, *qe; int nNode = -1;
+	EXTERNAL_APP* pApp;
+	
+	memset(&apps, 0, sizeof(apps));
+	numapps = 0;
+	
+	while(numapps < kMaxExtApps && pIni->GetNextString(&key, &val, &nNode, section))
+	{
+		pApp = &apps[numapps];
+		if (!isempty(val) || isempty(key))
+			continue;
+		
+		qs = qe = NULL;
+		switch(strQuotPtr(key, &qs, &qe))
+		{
+			case 0:
+				strcpy(pApp->path, key);
+				break;
+			case 2:
+				strSubStr(key, qs+1, qe, pApp->path); qe++;
+				if (*qe == '\0') qe = NULL;
+				break;
+			default:
+				continue;
+		}
+		
+		if (qe)
+		{
+			strcpy(pApp->cmd, qe);
+			strTrim(pApp->cmd);
+		}
+		
+		strTrim(pApp->path);
+		
+		
+		numapps++;
 	}
 }
 
@@ -332,11 +381,16 @@ void MISC_PREFS::Save(IniFile* pIni, char* section)
 	pIni->PutKeyInt(section, "SplitAutoSwapSize", gSplitMode.swapSize);
 	pIni->PutKeyInt(section, "SplitVertical", gSplitMode.vertical);
 	pIni->PutKeyInt(section, "EyeHeight", kensplayerheight >> 8);
+	pIni->PutKeyInt(section, "AutoLoadMap", autoLoadMap);
+	pIni->PutKeyInt(section, "AutoCountSecrets", autoSecrets);
+	pIni->PutKeyInt(section, "SkipZStepMode", !zlockAvail);
+	pIni->PutKeyInt(section, "ForceEditorStartPos", forceEditorPos);
 	
 	SCREEN2D* pScr = &gScreen2D;
 	pIni->PutKeyInt(section, "ShowAmbientRadius", pScr->prefs.ambRadius + pScr->prefs.ambRadiusHover);
 	pIni->PutKeyInt(section, "ShowMap2d", pScr->prefs.showMap);
 	pIni->PutKeyInt(section, "CaptionStyle", pScr->prefs.showTags);
+	pIni->PutKeyInt(section, "UseTranslucentEffects", pScr->prefs.useTransluc);
 }
 
 void MOUSE_LOOK::Init(IniFile* pIni, char* section)
@@ -345,13 +399,16 @@ void MOUSE_LOOK::Init(IniFile* pIni, char* section)
 	mode		= ClipHigh(pIni->GetKeyInt(section, "Mode", 3), 3);
 	dir    		= ClipHigh(pIni->GetKeyInt(section, "Direction", 3),  3);
 	invert 		= ClipHigh(pIni->GetKeyInt(section, "Invert", 0), 3);
-	maxSlope	= ClipRange(pIni->GetKeyInt(section, "MaxSlope", 240), 32, 400);
+	maxSlope	= ClipRange(pIni->GetKeyInt(section, "MaxSlope", 240), 0, 400);
 	maxSlopeF	= ClipHigh(maxSlope, (widescreen) ? 100 : 200);
 }
 
 void MOUSE_LOOK::Save(IniFile* pIni, char* section)
 {
 	pIni->PutKeyInt(section, "Mode", mode);
+	pIni->PutKeyInt(section, "MaxSlope", maxSlope);
+	pIni->PutKeyInt(section, "Invert", invert);
+	pIni->PutKeyInt(section, "Turn2Strafe", strafe);
 }
 
 
@@ -362,6 +419,12 @@ void MOUSE_PREFS::Init(IniFile* pIni, char* section)
 	controls 			= ClipRange(pIni->GetKeyInt(section, "Controls", 1), 0, 3);
 	fixedGrid			= ClipRange(pIni->GetKeyInt(section, "FixedGridSize", 5), 0, kMaxGrids - 1);
 	
+}
+
+void MOUSE_PREFS::Save(IniFile* pIni, char* section)
+{
+	pIni->PutKeyInt(section, "SpeedX", speedX);
+	pIni->PutKeyInt(section, "SpeedY", speedY);
 }
 
 void OBJECT_LOCK::Init()
@@ -471,7 +534,8 @@ void SCREEN::Init(IniFile* pIni, char* section)
 	gGamma 						= ClipRange(pIni->GetKeyInt(section, "Gamma", 0), 0, 10);
 	xdim2d = xdimgame			= ClipLow(pIni->GetKeyInt(section, "Width", 640), 640);
 	ydim2d = ydimgame			= ClipLow(pIni->GetKeyInt(section, "Height", 480), 480);
-	fullscreen					= pIni->GetKeyBool(section, "Fullscreen", 0);
+	fullscreen					= pIni->GetKeyInt(section, "Fullscreen", 0);
+	maxFPS						= pIni->GetKeyInt(section, "MaxFPS", -2);
 	bpp							= 8;
 }
 
@@ -481,6 +545,7 @@ void SCREEN::Save(IniFile* pIni, char* section)
 	pIni->PutKeyInt(section, "Height", ydimgame);
 	pIni->PutKeyInt(section, "Fullscreen", fullscreen);
 	pIni->PutKeyInt(section, "Gamma", gGamma);
+	pIni->PutKeyInt(section, "MaxFPS", maxFPS);
 }
 
 void SOUND::Init(IniFile* pIni, char* section)
@@ -488,6 +553,7 @@ void SOUND::Init(IniFile* pIni, char* section)
 	FXDevice 					= 0;
 	FXVolume					= ClipRange(pIni->GetKeyInt(section, "SoundVolume", 255), 0, 255);
 	MusicVolume					= ClipRange(pIni->GetKeyInt(section, "MusicVolume", 255), 0, 255);
+	ambientAlways				= pIni->GetKeyBool(section, "AmbientAlways", 0);
 	MusicDevice					= 0;
 	NumVoices					= 32;
 	NumChannels					= 2;
@@ -496,6 +562,13 @@ void SOUND::Init(IniFile* pIni, char* section)
 	ReverseStereo				= 0;
 	
 	sndInit();
+}
+
+void SOUND::Save(IniFile* pIni, char* section)
+{
+	pIni->PutKeyInt(section, "SoundVolume", FXVolume);
+	pIni->PutKeyInt(section, "MusicVolume", MusicVolume);
+	pIni->PutKeyInt(section, "AmbientAlways", ambientAlways);
 }
 
 void TILE_VIEWER::Init(IniFile* pIni, char* section)
@@ -533,4 +606,34 @@ void TILE_VIEWER::Save(IniFile* pIni, char* section)
 void::TIMERS::Init(int clock)
 {
 	//memset(this, clock, sizeof(this));
+}
+
+int initKeyMapper()
+{
+	char *pIniKey, *pIniVal, *filename = kKeyMapperFile;
+	int nNode = -1, nSrc, nDst, c = 0;
+	RESHANDLE hIni; IniFile* pIni;
+
+	if (!fileExists(filename) && (hIni = gGuiRes.Lookup(6, "INI")) != NULL)
+	{
+		pIni = new IniFile((BYTE*)gGuiRes.Load(hIni), gGuiRes.Size(hIni));
+		pIni->Save(filename);
+		delete(pIni);
+	}
+	
+	pIni = new IniFile(filename);
+	while(pIni->GetNextString(&pIniKey, &pIniVal, &nNode, "KeyRemap"))
+	{
+		if ((nSrc = strtol(pIniKey, NULL, 16)) == 0 || (nDst = strtol(pIniVal, NULL, 16)) == 0)
+			continue;
+		
+		if (rngok(nSrc, 0, 256) && rngok(nDst, 0, 256))
+		{
+			wm_remapkey(nSrc, nDst);
+			c++;
+		}
+	}
+	
+	delete(pIni);
+	return c;
 }

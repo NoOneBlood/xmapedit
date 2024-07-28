@@ -86,10 +86,10 @@ extern float curgamma;
 #if USE_OPENGL
 static SDL_GLContext sdl_glcontext;
 static glbuild8bit gl8bit;
-static char nogl=0;
+char nogl=0;
 static int glswapinterval = 1;
 
-static int set_glswapinterval(const osdfuncparm_t *parm);
+int set_glswapinterval(const osdfuncparm_t *parm);
 #endif
 
 // input
@@ -1665,7 +1665,7 @@ static int buildkeytranslationtable(void)
 }
 
 #if USE_OPENGL
-static int set_glswapinterval(const osdfuncparm_t *parm)
+int set_glswapinterval(const osdfuncparm_t *parm)
 {
 	int interval;
 

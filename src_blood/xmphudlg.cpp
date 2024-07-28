@@ -128,7 +128,7 @@ DIALOG_ITEM dlgSprite[] =
 	
 	{ NO,	1,		24,	1,	0,	HEADER, 		"Appearance:" },
 	{ NO,	1,		24,	2,	10,	NUMBER,			"Tilenum.......: %d", 		0, 					kMaxTiles - 1,		NULL,	NULL},
-	{ NO,	1,		24,	3,	11,	NUMBER,			"Shade.........: %d", 		-127, 				63,					NULL,	NULL},
+	{ NO,	1,		24,	3,	11,	NUMBER,			"Shade.........: %d", 		-127, 				128,					NULL,	NULL},
 	{ NO,	1,		24,	4,	12,	NUMBER,			"Palookup......: %d", 		0, 					kPluMax - 1,		NULL,	NULL},
 	{ NO,	1,		24,	5,	13,	NUMBER,			"X-repeat......: %d", 		0, 					255,				NULL,	NULL},
 	{ NO,	1,		24,	6,	14,	NUMBER,			"Y-repeat......: %d", 		0, 					255,				NULL,	NULL},
@@ -217,7 +217,7 @@ DIALOG_ITEM dlgWall[] =
 	{ NO,	1,		22,	1,	0,	HEADER, 		"Appearance:" },
 	{ NO,	1,		22,	2,	10,	NUMBER,			"Tilenum.....: %d", 		0, 						kMaxTiles - 1,		NULL,	NULL},
 	{ NO,	1,		22,	3,	11,	NUMBER,			"Mask tilenum: %d", 		0, 						kMaxTiles - 1,		NULL,	NULL},
-	{ NO,	1,		22,	4,	12,	NUMBER,			"Shade.......: %d", 		-127, 					63,					NULL,	NULL},
+	{ NO,	1,		22,	4,	12,	NUMBER,			"Shade.......: %d", 		-127, 					128,					NULL,	NULL},
 	{ NO,	1,		22,	5,	13,	NUMBER,			"Palookup....: %d", 		0, 						kPluMax - 1,		NULL,	NULL},
 	{ NO,	1,		22,	6,	14,	NUMBER,			"X-repeat....: %d", 		0, 						255,				NULL,	NULL},
 	{ NO,	1,		22,	7,	15,	NUMBER,			"Y-repeat....: %d", 		0, 						255,				NULL,	NULL},
@@ -357,7 +357,7 @@ DIALOG_ITEM dlgSector[] =
 	
 	{ NO,	1,		22,	1,	0,	HEADER, 		"Ceiling settings:" },
 	{ NO,	1,		22,	2,	9,	NUMBER,			"Tilenum......: %d", 		0, 					kMaxTiles - 1,		NULL,	NULL},
-	{ NO,	1,		22,	3,	10,	NUMBER,			"Shade........: %d", 		-127, 				63,					NULL,	NULL},
+	{ NO,	1,		22,	3,	10,	NUMBER,			"Shade........: %d", 		-127, 				128,					NULL,	NULL},
 	{ NO,	1,		22,	4,	11,	NUMBER,			"Palookup.....: %d", 		0, 					kPluMax - 1,		NULL,	NULL},
 	{ NO,	1,		22,	5,	12,	NUMBER,			"X-panning....: %d", 		0, 					255,				NULL,	NULL},
 	{ NO,	1,		22,	6,	13,	NUMBER,			"Y-panning....: %d", 		0, 					255,				NULL,	NULL},
@@ -366,7 +366,7 @@ DIALOG_ITEM dlgSector[] =
 	
 	{ NO,	1,		46,	1,	0,	HEADER, 		"Floor settings:" },
 	{ NO,	1,		46,	2,	16,	NUMBER,			"Tilenum......: %d", 		0, 					kMaxTiles - 1,		NULL,	NULL},
-	{ NO,	1,		46,	3,	17,	NUMBER,			"Shade........: %d", 		-127, 				63,					NULL,	NULL},
+	{ NO,	1,		46,	3,	17,	NUMBER,			"Shade........: %d", 		-127, 				128,					NULL,	NULL},
 	{ NO,	1,		46, 4,	18,	NUMBER,			"Palookup.....: %d", 		0, 					kPluMax - 1,		NULL,	NULL},
 	{ NO,	1,		46,	5,	19,	NUMBER,			"X-panning....: %d", 		0, 					255,				NULL,	NULL},
 	{ NO,	1,		46,	6,	20,	NUMBER,			"Y-panning....: %d", 		0, 					255,				NULL,	NULL},
@@ -1051,10 +1051,10 @@ void DIALOG_HANDLER::DrawCheckbox(DIALOG_ITEM* pItem, char fc, short bc)
 	}
 	
 	gfxSetColor(fc);
-	if (pItem->selected)
+	if (pItem->type == ELT_SELECTOR && pItem->selected)
 	{
-		gfxSetColor(clr2std(kColorMagenta));
-		gfxFillBox(x3, y3, x4, y4);
+		//gfxSetColor(clr2std(kColorMagenta));
+		//gfxFillBox(x3, y3, x4, y4);
 		
 		gfxSetColor(clr2std(kColorWhite));
 		gfxLine(x3, y3, x4, y4);
@@ -2726,8 +2726,17 @@ int dlgCopyObjectSettings(DIALOG_ITEM* pDialog, int nType, int nSrc, int nDst, c
 	while(et->type != CONTROL_END)
 	{
 		if (et->type == ELT_SELECTOR && et->readyLabel)
-			free(et->formatLabel); // don't forget to free this
-		
+		{
+			switch(es->type)
+			{
+				case CHECKBOX:
+					break;
+				default:
+					free(et->formatLabel); // don't forget to free this
+					break;	
+			}
+		}
+
 		es->selected = et->selected; // save selected state in source
 		et++, es++;
 	}

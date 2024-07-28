@@ -2370,6 +2370,9 @@ void ProcessKeys3D( void )
 						wall[searchwall].yrepeat	= tempyrepeat;
 						wall[searchwall].cstat		= tempcstat;
 						
+						if ((oCstat & kWallSwap) && !(tempcstat & kWallSwap))
+							wall[searchwall].cstat |= kWallSwap;
+						
 						TranslateWallToSector();
 						if (sector[searchsector].type > 0)
 						{
@@ -2640,15 +2643,11 @@ void ProcessKeys3D( void )
 					sectChgVisibility(searchsector, gStep);
 					scrSetMessage("sector[%d] visibility: %i (%s)", searchsector, sector[searchsector].visibility, buffer);
 				}
-				
-				// to make changes noticeable
-				//if (100 - IVAL2PERC(visibility, 4095) > 95)
-					//visibility = 4095 - perc2val(95, 4095);
 			}
 			else if (keystatus[KEY_D])
 			{
-				gStep = (key == KEY_MINUS) ? 16 : -16;
-				visibility = ClipRange(visibility + gStep, 0, 4096);
+				gStep = mulscale10((key == KEY_MINUS) ? 16 : -16, numpalookups<<5);
+				visibility = ClipRange(visibility + gStep, 0, kMaxVisibility);
 				scrSetMessage("Global visibility %d (%s)", visibility, buffer);
 			}
 			else if (ctrl || shift)
@@ -3411,7 +3410,7 @@ void ProcessKeys3D( void )
 				// check if at least one of highlighted objects gets reached min shade
 				while(pDb->type != OBJ_NONE)
 				{
-					if (getShadeOf(pDb->type, pDb->index) >= 63)
+					if (getShadeOf(pDb->type, pDb->index) >= NUMPALOOKUPS(1))
 						break;
 					
 					pDb++;
@@ -3424,21 +3423,7 @@ void ProcessKeys3D( void )
 					// set shade relatively
 					while(pDb->type != OBJ_NONE)
 					{
-						i = pDb->index;
-						switch (pDb->type)
-						{
-							case OBJ_WALL:
-							case OBJ_MASKED:
-								setShadeOf(wall[i].shade + gStep, pDb->type, i);
-								break;
-							case OBJ_FLOOR:
-								setShadeOf(sector[i].floorshade + gStep, pDb->type, i);
-								break;
-							case OBJ_CEILING:
-								setShadeOf(sector[i].ceilingshade + gStep, pDb->type, i);
-								break;
-						}
-						
+						iterShadeOf(gStep, pDb->type, pDb->index);
 						pDb++;
 					}
 					
@@ -3453,14 +3438,15 @@ void ProcessKeys3D( void )
 			}
 			else if (sectInHglt(searchsector))
 			{
-				for (i = 0; i < highlightsectorcnt; i++) {
+				for (i = 0; i < highlightsectorcnt; i++)
+				{
 					nSector = highlightsector[i];
-
-					sector[nSector].ceilingshade = (schar)ClipHigh(sector[nSector].ceilingshade + gStep, 64 - 1);
-					sector[nSector].floorshade = (schar)ClipHigh(sector[nSector].floorshade + gStep, 64 - 1);
+					iterShadeOf(gStep, OBJ_CEILING, nSector);
+					iterShadeOf(gStep, OBJ_FLOOR, nSector);
+					
 					getSectorWalls(nSector, &startwall, &endwall);
 					for (j = startwall; j <= endwall; j++)
-						wall[j].shade = (schar)ClipHigh(wall[j].shade + gStep, 64 - 1);
+						iterShadeOf(gStep, OBJ_WALL, j);
 				}
 			}
 			else
@@ -3469,17 +3455,17 @@ void ProcessKeys3D( void )
 				{
 					case OBJ_WALL:
 					case OBJ_MASKED:
-						wall[searchwall].shade = (schar)ClipHigh(wall[searchwall].shade + gStep, 63);
+						iterShadeOf(gStep, searchstat, searchwall);
 						scrSetMessage("Shade: %i", wall[searchwall].shade);
 						break;
 					case OBJ_CEILING:
-						sector[searchsector].ceilingshade = (schar)ClipHigh(sector[searchsector].ceilingshade + gStep, 63);
+						iterShadeOf(gStep, searchstat, searchsector);
 						scrSetMessage("Shade: %i", sector[searchsector].ceilingshade);
 						if (isSkySector(searchsector, searchstat))
 							Sky::SetShade(searchsector, searchstat, sector[searchsector].ceilingshade, alt);
 						break;
 					case OBJ_FLOOR:
-						sector[searchsector].floorshade = (schar)ClipHigh(sector[searchsector].floorshade + gStep, 63);
+						iterShadeOf(gStep, searchstat, searchsector);
 						scrSetMessage("Shade: %i", sector[searchsector].floorshade);
 						if (isSkySector(searchsector, searchstat))
 							Sky::SetShade(searchsector, searchstat, sector[searchsector].floorshade, alt);
@@ -3500,7 +3486,7 @@ void ProcessKeys3D( void )
 			BeepOk();
 			break;
 		case KEY_PADPLUS:
-			gStep = (ctrl) ? 128 : 1;
+			gStep = (ctrl) ? -128 : -1;
 			if (gListGrd.Exists(searchstat, searchindex))
 			{
 				OBJECT* pFirst = gListGrd.Ptr();
@@ -3522,21 +3508,7 @@ void ProcessKeys3D( void )
 					// set shade relatively
 					while(pDb->type != OBJ_NONE)
 					{
-						i = pDb->index;
-						switch (pDb->type)
-						{
-							case OBJ_WALL:
-							case OBJ_MASKED:
-								setShadeOf(wall[i].shade - gStep, pDb->type, i);
-								break;
-							case OBJ_FLOOR:
-								setShadeOf(sector[i].floorshade - gStep, pDb->type, i);
-								break;
-							case OBJ_CEILING:
-								setShadeOf(sector[i].ceilingshade - gStep, pDb->type, i);
-								break;
-						}
-						
+						iterShadeOf(gStep, pDb->type, pDb->index);
 						pDb++;
 					}
 					
@@ -3554,11 +3526,12 @@ void ProcessKeys3D( void )
 				for( i = 0; i < highlightsectorcnt; i++)
 				{
 					nSector = highlightsector[i];
-					sector[nSector].ceilingshade = (schar)ClipLow(sector[nSector].ceilingshade - gStep, -128);
-					sector[nSector].floorshade = (schar)ClipLow(sector[nSector].floorshade - gStep, -128);
+					iterShadeOf(gStep, OBJ_CEILING, nSector);
+					iterShadeOf(gStep, OBJ_FLOOR, nSector);
+					
 					getSectorWalls(nSector, &startwall, &endwall);
-					for(j=startwall;j<=endwall;j++)
-						wall[j].shade = (schar)ClipLow(wall[j].shade - 1, -128);
+					for (j = startwall; j <= endwall; j++)
+						iterShadeOf(gStep, OBJ_WALL, j);
 				}
 			}
 			else
@@ -3566,17 +3539,17 @@ void ProcessKeys3D( void )
 				switch (searchstat) {
 					case OBJ_WALL:
 					case OBJ_MASKED:
-						wall[searchwall].shade = (schar)ClipLow(wall[searchwall].shade - gStep, -128);
+						iterShadeOf(gStep, searchstat, searchwall);
 						scrSetMessage("Shade: %i", wall[searchwall].shade);
 						break;
 					case OBJ_CEILING:
-						sector[searchsector].ceilingshade = (schar)ClipLow(sector[searchsector].ceilingshade - gStep, -128);
+						iterShadeOf(gStep, searchstat, searchsector);
 						scrSetMessage("Shade: %i", sector[searchsector].ceilingshade);
 						if (isSkySector(searchsector, searchstat))
 							Sky::SetShade(searchsector, searchstat, sector[searchsector].ceilingshade, alt);
 						break;
 					case OBJ_FLOOR:
-						sector[searchsector].floorshade = (schar)ClipLow(sector[searchsector].floorshade - gStep, -128);
+						iterShadeOf(gStep, searchstat, searchsector);
 						scrSetMessage("Shade: %i", sector[searchsector].floorshade);
 						if (isSkySector(searchsector, searchstat))
 							Sky::SetShade(searchsector, searchstat, sector[searchsector].floorshade, alt);
@@ -3584,11 +3557,11 @@ void ProcessKeys3D( void )
 					case OBJ_SPRITE:
 						if (!shift && sprInHglt(searchwall))
 						{
-							scrSetMessage("%d sprites brighter by %d", hgltSprCallFunc(sprShadeIterate, -gStep), gStep);
+							scrSetMessage("%d sprites brighter by %d", hgltSprCallFunc(sprShadeIterate, gStep), gStep);
 						}
 						else
 						{
-							sprShadeIterate(&sprite[searchwall], -gStep);
+							sprShadeIterate(&sprite[searchwall], gStep);
 							scrSetMessage("Shade: %i", sprite[searchwall].shade);
 						}
 						break;

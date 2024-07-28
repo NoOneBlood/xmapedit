@@ -26,7 +26,7 @@
 #include "xmpqav.h"
 void DrawFrame(int x, int y, TILE_FRAME *pTile, int stat, int shade, int palnum)
 {
-    stat |= (kRSNoClip|pTile->stat);
+    stat |= pTile->stat;
     int angle = pTile->angle;
     if (stat & 0x100)
     {
@@ -49,7 +49,7 @@ void DrawFrame(int x, int y, TILE_FRAME *pTile, int stat, int shade, int palnum)
         palnum = pTile->palnum;
     rotatesprite(x + (pTile->x << 16), y + (pTile->y << 16), pTile->z, angle,
                  pTile->picnum, ClipRange(pTile->shade + shade, -128, 127), palnum, stat,
-                 0, 0, xdim-1, ydim-1);
+                 windowx1, windowy1, windowx2, windowy2);
    
 }
 

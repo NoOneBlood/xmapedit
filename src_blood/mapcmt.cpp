@@ -238,58 +238,7 @@ int MAP_COMMENT_MGR::ClosestToPoint(int nTresh, int x, int y, int zoome)
 	return n;
 }
 
-int colorPicker(BYTE* colors, char* title, int nDefault = 0, int flags = 0) {
-	
-	int i, dx1, dy1, dx2, dy2, dwh, dhg;
-	const int r = 16, c = 16, pad = 4;
-	int scsp =(ydim >> 7);
-	int sz = (8 + scsp);
-	
-	int bh = ClipLow(4 + (4*scsp), 20);
-	int dw = (c*sz) + (pad * 5);
-	int dh = (r*sz) + (pad * 5) + (bh + (bh>>2));
-	
-	Window dialog(0, 0, dw, dh, title);
-	dialog.getEdges(&dx1, &dy1, &dx2, &dy2);
-	dialog.getSize(&dwh, &dhg);
-	
-	ColorSelect* pColor = new ColorSelect(1, 1, r, c, sz, colors);
-	Panel* pColorCont	= new Panel(dx1, dy1, pColor->width+5, pColor->height+4, 1, 1, -1);
-	pColorCont->Insert(pColor);
-	
-	TextButton* pOk 	= new TextButton(dx1, dy2-bh, 60, bh, "&Select", mrOk);
-	TextButton* pCancel = new TextButton(dx1+64, dy2-bh, 60, bh, "&Cancel", mrCancel);
-	TextButton* pNone 	= new TextButton(dx2-62, dy2-bh, 60, bh, "&None", 100);
-	
-	pOk->fontColor = kColorBlue;
-	
-	if (!(flags & 0x01))
-	{
-		pNone->disabled  = 1;
-		pNone->canFocus  = 0;
-		pNone->fontColor = kColorDarkGray;
-	}
-	else
-	{
-		pNone->fontColor = kColorGreen;
-	}
-	
-	pCancel->fontColor = kColorRed;
-	
-	dialog.Insert(pColorCont);
-	dialog.Insert(pOk);
-	dialog.Insert(pCancel);
-	dialog.Insert(pNone);
 
-	switch (ShowModal(&dialog)) {
-		case mrOk:
-			return pColor->value;
-		case 100:
-			return -1;
-		default:
-			return nDefault;
-	}
-}
 
 enum {
 kMono			= 0x1,

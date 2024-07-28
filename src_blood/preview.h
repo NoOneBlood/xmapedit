@@ -68,7 +68,7 @@ class PREVIEW_MODE {
 	unsigned int missileType		: 8;
 	unsigned int explosionType		: 8;
 	unsigned int sectnum			: 14;
-	unsigned int oVisibility		: 12;
+	unsigned int oVisibility		: 32;
 	unsigned int levelTime			: 32;
 	DONEOFTOTAL kills, secrets;
 	int scrEffects[kScrEffectMax];

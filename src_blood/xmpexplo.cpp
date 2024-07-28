@@ -2789,7 +2789,7 @@ static char getThumbnail_QAV(char* filepath, int nTile, int wh, int hg, int bg)
 	char nRetn = 0;
 	int i, j;
 
-	if (fileLoadHelper(filepath, (BYTE**)&pQav) >= sizeof(pQav))
+	if (fileLoadHelper(filepath, (BYTE**)&pQav) >= sizeof(QAV))
 	{
 		if (memcmp(pQav->sign, kQavSig, strlen(kQavSig)) == 0 && (pQav->version & 0xff00) == kQavVersion)
 		{

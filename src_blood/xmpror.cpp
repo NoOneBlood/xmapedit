@@ -211,7 +211,7 @@ void TranslateMirrorColors(int nShade, int nPalette)
 	
 	begindrawing();
 	
-	nShade 			= ClipRange(nShade, 0, 63);
+	nShade 			= ClipRange(nShade, 0, NUMPALOOKUPS(1));
 	BYTE *pMap 		= (BYTE*)(palookup[nPalette] + (nShade<<8));
 	BYTE *pFrame 	= (BYTE*)frameplace;
 	

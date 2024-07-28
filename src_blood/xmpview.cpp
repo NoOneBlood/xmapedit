@@ -221,7 +221,7 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 			pTEffect->xrepeat  = pTEffect2->xrepeat  =  20;
 			pTEffect->yrepeat  = pTEffect2->yrepeat  =  20;
 			pTEffect->xoffset  = pTEffect2->xoffset  =  -48;		
-			pTEffect->shade    = pTEffect2->shade    =  63;
+			pTEffect->shade    = pTEffect2->shade    =  NUMPALOOKUPS(1);
 			pTEffect->pal      = pTEffect2->pal      =  1;
 			
 			pTEffect->cstat  |= kSprFloor | kSprTransluc2;
@@ -242,7 +242,7 @@ void viewAddEffect( int nTSprite, VIEW_EFFECT nViewEffect ) {
 			pTEffect->z = zTop - 1024;
 			pTEffect->picnum = 2332;
 			pTEffect->xrepeat = pTEffect->yrepeat = 20;
-			pTEffect->shade = 63;
+			pTEffect->shade = NUMPALOOKUPS(1);
 			pTEffect->pal = 1;
 
 			GetSpriteExtents(pTEffect, &zTop2, &zBot2); // show in the bottom
@@ -690,7 +690,7 @@ void viewObjectHighlight(int nType, int nID)
 		size = ClipRange(approxDist(pView->x - posx, pView->y - posy)/t, 32, 128);
 		
 		pView->owner  	= nFSpr;
-		pView->shade 	= 63;
+		pView->shade 	= NUMPALOOKUPS(1);
 		pView->pal		= 1;
 		pView->xrepeat	= size;
 		pView->yrepeat  = size;

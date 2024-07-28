@@ -53,7 +53,7 @@ int grshShadeWalls(char toggle)
 	int i = 0;
 	
 	static unsigned char nDir		= mrLeft;
-	static signed   char nMaxShade	= 63;
+	static signed   char nMaxShade	= NUMPALOOKUPS(1);
 	static unsigned char nStepRange = 1;
 	static unsigned char nShadeStep	= 4;
 	
@@ -82,13 +82,13 @@ int grshShadeWalls(char toggle)
 	dialog.getSize(&dwh, &dhg);
 
 	Label *startShL = new Label(4, 10, "BASE SHADE. . . . . . . .");
-	EditNumber *startShE = new EditNumber(130, 4, 40, 16, nBaseShade, 0, -128, 63);
+	EditNumber *startShE = new EditNumber(130, 4, 40, 16, nBaseShade, 0, -128, NUMPALOOKUPS(1));
 	
 	Label *stepShL = new Label(4, 30, "SHADE &STEP. . . . . . . .");
-	EditNumber *stepShE = new EditNumber(130, 24, 40, 16, nShadeStep, 0, 1, 32);
+	EditNumber *stepShE = new EditNumber(130, 24, 40, 16, nShadeStep, 0, 1, NUMPALOOKUPS(1)>>1);
 
 	Label *maxShL = new Label(4, 50, "MAX   SHADE. . . . . . . .");
-	EditNumber *maxShE = new EditNumber(130, 44, 40, 16, nMaxShade, 0, -128, 63);
+	EditNumber *maxShE = new EditNumber(130, 44, 40, 16, nMaxShade, 0, -128, NUMPALOOKUPS(1));
 
 	Label *stepRgL = new Label(4, 70, "OBJECT STEP. . . . . . .");
 	EditNumber *stepRgE = new EditNumber(130, 64, 40, 16, nStepRange, 0, 1, nLen-1);

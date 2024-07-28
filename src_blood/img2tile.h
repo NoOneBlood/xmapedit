@@ -155,5 +155,5 @@ BOOL BuildPLU(BYTE* out, PALETTE pal, int grayLevel = 0);
 BOOL BuildPLU(char *filename, PALETTE palette, int grayLevel = 0);
 void remapColors(intptr_t image, int len, PALETTE srcPal);
 void bufRemap(BYTE* buf, int len, BYTE* table);
-BYTE countBestColor(PALETTE in, int r, int g, int b, int wR = 1, int wG = 1, int wB = 1);
+
 #endif

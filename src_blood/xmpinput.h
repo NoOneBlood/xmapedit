@@ -172,8 +172,8 @@ class MOUSE
 	unsigned int right			: 16;
 	unsigned int bottom			: 16;
 	//---------------------------------
-	unsigned int velX, velDX	: 10;
-	unsigned int velY, velDY	: 10;
+	unsigned int velX, velDX	: 12;
+	unsigned int velY, velDY	: 12;
 	unsigned int velRst			: 1;
 	unsigned int velTimer		: 32;
 	//---------------------------------

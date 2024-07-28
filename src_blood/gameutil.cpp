@@ -64,7 +64,7 @@ bool AreSectorsNeighbors(int sect1, int sect2)
 bool FindSector(int nX, int nY, int nZ, int *nSector)
 {
     int32_t nZFloor, nZCeil;
-    dassert(*nSector >= 0 && *nSector < kMaxSectors);
+    dassert(*nSector >= 0 && *nSector < numsectors);
     if (inside(nX, nY, *nSector))
     {
         getzsofslope(*nSector, nX, nY, &nZCeil, &nZFloor);
@@ -104,7 +104,7 @@ bool FindSector(int nX, int nY, int nZ, int *nSector)
 
 bool FindSector(int nX, int nY, int *nSector)
 {
-    dassert(*nSector >= 0 && *nSector < kMaxSectors);
+    dassert(*nSector >= 0 && *nSector < numsectors);
     if (inside(nX, nY, *nSector))
     {
         return 1;

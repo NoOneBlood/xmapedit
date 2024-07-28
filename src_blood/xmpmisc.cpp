@@ -998,19 +998,25 @@ BOOL multiTxPointsRx(int rx, short nSpr) {
 void toggleResolution(int fs, int xres, int yres, int bpp)
 {
 	int mode = qsetmode;
+	int oxres = xdim;
+	int oyres = ydim;
+	
 	scrSetGameMode(fs, xres, yres, bpp);
 
 	if (ED23)				mode = 0x02|0x80;
 	else if (mode == 200)	mode = 0x01|0x80;
 	else					mode = 0x00|0x80;
 	
-	if (tileLoadTile(gSysTiles.drawBuf))
+	if (oxres != xres || oyres != yres)
 	{
-		tileFreeTile(gSysTiles.drawBuf);
-		tileAllocTile(gSysTiles.drawBuf, xdim, ydim);
+		if (tileLoadTile(gSysTiles.drawBuf))
+		{
+			tileFreeTile(gSysTiles.drawBuf);
+			tileAllocTile(gSysTiles.drawBuf, xdim, ydim);
+		}
+		
+		gTileView.InitWindow();
 	}
-	
-	gTileView.InitWindow();
 	
 	flushperms();
 	xmpSetEditMode(mode);	
@@ -1799,16 +1805,36 @@ void setShadeOf(int nShade, int oType, int oIdx)
 	{
 		case OBJ_WALL:
 		case OBJ_MASKED:
-			wall[oIdx].shade = (signed char)ClipRange(nShade, -128, 63);
+			wall[oIdx].shade = (signed char)ClipRange(nShade, -128, numpalookups - 1);
 			break;
 		case OBJ_FLOOR:
-			sector[oIdx].floorshade = (signed char)ClipRange(nShade, -128, 63);
+			sector[oIdx].floorshade = (signed char)ClipRange(nShade, -128, numpalookups - 1);
 			break;
 		case OBJ_CEILING:
-			sector[oIdx].ceilingshade = (signed char)ClipRange(nShade, -128, 63);
+			sector[oIdx].ceilingshade = (signed char)ClipRange(nShade, -128, numpalookups - 1);
 			break;
 		case OBJ_SPRITE:
-			sprite[oIdx].shade = (signed char)ClipRange(nShade, -128, 63);
+			sprite[oIdx].shade = (signed char)ClipRange(nShade, -128, numpalookups - 1);
+			break;
+	}
+}
+
+void iterShadeOf(int nStep, int oType, int oIdx)
+{
+	switch (oType)
+	{
+		case OBJ_WALL:
+		case OBJ_MASKED:
+			wall[oIdx].shade = (signed char)ClipRange((int)wall[oIdx].shade + nStep, -128, numpalookups - 1);
+			break;
+		case OBJ_FLOOR:
+			sector[oIdx].floorshade = (signed char)ClipRange((int)sector[oIdx].floorshade + nStep, -128, numpalookups - 1);
+			break;
+		case OBJ_CEILING:
+			sector[oIdx].ceilingshade = (signed char)ClipRange((int)sector[oIdx].ceilingshade + nStep, -128, numpalookups - 1);
+			break;
+		case OBJ_SPRITE:
+			sprite[oIdx].shade = (signed char)ClipRange((int)sprite[oIdx].shade + nStep, -128, numpalookups - 1);
 			break;
 	}
 }
@@ -2080,16 +2106,6 @@ int pluPickClassic(int nTile, int nShade, int nPlu, char* titleArg)
 	return pEn->value;
 }
 
-BOOL isSearchSector()
-{
-	return (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING);
-}
-
-
-
-
-
-
 int isMarkerSprite(int nSpr)
 {
 	spritetype* pSpr = &sprite[nSpr];
@@ -2213,10 +2229,10 @@ char isNextWallOf(int nSrc, int nDest)
 	return (x3 == x2 && y3 == y2 && x4 == x1 && y4 == y1);
 }
 
-int findNextWall(int nWall)
+int findNextWall(int nWall, char forceSearch)
 {
 	int i;
-	if (wall[nWall].nextwall >= 0)
+	if (!forceSearch && wall[nWall].nextwall >= 0)
 		return wall[nWall].nextwall;
 	
 	i = numwalls;
@@ -2388,6 +2404,25 @@ int findNamedID(const char* str, NAMED_TYPE* pDb, int nLen)
 	}
 
     return -1;
+}
+
+spritetype* findPlayerStart(int nPlayer)
+{
+	spritetype* pSpr; XSPRITE* pXSpr;
+	int i;
+
+	for (i = headspritestat[0]; i >= 0; i = nextspritestat[i])
+	{
+		pSpr = &sprite[i];
+		if (pSpr->type == kMarkerSPStart && pSpr->extra > 0)
+		{
+			pXSpr = &xsprite[pSpr->extra];
+			if (pXSpr->data1 == nPlayer)
+				return pSpr;
+		}
+	}
+	
+	return NULL;
 }
 
 int words2flags(const char* str, NAMED_TYPE* pDb, int nLen)

@@ -25,6 +25,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 #ifndef __XMPSTR_H
 #define __XMPSTR_H
+
+struct STRCUTSTYLE
+{
+	uint8_t cutSide;
+	uint8_t insChar;
+	uint8_t insRepeat;
+};
+
 int enumStr(int nOffs, const char* str, char* key, char* val);
 int enumStr(int nOffs, const char* str, char* val);
 char isfix(const char* str, char flags = 0x03);
@@ -40,6 +48,9 @@ char parseRGBString(const char* str, unsigned char out[3]);
 void strTrim(char* str, char side = 0x03);
 void strTrim(char* str, char* list, char side = 0x03);
 int strReplace(char* str, char cWhat, char cBy);
+char strSubStr(char* str, char* s, char* e, char* o);
+char strQuotPtr(char* str, char** qs, char** qe);
+char strCut(char* str, char* o, int n, STRCUTSTYLE* s);
 
 char* enumStrGetChar(int offset, char* out = NULL, char* astr = NULL, char expcr = ',', char* def = NULL);
 int enumStrGetInt(int offset, char* astr = NULL, char expcr = ',', int retn = 0);

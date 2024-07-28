@@ -26,6 +26,7 @@
 #endif
 
 #include <windows.h>
+#include <htmlhelp.h>
 
 #if _MSC_VER <= 1400
 	#ifdef DEBUGGINGAIDS
@@ -91,6 +92,12 @@ static HDC hDCWindow = NULL;
 static BOOL window_class_registered = FALSE;
 static HANDLE instanceflag = NULL;
 
+typedef HWND (WINAPI HTMLHELP)(HWND hwndCaller, LPCTSTR pszFile, UINT uCommand, DWORD_PTR dwData);
+static HTMLHELP* pHtmlHelp = NULL;
+static HANDLE helpdll = NULL;
+
+
+
 int    backgroundidle = 1;
 static char apptitle[256] = "Build Engine";
 static char wintitle[256] = "";
@@ -104,7 +111,7 @@ extern float curgamma;
 static HGLRC hGLRC = 0;
 static HANDLE hGLDLL;
 static glbuild8bit gl8bit;
-static unsigned char nogl=0;
+unsigned char nogl=0;
 static unsigned char *frame = NULL;
 
 static HWND hGLWindow = NULL;
@@ -145,13 +152,14 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 static void DestroyAppWindow(void);
 static void UpdateAppWindowTitle(void);
 void SetNumLock( BOOL bState );
-static void shutdownvideo(void);
+static void shutdownvideo(char cds);
 
 RECT  windowrct;
 POINT windowpos, windowcen;
 
 // video
-static int desktopxdim=0,desktopydim=0,desktopbpp=0, desktopmodeset=0;
+int odesktopxdim=0, odesktopydim=0;
+int desktopxdim=0,desktopydim=0,desktopbpp=0,desktopfreq=0,desktopmodeset=0;
 int xres=-1, yres=-1, fullscreen=0, bpp=0, bytesperline=0, imageSize=0;
 intptr_t frameplace=0;
 
@@ -160,6 +168,7 @@ char modechange = 1, offscreenrendering = 0, videomodereset = 0;
 int glswapinterval = 1, glcolourdepth=32;
 
 // input and events
+static char fixmousegrab = 0;
 int inputdevices=0;
 char quitevent=0, appactive =1;
 int mousex=0, mousey=0, mouseb=0;
@@ -176,8 +185,8 @@ unsigned char keyasciififo[KEYFIFOSIZ];
 int keyfifoplc, keyfifoend;
 int keyasciififoplc, keyasciififoend;
 static char keynames[256][24];
-static const int wscantable[256], wxscantable[256];
-
+static const char wscantable[256], wxscantable[256];
+char scanremap[256];
 
 static unsigned int mouseclock = 0;
 static char moustat = 0, mousegrab = 0;
@@ -195,6 +204,7 @@ void (*joypresscallback)(int,int) = 0;
 //-------------------------------------------------------------------------------------------------
 //  MAIN CRAP
 //=================================================================================================
+static void togglePriority(char active);
 
 
 //
@@ -346,6 +356,55 @@ void wm_setwindowtitle(const char *name)
 	}
 
 	UpdateAppWindowTitle();
+}
+
+void wm_showhelp(const char* name, int nCommand)
+{
+	static const char* libname	= "hhctrl.ocx";
+	static const char* funcname = "HtmlHelpA";
+	
+	if (!name || access(name, F_OK) < 0)
+	{
+		wm_msgbox("Error", "Help file \"%s\" not found!", name);
+		return;
+	}
+	
+	if (!helpdll && (helpdll = LoadLibraryA(libname)) == NULL)
+	{
+		wm_msgbox("Error", "Cannot load help system libraray file \"%s\".", libname);
+		return;
+	}
+	
+	if (!pHtmlHelp && (pHtmlHelp = (HTMLHELP*)GetProcAddress(helpdll, funcname)) == NULL)
+	{
+		wm_msgbox("Error", "No pointer to \"%s\" function. Help system unavailable.", funcname);
+		return;
+	}
+	
+	if (hWindow)
+	{
+		pHtmlHelp(NULL, name, nCommand, NULL);
+		grabmouse(0);
+	}
+}
+
+
+void wm_showwindow()
+{
+	if (hWindow)
+		ShowWindow(hWindow, SW_NORMAL);	
+	
+}
+
+void wm_hidewindow()
+{
+	if (hWindow)
+		ShowWindow(hWindow, SW_SHOWMINIMIZED);
+}
+
+void wm_remapkey(unsigned char key, unsigned char newkey)
+{
+	scanremap[key] = newkey;
 }
 
 //
@@ -526,7 +585,7 @@ static int set_maxrefreshfreq(const osdfuncparm_t *parm)
 }
 
 #if USE_OPENGL
-static int set_glswapinterval(const osdfuncparm_t *parm)
+int set_glswapinterval(const osdfuncparm_t *parm)
 {
 	int interval;
 
@@ -541,8 +600,9 @@ static int set_glswapinterval(const osdfuncparm_t *parm)
 	if (parm->numparms != 1) return OSDCMD_SHOWHELP;
 
 	interval = Batol(parm->parms[0]);
-	if (interval < 0 || interval > 2) return OSDCMD_SHOWHELP;
-
+	
+	if (interval < 0 /* || interval > 2 */) return OSDCMD_SHOWHELP;
+	
 	glswapinterval = interval;
 	wglfunc.wglSwapIntervalEXT(interval);
 
@@ -550,16 +610,9 @@ static int set_glswapinterval(const osdfuncparm_t *parm)
 }
 #endif
 
-//
-// initsystem() -- init systems
-//
-int initsystem(void)
+void updateDesktopInfo()
 {
 	DEVMODE desktopmode;
-
-	buildputs("Initialising Windows system interface\n");
-
-	// get the desktop dimensions before anything changes them
 	ZeroMemory(&desktopmode, sizeof(DEVMODE));
 	desktopmode.dmSize = sizeof(DEVMODE);
 	EnumDisplaySettings(NULL,ENUM_CURRENT_SETTINGS,&desktopmode);
@@ -567,7 +620,20 @@ int initsystem(void)
 	desktopxdim = desktopmode.dmPelsWidth;
 	desktopydim = desktopmode.dmPelsHeight;
 	desktopbpp  = desktopmode.dmBitsPerPel;
+	desktopfreq = desktopmode.dmDisplayFrequency;
+}
 
+//
+// initsystem() -- init systems
+//
+int initsystem(void)
+{
+	buildputs("Initialising Windows system interface\n");
+	// get the desktop dimensions before anything changes them
+	updateDesktopInfo();
+	odesktopxdim = desktopxdim;
+	odesktopydim = desktopydim;
+	
 	memset(curpalette, 0, sizeof(palette_t) * 256);
 
 	atexit(uninitsystem);
@@ -610,6 +676,9 @@ void uninitsystem(void)
 {
 	DestroyAppWindow();
 	
+	if (helpdll)
+		FreeLibrary(helpdll);
+	
 	#ifdef HAVE_START_WINDOW
 	startwin_close();
 	#endif
@@ -619,7 +688,6 @@ void uninitsystem(void)
 
 	win_allowtaskswitching(1);
 
-	shutdownvideo();
 #if USE_OPENGL
 	glbuild_unloadfunctions();
 	memset(&wglfunc, 0, sizeof(wglfunc));
@@ -847,6 +915,10 @@ int gettimerfreq(void)
 //
 int initinput(void)
 {
+	int i = 256;
+	while(--i >= 0)
+		scanremap[i] = i;
+	
 	moustat=0;
 	memset(keystatus, 0, sizeof(keystatus));
 	keyfifoplc = keyfifoend = 0;
@@ -1512,10 +1584,11 @@ int checkvideomode(int *x, int *y, int c, int fs, int forced)
 	return nearest;		// JBF 20031206: Returns the mode number
 }
 
-static void shutdownvideo(void)
+static void shutdownvideo(char cds)
 {
 #if USE_OPENGL
-	if (frame) {
+	if (frame)
+	{
 		free(frame);
 		frame = NULL;
 	}
@@ -1524,10 +1597,50 @@ static void shutdownvideo(void)
 #endif
 	UninitDIB();
 
-	if (desktopmodeset) {
+	if (cds && desktopmodeset)
+	{
 		ChangeDisplaySettings(NULL, 0);
 		desktopmodeset = 0;
 	}
+}
+
+//
+// setFullscreenExclusive() -- sets real fullscreen
+//
+int setFullscreenExclusive(int wh, int hg, int freq, int bpp)
+{
+	DEVMODE dmScreenSettings;
+	
+	while(bpp >= 8)
+	{
+		ZeroMemory(&dmScreenSettings, sizeof(DEVMODE));
+		dmScreenSettings.dmFields		= DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT;
+		dmScreenSettings.dmSize			= sizeof(DEVMODE);
+		dmScreenSettings.dmPelsWidth	= wh;
+		dmScreenSettings.dmPelsHeight	= hg;
+		dmScreenSettings.dmBitsPerPel	= bpp;
+		
+		if (freq > 0)
+		{
+			dmScreenSettings.dmDisplayFrequency = freq;
+			dmScreenSettings.dmFields |= DM_DISPLAYFREQUENCY;
+		}
+		
+		if (ChangeDisplaySettings(&dmScreenSettings, CDS_TEST|CDS_FULLSCREEN) == DISP_CHANGE_SUCCESSFUL)
+		{
+			ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN);
+			desktopmodeset	= 1;
+			desktopxdim		= wh;
+			desktopydim		= hg;
+			grabmouse(0);
+			return 1;
+		}
+		
+		bpp-=8;
+	}
+	
+	wm_msgbox("Error", "Exclusive fullscreen mode not supported for %dx%d resolution!", wh, hg);
+	return 0;
 }
 
 //
@@ -1537,27 +1650,30 @@ int setvideomode(int x, int y, int c, int fs)
 {
 	int i, modenum, refresh=-1;
 
-	if ((fs == fullscreen) && (x == xres) && (y == yres) && (c == bpp) && !videomodereset) {
+	if ((fs == fullscreen) && (x == xres) && (y == yres) && (c == bpp) && !videomodereset)
+	{
 		OSD_ResizeDisplay(xres,yres);
 		return 0;
 	}
 
 	modenum = checkvideomode(&x,&y,c,fs,0);
 	if (modenum < 0) return -1;
-	if (modenum != 0x7fffffff) {
+	if (modenum != 0x7fffffff)
 		refresh = validmode[modenum].extra;
-	}
 
-	if (hWindow && gammabrightness) {
+	if (hWindow && gammabrightness)
+	{
 		setgammaramp(sysgamma);
 		gammabrightness = 0;
 	}
 
-	shutdownvideo();
-
+	shutdownvideo(fs != fullscreen);
 	buildprintf("Setting video mode %dx%d (%d-bit %s)\n",
-			x,y,c, ((fs&1) ? "fullscreen" : "windowed"));
+			x,y,c, ((fs == 1) ? "borderless" : (fs == 2) ? "fullscreen" : "windowed"));
 
+	if (fs == 2 && !setFullscreenExclusive(x, y, refresh, 32))
+		fs = 1;
+	
 	if (!CreateAppWindow(x, y, c, fs, refresh)) return -1;
 
 	if (!gammabrightness) {
@@ -1668,10 +1784,9 @@ void getvalidmodes(void)
 			if (d.dmPelsWidth > MAXXDIM || d.dmPelsHeight > MAXYDIM) continue;
 			//if (maxrefreshfreq && d.dmDisplayFrequency > maxrefreshfreq) continue;
 			if (desktopbpp < d.dmBitsPerPel) continue;
-			if (!fullscreen && (d.dmPelsWidth > desktopxdim || d.dmPelsHeight > desktopydim))
+			if (!fullscreen && (d.dmPelsWidth > odesktopxdim || d.dmPelsHeight > odesktopydim))
 				continue;
-			//if (fullscreen)
-
+			
 			j = validmodecnt;
 			while(--j >= 0 && (validmode[j].xdim != d.dmPelsWidth || validmode[j].ydim != d.dmPelsHeight));
 			
@@ -1690,60 +1805,6 @@ void getvalidmodes(void)
 		qsort((void*)validmode, validmodecnt, sizeof(struct validmode_t), (int(*)(const void*,const void*))sortmodes);
 		modeschecked = 1;
 	}
-	
-
-	
-	/*static int defaultres[][2] = {
-		{1920,1200},{1920,1080},{1600,1200},{1680,1050},{1600,900},{1400,1050},{1440,900},{1366,768},
-		{1280,1024},{1280,960},{1280,800},{1280,720},{1152,864},{1024,768},{800,600},{640,480},
-		{640,400},{512,384},{480,360},{400,300},{320,240},{320,200},{0,0}
-	};
-	int i, j, maxx=0, maxy=0;
-
-	if (modeschecked) return;
-
-	validmodecnt=0;
-	buildputs("Detecting video modes:\n");
-
-	// Fullscreen 8-bit modes: upsamples to the desktop mode.
-	maxx = desktopxdim;
-	maxy = desktopydim;
-	for (i=0; defaultres[i][0]; i++) {
-		CHECKLE(defaultres[i][0],defaultres[i][1]) {
-			ADDMODE(defaultres[i][0], defaultres[i][1], 8, 1, -1);
-		}
-	}
-
-#if USE_POLYMOST && USE_OPENGL
-	// Fullscreen >8-bit modes.
-	if (!nogl) cdsenummodes();
-#endif
-
-	// Windowed modes can't be bigger than the current desktop resolution.
-	maxx = desktopxdim+1;
-	maxy = desktopydim+1;
-
-	// Windows 8-bit modes
-	for (i=0; defaultres[i][0]; i++) {
-		CHECKL(defaultres[i][0],defaultres[i][1]) {
-			ADDMODE(defaultres[i][0], defaultres[i][1], 8, 0, -1);
-		}
-	}
-
-#if USE_POLYMOST && USE_OPENGL
-	// Windowed >8-bit modes
-	if (!nogl) {
-		for (i=0; defaultres[i][0]; i++) {
-			CHECKL(defaultres[i][0],defaultres[i][1]) {
-				ADDMODE(defaultres[i][0], defaultres[i][1], desktopbpp, 0, -1);
-			}
-		}
-	}
-#endif
-
-	//qsort((void*)validmode, validmodecnt, sizeof(struct validmode_t), (int(*)(const void*,const void*))sortmodes);
-
-	modeschecked=1;*/
 }
 
 //
@@ -2329,7 +2390,7 @@ fail:
 	if (bpp > 8) {
 		ShowErrorBox(errmsg);
 	}
-	shutdownvideo();
+	shutdownvideo(0);
 
 	if (!wglfunc.wglMakeCurrent(NULL, NULL)) { }
 
@@ -2366,27 +2427,19 @@ fail:
 static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refresh)
 {
 	RECT rect;
-	int w, h, x, y, stylebits = 0, stylebitsex = 0;
-	HRESULT result;
-
+	int w, h, x, y, stylebits;
+	int i, j;
+	
 	if (width == xres && height == yres && fs == fullscreen && bitspp == bpp && !videomodereset) return TRUE;
+	stylebits = (fs) ? WS_POPUP : (WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX);
+	fixmousegrab = 1;//(fullscreen != fs || fullscreen == 2);
+	
 	if (hWindow)
 		ShowWindow(hWindow, SW_HIDE);	// so Windows redraws what's behind if the window shrinks
 
-	if (fs)
-	{
-		stylebitsex = 0;
-		stylebits = WS_POPUP;
-	}
-	else
-	{
-		stylebitsex = 0;
-		stylebits = (WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX);
-	}
-
 	if (!hWindow)
 	{
-		hWindow = CreateWindowEx(stylebitsex, WINDOW_CLASS, apptitle, stylebits,
+		hWindow = CreateWindowEx(0, WINDOW_CLASS, apptitle, stylebits,
 			CW_USEDEFAULT,
 			CW_USEDEFAULT,
 			320,
@@ -2415,7 +2468,6 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 	}
 	else
 	{
-		//SetWindowLong(hWindow,GWL_EXSTYLE,stylebitsex);
 		SetWindowLong(hWindow,GWL_STYLE,stylebits);
 	}
 
@@ -2441,13 +2493,51 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 	}
 	
 	SetWindowPos(hWindow, HWND_TOP, x, y, w, h, 0);
-
-	UpdateAppWindowTitle();
 	ShowWindow(hWindow, SW_SHOWNORMAL);
 	SetForegroundWindow(hWindow);
 	SetFocus(hWindow);
+	
+	UpdateWindowInfo(hWindow);
+	UpdateAppWindowTitle();
+	
+	bytesperline = (((width|1) + 4) & ~3);
 
-	if (bitspp == 8) {
+	#if USE_OPENGL
+	if ((nogl = (SetupOpenGL(width, height, bitspp, (fs != 1)) != 0)) == 0)
+	{
+		if (bitspp == 8 && (nogl = (glbuild_prepare_8bit_shader(&gl8bit, width, height, bytesperline) < 0)) == 0)
+		{
+			if ((frame = (unsigned char*)malloc(bytesperline*height)) == NULL)
+			{
+				ShowErrorBox("Unable to allocate framebuffer\n");
+				return FALSE;
+			}
+			
+			frameplace = (intptr_t)frame;
+		}
+	}
+	
+	if (nogl)
+	#endif
+	{
+		#if USE_OPENGL
+		buildputs("OpenGL initialisation failed. Falling back to DIB mode.\n");
+		shutdownvideo(0);
+		#endif
+		
+		if (SetupDIB(width, height))
+			return FALSE;
+		
+		frameplace = (intptr_t)lpPixels;
+	}
+	
+	setvlinebpl(bytesperline);
+	for(i=j=0; i<=height; i++) ylookup[i] = j, j += bytesperline;
+	numpages = 1;
+	
+
+	
+/* 	if (bitspp == 8) {
 		int i, j;
 
 #if USE_OPENGL
@@ -2461,7 +2551,7 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 			}
 
 			frameplace = (intptr_t)lpPixels;
-			bytesperline = (((width|1) + 4) & ~3);
+			
 #if USE_OPENGL
 		}
 		else
@@ -2479,7 +2569,7 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 
 			if (glbuild_prepare_8bit_shader(&gl8bit, width, height, bytesperline) < 0)
 			{
-				shutdownvideo();
+				shutdownvideo(0);
 				nogl = 1;
 				return CreateAppWindow(width, height, bitspp, fs, refresh);
 			}
@@ -2536,7 +2626,7 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 
 		if (SetupOpenGL(width, height, bitspp, !desktopmodeset))
 		{
-			shutdownvideo();
+			shutdownvideo(0);
 			nogl = 1;
 			return CreateAppWindow(width, height, bitspp, fs, refresh);
 		}
@@ -2547,20 +2637,13 @@ static BOOL CreateAppWindow(int width, int height, int bitspp, int fs, int refre
 #else
 		return TRUE;
 #endif
-	}
+	} */
 
-	xres = width;
-	yres = height;
-	bpp = bitspp;
-	fullscreen = fs;
-
-	modechange = 1;
+	xres		= width;
+	yres		= height;
+	bpp			= bitspp;
+	fullscreen	= fs;
 	OSD_ResizeDisplay(xres,yres);
-
-	
-	UpdateWindow(hWindow);
-	UpdateWindowInfo(hWindow);
-	
 	return TRUE;
 }
 
@@ -2575,7 +2658,7 @@ static void DestroyAppWindow(void)
 		gammabrightness = 0;
 	}
 
-	shutdownvideo();
+	shutdownvideo(1);
 
 	if (hDCWindow) {
 		ReleaseDC(hWindow, hDCWindow);
@@ -2659,7 +2742,7 @@ static BOOL CheckWinVersion(void)
 }
 
 
-static const int wscantable[256] = {
+static const char wscantable[256] = {
 /*         x0    x1    x2    x3    x4    x5    x6    x7    x8    x9    xA    xB    xC    xD    xE    xF */
 /* 0y */ 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
 /* 1y */ 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
@@ -2679,7 +2762,7 @@ static const int wscantable[256] = {
 /* Fy */ 0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
 };
 
-static const int wxscantable[256] = {
+static const char wxscantable[256] = {
 /*         x0    x1    x2    x3    x4    x5    x6    x7    x8    x9    xA    xB    xC    xD    xE    xF */
 /* 0y */ 0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
 /* 1y */ 0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0x9c, 0x9d, 0,    0,
@@ -2739,29 +2822,52 @@ void SetNumLock( BOOL bState )
 //
 static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	// somehow these messages is not working
-	// in the main switch when using OpenGL
-	// and mouse is not grabbed
-	if (appactive && !mousegrab)
-	{
-		POINT c;
-		switch(uMsg)
-		{
-			case WM_LBUTTONDOWN:
-			case WM_RBUTTONDOWN:
-			case WM_MBUTTONDOWN:
-				if (mouseInsideWindow())
-				{
-					grabmouse(1);
-					return 0;
-				}
-				break;
-		}
-	}
+
+
 	
 #if USE_OPENGL
-	if (hGLWindow && hWnd == hGLWindow) return DefWindowProc(hWnd,uMsg,wParam,lParam);
-	if (dummyhGLwindow && hWnd == dummyhGLwindow) return DefWindowProc(hWnd,uMsg,wParam,lParam);
+	
+	if (hGLWindow && hWnd == hGLWindow)
+	{
+		if (appactive)
+		{
+			if (fixmousegrab)
+			{
+				// changing videomodes may
+				// require us to regrab
+				// the mouse
+				
+				fixmousegrab = 0;
+				grabmouse(0);
+				grabmouse(1);
+			}
+			
+			if (!mousegrab)
+			{
+				// somehow these messages is not working
+				// in the main switch when using OpenGL
+				// and mouse is not grabbed
+
+				switch(uMsg)
+				{
+					case WM_LBUTTONDOWN:
+					case WM_RBUTTONDOWN:
+					case WM_MBUTTONDOWN:
+						if (mouseInsideWindow())
+						{
+							grabmouse(1);
+							return 0;
+						}
+						break;
+				}
+			}
+		}
+
+		return DefWindowProc(hWnd,uMsg,wParam,lParam);
+	}
+	
+	if (dummyhGLwindow && hWnd == dummyhGLwindow)
+		return DefWindowProc(hWnd,uMsg,wParam,lParam);
 #endif
 		
 	switch (uMsg)
@@ -2778,7 +2884,7 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 			break;
 			
 		case WM_ACTIVATEAPP:
-			appactive = wParam;
+			appactive = (wParam != 0);
 			togglePriority(appactive);
 			grabmouse(mouseInsideWindow() && appactive);
 			return 0;
@@ -2803,9 +2909,7 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 			
 		case WM_DISPLAYCHANGE:
 			// desktop settings changed so adjust our world-view accordingly
-			desktopxdim = LOWORD(lParam);
-			desktopydim = HIWORD(lParam);
-			desktopbpp  = wParam;
+			updateDesktopInfo();
 			resetvideomode();
 			getvalidmodes();
 			break;
@@ -2822,7 +2926,7 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 		case WM_MBUTTONDOWN:
 		case WM_MBUTTONUP:
 		case WM_MOUSEMOVE:
-			if (mousegrab)
+			if (appactive && mousegrab)
 			{
 				POINT c;
 				GetCursorPos(&c);
@@ -2832,11 +2936,12 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 				
 				mousex += (c.x - windowcen.x);
 				mousey += (c.y - windowcen.y);
+
 			}
 			return 0;
 			#if SUBSYS > 400
 				case WM_MOUSEWHEEL:
-					if (mousegrab)
+					if (appactive && mousegrab)
 					{
 						int i = (((short)HIWORD(wParam)) < 0) ? 1 : 0;
 						mousewheel[i] = getticks();
@@ -2846,7 +2951,7 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 			#endif
 		#elif MOUSETYPE == 2
 		case WM_INPUT:
-			if (mousegrab)
+			if (appactive && mousegrab)
 			{
 				int but;
 				RAWINPUT raw; UINT dwSize = sizeof(RAWINPUT);
@@ -2929,7 +3034,9 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 				{
 					scan = wscantable[wscan];
 				}
-
+				
+				scan = scanremap[scan];
+				
 				//buildprintf("VK %-2x VSC %8x scan %-2x = %s\n", wParam, (UINT)lParam, scan, keynames[scan]);
 
 				if (scan == 0)
@@ -2937,7 +3044,18 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 					// Not a key we want, so give it to the OS to handle.
 					break;
 				}
-				else if (scan == OSD_CaptureKey(-1))
+				else if (helpkey && scan == helpkey)
+				{
+					// help file defined, so try to open it,
+					// otherwise set the key for use
+					if (helpfilename)
+					{
+						wm_showhelp(helpfilename, HH_DISPLAY_TOC);
+						return 0;
+					}
+				}
+				
+				if (scan == OSD_CaptureKey(-1))
 				{
 					if (press)
 					{

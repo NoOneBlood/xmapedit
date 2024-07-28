@@ -318,20 +318,9 @@ void tileInitSystemTiles() {
 	
 	gSysTiles.add(2342); // dynamic fire
 	
-	if (tileAllocSysTile(&nTile, 4, 4))
+	if ((nTile = tileGetBlank()) > 0)
 	{
 		gSysTiles.hudMask = nTile;
-	}
-	
-	gSysTiles.angArrow = 4126; BYTE* pArrow = tileLoadTile(2332);
-	if (pArrow && tileAllocSysTile(&nTile, tilesizx[2332], tilesizy[2332]));
-	{
-		// new angle arrow
-		len = tilesizx[nTile]*tilesizy[nTile];
-		BYTE* pArrowNew = (BYTE*)waloff[nTile];
-		gSysTiles.angArrow = nTile;
-		memcpy(pArrowNew, pArrow, len);
-		artedRotateTile(nTile);
 		gSysTiles.add(nTile);
 	}
 	
@@ -389,6 +378,14 @@ void tileInitSystemTiles() {
 	{
 		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
 		gSysTiles.icoDrive1 = nTile;
+		gSysTiles.add(nTile);
+	}
+	
+	gSysTiles.angArrow = 4126;
+	if ((hIco = gGuiRes.Lookup((unsigned int)12, "TGA")) && (nTile = tileGetBlank()) > 0)
+	{
+		tga2tile((unsigned char*)gGuiRes.Load(hIco), gGuiRes.Size(hIco), nTile);
+		gSysTiles.angArrow = nTile;
 		gSysTiles.add(nTile);
 	}
 	
@@ -866,6 +863,8 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 	while ( 1 )
 	{
 		nTile = nVTile = tileIndex[nCursor];
+		tileIndexCursor = nCursor;
+		
 		if (gArtEd.mode > kArtEdModeBatch)
 			nVTile = (short)toolGetViewTile(nTile, gTool.nOctant, NULL, NULL);
 		else if (!gArtEd.mode && type == OBJ_CUSTOM)

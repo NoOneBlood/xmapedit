@@ -102,6 +102,9 @@ void sndProcess(void);
 void sndTerm(void);
 void sndInit(void);
 
+void sndSetFXVolume(int nVolume);
+void sndSetMusicVolume(int nVolume);
+
 extern Resource gSoundRes;
 extern bool sndActive;
 

@@ -510,7 +510,7 @@ void MAPEDIT_HUD::UpdateMask()
 
 void MAPEDIT_HUD::DrawIt()
 {
-	if (waloff[gSysTiles.hudMask])
+	if (tileLoadTile(gSysTiles.hudMask))
 	{
 		tileDrawTile(main.x1, main.y2-HeightNoLogo(), gSysTiles.hudMask, 0, 0, 0, 0);
 	}

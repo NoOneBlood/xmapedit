@@ -5,6 +5,7 @@ resource "INI\STDCLR.INI" as 2;		// standard color palette
 resource "INI\2DSCLRN.INI" as 3;	// 2d screen colors
 resource "INI\OBJTYPES.INI" as 4;	// type names and AutoAdjustSprites info
 resource "INI\ROMFONT.INI" as 5;	// binary fonts information
+resource "INI\KEYREMAP.INI" as 6;	// keyboard mapper file
 ///////////////////////////////
 
 
@@ -82,7 +83,7 @@ resource "TGA\EYE1.TGA" as 8;
 resource "TGA\EYE2.TGA" as 9;
 resource "TGA\EYE3.TGA" as 10;
 resource "TGA\EYE4.TGA" as 11;
-
+resource "TGA\RTARROW.TGA" as 12;
 // inverse table for creating PLUs
 ///////////////////////////////////
 resource "DAT\INVERSE1.DAT" as 0;

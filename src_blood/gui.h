@@ -134,12 +134,12 @@ class Widget
 {
 	public:
 		int type, left, top, width, height;
-		BOOL canFocus, canDefault, isContainer;
+		BOOL canFocus, canDefault, isContainer, disabled;
 		BOOL Contains(int x, int y)
 			{ return x > left && y > top && x < left + width && y < top + height; }
 		Widget *prev, *next, *owner; char hotKey;
 		Widget( int left, int top, int width, int height ) :
-			left(left), top(top), width(width), height(height), canFocus(FALSE), canDefault(FALSE),
+			left(left), top(top), width(width), height(height), canFocus(FALSE), canDefault(FALSE), disabled(FALSE),
 			hotKey(0), isContainer(FALSE) {};
 		virtual ~Widget() {};
 		virtual void Paint( int x, int y, BOOL hasFocus ) = 0;
@@ -206,15 +206,6 @@ class Label : public Widget
 		virtual void HandleEvent( GEVENT * ) {};
 };
 
-enum
-{
-ALG_LEFT			= 0x00,
-ALG_TOP				= 0x00,
-ALG_CENTER			= 0x01,
-ALG_MIDDLE			= 0x02,
-ALG_RIGHT			= 0x04,
-ALG_BOTTOM			= 0x08,
-};
 
 enum {
 kTextALeft			= ALG_LEFT,
@@ -329,13 +320,12 @@ class Button : public Widget
 public:
 	int result;
 	BOOL pressed;
-	BOOL disabled;
 	CLICK_PROC clickProc;
 	Button( int left, int top, int width, int height, int result ) :
-		Widget(left, top, width, height), result(result), pressed(FALSE), disabled(FALSE), clickProc(NULL)
+		Widget(left, top, width, height), result(result), pressed(FALSE), clickProc(NULL)
 		{}
 	Button( int left, int top, int width, int height, CLICK_PROC clickProc ) :
-		Widget(left, top, width, height), result(mrNone), pressed(FALSE), disabled(FALSE), clickProc(clickProc)
+		Widget(left, top, width, height), result(mrNone), pressed(FALSE), clickProc(clickProc)
 		{}
 	virtual void Paint( int x, int y, BOOL hasFocus );
 	virtual void HandleEvent( GEVENT *event );
@@ -367,7 +357,6 @@ public:
 	int  id;
 	BOOL pressed;
 	BOOL checked;
-	BOOL disabled;
 	char label[64];
 	int result;
 	Checkbox(int left, int top, BOOL value, char* l);
@@ -423,9 +412,15 @@ class FieldSet : public Container
 public:
 	char  title[128];
 	char  fontColor, borderColor;
+	Container *client;
 	virtual void Paint( int x, int y, BOOL hasFocus );
-	FieldSet(int left, int top, int width, int height, char* s = NULL, char fontCol = 0, short brCol = 0) : Container(left, top, width, height)
+	void Insert( Widget *widget ) { client->Insert(widget); }
+	FieldSet(int left, int top, int width, int height, char* s = NULL, char fontCol = 0, short brCol = 0, char pad = 0) : Container(left, top, width, height)
 	{
+		client = new Container(pad, pad, width-pad, height-pad);
+		Container::Insert(client);
+		drag = NULL;
+		
 		canFocus	= FALSE;
 		fontColor	= fontCol;
 		borderColor	= brCol;
@@ -521,6 +516,11 @@ enum {
 kModalNoCenter 			= 0x01,
 kModalFadeScreen		= 0x02,
 kModalNoFocus			= 0x04,
+kModalNoTrapEsc			= 0x10,
+kModalNoTrapEnter		= 0x20,
+kModalNoTrapTab			= 0x40,
+kModalNoTrapKeys		= kModalNoTrapEsc|kModalNoTrapEnter|kModalNoTrapTab,
+kModalNoRestoreFrame	= 0x80,
 };
 
 int ShowModal(Container *dialog, int flags = 0x0);
@@ -551,5 +551,6 @@ void GUIInit();
 int YesNoCancel(char *__format, ...);
 void Alert(char *__format, ...);
 BOOL Confirm(char *__format, ...);
+int colorPicker(BYTE* colors, char* title, int nDefault = 0, int flags = 0);
 #endif
 

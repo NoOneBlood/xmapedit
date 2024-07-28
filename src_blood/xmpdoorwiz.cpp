@@ -408,7 +408,7 @@ void DOOR_ROTATE::SetupSector(SIDEINFO* pSide)
 	pDoor->floorz			= z;
 	pDoor->floorstat 		&= ~(kSectParallax | kSectSloped);
 	pDoor->floorstat 		|= kSectRelAlign;
-	pDoor->floorshade		= 63;
+	pDoor->floorshade		= NUMPALOOKUPS(1);
 	pDoor->floorslope		= 0;
 	pDoor->floorxpanning 	= 0;
 	pDoor->floorypanning 	= 0;

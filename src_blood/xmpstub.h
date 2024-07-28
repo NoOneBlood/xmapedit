@@ -153,6 +153,7 @@ mrMenu 							= 106,
 mrAsave 						= 107,
 mrAsaveMax 						= 113,
 mrLoadAsave 					= mrAsaveMax,
+mrTest							,
 mrOptions						,
 mrAbout							,
 mrBoardOptions					,
@@ -220,7 +221,7 @@ void xmpSetEditMode(char nMode);
 int xsysConnect(int nTypeA, int nIdxA, int nTypeB, int nIdxB);
 int xsysConnect2(int nTypeA, int nIdxA, int nTypeB, int nIdxB);
 void processMove();
-void setStartPos(int x, int y, int z, int ang);
+void setStartPos(int x, int y, int z, int ang, char forceEditorPos);
 int boardLoad(char *filename);
 void boardPreloadTiles();
 int boardSave(char* filename, BOOL autosave);

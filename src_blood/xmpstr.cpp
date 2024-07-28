@@ -469,6 +469,115 @@ int strReplace(char* str, char cWhat, char cBy)
 	return c;
 }
 
+char strSubStr(char* str, char* s, char* e, char* o)
+{
+	char* p;
+	if (s && e && e < s)
+		p = s, s = e, e = p;
+	
+	if (!o)
+		o = str;
+	
+	if (o)
+	{
+		p = (s) ? s : str;
+		while(*p != '\0' && p != e)
+			*o = *p, p++, o++;
+		
+		*o = '\0';
+		return 1;
+	}
+	
+	return 0;
+}
+
+
+char strQuotPtr(char* str, char** qs, char** qe)
+{
+	char *p = str, *t, c = 0;
+
+	
+	if (qs) *qs = NULL;
+	if (qe) *qe = NULL;
+	
+	while(*p && c < 2)
+	{
+		if ((t = strchr(p, '"')) == NULL)
+			t = strchr(p, '\'');
+		
+		if (t == NULL)
+			break;
+		
+		if (t == p || *(t-1) != '\\')
+		{
+			if (c == 0)
+			{
+				if (qs)
+					*qs = t;
+				
+				c++;
+			}
+			else if (c == 1)
+			{
+				if (qe)
+					*qe = t;
+				
+				c++;
+			}
+		}
+		
+		p = t+1;
+	}
+	
+	return c;
+}
+
+char strCut(char* str, char* o, int n, STRCUTSTYLE* s)
+{
+	int r = ClipHigh(s->insRepeat, n);
+	int l = strlen(str);
+	
+	n--;
+	if (n > 0 && l > n)
+	{
+		if (s->cutSide & ALG_RIGHT)
+		{
+			memcpy(&o[0], str, n);
+			memset(&o[n-r], s->insChar, r);
+			o[n] = '\0';
+		}
+		else if (s->cutSide & (ALG_MIDDLE|ALG_CENTER))
+		{
+			int m = (n+1)>>1, lr, rr;
+			STRCUTSTYLE newStyle;
+			
+			lr = rr = r>>1;
+			if (lr % 2)
+				lr++;
+
+			memcpy(&newStyle, s, sizeof(newStyle));
+			newStyle.cutSide = ALG_RIGHT;
+
+			strCut(str, &o[0], m+lr+0, &newStyle);
+			l = ClipLow(strlen(o) - r, 0);
+			
+			newStyle.cutSide = ALG_LEFT;
+			strCut(str, &o[l], m+rr+1, &newStyle);
+		}
+		else
+		{
+			memcpy(&o[r], &str[l-n+r], n-r);
+			memset(&o[0], s->insChar, r);
+			o[n] = '\0';
+		}
+		
+		return 1;
+	}
+	
+	memcpy(o, str, l+1);
+	return 0;
+}
+
 void pathSplit2(char *pzPath, char* buff, char** dsk, char** dir, char** fil, char** ext)
 {
 	int i = 0;

@@ -27,11 +27,11 @@
 #include "xmpconf.h"
 
 PICANM* panm;
-int gFrameClock;
-int gFrameTicks;
-int gFrame;
-int gFrameRate;
-int gGamma;
+int gFrameClock = 0;
+int gFrameTicks = 0;
+int gFrame = 0;
+int gFrameRate = 0;
+int gGamma = 0;
 
 Resource gSysRes;
 
@@ -42,6 +42,68 @@ unsigned int randSeed = 1;
 int costable[2048];
 BYTE OctantTable[8] = { 5, 6, 2, 1, 4, 7, 3, 0 };
 
+#if USE_OPENGL
+// test for glSwapInterval extension
+char GL_swapIntervalTest()
+{
+	char tmp[16]; const char* tp = tmp;
+	osdfuncparm_t arg;
+	
+	if (nogl)
+		return 0;
+	
+	memset(&arg, 0, sizeof(arg));
+	sprintf(tmp, "%d", glswapinterval);
+	arg.numparms = 1;
+	arg.parms = &tp;
+	
+	return (set_glswapinterval(&arg) == OSDCMD_OK);
+}
+
+int GL_swapInterval2Fps(int interval)
+{
+	int f = desktopfreq;
+	if (f & 2)
+		f++;
+	
+	dassert(interval > 0);
+	return f / interval;
+}
+
+int GL_fps2SwapInterval(int fps)
+{
+	char tmp[16]; const char* tp = tmp;
+	int val = 0, f = desktopfreq;
+	osdfuncparm_t arg;
+	
+	if (f & 2)
+		f++;
+
+	switch(fps)
+	{
+		// no limit
+		case -1:
+			val = 0;
+			break;	
+		// display freq (v-sync)
+		case -2:
+			val = 1;
+			break;
+		// clip glswapinterval
+		default:
+			val = ClipLow(f / ClipLow(fps, 1), 1);
+			break;
+	}
+	
+	memset(&arg, 0, sizeof(arg));
+	sprintf(tmp, "%d", val);
+	arg.numparms = 1;
+	arg.parms = &tp;
+
+	set_glswapinterval(&arg);
+	return glswapinterval;
+}
+#endif
 
 void GetSpriteExtents(spritetype* pSpr, int *top, int *bot)
 {
@@ -205,21 +267,14 @@ char fileExists(char* filename, RESHANDLE* rffItem)
 
 char isDir(char* pPath)
 {
-	BDIR* pDir = NULL;
-	if (fileExists(pPath) && (pDir = Bopendir(pPath)) != NULL)
-		Bclosedir(pDir);
-	
-	return (pDir != NULL);
+	struct stat s;
+	return (stat(pPath, &s) == 0 && (s.st_mode & _S_IFDIR) != 0);
 }
 
 char isFile(char* pPath)
 {
-	int hFile = -1;
-	if (fileExists(pPath) && (hFile = open(pPath, O_BINARY|O_RDWR, S_IREAD|S_IWRITE)) >= 0)
-		close(hFile);
-	
-	return (hFile >= 0);
-	
+	struct stat s;
+	return (stat(pPath, &s) == 0 && (s.st_mode & _S_IFDIR) == 0);
 }
 
 int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom)
@@ -539,6 +594,40 @@ void doWallCorrection(int nWall, int* x, int* y, int shift)
 	*x = *x + (nx >> shift);
 	*y = *y + (ny >> shift);
 }
+
+BYTE countBestColor(PALETTE in, int r, int g, int b, int wR, int wG, int wB)
+{
+	int i, dr, dg, db;
+	int dist, matchDist = 0x7FFFFFFF, match;
+	
+	for (i = 0; i < 256; i++)
+	{
+		dist = 0;
+		dg = (int)in[i].g - g;
+		dist += wG * dg * dg;
+		if (dist >= matchDist)
+			continue;
+
+		dr = (int)in[i].r - r;
+		dist += wR * dr * dr;
+		if (dist >= matchDist)
+			continue;
+
+		db = (int)in[i].b - b;
+		dist += wB * db * db;
+		if (dist >= matchDist)
+			continue;
+
+		matchDist = dist;
+		match = i;
+
+		if (dist == 0)
+			break;
+	}
+
+	return (BYTE)match;
+}
+
 
 void dozCorrection(int* z, int zStep)
 {

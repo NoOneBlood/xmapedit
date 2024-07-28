@@ -9,6 +9,7 @@
 #include "edit2d.h"
 #include "edit3d.h"
 #include "xmpmisc.h"
+#include "hglt.h"
 
 
 
@@ -74,6 +75,7 @@ char insideLoop(int x, int y, int nStartWall);
 
 
 int insertPoint(int nWall, int x, int y);
+void deletePoint(int nWall);
 
 void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* zt = NULL, int* zb = NULL, char flags = 0x07);
 void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, char flags = 0x07);
@@ -84,4 +86,7 @@ void setCstat(BOOL enable, short* pStat, int nStat);
 char fixXSprite(int nID);
 char fixXSector(int nID);
 char fixXWall(int nID);
+
+int worldSprCallFunc(HSPRITEFUNC pFunc, int nData = 0);
+int collectWallsOfNode(IDLIST* pList, int nWall);
 #endif

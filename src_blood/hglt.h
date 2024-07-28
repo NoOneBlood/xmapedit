@@ -36,7 +36,7 @@ kHgltPoint			= 0x0002,
 kHgltGradient		= 0x0004,
 };
 
-extern NAMED_TYPE gHgltSectAutoRedWallErrors[];
+
 extern BITARRAY16 hgltspri, hgltwall;
 extern int hgltx1, hgltx2, hglty1, hglty2;
 extern short hgltType;
@@ -58,6 +58,7 @@ void sectChgShade(int nSect, int nOf, int nShade, int a3=0, int a4=0);
 void sectDelete(int nSector, int a1=0, int a2=0, int a3=0, int a4=0);
 void sectChgXY(int nSector, int bx, int by, int a3=0, int a4=0);
 void sectChgZ(int nSector, int bz, int a2 = 0, int flags = 0, int a4 = 0);
+void sectSetupZOffset(int nSect, sectortype* pOParent, sectortype* pNParent, int flags);
 void sectSetupZOffset(int nSect, int nParentOld, int nParentNew, int flags, int);
 int hgltSectCallFunc(HSECTORFUNC2 SectorFunc, int arg1 = 0, int arg2 = 0, int arg3 = 0, int arg4 = 0);
 
@@ -93,7 +94,7 @@ void hgltSprClamp(int ofsAboveCeil = 0, int ofsBelowFloor = 0, int which = 0x000
 void hgltSprRotate(int step);
 inline char hgltSprIsFine(int nSprite)
 {
-	return (sprite[nSprite].statnum < kStatFree && nSprite >= 0 && nSprite < kMaxSprites);
+	return (nSprite >= 0 && nSprite < kMaxSprites && sprite[nSprite].statnum < kStatFree);
 }
 
 inline char sprInHglt(int idx)
@@ -121,7 +122,7 @@ void hgltSectMidPoint(int* ax, int* ay);
 char hgltSectInsideBox(int x, int y);
 int hgltSectFlip(int flags);
 int hgltSectRotate(int flags, int nAng);
-int hgltSectAutoRedWall();
+int hgltSectAutoRedWall(int flags = 0x00);
 int hgltSectDelete();
 
 char hgltListOuterLoops(int* nStart, int* s, int* e, IDLIST* pDone, char which);
