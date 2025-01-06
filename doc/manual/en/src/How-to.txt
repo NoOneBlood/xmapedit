@@ -1,0 +1,5 @@
+1. Download HelpNDoc from their official website:
+https://www.helpndoc.com/
+2. Install the program.
+3. Double-click on "XMapeditCHM".
+4. Edit the contents or add new. Please let us know if you introduced new changes so we can review them and update accordingly.

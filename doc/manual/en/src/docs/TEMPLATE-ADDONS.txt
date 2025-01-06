@@ -1,0 +1,92 @@
+
+
+
+                            >>>>ENGLISH<<<<
+
+
+======================================================================
+
+THIS ADD-ON IS NEITHER MADE BY OR SUPPORTED BY MONOLITH PRODUCTIONS,
+GT INTERACTIVE SOFTWARE, THE WIZARDWORKS GROUP, OR ANY OF THEIR
+AFFILIATES AND SUBSIDIARIES.
+
+Game                   : Blood
+Title                  : Type the full name of your map
+Filename               : Type the full file name
+Date		       : The date you finished your map
+Author                 : Your name/nickname
+E-mail                 : Your email address
+Web page               : Your website if you have any
+Misc. author info      : Type stuff about you if you want
+Other levels I've made : Type other levels you have made
+Description            : Write a map description
+Additional credits to  : Mention any person you want to credit
+
+======================================================================
+
+* Play Information *
+
+Single Player          : 
+BloodBath 2-8 Player   : 
+Cooperative 2-8 Player : 
+CTF (Team Play)        : 
+Difficulty Settings    : 
+Plasma Pak required    : 
+Cryptic Passage art    : 
+New Art                : 
+New Music              : 
+New Sound Effects      : 
+New Files              : 
+Demos Replaced         : 
+
+======================================================================
+
+*Compatibility*
+
+Vanilla Blood          : 
+Fresh Supply           : 
+BloodGDX/Related forks : 
+nBlood/Related forks   : 
+Raze/Related forks     : 
+Additional notes       : mod compatibility issues and things like that
+
+======================================================================
+
+* Construction *
+
+Base                   : Is the add-on from scratch or has a base
+Level Editor(s) Used   : 
+Art Editor(s) Used     : 
+Other Programs Used    : 
+Construction Time      : The time it took to make your add-on
+Known Bugs/Problems    : 
+
+======================================================================
+
+* Important Information *
+
+Installation           : Tell the user how to run your add-on
+Notes                  : Mention any relevant notes here
+Guide		       : Type a short guide if you want
+Secrets		       : Type a secrets guide if you want
+
+======================================================================
+
+* Copyright / Permissions *
+
+Authors may (may not) use MYADDON as a base to build additional
+levels.
+
+You may (may not) distribute MYADDON, provided you include this
+file, with no modifications. You may (not) distribute MYADDON in
+any electronic format (BBS, Diskette, CD, etc.) as long as you include
+this TXT intact.
+
+If you do include my map on a CD compilation I would be very happy if 
+you would send me a copy of that CD.
+
+======================================================================
+
+* Where to get this MAP *
+
+WWW                    :
