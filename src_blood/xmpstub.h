@@ -158,7 +158,6 @@ mrOptions						,
 mrAbout							,
 mrBoardOptions					,
 mrToolPreviewMode				,
-mrToolDoorWizard				,
 mrToolSpriteText				,
 mrToolExpSeq					,
 mrToolCleanChannel				,
@@ -180,6 +179,7 @@ kOGrpDude						= 0x0020,
 kOGrpHazard						= 0x0040,
 kOGrpMisc						= 0x0080,
 kOGrpMarker						= 0x0100,
+kOGrpItemUser					= 0x0200,
 };
 
 /// !!!

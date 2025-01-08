@@ -514,6 +514,8 @@ void previewStop() {
 	if (gPreview.enableMusic)
 		sndStopSong();
 	
+	nnExtResetGlobals();
+	
 	seqKillAll();
 	previewLoadState();
 	
@@ -690,14 +692,15 @@ void previewPickupItem(spritetype* pSprite, XSPRITE* pXSprite) {
 		case kItemFlagBBase:
 			return;
 		default:
-			if (!rngok(nType, kItemBase, kItemMax))
+			if (!gSpriteNames[pSprite->type]) return;
+/* 			if (!rngok(nType, kItemBase, kItemMax))
 			{
 				if (!irngok(nType, kItemWeaponBase, kItemWeaponMax))
 				{
 					if (!rngok(nType, kItemAmmoBase, kItemAmmoMax))
 						return;
 				}
-			}
+			} */
 			break;
 	}
 	

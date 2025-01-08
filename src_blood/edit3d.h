@@ -50,8 +50,6 @@ void PutSpriteOnCeiling( spritetype *pSprite, int );
 void ProcessKeys3D();
 void processMouseLook3D(BOOL readMouse = FALSE);
 
-int GetWallZPeg(int nWall);
-void AlignWalls( int nWall0, int z0, int nWall1, int z1, int nTile );
-void AutoAlignWalls(int nWall0, int ply = 0);
+
 char dlgSpriteText();
 #endif

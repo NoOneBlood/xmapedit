@@ -219,6 +219,7 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\eventq.$o \
 	$(XMAPEDSRC)\nnexts.$o \
 	$(XMAPEDSRC)\nnextsif.$o \
+	$(XMAPEDSRC)\nnextslaser.$o \
 	$(XMAPEDSRC)\grdshd.$o \
 	$(XMAPEDSRC)\hglt.$o \
 	$(XMAPEDSRC)\prefabs.$o \
@@ -253,6 +254,7 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\xmpmaped.$o \
 	$(XMAPEDSRC)\xmploop.$o \
 	$(XMAPEDSRC)\xmpshape.$o \
+	$(XMAPEDSRC)\xmparcwiz.$o \
 	$(XMAPEDSRC)\xmpinput.$o \
 	$(XMAPEDSRC)\buildres.$(res) \
 	$(BUILDSRC)\$(EDITORLIB) \

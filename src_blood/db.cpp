@@ -26,7 +26,7 @@
 #include "xmpmisc.h"
 #include "xmpsky.h"
 
-int gSuppMapVersions[] = { 4, 6, 7, 8, 9, };
+int gSuppMapVersions[] = { 4, 5, 6, 7, 8, 9, -1, };
 bool gModernMap = false;
 int gMapRev = 0;
 
@@ -525,64 +525,560 @@ void PropagateMarkerReferences(void)
 	}
 }
 
-int dbCheckMap(IOBuffer* pIo, int* pSuppVerDB, int DBLen, BOOL* bloodMap)
+int dbCheckMap(IOBuffer* pIo, CHECKMAPINFO* pInfo, int* pSuppVerDB)
 {
-	#define kSiz sizeof(kBloodMapSig)
-
-	int i, ver = 0;
-	char tmp[kSiz]; memset(tmp, 0, sizeof(tmp));
-	*bloodMap = FALSE;
-
+	int nPos = pIo->tell();
+	int nCode = 1, i;
+	char tmp[4];
+	
+	memset(pInfo, 0, sizeof(CHECKMAPINFO));
+	memset(tmp, 0, sizeof(tmp));
 	pIo->rewind();
-	if (pIo->nRemain <= kSiz)
-		return -2;
-
-	pIo->read(tmp, kSiz-1);
-	// check if this is a Blood map via signature
-	if (memcmp(tmp, kBloodMapSig, kSiz) == 0)
+	
+	if (pIo->nRemain > 4)
 	{
-		if (pIo->nRemain < 4)
-			return -2;
-
-		pIo->read(&i, 4);
-		i = i & 0xFF00;
-		if (i == (0x0603 & 0xFF00)) ver = 6;
-		else if (i == (0x0700 & 0xFF00))
-			ver = 7;
-
-		if (ver)
-			*bloodMap = TRUE;
-	}
-	// probably a generic BUILD map file
-	else
-	{
-		pIo->rewind();
-		if (pIo->nRemain < 4)
-			return -2;
-
-		pIo->read(&ver, 4);
-	}
-
-	if (!pSuppVerDB) return ver;
-	else
-	{
-		// check supported versions
-		while(DBLen--)
+		pIo->read(&tmp, 4);
+		
+		// check if this is a Blood map via signature
+		if (memcmp(tmp, kBloodMapSig, 4) == 0)
 		{
-			if (ver == pSuppVerDB[DBLen])
-				return ver;
+			if (pIo->nRemain >= 4)
+			{
+				pIo->read(&i, 4);
+				
+				i = i & 0xFF00;
+				if (i == (0x0603 & 0xFF00))			pInfo->version = 6;
+				else if (i == (0x0700 & 0xFF00))	pInfo->version = 7;
+				else
+				{
+					nCode = -3;
+				}
+				
+				if (pInfo->version)
+					pInfo->type = kMapTypeBLOOD;
+			}
+			else
+			{
+				nCode = -2;
+			}
+		}
+		// maybe savegame?
+		else if (memcmp(tmp, kNBloodSaveSig, 4) == 0)
+		{
+			if (pIo->nRemain >= 2)
+			{
+				short t;
+				pIo->read(&t, 2);
+				if (t == 105)
+				{
+					pInfo->type		= kMapTypeSAVEGAME_NBLOOD;
+					pInfo->version	= t;
+				}
+				else
+				{
+					nCode = -3;
+				}
+			}
+			else
+			{
+				nCode = -2;
+			}
+		}
+		// probably a generic BUILD map file
+		else
+		{
+			pIo->rewind();
+			if (pIo->nRemain >= 4)
+			{
+				int t;
+				pIo->read(&t, 4);
+				pInfo->type		= kMapTypeBUILD;
+				pInfo->version	= t;
+			}
+			else
+			{
+				nCode = -2;
+			}
 		}
 	}
+	else
+	{
+		nCode = -2;
+	}
+	
+	if (pSuppVerDB)
+	{
+		switch(pInfo->type) // check supported versions
+		{
+			case kMapTypeBLOOD:
+			case kMapTypeBUILD:
+				for (int* p = pSuppVerDB; *p >= 0; p++)
+				{
+					if (*p == pInfo->version)
+					{
+						nCode = *p;
+						break;
+					}
+				}
+				break;
+		}
+	}
+	
+	pIo->seek(nPos, SEEK_SET);
+	return nCode;
+}
 
-	return -3;
+int dbConvBuildMapGen(IOBuffer* pIo)
+{
+	int i;
+	
+	pIo->read(&numsectors,  2);                         // read numsectors
+	pIo->read(sector, sizeof(sectortype)*numsectors);   // fill the array
+	pIo->read(&numwalls,    2);                         // read numwalls
+	pIo->read(wall, sizeof(walltype)*numwalls);         // fill the array
+	pIo->read(&numsprites,  2);                         // read numsprites
+	for (i = 0; i < numsprites; i++)                    // insert sprites
+	{
+		RemoveSpriteStat(i);
+		pIo->read(&sprite[i], sizeof(spritetype));
+		InsertSpriteSect(i, sprite[i].sectnum);
+		InsertSpriteStat(i, sprite[i].statnum);
+		sprite[i].index     = i;
+	}
+	
+	return 1;
+}
+
+#ifdef SUPPORT_MAPV3
+int dbConvBuildMapV3(IOBuffer* pIo)
+{
+	// this is based on Ken's convmaps
+	sectortype* pSect; walltype* pWall; spritetype* pSpr;
+	SECTOR3 sector3; WALL3 wall3; SPRITE3 sprite3;
+	int i;
+	
+	pIo->read(&numsectors,  2);                         // read numsectors
+	pIo->read(&numwalls,    2);                         // read numwalls
+	pIo->read(&numsprites,  2);                         // read numsprites
+	
+	for (i = 0; i < numsectors; i++)                    // convert each sector
+	{
+		pIo->read(&sector3, sizeof(sector3));
+		pSect = &sector[i];
+		
+		pSect->wallptr           = sector3.wallptr;
+		pSect->wallnum           = sector3.wallnum;
+		pSect->ceilingshade      = sector3.ceilingshade;
+		pSect->ceilingz          = sector3.ceilingz;
+		pSect->ceilingpicnum     = sector3.ceilingpicnum;
+		pSect->ceilingslope      = 0;
+		pSect->floorshade        = sector3.floorshade;
+		pSect->floorz            = sector3.floorz;
+		pSect->floorpicnum       = sector3.floorpicnum;
+		pSect->floorslope        = 0;
+		pSect->type              = (short)(sector3.tag & 65535);
+		pSect->hitag             = (short)(sector3.tag >> 16);
+		pSect->ceilingstat       = sector3.ceilingstat;
+		pSect->floorstat         = sector3.floorstat;
+		
+		if (pSect->ceilingstat & 4)
+		{
+			pSect->ceilingxpanning = sector3.ceilingpanning;
+			pSect->ceilingypanning = 0;
+		}
+		else
+		{
+			pSect->ceilingypanning = sector3.ceilingpanning;
+			pSect->ceilingxpanning = 0;
+		}
+		
+		if (pSect->floorstat & 4)
+		{
+			pSect->floorxpanning = sector3.ceilingpanning;
+			pSect->floorypanning = 0;
+		}
+		else
+		{
+			pSect->floorypanning = sector3.floorpanning;
+			pSect->floorxpanning = 0;
+		}
+
+	}
+	
+	for (i = 0; i < numwalls; i++)                          // convert each wall
+	{
+		pIo->read(&wall3, sizeof(wall3));
+		pWall = &wall[i];
+		
+		pWall->x               = wall3.x;
+		pWall->y               = wall3.y;
+		pWall->point2          = wall3.point2;
+		pWall->nextsector      = wall3.nextsector1;
+		pWall->nextwall        = wall3.nextwall1;
+		pWall->picnum          = wall3.picnum;
+		pWall->overpicnum      = wall3.overpicnum;
+		pWall->shade           = wall3.shade;
+		pWall->pal             = sector[sectorofwall((short)i)].floorpal;
+		pWall->cstat           = wall3.cstat & 64;
+		pWall->xrepeat         = wall3.xrepeat;
+		pWall->yrepeat         = wall3.yrepeat;
+		
+		if (pWall->cstat & 64)
+		{
+			pWall->xpanning = wall3.panning;
+			pWall->ypanning = 0;
+		}
+		else
+		{
+			pWall->ypanning = wall3.panning;
+			pWall->xpanning = 0;
+		}
+		
+		pWall->type            = (short)(wall3.tag & 65535);
+		pWall->hitag           = (short)(wall3.tag >> 16);
+	}
+	
+	for (i = 0; i < numsprites; i++)                        // convert each sprite
+	{
+		RemoveSpriteStat(i);
+		pIo->read(&sprite3, sizeof(sprite3));
+		InsertSpriteSect(i, sprite3.sectnum);
+		InsertSpriteStat(i, sprite3.statnum);
+		pSpr = &sprite[i];
+		
+		pSpr->index         = i;
+		pSpr->x             = sprite3.x;
+		pSpr->y             = sprite3.y;
+		pSpr->z             = sprite3.z;
+		pSpr->cstat         = sprite3.cstat;
+		pSpr->shade         = sprite3.shade;
+		pSpr->xrepeat       = sprite3.xrepeat;
+		pSpr->yrepeat       = sprite3.yrepeat;
+		pSpr->pal           = 0;
+		pSpr->xoffset       = 0;
+		pSpr->yoffset       = 0;
+		pSpr->clipdist      = 32;
+		pSpr->picnum        = sprite3.picnum;
+		pSpr->ang           = sprite3.ang;
+		pSpr->yvel          = 0;
+		pSpr->zvel          = sprite3.zvel;
+		pSpr->owner         = sprite3.owner;
+		pSpr->sectnum       = sprite3.sectnum;
+		pSpr->statnum       = sprite3.statnum;
+		pSpr->type          = (short)(sprite3.tag & 65535);
+		pSpr->flags         = (short)(sprite3.tag >> 16);
+
+		if ((pSpr->cstat & kSprRelMask) == 48)
+			pSpr->cstat &= ~48;
+	}
+	
+	return 1;
+}
+#endif
+
+int dbConvBuildMapV4(IOBuffer* pIo)
+{
+	// this is based on Ken's convmaps
+	sectortype* pSect; walltype* pWall; spritetype* pSpr;
+	SECTOR4 sector4; WALL4 wall4; SPRITE4 sprite4;
+	int i;
+
+	pIo->read(&numsectors,  2);                         // read numsectors
+	pIo->read(&numwalls,    2);                         // read numwalls
+	pIo->read(&numsprites,  2);                         // read numsprites
+	
+	for (i = 0; i < numsectors; i++)                    // convert each sector
+	{
+		pIo->read(&sector4, sizeof(SECTOR4));
+		pSect = &sector[i];
+		
+		pSect->wallptr           = sector4.wallptr;
+		pSect->wallnum           = sector4.wallnum;
+		pSect->ceilingshade      = sector4.ceilingshade;
+		pSect->ceilingz          = sector4.ceilingz;
+		pSect->ceilingpicnum     = sector4.ceilingpicnum;
+		pSect->ceilingslope      = 0;
+		pSect->floorshade        = sector4.floorshade;
+		pSect->floorz            = sector4.floorz;
+		pSect->floorpicnum       = sector4.floorpicnum;
+		pSect->floorslope        = 0;
+		pSect->type              = (short)(sector4.tag & 65535);
+		pSect->hitag             = (short)(sector4.tag >> 16);
+		pSect->ceilingstat       = sector4.ceilingstat;
+		pSect->floorstat         = sector4.floorstat;
+	}
+	
+	for (i = 0; i < numwalls; i++)                          // convert each wall
+	{
+		pIo->read(&wall4, sizeof(WALL4));
+		pWall = &wall[i];
+		
+		pWall->x               = wall4.x;
+		pWall->y               = wall4.y;
+		pWall->point2          = wall4.point2;
+		pWall->nextsector      = wall4.nextsector1;
+		pWall->nextwall        = wall4.nextwall1;
+		pWall->picnum          = wall4.picnum;
+		pWall->overpicnum      = wall4.overpicnum;
+		pWall->shade           = wall4.shade;
+		pWall->pal             = sector[sectorofwall((short)i)].floorpal;
+		pWall->cstat           = wall4.cstat;
+		pWall->xrepeat         = wall4.xrepeat;
+		pWall->yrepeat         = wall4.yrepeat;
+		pWall->xpanning        = wall4.xpanning;
+		pWall->ypanning        = wall4.ypanning;
+		pWall->type            = (short)(wall4.tag & 65535);
+		pWall->hitag           = (short)(wall4.tag >> 16);
+	}
+	
+	for (i = 0; i < numsprites; i++)                        // convert each sprite
+	{
+		RemoveSpriteStat(i);
+		pIo->read(&sprite4, sizeof(SPRITE4));
+		InsertSpriteSect(i, sprite4.sectnum);
+		InsertSpriteStat(i, sprite4.statnum);
+		pSpr = &sprite[i];
+		
+		pSpr->index         = i;
+		pSpr->x             = sprite4.x;
+		pSpr->y             = sprite4.y;
+		pSpr->z             = sprite4.z;
+		pSpr->cstat         = sprite4.cstat;
+		pSpr->shade         = sprite4.shade;
+		pSpr->xrepeat       = sprite4.xrepeat;
+		pSpr->yrepeat       = sprite4.yrepeat;
+		pSpr->pal           = 0;
+		pSpr->xoffset       = 0;
+		pSpr->yoffset       = 0;
+		pSpr->clipdist      = 32;
+		pSpr->picnum        = sprite4.picnum;
+		pSpr->ang           = sprite4.ang;
+		pSpr->yvel          = sprite4.yvel;
+		pSpr->zvel          = sprite4.zvel;
+		pSpr->owner         = sprite4.owner;
+		pSpr->sectnum       = sprite4.sectnum;
+		pSpr->statnum       = sprite4.statnum;
+		pSpr->type          = (short)(sprite4.tag & 65535);
+		pSpr->flags         = (short)(sprite4.tag >> 16);
+
+		if ((pSpr->cstat & kSprRelMask) == 48)
+			pSpr->cstat &= ~48;
+	}
+	
+	return 1;
+}
+
+int dbConvBuildMapV5(IOBuffer* pIo)
+{
+	SECTOR5 sector5; WALL5 wall5; SPRITE5 sprite5;
+	int i, t;
+	
+	// this is based on Ken's convmaps
+	pIo->read(&numsectors, 2);                              // read numsectors
+	for (i = 0; i < numsectors; i++)                        // convert each one
+	{
+		pIo->read(&sector5, sizeof(sector5));
+		sector[i].wallptr           = sector5.wallptr;
+		sector[i].wallnum           = sector5.wallnum;
+		sector[i].ceilingstat       = sector5.ceilingstat;
+		sector[i].ceilingz          = sector5.ceilingz;
+		sector[i].ceilingpicnum     = sector5.ceilingpicnum;
+		sector[i].ceilingshade      = sector5.ceilingshade;
+		sector[i].ceilingpal        = sector5.ceilingpal;
+		sector[i].ceilingxpanning   = sector5.ceilingxpanning;
+		sector[i].ceilingypanning   = sector5.ceilingypanning;
+		sector[i].floorstat         = sector5.floorstat;
+		sector[i].floorz            = sector5.floorz;
+		sector[i].floorpicnum       = sector5.floorpicnum;
+		sector[i].floorshade        = sector5.floorshade;
+		sector[i].floorpal          = sector5.floorpal;
+		sector[i].floorxpanning     = sector5.floorxpanning;
+		sector[i].floorypanning     = sector5.floorypanning;
+		sector[i].visibility        = sector5.visibility;
+		sector[i].type              = sector5.lotag;
+		sector[i].hitag             = sector5.hitag;
+		//sector[i].extra               = sector5.extra;
+
+		sector[i].ceilingslope = (short)max(min(((int)sector5.ceilingheinum) << 5, 32767), -32768);
+		if ((sector5.ceilingstat & 2) == 0)
+			sector[i].ceilingslope = 0;
+
+		sector[i].floorslope = (short)max(min(((int)sector5.floorheinum) << 5, 32767), -32768);
+		if ((sector5.floorstat & 2) == 0)
+			sector[i].floorslope = 0;
+	}
+
+	pIo->read(&numwalls, 2);                                // read numwalls
+	for (i = 0; i < numwalls; i++)                          // convert each one
+	{
+		memset(&wall[i], 0, sizeof(walltype));
+		pIo->read(&wall5, sizeof(wall5));
+		
+		wall[i].x           = wall5.x;
+		wall[i].y           = wall5.y;
+		wall[i].point2      = wall5.point2;
+		wall[i].nextwall    = wall5.nextwall1;
+		wall[i].nextsector  = wall5.nextsector1;
+		wall[i].cstat       = wall5.cstat;
+		wall[i].picnum      = wall5.picnum;
+		wall[i].overpicnum  = wall5.overpicnum;
+		wall[i].shade       = wall5.shade;
+		wall[i].xrepeat     = wall5.xrepeat;
+		wall[i].yrepeat     = wall5.yrepeat;
+		wall[i].xpanning    = wall5.xpanning;
+		wall[i].ypanning    = wall5.ypanning;
+		wall[i].type        = wall5.lotag;
+		wall[i].hitag       = wall5.hitag;
+		//wall[i].extra     = wall5.extra;
+		
+		if ((t = sectorofwall(i)) >= 0)
+			wall[i].pal = sector[t].floorpal;
+	}
+
+	pIo->read(&numsprites, sizeof(short));                      // read numsprites
+	for (i = 0; i < numsprites; i++)                            // convert each one
+	{
+		RemoveSpriteStat(i);
+		pIo->read(&sprite5, sizeof(sprite5));
+		InsertSpriteSect(i, sprite5.sectnum);
+		InsertSpriteStat(i, sprite5.statnum);
+		sprite[i].index     = i;
+		sprite[i].x         = sprite5.x;
+		sprite[i].y         = sprite5.y;
+		sprite[i].z         = sprite5.z;
+		sprite[i].cstat     = sprite5.cstat;
+		sprite[i].picnum    = sprite5.picnum;
+		sprite[i].shade     = sprite5.shade;
+		sprite[i].clipdist  = 32;
+		sprite[i].xrepeat   = sprite5.xrepeat;
+		sprite[i].yrepeat   = sprite5.yrepeat;
+		sprite[i].xoffset   = 0;
+		sprite[i].yoffset   = 0;
+		sprite[i].owner     = sprite5.owner;
+		sprite[i].sectnum   = sprite5.sectnum;
+		sprite[i].statnum   = sprite5.statnum;
+		sprite[i].ang       = sprite5.ang;
+		sprite[i].yvel      = sprite5.yvel;
+		sprite[i].zvel      = sprite5.zvel;
+		sprite[i].type      = sprite5.lotag;
+		sprite[i].flags     = sprite5.hitag;
+		//sprite[i].extra       = sprite5.extra;
+
+		t = sprite[i].sectnum;
+		sprite[i].pal = (sector[t].ceilingstat & kSectParallax) ?
+				sector[t].ceilingpal : sector[t].floorpal;
+
+		if ((sprite[i].cstat & kSprRelMask) == kSprSloped)
+			sprite[i].cstat &= ~kSprSloped;
+	}
+	
+	return 1;
+}
+
+int dbConvBuildMapV6(IOBuffer* pIo)
+{
+	SECTOR6 sector6; WALL6 wall6; SPRITE6 sprite6;
+	int i, t;
+	
+	// this is based on eduke32 v6->v7 conversion
+	pIo->read(&numsectors, 2);                              // read numsectors
+	for (i = 0; i < numsectors; i++)                        // convert each one
+	{
+		pIo->read(&sector6, sizeof(SECTOR6));
+		sector[i].wallptr           = sector6.wallptr;
+		sector[i].wallnum           = sector6.wallnum;
+		sector[i].ceilingstat       = sector6.ceilingstat;
+		sector[i].ceilingz          = sector6.ceilingz;
+		sector[i].ceilingpicnum     = sector6.ceilingpicnum;
+		sector[i].ceilingshade      = sector6.ceilingshade;
+		sector[i].ceilingpal        = sector6.ceilingpal;
+		sector[i].ceilingxpanning   = sector6.ceilingxpanning;
+		sector[i].ceilingypanning   = sector6.ceilingypanning;
+		sector[i].floorstat         = sector6.floorstat;
+		sector[i].floorz            = sector6.floorz;
+		sector[i].floorpicnum       = sector6.floorpicnum;
+		sector[i].floorshade        = sector6.floorshade;
+		sector[i].floorpal          = sector6.floorpal;
+		sector[i].floorxpanning     = sector6.floorxpanning;
+		sector[i].floorypanning     = sector6.floorypanning;
+		sector[i].visibility        = sector6.visibility;
+		sector[i].type              = sector6.lotag;
+		sector[i].hitag             = sector6.hitag;
+		//sector[i].extra               = sector6.extra;
+
+		sector[i].ceilingslope = (short)max(min(((int)sector6.ceilingheinum) << 5, 32767), -32768);
+		if ((sector6.ceilingstat & 2) == 0)
+			sector[i].ceilingslope = 0;
+
+		sector[i].floorslope = (short)max(min(((int)sector6.floorheinum) << 5, 32767), -32768);
+		if ((sector6.floorstat & 2) == 0)
+			sector[i].floorslope = 0;
+	}
+
+	pIo->read(&numwalls, 2);                                // read numwalls
+	for (i = 0; i < numwalls; i++)                          // convert each one
+	{
+		pIo->read(&wall6, sizeof(WALL6));
+		wall[i].x           = wall6.x;
+		wall[i].y           = wall6.y;
+		wall[i].point2      = wall6.point2;
+		wall[i].nextwall    = wall6.nextwall;
+		wall[i].nextsector  = wall6.nextsector;
+		wall[i].cstat       = wall6.cstat;
+		wall[i].picnum      = wall6.picnum;
+		wall[i].overpicnum  = wall6.overpicnum;
+		wall[i].shade       = wall6.shade;
+		wall[i].pal         = wall6.pal;
+		wall[i].xrepeat     = wall6.xrepeat;
+		wall[i].yrepeat     = wall6.yrepeat;
+		wall[i].xpanning    = wall6.xpanning;
+		wall[i].ypanning    = wall6.ypanning;
+		wall[i].type        = wall6.lotag;
+		wall[i].hitag       = wall6.hitag;
+		//wall[i].extra     = wall6.extra;
+	}
+
+	pIo->read(&numsprites, sizeof(short));                      // read numsprites
+	for (i = 0; i < numsprites; i++)                            // convert each one
+	{
+		RemoveSpriteStat(i);
+		pIo->read(&sprite6, sizeof(SPRITE6));
+		InsertSpriteSect(i, sprite6.sectnum);
+		InsertSpriteStat(i, sprite6.statnum);
+		sprite[i].index     = i;
+		sprite[i].x         = sprite6.x;
+		sprite[i].y         = sprite6.y;
+		sprite[i].z         = sprite6.z;
+		sprite[i].cstat     = sprite6.cstat;
+		sprite[i].picnum    = sprite6.picnum;
+		sprite[i].shade     = sprite6.shade;
+		sprite[i].pal       = sprite6.pal;
+		sprite[i].clipdist  = sprite6.clipdist;
+		sprite[i].xrepeat   = sprite6.xrepeat;
+		sprite[i].yrepeat   = sprite6.yrepeat;
+		sprite[i].xoffset   = sprite6.xoffset;
+		sprite[i].yoffset   = sprite6.yoffset;
+		sprite[i].owner     = sprite6.owner;
+		sprite[i].sectnum   = sprite6.sectnum;
+		sprite[i].statnum   = sprite6.statnum;
+		sprite[i].ang       = sprite6.ang;
+		sprite[i].yvel      = sprite6.yvel;
+		sprite[i].zvel      = sprite6.zvel;
+		sprite[i].type      = sprite6.lotag;
+		sprite[i].flags     = sprite6.hitag;
+		//sprite[i].extra       = sprite6.extra;
+
+		if ((sprite[i].cstat & kSprRelMask) == kSprSloped)
+			sprite[i].cstat &= ~kSprSloped;
+	}
+	
+	return 1;
 }
 
 int dbLoadBuildMap(IOBuffer* pIo) {
 
 	int i, len, ver = 0;
-	SECTOR4 sector4; WALL4 wall4; SPRITE4 sprite4;
-	SECTOR6 sector6; WALL6 wall6; SPRITE6 sprite6;
-
+	
 	gModernMap          = FALSE;
 	Sky::customBitsFlag	= TRUE;
 	Sky::pieces			= 1;
@@ -592,7 +1088,11 @@ int dbLoadBuildMap(IOBuffer* pIo) {
 	visibility          = 0;
 	parallaxvisibility  = 0;
 	dbInit(); // this calling initspritelists() too
-
+	
+	memset(xvel, 0, sizeof(xvel));
+	memset(yvel, 0, sizeof(yvel));
+	memset(zvel, 0, sizeof(zvel));
+	
 	pIo->rewind();
 	pIo->read(&ver,             4);                             // version
 	pIo->read(&startposx,       4);                             // x-pos
@@ -601,192 +1101,27 @@ int dbLoadBuildMap(IOBuffer* pIo) {
 	pIo->read(&startang,        2);                             // angle
 	pIo->read(&startsectnum,    2);                             // start sector
 
-	switch(ver) {
+	switch(ver)
+	{
 		case 7L:
 		case 8L:
 		case 9L:
-			pIo->read(&numsectors,  2);                         // read numsectors
-			pIo->read(sector, sizeof(sectortype)*numsectors);   // fill the array
-			pIo->read(&numwalls,    2);                         // read numwalls
-			pIo->read(wall, sizeof(walltype)*numwalls);         // fill the array
-			pIo->read(&numsprites,  2);                         // read numsprites
-			for (i =0; i < numsprites; i++)                     // insert sprites
-			{
-				RemoveSpriteStat(i);
-				pIo->read(&sprite[i], sizeof(spritetype));
-				InsertSpriteSect(i, sprite[i].sectnum);
-				InsertSpriteStat(i, sprite[i].statnum);
-				sprite[i].index     = i;
-			}
+			dbConvBuildMapGen(pIo);
 			break;
 		case 4L:
-			// this is based on Ken's convmaps
-			pIo->read(&numsectors,  2);                         // read numsectors
-			pIo->read(&numwalls,    2);                         // read numwalls
-			pIo->read(&numsprites,  2);                         // read numsprites
-			for (i = 0; i < numsectors; i++)                    // convert each sector
-			{
-				pIo->read(&sector4, sizeof(SECTOR4));
-				sector[i].wallptr           = sector4.wallptr;
-				sector[i].wallnum           = sector4.wallnum;
-				sector[i].ceilingshade      = sector4.ceilingshade;
-				sector[i].ceilingz          = sector4.ceilingz;
-				sector[i].ceilingpicnum     = sector4.ceilingpicnum;
-				sector[i].ceilingslope      = 0;
-				sector[i].floorshade        = sector4.floorshade;
-				sector[i].floorz            = sector4.floorz;
-				sector[i].floorpicnum       = sector4.floorpicnum;
-				sector[i].floorslope        = 0;
-				sector[i].type              = (short)(sector4.tag & 65535);
-				sector[i].hitag             = (short)(sector4.tag >> 16);
-				sector[i].ceilingstat       = sector4.ceilingstat;
-				sector[i].floorstat         = sector4.floorstat;
-			}
-			for (i = 0; i < numwalls; i++)                          // convert each wall
-			{
-				pIo->read(&wall4, sizeof(WALL4));
-				wall[i].x               = wall4.x;
-				wall[i].y               = wall4.y;
-				wall[i].point2          = wall4.point2;
-				wall[i].nextsector      = wall4.nextsector1;
-				wall[i].nextwall        = wall4.nextwall1;
-				wall[i].picnum          = wall4.picnum;
-				wall[i].overpicnum      = wall4.overpicnum;
-				wall[i].shade           = wall4.shade;
-				wall[i].pal             = sector[sectorofwall((short)i)].floorpal;
-				wall[i].cstat           = wall4.cstat;
-				wall[i].xrepeat         = wall4.xrepeat;
-				wall[i].yrepeat         = wall4.yrepeat;
-				wall[i].xpanning        = wall4.xpanning;
-				wall[i].ypanning        = wall4.ypanning;
-				wall[i].type            = (short)(wall4.tag & 65535);
-				wall[i].hitag           = (short)(wall4.tag >> 16);
-			}
-			for (i = 0; i < numsprites; i++)                        // convert each sprite
-			{
-				RemoveSpriteStat(i);
-				pIo->read(&sprite4, sizeof(SPRITE4));
-				InsertSpriteSect(i, sprite4.sectnum);
-				InsertSpriteStat(i, sprite4.statnum);
-				sprite[i].index         = i;
-				sprite[i].x             = sprite4.x;
-				sprite[i].y             = sprite4.y;
-				sprite[i].z             = sprite4.z;
-				sprite[i].cstat         = sprite4.cstat;
-				sprite[i].shade         = sprite4.shade;
-				sprite[i].xrepeat       = sprite4.xrepeat;
-				sprite[i].yrepeat       = sprite4.yrepeat;
-				sprite[i].pal           = 0;
-				sprite[i].xoffset       = 0;
-				sprite[i].yoffset       = 0;
-				sprite[i].clipdist      = 32;
-				sprite[i].picnum        = sprite4.picnum;
-				sprite[i].ang           = sprite4.ang;
-				sprite[i].yvel          = sprite4.yvel;
-				sprite[i].zvel          = sprite4.zvel;
-				sprite[i].owner         = sprite4.owner;
-				sprite[i].sectnum       = sprite4.sectnum;
-				sprite[i].statnum       = sprite4.statnum;
-				sprite[i].type          = (short)(sprite4.tag & 65535);
-				sprite[i].flags         = (short)(sprite4.tag >> 16);
-
-				if ((sprite[i].cstat & kSprRelMask) == 48)
-					sprite[i].cstat &= ~48;
-			}
+			dbConvBuildMapV4(pIo);
+			break;
+		case 5L:
+			dbConvBuildMapV5(pIo);
 			break;
 		case 6L:
-			// this is based on eduke32 v6->v7 conversion
-			pIo->read(&numsectors, 2);                              // read numsectors
-			for (i = 0; i < numsectors; i++)                        // convert each one
-			{
-				pIo->read(&sector6, sizeof(SECTOR6));
-				sector[i].wallptr           = sector6.wallptr;
-				sector[i].wallnum           = sector6.wallnum;
-				sector[i].ceilingstat       = sector6.ceilingstat;
-				sector[i].ceilingz          = sector6.ceilingz;
-				sector[i].ceilingpicnum     = sector6.ceilingpicnum;
-				sector[i].ceilingshade      = sector6.ceilingshade;
-				sector[i].ceilingpal        = sector6.ceilingpal;
-				sector[i].ceilingxpanning   = sector6.ceilingxpanning;
-				sector[i].ceilingypanning   = sector6.ceilingypanning;
-				sector[i].floorstat         = sector6.floorstat;
-				sector[i].floorz            = sector6.floorz;
-				sector[i].floorpicnum       = sector6.floorpicnum;
-				sector[i].floorshade        = sector6.floorshade;
-				sector[i].floorpal          = sector6.floorpal;
-				sector[i].floorxpanning     = sector6.floorxpanning;
-				sector[i].floorypanning     = sector6.floorypanning;
-				sector[i].visibility        = sector6.visibility;
-				sector[i].type              = sector6.lotag;
-				sector[i].hitag             = sector6.hitag;
-				//sector[i].extra               = sector6.extra;
-
-				sector[i].ceilingslope = (short)max(min(((int)sector6.ceilingheinum) << 5, 32767), -32768);
-				if ((sector6.ceilingstat & 2) == 0)
-					sector[i].ceilingslope = 0;
-
-				sector[i].floorslope = (short)max(min(((int)sector6.floorheinum) << 5, 32767), -32768);
-				if ((sector6.floorstat & 2) == 0)
-					sector[i].floorslope = 0;
-			}
-
-			pIo->read(&numwalls, 2);                                // read numwalls
-			for (i = 0; i < numwalls; i++)                          // convert each one
-			{
-				pIo->read(&wall6, sizeof(WALL6));
-				wall[i].x           = wall6.x;
-				wall[i].y           = wall6.y;
-				wall[i].point2      = wall6.point2;
-				wall[i].nextwall    = wall6.nextwall;
-				wall[i].nextsector  = wall6.nextsector;
-				wall[i].cstat       = wall6.cstat;
-				wall[i].picnum      = wall6.picnum;
-				wall[i].overpicnum  = wall6.overpicnum;
-				wall[i].shade       = wall6.shade;
-				wall[i].pal         = wall6.pal;
-				wall[i].xrepeat     = wall6.xrepeat;
-				wall[i].yrepeat     = wall6.yrepeat;
-				wall[i].xpanning    = wall6.xpanning;
-				wall[i].ypanning    = wall6.ypanning;
-				wall[i].type        = wall6.lotag;
-				wall[i].hitag       = wall6.hitag;
-				//wall[i].extra     = wall6.extra;
-			}
-
-			pIo->read(&numsprites, sizeof(short));                      // read numsprites
-			for (i = 0; i < numsprites; i++)                            // convert each one
-			{
-				RemoveSpriteStat(i);
-				pIo->read(&sprite6, sizeof(SPRITE6));
-				InsertSpriteSect(i, sprite6.sectnum);
-				InsertSpriteStat(i, sprite6.statnum);
-				sprite[i].index     = i;
-				sprite[i].x         = sprite6.x;
-				sprite[i].y         = sprite6.y;
-				sprite[i].z         = sprite6.z;
-				sprite[i].cstat     = sprite6.cstat;
-				sprite[i].picnum    = sprite6.picnum;
-				sprite[i].shade     = sprite6.shade;
-				sprite[i].pal       = sprite6.pal;
-				sprite[i].clipdist  = sprite6.clipdist;
-				sprite[i].xrepeat   = sprite6.xrepeat;
-				sprite[i].yrepeat   = sprite6.yrepeat;
-				sprite[i].xoffset   = sprite6.xoffset;
-				sprite[i].yoffset   = sprite6.yoffset;
-				sprite[i].owner     = sprite6.owner;
-				sprite[i].sectnum   = sprite6.sectnum;
-				sprite[i].statnum   = sprite6.statnum;
-				sprite[i].ang       = sprite6.ang;
-				sprite[i].yvel      = sprite6.yvel;
-				sprite[i].zvel      = sprite6.zvel;
-				sprite[i].type      = sprite6.lotag;
-				sprite[i].flags     = sprite6.hitag;
-				//sprite[i].extra       = sprite6.extra;
-
-				if ((sprite[i].cstat & kSprRelMask) == kSprSloped)
-					sprite[i].cstat &= ~kSprSloped;
-			}
+			dbConvBuildMapV6(pIo);
 			break;
+		#ifdef SUPPORT_MAPV3
+		case 3L:
+			dbConvBuildMapV3(pIo);
+			break;
+		#endif
 	}
 	
 	eraseExtra();
@@ -795,6 +1130,189 @@ int dbLoadBuildMap(IOBuffer* pIo) {
 	posz = startposz;
 	ang  = startang;
 	return ver;
+}
+
+int dbLoadSaveGame(IOBuffer* pIo)
+{
+	#define kGameOptionsSize_NBLOOD 1344
+	
+	int nNumSprites;
+	int i, j;
+	
+	
+	short ver;
+	char tmp[16];
+	spritetype* pSpr;
+	
+	
+	dbInit();
+	
+	pIo->rewind();
+	pIo->read(&tmp, 4);
+	
+	if (memcmp(tmp, "NBSV", 4) != 0)
+		ThrowError("Not NBLOOD savegame");
+	
+	pIo->read(&ver, sizeof(ver));
+	if (ver != 105)
+		ThrowError("Unsupported savegame version");
+	
+	pIo->skip(kGameOptionsSize_NBLOOD);
+	
+	pIo->read(&numsectors, sizeof(numsectors));
+	pIo->read(&numwalls, sizeof(numwalls));
+	pIo->read(&numsectors, sizeof(numsectors));
+	pIo->read(&nNumSprites, sizeof(nNumSprites));
+	
+	
+    memset(sector, 0, sizeof(sector[0])*kMaxSectors);
+    memset(wall, 0, sizeof(wall[0])*kMaxWalls);
+    memset(sprite, 0, sizeof(sprite[0])*kMaxSprites);
+	
+    pIo->read(sector, sizeof(sector[0])*numsectors);
+    pIo->read(wall, sizeof(wall[0])*numwalls);
+	pIo->read(sprite, sizeof(sprite[0])*kMaxSprites);
+	
+	pIo->skip(64Ui64 * kMaxSprites);
+	pIo->skip(1Ui64 * numsectors);
+	pIo->skip(1Ui64 * kMaxSprites);
+	
+	pIo->skip(4); // randomseed
+	
+	pIo->read(&parallaxtype, sizeof(parallaxtype));
+	pIo->read(&showinvisibility, sizeof(showinvisibility));
+	
+	pIo->skip(4 + 4 + 4);
+	
+	pIo->read(&visibility, sizeof(visibility));
+	pIo->skip(4);
+	
+	pIo->read(&parallaxvisibility, sizeof(parallaxvisibility));
+	
+	
+	pIo->read(tmp, sizeof(tmp));
+	for (i = 0; i < LENGTH(tmp); i++)
+		pskyoff[i] = tmp[i];
+	
+	
+	pIo->read(&tmp[0], sizeof(tmp[0]));
+	pskybits = tmp[0];
+		
+    pIo->read(headspritesect, sizeof(headspritesect));
+    pIo->read(headspritestat, sizeof(headspritestat));
+    pIo->read(prevspritesect, sizeof(prevspritesect));
+    pIo->read(prevspritestat, sizeof(prevspritestat));
+    pIo->read(nextspritesect, sizeof(nextspritesect));
+    pIo->read(nextspritestat, sizeof(nextspritestat));
+	
+	pIo->skip(512);
+	pIo->skip(2048);
+	pIo->skip(2048);
+	pIo->skip(4);
+	pIo->skip(3840);
+	pIo->skip(512);
+	pIo->skip(16);
+	pIo->skip(16);
+	pIo->skip(4);
+	pIo->skip(16);
+	pIo->skip(4);
+	pIo->skip(1);
+	pIo->skip(4);
+	
+	pIo->skip(sizeof(baseWall[0])*numwalls);
+	pIo->skip(sizeof(baseSprite[0])*nNumSprites);
+	pIo->skip(sizeof(baseFloor[0])*numsectors);
+	pIo->skip(sizeof(baseCeil[0])*numsectors);
+	pIo->skip(sizeof(velFloor[0])*numsectors);
+	pIo->skip(sizeof(velCeil[0])*numsectors);
+	
+	pIo->skip(20);
+	pIo->skip(1);
+	pIo->skip(1);
+	pIo->skip(1);
+	pIo->skip(128);
+	
+	pIo->read(gStatCount, sizeof(gStatCount));
+	
+    pIo->read(nextXSprite, sizeof(nextXSprite));
+    pIo->read(nextXWall, sizeof(nextXWall));
+    pIo->read(nextXSector, sizeof(nextXSector));
+    
+	memset(xsprite, 0, sizeof(xsprite));
+	memset(xwall, 0, sizeof(xwall));
+	memset(xsector, 0, sizeof(xsector));
+	
+    for (i = 0; i < kMaxSprites; i++)
+    {
+		if (sprite[i].statnum >= kMaxStatus || sprite[i].extra <= 0)
+			continue;
+
+        pIo->read(&xsprite[sprite[i].extra], 92);
+		pIo->skip(4); // CalcChecksums()
+    }
+   
+    for (i = 0; i < numwalls; i++)
+    {
+        if (wall[i].extra > 0)
+            pIo->read(&xwall[wall[i].extra], 28);
+    }
+    
+    for (i = 0; i < numsectors; i++)
+    {
+        if (sector[i].extra > 0)
+            pIo->read(&xsector[sector[i].extra], 72);
+    }
+	
+	pIo->skip(nNumSprites*sizeof(xvel[0]));
+	pIo->skip(nNumSprites*sizeof(yvel[0]));
+	pIo->skip(nNumSprites*sizeof(zvel[0]));
+	
+	pIo->read(&gMapRev, sizeof(gMapRev));
+	
+	pIo->skip(4);
+	pIo->skip(1);
+	
+	pIo->read(&gModernMap, sizeof(gModernMap));
+	
+	
+	for (i = headspritestat[kStatDude]; i >= 0; i = nextspritestat[i])
+	{
+		pSpr = &sprite[i];
+		if (pSpr->type == 231)
+		{
+			startposx = posx = pSpr->x;
+			startposy = posy = pSpr->y;
+			startposz = posz = pSpr->z;
+			
+			startang = ang = pSpr->ang;
+			startsectnum = cursectnum = pSpr->sectnum;
+			break;
+		}
+	}
+	
+	#ifndef SAVEGAME_DEBUG
+	while((i = headspritestat[kStatFX]) >= 0)
+		sprite[i].type = 0, ChangeSpriteStat(i, 0);
+	
+	for (i = headspritestat[kStatExplosion]; i >= 0;)
+	{
+		pSpr = &sprite[i];
+		if (pSpr->owner >= 0)
+		{
+			sprite[i].type = 0, ChangeSpriteStat(i, 0);
+			i = headspritestat[kStatExplosion];
+			continue;
+		}
+		
+		i = nextspritestat[i];
+	}
+	#endif
+	
+	//numsprites = nNumSprites;
+	
+	//ThrowError("OK %d / %d / %d", sizeof(XSPRITE), sizeof(XWALL), sizeof(XSECTOR));
+	//eraseExtra();
+	return 0;
 }
 
 int dbLoadMap(IOBuffer* pIo, char* cmtpath)
@@ -850,7 +1368,7 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 	nSkySize        = Sky::pieces*sizeof(tpskyoff[0]);
 	boardWidth		= MET2PIX(384);
 	boardHeight 	= MET2PIX(384);
-	gFogMode 		&= ~kXmpFlagFog;
+	gFogMode 		= 0;
 	
 	if (ver7)
 	{
@@ -864,7 +1382,7 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
 			{
 				Sky::customBitsFlag = (bool)(extra.xmpMapFlags & kXmpFlagCustomSkyBits);
 				if (extra.xmpMapFlags & kXmpFlagFog)
-					gFogMode |= kXmpFlagFog;
+					gFogMode = 1;
 				
 				if (extra.xmpheadver >= kXMPHeadVer2)
 				{

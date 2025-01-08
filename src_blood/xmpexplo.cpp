@@ -1560,9 +1560,13 @@ char FileBrowser::ItemRemoveDlg(char* pNeedle)
 			chdir(cwd);
 		}
 	}
-	else
+	else if (Confirm("Remove file \"%s\"?", pNeedle))
 	{
 		r = (chmod(newpath, S_IREAD|S_IWRITE) == 0 && unlink(newpath) == 0);
+	}
+	else
+	{
+		return 0;
 	}
 	
 	if (r == 0)
@@ -2354,9 +2358,10 @@ static char getThumbnail_PFB(char* filepath, int nTile, int twh, int thg, int bg
 		////////////////////////////////////
 
 		char tColor = bg;
-		int s, e, wh, hg, zhg, bvisib;
+		int s, e, wh, hg, zhg, bvisib; int32_t* p;
 		int cama = 0, camx = 0, camy = 0, camz;
 		int nSect, nBlank, nAng;
+		IDLIST* pHglt = NULL;
 		sectortype* pSect;
 
 		// insert a large enough sector
@@ -2366,7 +2371,15 @@ static char getThumbnail_PFB(char* filepath, int nTile, int twh, int thg, int bg
 		pSect = &sector[nSect];
 		pSect->ceilingz	= -0x20000;
 		pSect->floorz	=  0x20000;
-
+		
+		if (highlightcnt > 0)
+		{
+			// meh...
+			pHglt = new IDLIST(true);
+			for (s = 0; s < highlightcnt; s++)
+				pHglt->Add(highlight[s]);
+		}
+		
 		getSectorWalls(nSect, &s ,&e); camz = pSect->floorz;
 		if (pfbInsert(pIni, OBJ_WALL, s, nSect, camx, camy, pSect->floorz, 0) > 0)
 		{
@@ -2431,8 +2444,15 @@ static char getThumbnail_PFB(char* filepath, int nTile, int twh, int thg, int bg
 
 			//if (pfbAttachThumbnail(pIni, nTile)) // finally, attach it!
 				//pIni->Save();
-
-			hgltReset(kHgltPoint);
+			
+			if (pHglt)
+			{
+				for (p = pHglt->GetPtr(), highlightcnt = 0; *p >= 0; p++, highlightcnt++)
+					highlight[highlightcnt] = *p;
+			}
+			else
+				hgltReset(kHgltPoint);
+			
 			nRetn = 1;
 		}
 
@@ -2575,23 +2595,38 @@ static char getThumbnail_MAP(char* filepath, int nTile, int wh, int hg, int bg)
 				if ((pWalls = (walltype*)malloc(sizeof(walltype)*nWalls)) != NULL)
 					read(hFile, pWalls, sizeof(walltype)*nWalls); // that's it!
 				break;
+			case 5L:
 			case 6L:
 				read(hFile, &nSects, 2);
-				lseek(hFile, sizeof(SECTOR6)*nSects, SEEK_CUR);
+				lseek(hFile, sizeof(SECTOR6)*nSects, SEEK_CUR); // 5 and 6 are identical
 				read(hFile, &nWalls, 2);
 				if ((pWalls = (walltype*)malloc(sizeof(walltype)*nWalls)) != NULL)
 				{
 					for (i = 0; i < nWalls; i++)
 					{
-						WALL6 wall;
 						pWall = &pWalls[i];
-						read(hFile, &wall, sizeof(wall));
+						
+						if (ver == 5)
+						{
+							WALL5 wall;
+							read(hFile, &wall, sizeof(wall));
 
+							pWall->x 			= wall.x;
+							pWall->y 			= wall.y;
+							pWall->point2 		= wall.point2;
+							pWall->nextwall 	= wall.nextwall1;
+						}
+						else
+						{
+							WALL6 wall;
+							read(hFile, &wall, sizeof(wall));
 
-						pWall->x 			= wall.x;
-						pWall->y 			= wall.y;
-						pWall->point2 		= wall.point2;
-						pWall->nextwall 	= wall.nextwall;
+							pWall->x 			= wall.x;
+							pWall->y 			= wall.y;
+							pWall->point2 		= wall.point2;
+							pWall->nextwall 	= wall.nextwall;
+						}
+
 					}
 				}
 				break;

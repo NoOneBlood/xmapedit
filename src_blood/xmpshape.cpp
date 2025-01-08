@@ -225,14 +225,14 @@ void LOOPSHAPE::Draw(SCREEN2D* pScr)
 	if (status == 0)
 		return;
 	
-	char fillCol = pScr->ColorGet((status > 0) ? kColorLightBlue : kColorLightRed);
-	char vtxCol1 = pScr->ColorGet(kColorBlack);
-	char vtxCol2 = pScr->ColorGet(kColorYellow);
-	char lineCol = pScr->ColorGet(kColorGrey18);
+	char const fillCol = pScr->ColorGet((status > 0) ? kColorLightBlue : kColorLightRed);
+	char const vtxCol1 = pScr->ColorGet(kColorBlack);
+	char const vtxCol2 = pScr->ColorGet(kColorYellow);
+	char const lineCol = pScr->ColorGet(kColorGrey18);
 	int n = numPoints, i, x1, y1, x2, y2;
-	LINE2D fill[LENGTH(point)];
+	LINE2D fill[LENGTH(point)], *p;
 	
-	for (i = 0; i < n; i++)
+	for (i = 0, p = fill; i < n; i++, p++)
 	{
 		if (i < n - 1)
 		{
@@ -245,15 +245,8 @@ void LOOPSHAPE::Draw(SCREEN2D* pScr)
 			y1 = point[0].y;	y2 = point[n-1].y;
 		}
 		
-		fill[i].x1 = x1;	fill[i].x2 = x2;
-		fill[i].y1 = y1;	fill[i].y2 = y2;
-		
-		x1 = pScr->cscalex(x1);	x2 = pScr->cscalex(x2);
-		y1 = pScr->cscaley(y1);	y2 = pScr->cscaley(y2);
-		
-		pScr->DrawLine(x1, y1, x2, y2, lineCol, 0, kPatDotted);
-		pScr->DrawVertex(x1, y1, vtxCol1, vtxCol2, pScr->vertexSize);
-		pScr->DrawVertex(x2, y2, vtxCol1, vtxCol2, pScr->vertexSize);
+		p->x1 = x1,	p->x2 = x2;
+		p->y1 = y1,	p->y2 = y2;
 	}
 	
 	if (pScr->prefs.useTransluc)
@@ -267,8 +260,24 @@ void LOOPSHAPE::Draw(SCREEN2D* pScr)
 		pScr->FillPolygon(fill, numPoints, fillCol, 2);
 	}
 	
+	for (i = 0, p = fill; i < n; i++, p++)
+	{
+		x1 = pScr->cscalex(p->x1),	x2 = pScr->cscalex(p->x2);
+		y1 = pScr->cscaley(p->y1),	y2 = pScr->cscaley(p->y2);
+		
+		pScr->DrawLine(x1, y1, x2, y2, lineCol, 0, kPatDotted);
+		pScr->DrawVertex(x1, y1, vtxCol1, vtxCol2, pScr->vertexSize);
+		pScr->DrawVertex(x2, y2, vtxCol1, vtxCol2, pScr->vertexSize);
+		
+		x1 = p->x1, x2 = p->x2;
+		y1 = p->y1, y2 = p->y2;
+		pScr->CaptionPrintLineEdit(0, x1, y1, x2, y2,
+					pScr->ColorGet(kColorYellow), -1, qFonts[3]);
+	}
+	
 	x1 = pScr->cscalex(cx); y1 = pScr->cscaley(cy);
 	pScr->DrawIconCross(x1, y1, lineCol, 2);
+	
 }
 
 int LOOPSHAPE::Insert()

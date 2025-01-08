@@ -491,22 +491,13 @@ public:
 	virtual void HandleEvent( GEVENT *event );
 };
 
-
-enum {
-kValNone = 0,
-kValPerc,
-kValPixel,
-kValRepeat,
-kValMeter,
-};
-
 class EditNumber : public EditText
 {
 	public:
 		int value;
 		int minValue, maxValue;
-		char valueType;
-		EditNumber( int left, int top, int width, int height, int nVal, char nValType = kValNone, int nMin = -99999999, int nMax = 99999999);
+		char endChar;
+		EditNumber( int left, int top, int width, int height, int nVal, char _endChar = '\0', int nMin = -99999999, int nMax = 99999999);
 		virtual void HandleEvent( GEVENT *event );
 		void ClampValue();
 		void InsEndChar();

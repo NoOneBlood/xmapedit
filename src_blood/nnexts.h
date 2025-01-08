@@ -27,9 +27,9 @@
 #include "eventq.h"
 #include "db.h"
 
+#include "nnextslaser.h"
 
 
-#define kCauserGame (kMaxSprites - 1)
 #define kSlopeDist 0x20
 #define kPercFull 100
 
@@ -64,6 +64,9 @@
 #define kCdudeFileNamePrefix        "CDUD"
 #define kCdudeFileNamePrefixWild    "CDUD*"
 #define kCdudeFileExt               "CDU"
+
+#define kCitemFileName				"ITEMS"
+#define kCitemFileExt				"ITM"
 
 extern BOOL gEventRedirectsUsed;
 
@@ -118,6 +121,7 @@ kModernPlayerControl                = 500, /// WIP
 kModernCondition                    = 501, /// WIP, sends command only if specified conditions == true
 kModernConditionFalse               = 502, /// WIP, sends command only if specified conditions != true
 kModernSlopeChanger                 = 504,
+kModernLaserGen						= 505,
 kModernVelocityChanger              = 506,
 kGenModernMissileUniversal          = 704,
 kGenModernSound                     = 708,
@@ -156,7 +160,7 @@ struct EXTERNAL_FILES_LIST
 };
 
 extern SPRITEMASS gSpriteMass[kMaxXSprites];
-extern EXTERNAL_FILES_LIST gExternFiles[1];
+extern EXTERNAL_FILES_LIST gExternFiles[2];
 extern char gCustomDudeNames[kMaxSprites][32];
 
 
@@ -266,3 +270,11 @@ int getSpriteMassBySize(spritetype* pSprite);
 
 int nnExtResAddExternalFiles(Resource* pIn, const char* pPath, EXTERNAL_FILES_LIST* pList, int nLen);
 DICTNODE* nnExtResFileSearch(Resource* pIn, const char* pName, const char* pExt, char external = true);
+
+
+void lasersInit();
+void lasersProcess();
+LASER* laserGet(spritetype* pSpr);
+void lasersProcessView3D(int camx, int camy, int camz, int cama, int cams, int camh);
+
+int userItemsInit();

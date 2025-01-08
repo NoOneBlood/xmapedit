@@ -25,6 +25,8 @@
 #pragma once
 #include "callback.h"
 
+#define kCauserGame (kMaxSprites - 1)
+
 enum {
 kChannelZero                        = 0,
 kChannelSetTotalSecrets,
@@ -140,7 +142,7 @@ struct EVENT {
 
 void evInit(void);
 char evGetSourceState(int nType, int nIndex);
-void evSend(int nIndex, int nType, int rxId, COMMAND_ID command);
+void evSend(int nIndex, int nType, int rxId, COMMAND_ID command, int nCauser = kCauserGame);
 void evPost(int nIndex, int nType, unsigned int nDelta, COMMAND_ID command);
 void evPost(int nIndex, int nType, unsigned int nDelta, CALLBACK_ID callback);
 void evProcess(unsigned int nTime);

@@ -336,6 +336,8 @@ int GetXWall(int nWall)		{ return (wall[nWall].extra > 0)  ? wall[nWall].extra  
 int GetXSprite(int nSpr)	{ return (sprite[nSpr].extra > 0) ? sprite[nSpr].extra : dbInsertXSprite(nSpr); }
 void initNames();
 
+void xmpCreateToolTestMap(char withSprite);
+
 const char* GetObjectCaption(int nType, int nID)
 {
 	switch(nType)
@@ -671,7 +673,7 @@ void ExtAnalyzeSprites(void)
 
 void process2DMode()
 {
-	if (!ED23 && gHudPrefs.dynamicLayout2D)
+	if ((!ED23 || gHudPrefs.dynamicLayoutSPLIT) && gHudPrefs.dynamicLayout2D)
 	{
 		if (pGLBuild)
 		{
@@ -695,6 +697,7 @@ void processDrawRooms(int camx, int camy, int camz, int cama, int camh, int nSec
 	drawrooms(camx, camy, camz, cama, camh, nSect);
 	ExtAnalyzeSprites();
 	drawmasks();
+	UndoSectorLighting();
 }
 
 void process3DMode()
@@ -781,6 +784,10 @@ void xmpSplitModeSet(char nMode)
 			gSplitMode.size = 100 - gSplitMode.size;
 	}
 	
+	if (gHudPrefs.dynamicLayoutSPLIT)
+		hudSetLayout(&gMapedHud, (nMode)
+					? gHudPrefs.layout3D : gHudPrefs.layout2D, &gMouse);
+
 	if (nMode)
 	{
 		ED23 &= ~0x01;
@@ -1136,9 +1143,9 @@ char dlgMapSettings()
 	
 	FieldSet* fBSize 		= new FieldSet(dx1+2, dy1+2, dwh-kPad1, enh<<1, "2D BOARD SIZE", kColorDarkGray, kColorDarkGray);
 	int cy = (fBSize->height >> 1) - (enh>>1);
-	EditNumber* eW			= new EditNumber(kPad1, cy, enw, enh, PIX2MET(boardWidth), kValMeter, 10, 10000);
+	EditNumber* eW			= new EditNumber(kPad1, cy, enw, enh, PIX2MET(boardWidth), 'm', 10, 10000);
 	Label* lX				= new Label(eW->left + eW->width + kPad1, cy + (pFont->height>>1), "X");
-	EditNumber* eH			= new EditNumber(lX->left + lX->width + kPad1 + 1, cy, enw, enh, PIX2MET(boardHeight), kValMeter, 10, 10000);
+	EditNumber* eH			= new EditNumber(lX->left + lX->width + kPad1 + 1, cy, enw, enh, PIX2MET(boardHeight), 'm', 10, 10000);
 	Label* lDesc			= new Label(eH->left + eW->width + kPad1, cy + (pFont->height>>1), "1m = 512 pixels", kColorDarkGray);
 	
 	Panel* pButtons 		= new Panel(dx1, dy2-bh-1, dwh, bh);
@@ -1149,7 +1156,7 @@ char dlgMapSettings()
 	
 	dy1 += fBSize->height + 16;
 	FieldSet* fVis 			= new FieldSet(dx1+2, dy1, dwh-kPad1, enh<<1, "GLOBAL VISIBILITY", kColorDarkGray, kColorDarkGray);
-	EditNumber* eVis		= new EditNumber(kPad1, cy, enw, enh, visibility, kValNone, 0, kMaxVisibility);
+	EditNumber* eVis		= new EditNumber(kPad1, cy, enw, enh, visibility, '\0', 0, kMaxVisibility);
 	Checkbox* cFog			= new Checkbox(eVis->left+eVis->width+kPad1, (fVis->height>>1)-(pFont->height>>1)-1, gFogMode, "Enable fog");
 
 	
@@ -1378,8 +1385,8 @@ const char helpkey			= KEY_F1;
 int ExtInit(int argc, char const * const argv[])
 {
 	static char myBuildDate[16] = "UNK_DATE";
-	char fallThrough = 0, *tmp;
-	int i, retn = 0;
+	char filename[BMAX_PATH] = "\0", *tmp;
+	int i;
 	
 	BOOL iniGenerated = FALSE;
 	RESHANDLE hIni = NULL;
@@ -1610,6 +1617,8 @@ int ExtInit(int argc, char const * const argv[])
 	initNames();			dbInit();
 	gObjectLock.Init();		gBeep.Init();
 	AutoAdjustSpritesInit();
+	userItemsInit();
+	
 	gExtApps.Init(MapEditINI, "ExternalCommands");
 
 	memset(joinsector, -1, sizeof(joinsector));
@@ -1623,105 +1632,79 @@ int ExtInit(int argc, char const * const argv[])
 		GL_fps2SwapInterval(gScreen.maxFPS);
 	#endif
 	xmpSetEditMode(gMisc.editMode);
-	boardStartNew();
 	splashScreen();
 
 	if (gMisc.forceSetup) // should we show options?
 		xmpOptions();
-	
-	buffer[0] = '\0';
-	if (argc <= 1 || isempty(argv[1]))
-	{
-		strcpy(buffer, (isempty(gPaths.maps)) ? kDefaultMapName : gPaths.maps);
-	
-		if (!gMisc.autoLoadMap)
-		{
-			if ((tmp = browseOpen(gPaths.maps, ".map")) == NULL)
-			{
-				while ( 1 )
-				{
-					switch(xmpMenuProcess())
-					{
-						default:
-							continue;
-						case mrLoad:
-						case mrReload:
-						case mrLoadAsave:
-						case mrNew:
-						case mrToolImportWizard:
-							fallThrough = 1;
-							break;
-						case mrCancel:
-						case mrToolArtEdit:
-						case mrToolQavEdit:
-						case mrToolSeqEdit:
-							xmpQuit();
-							break;
-					}
-					break;
-				}
-			}
-			else
-			{
-				strcpy(buffer, tmp);
-			}
-		}
-	}
-	else
-	{
-		strcpy(buffer, argv[1]);
-	}
-	
-	if (!isempty(buffer)) // create default map path
-		strcpy(gPaths.maps, buffer), ChangeExtension(gPaths.maps, getExt(kMap));
 		
-	if (!fallThrough)
+	if (argc > 1)
 	{
-		switch (i = toolOpenWith(buffer))
-		{
-			case -1:
+		if (!isempty(argv[1]))
+			strcpy(filename, argv[1]);
+	}
+	else if (gMisc.autoLoadMap)
+	{
+		if (!isempty(gPaths.maps))
+			strcpy(filename, gPaths.maps);
+	}
+	else if ((tmp = browseOpen(filename, getExt(kMap))) != NULL)
+	{
+		strcpy(filename, tmp);
+	}
+	
+	i = kToolMapEdit;
+	if (!isempty(filename))
+		i = toolOpenWith(filename);
+	
+	switch (i)
+	{
+		case -1:
+			Alert("Could not open \"%s\".", filename);
+			switch(xmpMenuProcess())
 			{
-				Alert("Could not open \"%s\".", buffer);
-				if ((tmp = browseOpen(gPaths.maps, ".map")) == NULL)
-				{
-					xmpMenuProcess();
+				case mrCancel:
+				case mrToolArtEdit:
+				case mrToolQavEdit:
+				case mrToolSeqEdit:
+					xmpQuit();
 					break;
-				}
-				
-				strcpy(buffer, tmp);
-				// no break
 			}
-			case kToolMapEdit:
-				if (boardLoad(buffer) != 0)
-					strcpy(gPaths.maps, kDefaultMapName);
-				gMapLoaded = 1;
-				break;
-			case kToolArtEdit:
-			case kToolSeqEdit:
-			case kToolQavEdit:
-				gTool.cantest = FALSE;
-				switch (i) {
-					case kToolSeqEdit:
-						sprintf(gSeqEd.filename, buffer);
-						ChangeExtension(gPaths.images, getExt(kSeq));
-						seqeditStart(gSeqEd.filename);
-						break;
-					case kToolArtEdit:
-						sprintf(gPaths.images, buffer);
-						ChangeExtension(gPaths.images, getExt(kArt));
-						artedStart(gPaths.images, TRUE);
-						break;
-					case kToolQavEdit:
-						sprintf(gPaths.qavs, buffer);
-						ChangeExtension(gPaths.qavs, getExt(kQav));
-						gQaved.Start(gPaths.qavs);
-						break;
-				}
-				// no break
-			default:
-				xmpQuit();
-				break;
-		}
+			break;
+		case kToolMapEdit:
+			boardStartNew();
+			strcpy(gPaths.maps,
+				(!isempty(filename) && boardLoad(filename) == 0) ? filename : kDefaultMapName);
+			
+			ChangeExtension(gPaths.maps, getExt(kMap));
+			gMapLoaded = 1;
+			break;
+		case kToolArtEdit:
+		case kToolSeqEdit:
+		case kToolQavEdit:
+			xmpCreateToolTestMap(i == kToolSeqEdit);
+			gTool.cantest = 1;
+			switch (i)
+			{
+				case kToolSeqEdit:
+					strcpy(gSeqEd.filename, filename);
+					ChangeExtension(gPaths.images, getExt(kSeq));
+					seqeditStart(gSeqEd.filename);
+					break;
+				case kToolArtEdit:
+					strcpy(gPaths.images, filename);
+					ChangeExtension(gPaths.images, getExt(kArt));
+					artedStart(gPaths.images, TRUE);
+					break;
+				case kToolQavEdit:
+					strcpy(gPaths.qavs, filename);
+					ChangeExtension(gPaths.qavs, getExt(kQav));
+					gQaved.Start(gPaths.qavs);
+					break;
+			}
+			// no break
+		default:
+			xmpQuit();
+			break;
 	}
 	
 	// since we have our own quit functions, we can start
@@ -2092,7 +2075,7 @@ BOOL processKeysShared() {
 	
 	if (in2d)
 	{
-		if (pGLShape || pGCircleW || pGDoorR || pGDoorSM)
+		if (pGLShape || pGCircleW || pGDoorR || pGDoorSM || pGArc)
 		{
 			switch(key)
 			{
@@ -2230,37 +2213,10 @@ BOOL processKeysShared() {
 			key = 0;
 			return TRUE;
 		case KEY_ESC:
-			if (pGCircleW)
+			if (sectorToolDisableAll(0))
 			{
-				scrSetMessage("Points inserting aborted.");
-				DELETE_AND_NULL(pGCircleW);
+				scrSetMessage("Sector tools disabled.");
 				BeepFail();
-				break;
-			}
-			else if (pGLShape)
-			{
-				scrSetMessage("Loop inserting aborted.");
-				DELETE_AND_NULL(pGLShape);
-				BeepFail();
-				break;
-			}
-			else if (pGDoorSM || pGDoorR)
-			{
-				scrSetMessage("Door inserting aborted.");
-				if (pGDoorSM)	DELETE_AND_NULL(pGDoorSM);
-				if (pGDoorR)	DELETE_AND_NULL(pGDoorR);
-				BeepFail();
-				break;
-			}
-			else if (keystatus[KEY_SPACE])
-			{
-				if (!in2d && somethingintab != 255)
-				{
-					scrSetMessage("Clipboard buffer cleared.");
-					somethingintab = 255;
-					BeepFail();
-				}
-
 				break;
 			}
 			else
@@ -2338,8 +2294,15 @@ BOOL processKeysShared() {
 			}
 			else if (!in2d && type == 100)
 			{
-				AutoAlignWalls(searchwall);
-				BeepOk();
+				char flags = 0x00;
+				if (searchwall != searchwall2)	flags |= 0x20;
+				if (key == KEY_COMMA)			flags |= 0x10;	
+				if (!shift)						flags |= 0x01;
+				if (ctrl)						flags |= 0x04;
+				
+				i = AutoAlignWalls(searchwall, flags);
+				scrSetMessage("%d walls affected.", i);
+				Beep(i);
 				break;
 			}
 			break;
@@ -2579,6 +2542,13 @@ BOOL processKeysShared() {
 							Sky::Rotate((changedir < 0) ? 0 : 1); 			// rotate global sky
 						}
 					}
+					else if (alt)
+					{
+						IDLIST visited(1);
+						i = AutoAlignSectors(searchsector, searchstat, &visited);
+						//scrSetMessage("%d %s textures auto-aligned.", i, buffer);
+						Beep(i);
+					}
 					break;
 			}
 			
@@ -2615,10 +2585,15 @@ BOOL processKeysShared() {
 					if (ED23)
 					{
 						strcpy(buffer, "SPLIT");
-						gHudPrefs.layoutSPLIT = IncRotate(gHudPrefs.layoutSPLIT, kHudLayoutMax);
-						if (gHudPrefs.layoutSPLIT == kHudLayoutDynamic) continue;
-						else hudSetLayout(&gMapedHud, gHudPrefs.layoutSPLIT, &gMouse);
+						if (gHudPrefs.dynamicLayoutSPLIT) gHudPrefs.layoutSPLIT = kHudLayoutNone;
+						else gHudPrefs.layoutSPLIT = IncRotate(gHudPrefs.layoutSPLIT, kHudLayoutMax);
+						gHudPrefs.dynamicLayoutSPLIT = (gHudPrefs.layoutSPLIT == kHudLayoutDynamic);
+						
 						i = gHudPrefs.layoutSPLIT;
+						if (gHudPrefs.dynamicLayoutSPLIT)
+							gHudPrefs.layoutSPLIT = kHudLayoutFull;
+
+						hudSetLayout(&gMapedHud, gHudPrefs.layoutSPLIT, &gMouse);
 					}
 					else if (in2d)
 					{
@@ -2855,7 +2830,9 @@ BOOL processKeysShared() {
 			{
 				if (!type)
 				{
-					scrSetMessage("Can't copy properties of an unknown object.");
+					//scrSetMessage("Can't copy properties of an unknown object.");
+					scrSetMessage("Clipboard buffer cleared.");
+					somethingintab = 255;
 					BeepFail();
 					break;
 				}
@@ -3163,7 +3140,7 @@ BOOL processKeysShared() {
 						sprite[searchwall].cstat &= ~kSprFlipY;
 						if (i & kSprOneSided)
 						{
-							if (posz > sprite[searchwall].z)
+							if (!ED2D && posz > sprite[searchwall].z)
 								sprite[searchwall].cstat |= kSprFlipY;
 						}
 					}
@@ -3341,22 +3318,39 @@ BOOL processKeysShared() {
 			switch (searchstat) {
 				case OBJ_WALL:
 				case OBJ_MASKED:
+					sect = sectorofwall(searchwall);
+					nwall = sector[sect].wallptr;
+					if (sector[sect].alignto)
+					{
+						if (nwall == searchwall || nwall + sector[sect].alignto == searchwall)
+						{
+							scrSetMessage("Sector #%d auto-alignment disabled", sect);
+							sector[sect].alignto = 0;
+							BeepFail();
+							break;
+						}
+					}
+					else if (nwall == searchwall)
+					{
+						scrSetMessage("You cannot select first wall for sector auto-alignment");
+						BeepFail();
+						break;
+					}
+					
 					if (wall[searchwall].nextwall >= 0)
 					{
-						sect = sectorofwall(searchwall);
-						nwall = searchwall - sector[sect].wallptr;
-						sector[sect].alignto = (BYTE)nwall;
+						setAligntoWall(sect, searchwall);
+						
 						if (sector[sect].alignto)
 						{
-							scrSetMessage("Sector %d will align to wall %d (%d)", sect, searchwall, sector[sect].alignto);
-							if (gMisc.pan) AlignSlopes();
+							scrSetMessage("Sector #%d will align to wall #%d (%d)", sect, searchwall, sector[sect].alignto);
 							BeepOk();
 							break;
 						}
 					}
 					else
 					{
-						scrSetMessage("Must select the red wall!", sect);
+						scrSetMessage("Must select the red wall!");
 						BeepFail();
 						break;
 					}
@@ -3494,9 +3488,9 @@ void xmpOptions(void)
 	w = fAudioVol->client->width-8;
 	
 	Label* lSndVol			= new Label(0, 5, "SFX");
-	EditNumber* eSndVol		= new EditNumber(AFTERH(lSndVol, 4), 0, 28, 18, IVAL2PERC(FXVolume, 255), kValNone, 0, 100);
+	EditNumber* eSndVol		= new EditNumber(AFTERH(lSndVol, 4), 0, 28, 18, IVAL2PERC(FXVolume, 255), '\0', 0, 100);
 	Label* lMusVol			= new Label(AFTERH(eSndVol, 6), 5, "MUS");
-	EditNumber* eMusVol		= new EditNumber(AFTERH(lMusVol, 4), 0, 28, 18, IVAL2PERC(MusicVolume, 255), kValNone, 0, 100);
+	EditNumber* eMusVol		= new EditNumber(AFTERH(lMusVol, 4), 0, 28, 18, IVAL2PERC(MusicVolume, 255), '\0', 0, 100);
 	Checkbox* cAmbient		= new Checkbox(0, 38, gSound.ambientAlways, "Ambient always");
 	Checkbox* cBeeps		= new Checkbox(0, 50, gMisc.beep, "Beeps");
 	
@@ -3519,10 +3513,10 @@ void xmpOptions(void)
 	EditText* eAsaveName	= new EditText(w-(pFont->width*8), 0, pFont->width*8, 20, gAutosave.basename);
 	
 	Label* lInterval		= new Label(0, 27, "Interval (sec):");
-	EditNumber* eInterval	= new EditNumber(w-28, 22, 28, 20, gAutosave.interval/120, kValNone, 0, 999);
+	EditNumber* eInterval	= new EditNumber(w-28, 22, 28, 20, gAutosave.interval/120, '\0', 0, 999);
 	
 	Label* lMaxSaves		= new Label(0, 49, "Max saves:");
-	EditNumber* eMaxSaves	= new EditNumber(w-28, 44, 28, 20, gAutosave.max, kValNone, 1, 999);
+	EditNumber* eMaxSaves	= new EditNumber(w-28, 44, 28, 20, gAutosave.max, '\0', 1, 999);
 	
 	fAsave->Insert(lAsaveName);
 	fAsave->Insert(eAsaveName);
@@ -3544,12 +3538,12 @@ void xmpOptions(void)
 	FieldSet* fMLook		= new FieldSet(AFTERH(fMSpeed, 8), 0, perc2val(w, 62), 36, "MOUSE LOOK", kColorDarkGray, kColorDarkGray, 8);
 	
 	w = fMSpeed->width-28;
-	EditNumber* eMSpeedX	= new EditNumber(0, 0, perc2val(w, 50), 24, gMousePrefs.speedX, kValNone, 0, 2048);
+	EditNumber* eMSpeedX	= new EditNumber(0, 0, perc2val(w, 50), 24, gMousePrefs.speedX, '\0', 0, 2048);
 	Label* lMSpeed			= new Label(AFTERH(eMSpeedX, 4), 8, "X");
-	EditNumber* eMSpeedY	= new EditNumber(AFTERH(lMSpeed, 4), 0, perc2val(w, 50), 24, gMousePrefs.speedY, kValNone, 0, 2048);
+	EditNumber* eMSpeedY	= new EditNumber(AFTERH(lMSpeed, 4), 0, perc2val(w, 50), 24, gMousePrefs.speedY, '\0', 0, 2048);
 	
 	Label* lMSlope			= new Label(0, 8, "Slope:");
-	EditNumber* eMSlope		= new EditNumber(AFTERH(lMSlope, 4), 0, pFont->width*6, 24, gMouseLook.maxSlope, kValNone, 0, 300);
+	EditNumber* eMSlope		= new EditNumber(AFTERH(lMSlope, 4), 0, pFont->width*6, 24, gMouseLook.maxSlope, '\0', 0, 300);
 	Checkbox* cMSlopeInv	= new Checkbox(AFTERH(eMSlope, 8), 0, gMouseLook.invert, "Invert");
 	Checkbox* cMLookStrafe	= new Checkbox(AFTERH(eMSlope, 8), 12, gMouseLook.strafe, "Strafe");
 	
@@ -3988,7 +3982,6 @@ int xmpMenuCreate(char* name) {
 
 	dialog.Insert(new Label(8, y, ">TOOLS", kColorBlue)); y+=(pFont->height+pd);
 	TextButton* pPreviewMode   = new TextButton(x, y, 124,  bh, "&Preview mode", mrToolPreviewMode);		y+=bh;
-	TextButton* pDoorWizard    = new TextButton(x, y, 124,  bh, "&Door wizard", mrToolDoorWizard);			y+=bh;
 	TextButton* pSpriteText    = new TextButton(x, y, 124,  bh, "Sprite Te&xt", mrToolSpriteText);			y+=bh;
 	TextButton* pExplodeSeq    = new TextButton(x, y, 124,  bh, "&Exploder sequence", mrToolExpSeq);		y+=bh;
 	TextButton* pCleanChannel  = new TextButton(x, y, 124,  bh, "&Channel cleaner", mrToolCleanChannel);	y+=bh;
@@ -4005,13 +3998,6 @@ int xmpMenuCreate(char* name) {
 		pCleanChannel->disabled  = pPreviewMode->disabled  = pExplodeSeq->disabled = TRUE;
 		pCleanChannel->canFocus  = pPreviewMode->canFocus  = pExplodeSeq->canFocus = FALSE;
 	}
-
-	if (!gMapLoaded || qsetmode == 200)
-	{
-		pDoorWizard->fontColor 	= kColorDarkGray;
-		pDoorWizard->disabled 	= TRUE;
-		pDoorWizard->canFocus 	= FALSE;
-	}
 	
 	if (!gMapLoaded || qsetmode != 200)
 	{
@@ -4022,7 +4008,6 @@ int xmpMenuCreate(char* name) {
 	
 	dialog.height = y + (pd*6);
 	dialog.Insert(pPreviewMode);
-	dialog.Insert(pDoorWizard);
 	dialog.Insert(pSpriteText);
 	dialog.Insert(pExplodeSeq);
 	dialog.Insert(pCleanChannel);
@@ -4111,10 +4096,6 @@ int xmpMenuProcess() {
 				return result;
 			case mrBoardOptions:
 				if (dlgMapSettings()) return result;
-				result = mrMenu;
-				break;
-			case mrToolDoorWizard:
-				if (dlgDoorWizard()) return result;
 				result = mrMenu;
 				break;
 			case mrToolSpriteText:
@@ -4375,9 +4356,10 @@ void processMove() {
 		{
 			if ((hit = clipmove(&px, &py, &pz, &cursectnum, xvect<<14, yvect<<14, kPlayerRadius, kMoveVal1, kMoveVal1, BLOCK_MOVE)) != 0)
 			{
-				i = (hit & 0x3FFF);
-				switch (hit & 0xC000) {
-					case 0x8000:
+				i = (hit & HITID);
+				switch (hit & HITMASK)
+				{
+					case HITWALL:
 						if (wall[i].nextwall < 0) block = 1;
 						if (wall[i].extra > 0)
 						{
@@ -4403,7 +4385,7 @@ void processMove() {
 							}
 						}
 						break;
-					case 0xC000:
+					case HITSPR:
 						if (sprite[i].extra > 0)
 						{
 							XSPRITE* pXSpr = &xsprite[sprite[i].extra];
@@ -4431,7 +4413,7 @@ void processMove() {
 		if (cursectnum >= 0)
 		{
 			getzrange(posx, posy, posz, cursectnum, &hiz, &hihit, &loz, &lohit, kPlayerRadius, BLOCK_MOVE);
-			if ((hihit & 0xe000) == 0x4000 && (hihit & 0x1FFF) == cursectnum)
+			if (CMP_HITSECT(hihit, cursectnum))
 			{
 				if (sector[cursectnum].ceilingstat & kSectParallax)
 					hiz = -klabs(getceilzofslope(cursectnum, posx, posy) << 2);
@@ -4439,9 +4421,9 @@ void processMove() {
 			
 			if (gPreviewMode && gModernMap)
 			{
-				if ((hihit & 0xE000) == 0xC000)
+				if (CHK_HITSPR(hihit))
 				{
-					i = hihit & 0x1FFF;
+					i = GET_HITID(hihit);
 					if (sprite[i].extra > 0)
 					{
 						XSPRITE* pXSpr = &xsprite[sprite[i].extra];
@@ -4450,9 +4432,9 @@ void processMove() {
 					}
 				}
 				
-				if ((lohit & 0xE000) == 0xC000)
+				if (CHK_HITSPR(lohit))
 				{
-					i = lohit & 0x1FFF;
+					i = GET_HITID(hihit);
 					if (sprite[i].extra > 0)
 					{
 						XSPRITE* pXSpr = &xsprite[sprite[i].extra];
@@ -4748,239 +4730,268 @@ void boardPreloadTiles()
 
 int boardLoad(char *filename)
 {
-	BOOL bloodMap;
-	BYTE* pData = NULL;
-	short j, i, k, f, sect;
-	short xidx, sprsect;
-	short sectors = 0, walls = 0, sprites = 0;
+	VOIDLIST *bspr, *bxspr, *bwal, *bxwal, *bsec, *bxsec;
+	BYTE* pData = NULL; IOBuffer* pIo; CHECKMAPINFO info;
+	spritetype* pLSpr, *pLMrk; XSPRITE* pLXSpr;
+	sectortype* pLSect; XSECTOR* pLXSect;
+	walltype* pLWall; XWALL* pLXWall;
+	
 	char mapname[_MAX_PATH];
-	int nSize = 0;
-	keyClear();
+	char fog = gFogMode;
 
-	sprintf(mapname, filename);	ChangeExtension(mapname, getExt(kMap));
+	int  nSect, nSize, nXObj, nSpr;
+	int i, j, s, e;
+
+	keyClear();
+	strcpy(mapname, filename); ChangeExtension(mapname, getExt(kMap));
 	if ((nSize = fileLoadHelper(mapname, &pData)) <= 0)
 		return -1;
 	
-	IOBuffer* pIo = new IOBuffer(nSize, pData);
-	if ((i = dbCheckMap(pIo, gSuppMapVersions, LENGTH(gSuppMapVersions), &bloodMap)) <= 0)
+	pIo = new IOBuffer(nSize, pData);
+	dbCheckMap(pIo, &info, gSuppMapVersions);
+	
+	if (info.type == kMapTypeUNK)
 	{
 		Alert("Unknown map file format!");
 		free(pData);
 		return -1;
 	}
-	else if (!bloodMap)
+	else if (info.type == kMapTypeBUILD)
 	{
 		IMPORT_WIZARD_MAP_ARG mapArg;
-		mapArg.filepath = mapname;	mapArg.pIo = pIo;
-		mapArg.version  = i;		mapArg.blood = bloodMap;
+		mapArg.filepath = mapname;			mapArg.pIo = pIo;
+		mapArg.version  = info.version;		mapArg.blood = 0;
 		mapArg.allowSel = 0;
 		
 		IMPORT_WIZARD wizard;
 		i = wizard.ShowDialog(&mapArg);
 		free(pData);
-		return i;	
+		return i;
 	}
 	
 	sprintf(buffer3, "Loading the %s", mapname);
 	splashScreen(buffer3);
 	
-	// save all the highlighted stuff before loading other map
+	
 	if (highlightsectorcnt > 0)
 	{
 		cpyObjectClear();
-		updatenumsprites();
 
-		// check if it's enough space in arrays first
-		for(i = k = j = 0; i < highlightsectorcnt; i++)
+		// save all the highlighted stuff before loading other map
+		bspr = new VOIDLIST(sizeof(spritetype)); 	bxspr = new VOIDLIST(sizeof(XSPRITE));
+		bwal = new VOIDLIST(sizeof(walltype));		bxwal = new VOIDLIST(sizeof(XWALL));
+		bsec = new VOIDLIST(sizeof(sectortype));	bxsec = new VOIDLIST(sizeof(XSECTOR));
+		
+		for(i = 0; i < highlightsectorcnt; i++)
 		{
-			j += sector[highlightsector[i]].wallnum;
-			for (f = headspritesect[highlightsector[i]]; f != -1; f = nextspritesect[f])
-			{
-				if (sprite[f].statnum < kMaxStatus)
-					k++;
-			}
-		}
-
-		buffer3[0] = 0;
-		if (numsectors + i >= kMaxSectors)		sprintf(buffer3, "sectors");
-		else if (numwalls + j >= kMaxWalls)		sprintf(buffer3, "walls");
-		else if (numsprites + k >= kMaxSprites) sprintf(buffer3, "sprites");
-		if (buffer3[0])
-		{
-			Alert("Failed to COPY objects: too many %s to backup!", buffer3);
-			highlightsectorcnt = -1;
-		}
-		else
-		{
-			buffer3[0] = 0;
-			getFilename(gPaths.maps, buffer3);
-			switch (YesNoCancel("Import %d sectors with %d walls and %d sprites in \"%s\" map?", i, j, k, buffer3)) {
-				case mrCancel:
-					return -1;
-				case mrNo:
-					highlightsectorcnt = -1;
-					break;
-			}
-		}
-
-		//put sectors and walls to end of lists
-		for(i = 0, k = kMaxWalls; i < highlightsectorcnt; i++)
-			k -= sector[highlightsector[i]].wallnum;
-
-		for(i = 0; i < highlightsectorcnt; i++) {
-
-
-			sect = highlightsector[i];
-			sectClone(sect, kMaxSectors - highlightsectorcnt + i, k, 0);
-			k += sector[sect].wallnum;
-
+			nSect = highlightsector[i];
+			
 			// sectors
-			cpysector[cpysectorcnt] = sector[sect];
-			if (sector[sect].extra > 0)
+			bsec->Add(&sector[nSect]);
+			if (sector[nSect].extra > 0)
 			{
-				cpyxsector[cpysectorcnt] = xsector[sector[sect].extra];
+				XSECTOR* pXSect = &xsector[sector[nSect].extra];
+				
+				// markers that sector own can be outside highlight so we have to
+				// add it by just changing sectnum since it doesn't really
+				// matter for markers
+				if (pXSect->marker0 >= 0) ChangeSpriteSect(pXSect->marker0, nSect);
+				if (pXSect->marker1 >= 0) ChangeSpriteSect(pXSect->marker1, nSect);
 
-				// markers that sector own can be outside highlight so
-				// we have to add it in by just changing sectnum since
-				// it doesn't really matter for markers
-				if ((j = (short)xsector[sector[sect].extra].marker0) >= 0 && sprite[j].statnum == kStatMarker)
-					ChangeSpriteSect(j, sect);
-				if ((j = (short)xsector[sector[sect].extra].marker1) >= 0 && sprite[j].statnum == kStatMarker)
-					ChangeSpriteSect(j, sect);
+				bxsec->Add(pXSect);
 			}
-
-			cpysectorcnt++;
-
-			// walls of sectors
-			for (j = sector[sect].wallptr; j < sector[sect].wallptr + sector[sect].wallnum; j++)
+			
+			// walls
+			getSectorWalls(nSect, &s, &e);
+			while(s <= e)
 			{
-				cpywall[cpywallcnt] = wall[j];
-				if (wall[j].extra > 0) cpyxwall[cpywallcnt] = xwall[wall[j].extra];
-				cpywallcnt++;
+				bwal->Add(&wall[s]);
+				if (wall[s].extra > 0)
+					bxwal->Add(&xwall[wall[s].extra]);
+				
+				s++;
 			}
 
 			// sprites of sectors
-			for (j = headspritesect[sect]; j != -1; j = nextspritesect[j])
+			for (s = headspritesect[nSect]; s >= 0; s = nextspritesect[s])
 			{
-				if (sprite[j].statnum < kMaxStatus)
-				{
-					cpysprite[cpyspritecnt] = sprite[j];
-					if (sprite[j].extra > 0) cpyxsprite[cpyspritecnt] = xsprite[sprite[j].extra];
-					cpyspritecnt++;
-				}
+				bspr->Add(&sprite[s]);
+				if (sprite[s].extra > 0)
+					bxspr->Add(&xsprite[sprite[s].extra]);
 			}
 		}
+		
+		getFilename(mapname, buffer3);
+		switch (YesNoCancel("Import %d sectors with %d walls and %d sprites in \"%s\" map?", bsec->Length(), bwal->Length(), bspr->Length(), buffer3))
+		{
+			case mrCancel:
+				return -1;
+			case mrNo:
+				highlightsectorcnt = -1;
+				break;
+			default:
+				splashScreen("Importing objects...");
+				break;
+		}
+	}
+
+	boardReset(kHgltPoint | kHgltGradient);
+	
+	switch(info.type)
+	{
+		case kMapTypeBLOOD:
+			dbLoadMap(pIo, (gCmtPrefs.enabled) ? mapname : NULL);
+			break;
+		case kMapTypeSAVEGAME_NBLOOD:
+			dbLoadSaveGame(pIo);
+			break;
 	}
 	
-	boardReset(kHgltPoint | kHgltGradient);
-	dbLoadMap(pIo, (gCmtPrefs.enabled) ? mapname : NULL);
 	free(pData);
-
-	// restore highlight stuff after loading another map
+	
 	if (highlightsectorcnt > 0)
 	{
-		buffer3[0] = 0;
-		if (numsectors + cpysectorcnt >= kMaxSectors) 		sprintf(buffer3, "sectors");
-		else if (numwalls + cpywallcnt >= kMaxWalls)		sprintf(buffer3, "walls");
-		else if (numsprites + cpyspritecnt >= kMaxSprites)	sprintf(buffer3, "sprites");
-		if (buffer3[0])
-		{
-			Alert("Failed to PASTE objects: too many %s in destination map!", buffer3);
-			highlightsectorcnt = -1;
-		}
+		// restore highlight stuff after
+		// loading another map
+		
+		pLSect  = (sectortype*)bsec->First();
+		pLXSect = (XSECTOR*)bxsec->First();
 
-		//Re-attach sectors
-		for(i = 0; i < highlightsectorcnt; i++)
-		{
-			sprsect = highlightsector[i];
-			sectClone(kMaxSectors-highlightsectorcnt+i, numsectors, numwalls, 0);
-			numwalls += sector[numsectors].wallnum;
-			highlightsector[i] = sect = numsectors++;
+		pLWall  = (walltype*)bwal->First();
+		pLXWall = (XWALL*)bxwal->First();
+		
+		pLSpr  = (spritetype*)bspr->First();
+		pLXSpr = (XSPRITE*)bxspr->First();
 
-			// copy xsector
-			if (cpysector[sectors].extra > 0)
+		// just copy all of it with same order that it was added
+		for (i = 0; i < highlightsectorcnt; i++, numsectors++, pLSect++)
+		{
+			if ((numsectors >= kMaxSectors)
+				|| (numwalls+pLSect->wallnum) >= kMaxWalls)
+						break;
+			
+			nSect = highlightsector[i], highlightsector[i] = numsectors;
+			memcpy(&sector[numsectors], pLSect, sizeof(sectortype));
+			sector[numsectors].wallptr = numwalls;
+			
+			if (pLSect->extra > 0)
 			{
-				xidx = dbInsertXSector(sect);
-				cpyxsector[sectors].reference = xsector[xidx].reference;
-				memcpy(&xsector[xidx], &cpyxsector[sectors], sizeof(XSECTOR));
-
-				// fix sector marker sprites
-				if (xsector[xidx].marker0 >= 0 || xsector[xidx].marker1 >= 0)
+				if (numxsectors < kMaxXSectors)
 				{
-
-					for (j = 0; j < cpyspritecnt; j++)
+					// copy & fix xsector
+					nXObj = dbInsertXSector(numsectors);
+					memcpy(&xsector[nXObj], pLXSect, sizeof(XSECTOR));
+					xsector[nXObj].reference = numsectors;			
+					
+					if (pLXSect->marker0 >= 0 || pLXSect->marker1 >= 0)
 					{
-						if (cpysprite[j].statnum != kStatMarker) continue;
-						if (xsector[xidx].marker0 != cpysprite[j].index && xsector[xidx].marker1 != cpysprite[j].index)
-							continue;
-
-						k = (short)InsertSprite(sect, kStatMarker);
-						memcpy(&sprite[k], &cpysprite[j], sizeof(spritetype));
-						sprite[k].owner = sprite[k].sectnum = sect;
-						sprite[k].index = k;
-
-						if (xsector[xidx].marker0 == cpysprite[j].index) xsector[xidx].marker0 = sprite[k].index;
-						else xsector[xidx].marker1 = sprite[k].index;
+						// find & fix it's markers
+						pLMrk = (spritetype*)bspr->First();
+						for (j = 0; j < bspr->Length() && numsprites < kMaxSprites; j++, pLMrk++)
+						{
+							if (pLMrk->statnum == kStatMarker && pLMrk->owner == nSect)
+							{
+								nSpr = InsertSprite(numsectors, kStatMarker);
+								memcpy(&sprite[nSpr], pLMrk, sizeof(spritetype));
+								sprite[nSpr].sectnum = sprite[nSpr].owner = numsectors;
+								sprite[nSpr].index = nSpr;
+								
+								if (pLXSect->marker0 == pLMrk->index)
+								{
+									xsector[nXObj].marker0 = nSpr;	
+								}
+								else
+								{
+									xsector[nXObj].marker1 = nSpr;
+								}
+							}
+						}
 					}
 				}
-			}
-
-			// copy sprites
-			for (j = 0; j < cpyspritecnt; j++)
-			{
-				if (cpysprite[j].sectnum != sprsect || cpysprite[j].statnum == kStatMarker)
-					continue;
-
-				k = (short)InsertSprite(sect, cpysprite[j].statnum);
-				memcpy(&sprite[k], &cpysprite[j], sizeof(spritetype));
-				sprite[k].sectnum = sect;
-				sprite[k].index = k;
-
-				// copy xsprite
-				if (sprite[k].extra > 0)
+				else
 				{
-					xidx = dbInsertXSprite(k);
-					cpyxsprite[j].reference = xsprite[xidx].reference;
-					memcpy(&xsprite[xidx], &cpyxsprite[j], sizeof(XSPRITE));
+					// erase xsector
+					sector[numsectors].extra	= -1;
+					sector[numsectors].type		=  0;
 				}
+				
+				pLXSect++;
 			}
-
+			
 			// copy walls
-			for(j = sector[sect].wallptr; j < sector[sect].wallptr + sector[sect].wallnum; j++)
+			for (j = 0; j < pLSect->wallnum; j++, numwalls++, pLWall++)
 			{
-				// copy xwall
-				if (cpywall[walls].extra > 0)
+				memcpy(&wall[numwalls], pLWall, sizeof(walltype));
+				wall[numwalls].point2 += (numwalls-j-pLSect->wallptr);
+				wall[numwalls].nextsector = wall[numwalls].nextwall = -1;
+				
+				if (pLWall->extra > 0)
 				{
-					xidx = dbInsertXWall(j);
-					cpyxwall[walls].reference = xwall[xidx].reference;
-					memcpy(&xwall[xidx], &cpyxwall[walls], sizeof(XWALL));
+					if (numxwalls < kMaxXWalls)
+					{
+						// copy & fix xwall
+						nXObj = dbInsertXWall(numwalls);
+						memcpy(&xwall[nXObj], pLXWall, sizeof(XWALL));
+						xwall[nXObj].reference = numwalls;
+					}
+					else
+					{
+						// erase xwall
+						wall[numwalls].extra = -1;
+						wall[numwalls].type  =  0;
+					}
+					
+					pLXWall++;
 				}
-
-				walls++;
 			}
-
-			sectors++;
-		}
-
-		for(i = 0; i < highlightsectorcnt; i++)
-		{
-			k = sector[highlightsector[i]].wallptr;
-			f = (short) (k + sector[highlightsector[i]].wallnum);
-			for(j = k; j < f; j++)
+			
+			// copy sprites
+			while(numsprites < kMaxSprites && pLSpr->sectnum == nSect)
 			{
-				if (wall[j].nextwall >= 0)
-					checksectorpointer(wall[j].nextwall, wall[j].nextsector);
-
-				checksectorpointer((short)j, highlightsector[i]);
+				if (pLSpr->statnum != kStatMarker)
+				{
+					nSpr = InsertSprite(numsectors, pLSpr->statnum);
+					memcpy(&sprite[nSpr], pLSpr, sizeof(spritetype));
+					sprite[nSpr].sectnum = numsectors;
+					sprite[nSpr].index = nSpr;
+					
+					if (pLSpr->extra > 0)
+					{
+						if (numxsprites < kMaxXSprites)
+						{
+							// copy & fix xsprite
+							nXObj = dbInsertXSprite(nSpr);
+							memcpy(&xsprite[nXObj], pLXSpr, sizeof(XSPRITE));
+							xsprite[nXObj].reference = nSpr;
+						}
+						else
+						{
+							// erase xsprite
+							sprite[nSpr].extra = -1;
+							sprite[nSpr].type  =  0;
+						}
+						
+						pLXSpr++;
+					}
+				}
+				
+				pLSpr++;
 			}
 		}
+		
+		highlightsectorcnt = i;
+		for (i = 0; i < highlightsectorcnt; i++)
+			sectAttach(highlightsector[i]);
 	}
 	
-	scrLoadPLUs();
+	if (fog != gFogMode)
+		scrLoadPLUs();
+	
 	if (gModernMap && gMisc.showTypes != MO)
 	{
 		gMisc.showTypes = MO;
 		initNames();
+		userItemsInit();
 	}
 	
 	for (i = 0; i < kMaxWalls; i++)
@@ -4993,8 +5004,10 @@ int boardLoad(char *filename)
 	CleanUpMisc();
 	CleanUp();
 	
-	updatesector(posx, posy, &cursectnum); clampCamera();
-	gMapedHud.SetMsgImp(256, gMapInfoStr);
+	updatesector(posx, posy, &cursectnum);
+	gMapedHud.SetMsgImp(128, gMapInfoStr);
+	clampCamera();
+	
 	return 0;
 }
 
@@ -5053,6 +5066,7 @@ void boardReset(int hgltreset)
 	startang   = ang  = 1536;
 	cursectnum = startsectnum = -1;
 	somethingintab = 255;
+	mapversion = 7;
 	gMapRev    = 0;
 	
 	memset(joinsector, -1, sizeof(joinsector));
@@ -5060,12 +5074,7 @@ void boardReset(int hgltreset)
 	if (!hgltreset) hgltReset(); // reset using default params
 	else hgltReset(hgltreset); 	// override param
 	
-	if (pGDoorSM)	DELETE_AND_NULL(pGDoorSM);
-	if (pGDoorR)	DELETE_AND_NULL(pGDoorR);
-	if (pGCircleW)  DELETE_AND_NULL(pGCircleW);
-	if (pGLShape)  	DELETE_AND_NULL(pGLShape);
-	if (pGLBuild)  	DELETE_AND_NULL(pGLBuild);
-	
+	sectorToolDisableAll(1);
 	memset(gMapInfoStr, 0, sizeof(gMapInfoStr));
 	gCommentMgr.DeleteAll();
 	CXTracker::Clear();
@@ -5425,12 +5434,7 @@ void xmpSetEditMode(char nMode)
 			if (reset)
 			{
 				joinsector[0] = joinsector[1] = -1;
-				if (pGDoorSM)	DELETE_AND_NULL(pGDoorSM);
-				if (pGDoorR)	DELETE_AND_NULL(pGDoorR);
-				if (pGCircleW)  DELETE_AND_NULL(pGCircleW);
-				if (pGLShape)  	DELETE_AND_NULL(pGLShape);
-				if (pGLBuild)  	DELETE_AND_NULL(pGLBuild);
-				
+				sectorToolDisableAll(1);
 				hgltReset(kHgltPoint);
 			}
 			
@@ -5445,4 +5449,78 @@ void xmpSetEditMode(char nMode)
 			
 			break;
 	}
+}
+
+void xmpCreateToolTestMap(char withSprite)
+{
+	#define kDist 16
+	
+	sectortype *pSectA, *pSectB; spritetype* pSpr;
+	LOOPSHAPE* pShape;
+	int s, e;
+	
+	clipmovemask3d = BLOCK_MOVE;
+	zmode = 2;
+
+	pShape = new LOOPSHAPE(kLoopShapeCircle, -1, posx, posy);
+	pShape->Setup(posx + MET2PIX(kDist), posy + MET2PIX(kDist), NULL);
+	s = pShape->Insert();
+	delete(pShape);
+	
+	pSectA = &sector[0];
+	sectCstatAdd(0, kSectParallax, OBJ_CEILING);
+	sectCstatAdd(0, kSectShadeFloor, OBJ_FLOOR);
+	pSectA->floorpicnum = 459;
+	
+	pShape = new LOOPSHAPE(kLoopShapeCircle, 0, posx, posy);
+	pShape->Setup(posx + MET2PIX((kDist - 1)), posy + MET2PIX((kDist - 1)), NULL);
+	s = pShape->Insert();
+	delete(pShape);
+	
+	redSectorMake(s);
+	pSectB = &sector[1];
+	getSectorWalls(1, &s, &e);
+	while(s <= e)
+	{
+		wall[s].cstat |= kWallBlock;
+		wall[s].picnum = 253;
+		s++;
+	}
+	
+
+	
+	pSectA->floorz -= 4096;
+	pSectA->ceilingz = pSectA->floorz;
+	pSectA->floorpicnum = 253;
+	
+	Sky::SetPic(0, OBJ_CEILING, 2500, 1);
+	
+	if (withSprite)
+	{
+		pSpr = &sprite[InsertSprite(1, 0)];
+		pSpr->z = pSectB->floorz;
+		pSpr->x = posx;
+		pSpr->y = posy;
+		
+		clampSprite(pSpr);
+		posz = pSpr->z;
+
+		searchstat		= OBJ_SPRITE;
+		searchwall		= pSpr->index;
+		searchindex		= pSpr->index;
+		searchsector	= 1;
+		
+		pointhighlight	= (pSpr->index + 16384);
+		
+		offsetPos(0, -MET2PIX(3), 0, ang, &posx, &posy, NULL);
+	}
+	else
+	{
+		searchstat		= OBJ_FLOOR;
+		searchindex		= 1;
+		searchsector	= 1;
+	}
+	
+	gMapLoaded = 1;
+	
 }

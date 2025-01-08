@@ -133,7 +133,7 @@ int LOOPBUILD::Process(int x, int y)
 		UpdPoint(x, y, numPoints);
 	
 	if (numwalls >= kMaxWalls-1)		return -1;
-	if (pointOnWallLine(x, y))			return -3;
+	if (pointOnWallLine(x, y) == 3)		return -3;
 	if (numPoints == 0)					return  0;  // ready for point insertion
 	
 	if (!atFirstPoint)

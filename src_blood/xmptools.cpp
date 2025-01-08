@@ -1454,7 +1454,7 @@ int IMPORT_WIZARD::ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg)
 	//--------------------------------------------------------
 	Panel* pageMap = new Panel(pgx, pgy, pgw, pgh);
 	{
-		int dy = 0;
+		int dy = 0, *p;
 		char* headText = "Welcome to the import wizard tool!";
 		char* tWelcDesc = "This tool helps you to import maps\n"
 						  "and/or graphics from another\n"
@@ -1467,15 +1467,18 @@ int IMPORT_WIZARD::ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg)
 		tWelcText->height = pFont->height*tWelcText->lines;
 		dy+=tWelcText->height+10;
 		// ---------------------------------------------------
-		i = 0, j = 0, k = LENGTH(gSuppMapVersions) - 1;
-		i += sprintf(&tmp[i], "Map file versions supported:\n");
-		while(j < k)
+		i = sprintf(tmp, "Map file versions supported:\n");
+		p = gSuppMapVersions;
+		while( 1 )
 		{
-			i += sprintf(&tmp[i], " %d", gSuppMapVersions[j++]);
-			if (j < k)
-				i += sprintf(&tmp[i], ",");
+			i += sprintf(&tmp[i], " %d", *p);
+			if (*(p + 1) < 0)
+				break;
+			
+			i += sprintf(&tmp[i], ",");
+			p++;
 		}
-		i += sprintf(&tmp[i], " and %d.", gSuppMapVersions[j]);
+		
 		Text* tVerText = new Text(0, dy, pgw, 0, tmp, kTextACenter|kTextAMiddle, kColorRed, pTextFont);
 		tVerText->height = pFont->height*tVerText->lines;
 		dy+=tVerText->height+10;
@@ -2219,7 +2222,19 @@ void IMPORT_WIZARD::MapAdjustShade(int nPalookus)
 
 int IMPORT_WIZARD::MapCheckFile(IOBuffer* pIo, int* pSuppVerDB, int DBLen, BOOL* bloodMap)
 {
-	return dbCheckMap(pIo, pSuppVerDB, DBLen, bloodMap);
+	CHECKMAPINFO info;
+	int nCode;
+	
+	*bloodMap = 0;
+	if ((nCode = dbCheckMap(pIo, &info, pSuppVerDB)) > 0)
+	{
+		if (info.type == kMapTypeBLOOD)	*bloodMap = 1;
+		else if (info.type != kMapTypeBUILD)
+			nCode = -3;
+	}
+	
+	return nCode;
+	
 }
 
 void IMPORT_WIZARD::Init()

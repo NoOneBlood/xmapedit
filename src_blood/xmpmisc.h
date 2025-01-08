@@ -143,7 +143,7 @@ struct SCANWALL
 
 
 
-char scanWallOfSector(SCANWALL* pIn, SCANWALL* pOut);
+char scanWallOfSector(SCANWALL* pIn, SCANWALL* pOut, int snapDist = 0);
 extern NAMED_TYPE gReverseSectorErrors[3];
 extern int gNextWall[kMaxWalls];
 

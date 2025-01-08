@@ -25,10 +25,12 @@
 #include "screen.h"
 
 enum {
-mrRight = mrUser,
+mrMin	= mrUser,
+mrRight = mrMin,
 mrBoth1,
 mrBoth2,
 mrLeft,
+mrMax,
 };
 
 OBJECT_LIST gListGrd;
@@ -49,7 +51,7 @@ int grshShadeWalls(char toggle)
 {
 	char buff[64], *pShadeStr;
 	int nStep, nStepCnt, nShade, dwh, dhg;
-	int nBaseShade;
+	int nBaseShade, nHalf, tStp, tShd;
 	int i = 0;
 	
 	static unsigned char nDir		= mrLeft;
@@ -61,17 +63,14 @@ int grshShadeWalls(char toggle)
 	OBJECT* pDb  = gListGrd.Ptr();
 	OBJECT* pObj = pDb;
 	
+	nHalf = nLen >> 1;
+	if ((nLen % 2) == 0)
+		nHalf--;
+	
 	switch (nDir)
 	{
-		case mrLeft:
-			i = nLen - 1;
-			break;
-		case mrBoth1:
-			i = nLen >> 1;
-			if (i << 1 == nLen)
-				i--;
-			
-			break;
+		case mrLeft:	i = nLen-1;		break;
+		case mrBoth1:	i = nHalf;		break;
 	}
 	
 	pObj = gListGrd.Ptr(i);
@@ -122,19 +121,20 @@ int grshShadeWalls(char toggle)
 	dialog.Insert(pbBoth2);
 	dialog.Insert(pbLeft);
 	
-	if (!toggle || nDir < 0)
+	if (!toggle)
 	{
 		ShowModal(&dialog);
-		if (dialog.endState == mrOk && dialog.focus)	// find a button we are focusing on
-		{
-			TextButton* pFocus = (TextButton*)dialog.focus;
-			if (pFocus->result)
-				nDir = pFocus->result;
-		}
-		else
-		{
-			nDir = dialog.endState;
-		}
+		if (dialog.endState == mrCancel)
+			return mrCancel;
+		
+		// find a button we are focusing on
+		Widget* pFocus = ((Container*)dialog.focus)->focus;
+		
+		if (pFocus == pbRight)			nDir = pbRight->result;
+		else if (pFocus == pbBoth)		nDir = pbBoth->result;
+		else if (pFocus == pbBoth2) 	nDir = pbBoth2->result;
+		else if (pFocus == pbLeft)		nDir = pbLeft->result;
+		// else use previous
 	}
 	else if (++nDir > mrLeft)
 	{
@@ -142,9 +142,10 @@ int grshShadeWalls(char toggle)
 	}
 	
 	
-	nMaxShade 	= maxShE->value;		nShadeStep = stepShE->value;
-	nShade 		= startShE->value;		nStepRange = stepRgE->value;
-	nBaseShade 	= nShade;
+	nMaxShade = maxShE->value;			nShadeStep = stepShE->value;
+	nShade = startShE->value;			nStepRange = stepRgE->value;
+	tShd = nShade;						nBaseShade 	= nShade;
+	nStepCnt = 0;						tStp		= nStepCnt;
 	
 	nStep = (nBaseShade > nMaxShade) ? -nShadeStep : nShadeStep;
 	
@@ -164,35 +165,25 @@ int grshShadeWalls(char toggle)
 			break;
 		case mrBoth1:// from middle to edges
 			nStep<<=1;
-			for (i = (nLen-1)>>1; i < nLen; i++)
-				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange>>1, &nStepCnt);
-			
-			nShade = nBaseShade;
-			for (i = (nLen-1)>>1; i >= 0; i--)
-				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange>>1, &nStepCnt);
-			
+			for (i = nHalf; i >= 0; i--)
+			{
+				processShade(&pDb[i], &tShd, nMaxShade, nStep, nStepRange, &tStp);
+				processShade(&pDb[nLen-i-1], &nShade, nMaxShade, nStep, nStepRange, &nStepCnt);
+			}
 			pShadeStr = pbBoth->text;
 			break;
 		case mrBoth2: // from edges to middle
 			nStep<<=1;
-			for (i = 0; i < nLen>>1; i++)
-				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange>>1, &nStepCnt);
-			
-			nShade = nBaseShade;
-			for (i = nLen-1; i >= nLen>>1; i--)
-				processShade(&pDb[i], &nShade, nMaxShade, nStep, nStepRange>>1, &nStepCnt);
-			
+			for (i = 0; i <= nHalf; i++)
+			{
+				processShade(&pDb[i], &tShd, nMaxShade, nStep, nStepRange, &tStp);
+				processShade(&pDb[nLen-i-1], &nShade, nMaxShade, nStep, nStepRange, &nStepCnt);
+			}
 			pShadeStr = pbBoth2->text;
-			break;
-		case mrCancel:
 			break;
 	}
 	
-	if (nDir >= mrRight && nDir <= mrLeft)
-	{
-		scrSetMessage("Shade direction: %s", pShadeStr);
-		BeepOk();
-	}
-
+	BeepOk();
+	scrSetMessage("Shade direction: %s", pShadeStr);
 	return nDir;
 }

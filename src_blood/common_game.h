@@ -132,19 +132,25 @@ typedef uint8_t BITARRAY16[(16384+7)>>3];
 typedef uint8_t BITARRAY08[(8192+7)>>3];
 typedef uint8_t BITARRAY04[(4096+7)>>3];
 typedef uint8_t BITSECTOR[(kMaxSectors+7)>>3];
+typedef uint8_t BITSPRITE[(kMaxSprites+7)>>3];
 
 #define kSEQSig					"SEQ\x1A"
 #define kQavSig					"QAV\x1A"
 #define kBloodMapSig			"BLM\x1A"
+#define kNBloodSaveSig			"NBSV"
 
+#define DANGLE(a1, a2)  		(((a1 + kAng180 - a2) & kAngMask) - kAng180)
+#define EVTIME2TICKS(x)         ((x * 120) / 10)
 #define PIX2MET(n) 				(n / (32<<4))
 #define MET2PIX(n) 				(n * (32<<4))
+#define GRD2PIX(n)				(2048 >> n)
 #define IVAL2PERC(val, full) 	((val * 100) / full)
 #define DELETE_AND_NULL(x) 		delete(x), x = NULL;
 #define FREE_AND_NULL(x)		free(x), x = NULL;
 #define MIDPOINT(a, b) 			(a+((b-a)>>1))
 #define QSETMODE(x, y)			qsetmode = ((x<<16)|(y&0xffff))
 #define NUMPALOOKUPS(x)			(numpalookups-x)
+#define ALIGNTO(s)				(sector[s].wallptr + sector[s].alignto)
 
 
 #define TRUE			1
@@ -210,6 +216,25 @@ typedef uint8_t BITSECTOR[(kMaxSectors+7)>>3];
 #define kTicRate 120
 #define kTicsPerFrame 4
 #define kTicsPerSec (kTicRate/kTicsPerFrame)
+
+#define HITMASK			0xC000
+#define HITID			0x3FFF
+#define HITSECT			0x4000
+#define HITWALL			0x8000
+#define HITSPR			0xC000
+
+#define CHK_HIT(a, b)			((a & HITMASK) == b)
+#define GET_HITID(a)			(a & HITID)
+#define CMP_HITID(a, b)			(GET_HITID(a) == b)
+
+#define CHK_HITSECT(a)			CHK_HIT(a, HITSECT)
+#define CMP_HITSECT(a, b)		(CHK_HITSECT(a) && CMP_HITID(a, b))
+
+#define CHK_HITWALL(a)			CHK_HIT(a, HITWALL)
+#define CMP_HITWALL(a, b)		(CHK_HITWALL(a) && CMP_HITID(a, b))
+
+#define CHK_HITSPR(a)			CHK_HIT(a, HITSPR)
+#define CMP_HITSPR(a, b)		(CHK_HITSPR(a) && CMP_HITID(a, b))
 
 // searchstat types /////////////////////////////////////////////////////
 enum {
@@ -963,6 +988,10 @@ inline char Chance(int a1)									{ return rand() < (a1>>1); }
 inline unsigned int Random(int a1)							{ return mulscale15(rand(), a1); }
 inline int BiRandom(int a1)									{ return mulscale14(rand(), a1)-a1; }
 inline int BiRandom2(int a1)								{ return mulscale15(wrand()+wrand(), a1) - a1; }
+inline char pointBehindLine(int x, int y, int x1, int y1, int x2, int y2)
+{
+	return ((x-x1) * (y2-y1) > (y-y1) * (x2-x1));
+}
 
 #if USE_OPENGL
 char GL_swapIntervalTest();
@@ -972,186 +1001,231 @@ int GL_fps2SwapInterval(int fps);
 
 BYTE countBestColor(PALETTE in, int r, int g, int b, int wR = 1, int wG = 1, int wB = 1);
 
-class IDLIST
+class VOIDLIST
 {
-	typedef void (*IDLIST_PROCESS_FUNC)(int32_t nId);
-	
-	private:
-        int32_t*  db;
-        uint32_t  length;
-    public:
-		IDLIST(bool spawnDb)
+	protected:
+		uint8_t *db;
+		uint64_t totalsiz;
+		uint32_t entrysiz;
+	public:
+		VOIDLIST(void)
 		{
-			length = 0;
+			entrysiz = 0;
+			totalsiz = 0;
 			db = NULL;
-			if (spawnDb)
-				Init();
 		}
-        ~IDLIST() { Free(); }
 		
-        void Init()
-        {
-            Free();
-		    db = (int32_t*)Bmalloc(sizeof(int32_t));
-			dassert(db != NULL);
-            db[0] = -1;
-        }
-
-        void Free()
-        {
-            length = 0;
-            if (db)
-                Bfree(db), db = NULL;
-        }
-
-        int Add(int nID)
-        {
-            int t = length;
-            db[length++] = nID;
-			db = (int32_t*)Brealloc(db, (length + 1)*sizeof(int32_t));
-			dassert(db != NULL);
-            db[length] = -1;
-			return t;
-        }
-		
-		int AddIfNot(int nID)
+		VOIDLIST(int nEntrySiz, void* pEOL = NULL)
 		{
-            int t;
-			if ((t = Find(nID)) >= 0)
-				return t;
+			entrysiz = 0;
+			totalsiz = 0;
+			db = NULL;
 			
-			return Add(nID);
+			Init(nEntrySiz, pEOL);
 		}
-
-        bool Remove(int nID, bool isListId = false)
-        {
-			if (!isListId && (nID = Find(nID)) < 0)
-				return false;
+		
+		~VOIDLIST(void)
+		{
+			Free();
+		}
+		
+		void Init(int nEntrySiz, void* pEOL = NULL)
+		{
+			Free();
+			entrysiz = nEntrySiz;
+			db = (uint8_t*)malloc(2 * entrysiz);
+			dassert(db != NULL);
 			
-			if (nID < length)
-				memmove(&db[nID], &db[nID+1], (length-nID)*sizeof(int32_t));
-			
-			if (length > 0)
+			if (pEOL)
 			{
-				db = (int32_t*)Brealloc(db, length*sizeof(int32_t));
-				dassert(db != NULL);
-				db[--length] = -1;
+				memcpy(&db[0], pEOL, entrysiz);			// left edge
 			}
 			else
 			{
-				Init();
+				memset(&db[0], 0, entrysiz);			// left edge
 			}
 			
-			return true;
-        }
-
-        int Find(int nID)
-        {
-			int i = length;
-			while(--i >= 0 && db[i] != nID);
-            return i;
-        }
+			memcpy(&db[entrysiz], &db[0], entrysiz);	// right edge
+			totalsiz = 0;
+		}
 		
-		BOOL Exists(int nID)	{ return (Find(nID) >= 0); }
-        int32_t* GetPtr()		{ return (int32_t*)db; }
-		uint32_t GetLength()	{ return length; }
-		uint32_t SizeOf()		{ return (length+1)*sizeof(int32_t); }
-		
-		void Process(IDLIST_PROCESS_FUNC pFunc)
+		int AddUnique(void* pData)
 		{
-			if (!length)
-				return;
+			int n;
+			if ((n = Find(pData)) >= 0)
+				return n;
 			
-			int32_t* pDb = db;
-			while(*pDb >= 0)
-				pFunc(*pDb++);
-		}
-        
-};
-
-class OBJECT_LIST
-{
-	private:
-		OBJECT *db;
-		unsigned int externalCount;
-		unsigned int internalCount;
-		void MarkEnd()
-		{
-			db[externalCount].type  = OBJ_NONE;
-			db[externalCount].index = 0;
+			return Add(pData);
 		}
 		
-		void Init()
+		int Add(void* pData, void* pOther, char after)
 		{
-			db = (OBJECT*)malloc(sizeof(OBJECT));
-			externalCount = 0, internalCount = 1;
-			MarkEnd();
-		}
-		
-		void Free()
-		{
-			if (db)
-				free(db);
-			
-			externalCount = 0;
-			internalCount = 0;
-			db = NULL;
-		}
-	public:
-		OBJECT_LIST()   		{ Init(); }
-		~OBJECT_LIST()  		{ Free(); }
-		OBJECT* Ptr()			{ return &db[0]; }
-		OBJECT* Ptr(int nID)	{ return &db[nID]; }
-		int Length()			{ return externalCount; }
-		
-		int Add(int nType, int nIndex, BOOL check = FALSE)
-		{
-			int retn = -1;
-			if (check && (retn = Find(nType, nIndex)) >= 0)
-				return retn;
-			
-			db = (OBJECT*)realloc(db, sizeof(OBJECT) * (internalCount + 1));
-			dassert(db != NULL);
-
-			db[externalCount].type  = nType;
-			db[externalCount].index = nIndex;
-			retn = externalCount;
-			externalCount++;
-			internalCount++;
-			
-			MarkEnd();
-			return retn;
-		}
-		
-		OBJECT* Remove(int nType, int nIndex)
-		{
-			int nID, t;
-			if ((nID = Find(nType, nIndex)) < 0)
-				return &db[externalCount];
-			
-			t = nID;
-			while(t < externalCount) db[t] = db[t+1], t++;
-			db = (OBJECT*)realloc(db, sizeof(OBJECT) * internalCount);
-			dassert(db != NULL);
-			externalCount--;
-			internalCount--;
-			return &db[nID];
-		}
-		
-		int Find(int nType, int nIndex)
-		{
-			int i;
-			for (i = 0; i < externalCount; i++)
+			int n;
+			if ((n = Find(pOther)) >= 0)
 			{
-				if (db[i].type == nType && db[i].index == nIndex)
+				if (after)
+				{
+					n+=entrysiz;
+					if (n > totalsiz)
+						return Add(pData);
+				}
+				
+				totalsiz += (3 * entrysiz);
+				db = (uint8_t*)realloc(db, totalsiz);
+				dassert(db != NULL);
+				
+				totalsiz-=entrysiz;
+				memcpy(&db[n + entrysiz], &db[n], totalsiz - n);
+				memcpy(&db[n], pData, entrysiz);
+				
+				totalsiz-=entrysiz;
+				return n;
+			}
+			
+			return Add(pData);
+		}
+		
+		int Add(void* pData)
+		{
+			totalsiz += (3 * entrysiz);
+			db = (uint8_t*)realloc(db, totalsiz);
+			dassert(db != NULL);
+			
+			totalsiz-=entrysiz;
+			memcpy(&db[totalsiz], &db[0], entrysiz);
+			
+			totalsiz-=entrysiz;
+			memcpy(&db[totalsiz], pData, entrysiz);
+			return totalsiz;
+		}
+
+		int Remove(void* pData)
+		{
+			int s, n, r = -1;
+			
+			while((n = Find(pData)) >= 0)
+			{
+				s = totalsiz + (2 * entrysiz);
+				memcpy(&db[n], &db[n + entrysiz], s - n);
+				db = (uint8_t*)realloc(db, s - entrysiz);
+				totalsiz-=entrysiz;
+				r = n;
+			}
+			
+			return r;
+		}
+		
+		int Find(void* pData)
+		{
+			for (int i = entrysiz; i <= totalsiz; i+=entrysiz)
+			{
+				if (memcmp(&db[i], pData, entrysiz) == 0)
 					return i;
 			}
 			
 			return -1;
 		}
 		
-		void Clear() { Free(); Init(); }
-		char Exists(int nType, int nIndex) { return (Find(nType, nIndex) >= 0); }
+		void* Ptr(int nIndex)
+		{
+			int n = ClipRange((nIndex + 1) * entrysiz, entrysiz, totalsiz);
+			return (void*)&db[n];
+		}
+		
+		void Clear(void)
+		{
+			db = (uint8_t*)realloc(db, 2 * entrysiz);
+			memcpy(&db[entrysiz], &db[0], entrysiz);	// right edge
+			totalsiz = 0;	
+		}
+		
+		void Free(void)
+		{
+			entrysiz = 0;
+			totalsiz = 0;
+			
+			if (db)
+				FREE_AND_NULL(db);
+		}
+		
+		void Sort(void* pFunc)
+		{
+			if (Length() > 1)
+				qsort(First(), Length(), entrysiz, (int(*)(const void*,const void*))pFunc);
+		}
+		
+		inline char Exists(void* pData)		{ return (Find(pData) > 0);								}
+		inline void* First(void)			{ return &db[entrysiz];									}
+		inline void* Last(void)				{ return &db[ClipLow(totalsiz, entrysiz)];				}
+		inline int Length(void)				{ return totalsiz / entrysiz;							}
+		inline char Empty(void)				{ return (Length() == 0);								}
+		inline char Valid(void* p)			{ return (p >= First() && p <= Last());					}
+};
+
+class IDLIST : public VOIDLIST
+{
+	public:
+		IDLIST(int32_t dummy, int32_t eol = -1)		: VOIDLIST(sizeof(eol), &eol) { }
+ 		inline int Add(int nID)						{ return VOIDLIST::Add(&nID);							}
+		inline int Remove(int nID)					{ return VOIDLIST::Remove(&nID);						}
+		inline char Exists(int nID)					{ return VOIDLIST::Exists(&nID);						}
+		inline int32_t* First(void)					{ return (int32_t*)VOIDLIST::First();					}
+		inline int32_t* Last(void)					{ return (int32_t*)VOIDLIST::Last();					}
+		inline int32_t* Ptr(int nID)				{ return (int32_t*)VOIDLIST::Ptr(nID);					}
+		inline int32_t* Ptr(void)					{ return First();										}
+		
+		// compat
+		typedef void (*IDLIST_PROCESS_FUNC)(int32_t nId);
+		
+		inline void Init(int32_t eol = -1)			{ VOIDLIST::Init(sizeof(eol), &eol);					}
+		inline int AddIfNot(int nID)				{ return VOIDLIST::AddUnique(&nID);						}
+		inline int GetLength(void)					{ return Length();										}
+		inline int32_t* GetPtr(void)				{ return First();										}
+		
+		void Process(IDLIST_PROCESS_FUNC pFunc)
+		{
+			for (int32_t* p = First(); *p >= 0; p++)
+				pFunc(*p);
+		}
+		//
+};
+
+class OBJECT_LIST : public VOIDLIST
+{
+	public:
+  		OBJECT_LIST() : VOIDLIST()
+		{
+			OBJECT obj = {OBJ_NONE, 0};
+			VOIDLIST::Init(sizeof(obj), &obj);			
+		}
+		
+		inline int Add(unsigned int nType, unsigned int nIndex)
+		{
+			OBJECT o = { nType, nIndex };
+			return VOIDLIST::Add(&o);
+		}
+		
+		inline int Find(unsigned int nType, unsigned int nIndex)
+		{
+			OBJECT o = { nType, nIndex };
+			return VOIDLIST::Find(&o);
+		}
+		
+		inline int Remove(unsigned int nType, unsigned int nIndex)
+		{
+			OBJECT o = { nType, nIndex };
+			return VOIDLIST::Remove(&o);
+		}
+		
+		inline char Exists(unsigned int nType, unsigned int nIndex)	
+		{
+			return (Find(nType, nIndex) >= 0);
+		}
+		
+		inline OBJECT* First(void)						{ return (OBJECT*)VOIDLIST::First();	}
+		inline OBJECT* Last(void)						{ return (OBJECT*)VOIDLIST::Last();		}
+		inline OBJECT* Ptr(int nID)						{ return (OBJECT*)VOIDLIST::Ptr(nID);	}
+		inline OBJECT* Ptr(void)						{ return First();						}
 };
 
 

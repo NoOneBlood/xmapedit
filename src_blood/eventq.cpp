@@ -405,7 +405,7 @@ char evGetSourceState(int nType, int nIndex)
 	return 0;
 }
 
-void evSend(int nIndex, int nType, int rxId, COMMAND_ID command)
+void evSend(int nIndex, int nType, int rxId, COMMAND_ID command, int nCauser)
 {
 	int i;
 	switch (command) {

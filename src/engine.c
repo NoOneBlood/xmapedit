@@ -9239,13 +9239,12 @@ void updatesectorz(int x, int y, int z, short *sectnum)
 {
 	walltype *wal;
 	int i, j, cz, fz;
-
-	getzsofslope(*sectnum, x, y, &cz, &fz);
-	if ((z >= cz) && (z <= fz))
-		if (inside(x,y,*sectnum) != 0) return;
-
 	if ((*sectnum >= 0) && (*sectnum < numsectors))
 	{
+		getzsofslope(*sectnum, x, y, &cz, &fz);
+		if ((z >= cz) && (z <= fz))
+			if (inside(x,y,*sectnum) != 0) return;
+
 		wal = &wall[sector[*sectnum].wallptr];
 		j = sector[*sectnum].wallnum;
 		do

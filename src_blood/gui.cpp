@@ -1590,10 +1590,10 @@ void EditText::HandleEvent( GEVENT *event )
 
 
 
-EditNumber::EditNumber( int left, int top, int width, int height, int nVal, char nValType, int nMin, int nMax) : EditText( left, top, width, height, "")
+EditNumber::EditNumber( int left, int top, int width, int height, int nVal, char _endChar, int nMin, int nMax) : EditText( left, top, width, height, "")
 {
 	value = nVal;
-	valueType = nValType;
+	endChar = _endChar;
 	minValue = nMin;
 	maxValue = nMax;
 	ClampValue();
@@ -1635,6 +1635,9 @@ void EditNumber::HandleEvent( GEVENT *event )
 					memmove(&string[1], &string[0], len);
 					string[pos++] = '-';
 					string[++len] = '\0';
+					
+					if (!value)
+						string[pos++] = '1', value = -1;
 				}
 				event->Clear();
 				break;
@@ -1678,7 +1681,7 @@ void EditNumber::HandleEvent( GEVENT *event )
 		value = 0;
 	}
 	
-	if (valueType != kValNone)
+	if (endChar != '\0')
 		InsEndChar();
 }
 
@@ -1687,27 +1690,13 @@ void EditNumber::ClampValue()
 	value = ClipRange(value, minValue, maxValue);
 	itoa(value, string, 10); len = strlen(string);
 	pos = ClipRange(pos, 0, len);
-	if (valueType != kValNone)
+	if (endChar != '\0')
 		InsEndChar();
 }
 
 void EditNumber::InsEndChar()
 {
-	switch(valueType)
-	{
-		case kValPerc:
-			sprintf(&string[len], "%c", '%');
-			break;
-		case kValMeter:
-			sprintf(&string[len], "%c", 'm');
-			break;
-		case kValPixel:
-			sprintf(&string[len], "%c", 'p');
-			break;
-		case kValRepeat:
-			sprintf(&string[len], "%c", 'r');
-			break;
-	}
+	sprintf(&string[len], "%c", endChar);
 }
 
 

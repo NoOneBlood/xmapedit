@@ -108,8 +108,8 @@ class SCREEN2D
 			data.ang		= ang;
 			data.grid		= grid;
 			data.zoom		= zoom;
-			data.camx		= posx;
-			data.camy		= posy;
+			data.camx		= camx;
+			data.camy		= camy;
 			
 			ScreenDraw();
 		}
@@ -136,6 +136,7 @@ class SCREEN2D
 		void DrawSpriteMarker(void);
 		void DrawSpriteAmbient(void);
 		void DrawSpriteStealth(void);
+		void DrawSpriteLaser(void);
 		void DrawSpriteFX(void);
 		void DrawSpriteExplosion(void);
 		void DrawSpriteProjectile(void);

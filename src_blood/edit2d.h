@@ -71,4 +71,5 @@ extern DOOR_SLIDEMARKED* pGDoorSM;
 extern CIRCLEWALL* pGCircleW;
 extern LOOPSHAPE* pGLShape;
 extern LOOPBUILD* pGLBuild;
+extern SECTAUTOARC* pGArc;
 #endif

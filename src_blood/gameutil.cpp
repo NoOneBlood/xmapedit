@@ -61,72 +61,29 @@ bool AreSectorsNeighbors(int sect1, int sect2)
     return 0;
 }
 
-bool FindSector(int nX, int nY, int nZ, int *nSector)
+char FindSector(int nX, int nY, int nZ, int *nSector)
 {
-    int32_t nZFloor, nZCeil;
-    dassert(*nSector >= 0 && *nSector < numsectors);
-    if (inside(nX, nY, *nSector))
-    {
-        getzsofslope(*nSector, nX, nY, &nZCeil, &nZFloor);
-        if (nZ >= nZCeil && nZ <= nZFloor)
-        {
-            return 1;
-        }
-    }
-    walltype *pWall = &wall[sector[*nSector].wallptr];
-    for (int i = sector[*nSector].wallnum; i > 0; i--, pWall++)
-    {
-        int nOSector = pWall->nextsector;
-        if (nOSector >= 0 && inside(nX, nY, nOSector))
-        {
-            getzsofslope(nOSector, nX, nY, &nZCeil, &nZFloor);
-            if (nZ >= nZCeil && nZ <= nZFloor)
-            {
-                *nSector = nOSector;
-                return 1;
-            }
-        }
-    }
-    for (int i = 0; i < numsectors; i++)
-    {
-        if (inside(nX, nY, i))
-        {
-            getzsofslope(i, nX, nY, &nZCeil, &nZFloor);
-            if (nZ >= nZCeil && nZ <= nZFloor)
-            {
-                *nSector = i;
-                return 1;
-            }
-        }
-    }
+    short nSect = (short)(*nSector);
+	updatesectorz(nX, nY, nZ, &nSect);
+	if (nSect >= 0)
+	{
+		*nSector = nSect;
+		return 1;
+	}
+	
     return 0;
 }
 
-bool FindSector(int nX, int nY, int *nSector)
+char FindSector(int nX, int nY, int *nSector)
 {
-    dassert(*nSector >= 0 && *nSector < numsectors);
-    if (inside(nX, nY, *nSector))
-    {
-        return 1;
-    }
-    walltype *pWall = &wall[sector[*nSector].wallptr];
-    for (int i = sector[*nSector].wallnum; i > 0; i--, pWall++)
-    {
-        int nOSector = pWall->nextsector;
-        if (nOSector >= 0 && inside(nX, nY, nOSector))
-        {
-            *nSector = nOSector;
-            return 1;
-        }
-    }
-    for (int i = 0; i < numsectors; i++)
-    {
-        if (inside(nX, nY, i))
-        {
-            *nSector = i;
-            return 1;
-        }
-    }
+    short nSect = (short)(*nSector);
+	updatesector(nX, nY, &nSect);
+	if (nSect >= 0)
+	{
+		*nSector = nSect;
+		return 1;
+	}
+	
     return 0;
 }
 

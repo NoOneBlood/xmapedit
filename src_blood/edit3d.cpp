@@ -231,149 +231,6 @@ void SetSectorTheta( int nSector, int bobTheta )
 	}
 }
 
-int GetWallZPeg( int nWall )
-{
-	int z;
-
-	int nSector = sectorofwall(nWall);
-	int nNextSector = wall[nWall].nextsector;
-
-	if (nNextSector == -1)
-	{
-		// one sided wall
-		if ( wall[nWall].cstat & kWallOrgBottom )
-			z = sector[nSector].floorz;
-		else
-			z = sector[nSector].ceilingz;
-	}
-	else
-	{
-		// two sided wall
-		if ( wall[nWall].cstat & kWallOrgOutside )
-			z = sector[nSector].ceilingz;
-		else
-		{
-			// top step
-			if (sector[nNextSector].ceilingz > sector[nSector].ceilingz)
-				z = sector[nNextSector].ceilingz;
-			// bottom step
-			if (sector[nNextSector].floorz < sector[nSector].floorz)
-				z = sector[nNextSector].floorz;
-		}
-	}
-	return z;
-}
-
-
-void AlignWalls( int nWall0, int z0, int nWall1, int z1, int nTile )
-{
-	dassert(nWall0 >= 0 && nWall0 < kMaxWalls);
-	dassert(nWall1 >= 0 && nWall1 < kMaxWalls);
-
-	//dprintf("¯%d", nWall1);
-
-	// do the x alignment
-	wall[nWall1].cstat &= ~kWallFlipMask;    // set to non-flip
-	wall[nWall1].xpanning = (BYTE)((wall[nWall0].xpanning + (wall[nWall0].xrepeat << 3)) % tilesizx[nTile]);
-
-	int n = picsiz[nTile] >> 4;
-	if ( (1 << n) != tilesizy[nTile] )
-		n++;
-
-	wall[nWall1].yrepeat = wall[nWall0].yrepeat;
-	wall[nWall1].ypanning = (BYTE)(wall[nWall0].ypanning + (((z1 - z0) * wall[nWall0].yrepeat) >> (n + 3)));
-}
-
-void AutoAlignWalls( int nWall0, int ply)
-{
-	dassert(nWall0 >= 0 && nWall0 < kMaxWalls);
-
-	int z0, z1;
-	int nTile = wall[nWall0].picnum;
-	int nWall1;
-	int branch = 0;
-
-	if (ply == 64 )
-		return;
-
-	if ( ply == 0 )
-	{
-		// clear visited bits
-		memset(visited, FALSE, sizeof(visited));
-		visited[nWall0] = TRUE;
-	}
-
-	z0 = GetWallZPeg(nWall0);
-
-	nWall1 = wall[nWall0].point2;
-	dassert(nWall1 >= 0 && nWall1 < kMaxWalls);
-
-	// loop through walls at this vertex in CCW order
-	while (1)
-	{
-		// break if this wall would connect us in a loop
-		if ( visited[nWall1] )
-			break;
-
-		visited[nWall1] = TRUE;
-
-		// break if reached back of left wall
-		if ( wall[nWall1].nextwall == nWall0 )
-			break;
-
-		if ( wall[nWall1].picnum == nTile )
-		{
-			z1 = GetWallZPeg(nWall1);
-			BOOL visible = FALSE;
-
-			int nNextSector = wall[nWall1].nextsector;
-			if ( nNextSector < 0 )
-				visible = TRUE;
-			else
-			{
-				// ignore two sided walls that have no visible face
-				int nSector = wall[wall[nWall1].nextwall].nextsector;
-				if ( getceilzofslope(nSector, wall[nWall1].x, wall[nWall1].y) <
-					getceilzofslope(nNextSector, wall[nWall1].x, wall[nWall1].y) )
-					visible = TRUE;
-
-				if ( getflorzofslope(nSector, wall[nWall1].x, wall[nWall1].y) >
-					getflorzofslope(nNextSector, wall[nWall1].x, wall[nWall1].y) )
-					visible = TRUE;
-			}
-
-			if ( visible )
-			{
-				branch++;
-				AlignWalls(nWall0, z0, nWall1, z1, nTile);
-
-				int nNextWall = wall[nWall1].nextwall;
-
-				// if wall was 1-sided, no need to recurse
-				if ( nNextWall < 0 )
-				{
-					nWall0 = nWall1;
-					z0 = GetWallZPeg(nWall0);
-					nWall1 = wall[nWall0].point2;
-					branch = 0;
-					continue;
-				}
-				else
-				{
-					if ( wall[nWall1].cstat & kWallSwap && wall[nNextWall].picnum == nTile )
-						AlignWalls(nWall0, z0, nNextWall, z1, nTile);
-					AutoAlignWalls(nWall1, ply + 1);
-				}
-			}
-		}
-
-		if (wall[nWall1].nextwall < 0)
-			break;
-
-		nWall1 = wall[wall[nWall1].nextwall].point2;
-	}
-
-}
 
 
 static void BuildStairsF( int nSector, int nStepHeight )
@@ -682,44 +539,108 @@ static spritetype* InsertGameSprite( int nSector, int x, int y, int z, int nAngl
 
 }
 
+int userItemsCount(VOIDLIST* pList = NULL)
+{
+	NAMED_TYPE buf; AUTODATA* pData;
+	int i, c = 0;
+	
+	for (i = 0; i < autoDataLength; i++)
+	{
+		pData = &autoData[i];
+		if ((pData->group & kOGrpItemUser) == 0)
+			continue;
+		
+		buf.name = gSpriteNames[pData->type];
+		buf.id   = pData->type;
+		
+		if (pList)
+			pList->Add(&buf);
+		
+		c++;
+	}
+	
+	return c;
+}
 
-static spritetype* InsertModernSpriteType(int nSector, int x, int y, int z, int nAngle) {
+static int qsSortByName(NAMED_TYPE* ref1, NAMED_TYPE* ref2)
+{
+	return  stricmp(ref1->name, ref2->name);
+}
 
-	int i, length = 0;
-	NAMED_TYPE modernTypes[128];
+static spritetype* InsertUserItem(int nSector, int x, int y, int z, int nAngle)
+{
+	VOIDLIST list(sizeof(NAMED_TYPE));
+	spritetype* pSpr; int nSpr, i;
+	
+	
+	NAMED_TYPE* pEntry = NULL;
+	if ((i = userItemsCount(&list)) <= 0)
+		return NULL;
+	
+	list.Sort(qsSortByName);
+	if ((i = showButtons((NAMED_TYPE*)list.First(), i, "User items")) < mrUser)
+			return NULL;
+	
+	nSpr = InsertSprite(nSector, kStatItem);
+	pSpr = &sprite[nSpr];
+	
+	pSpr->type	= (short) (i - mrUser);
+	pSpr->ang	= (short) nAngle;
+	
+	pSpr->x = x;
+	pSpr->y = y;
+	pSpr->z = z;
+	
+	updatenumsprites();
+	GetXSprite(nSpr);
+	adjSpriteByType(pSpr);
+	clampSprite(pSpr);
+	return pSpr;
+}
+
+static spritetype* InsertModernSpriteType(int nSector, int x, int y, int z, int nAngle)
+{
+	VOIDLIST list(sizeof(NAMED_TYPE));
 	OBJECT* pObj = gModernTypes.Ptr();
+	spritetype* pSpr; 
+	NAMED_TYPE buf;
+	int nSpr, i;
+	
 	while(pObj->type != OBJ_NONE)
 	{
-		modernTypes[length].name = gSpriteNames[pObj->index];
-		modernTypes[length].id = pObj->index;
-		length++;
+		buf.name = gSpriteNames[pObj->index];
+		buf.id   = pObj->index;
+		list.Add(&buf);
 		pObj++;
 	}
 	
+	if (!list.Length()
+		|| (i = showButtons((NAMED_TYPE*)list.First(), list.Length(), "Modern types")) < mrUser)
+			return NULL;
 
-	if (!length || (i = showButtons(modernTypes, length, "Modern types")) < mrUser)
-		return NULL;
-
-	int nSpr = InsertSprite(nSector, 0);
-	spritetype* pSprite = &sprite[nSpr];
-	sprite[nSpr].type = (short) (i - mrUser);
-	sprite[nSpr].ang  = (short) nAngle;
-	sprite[nSpr].x = x, sprite[nSpr].y = y;
-	sprite[nSpr].z = z;
+	nSpr = InsertSprite(nSector, 0);
+	pSpr = &sprite[nSpr];
+	
+	pSpr->type	= (short) (i - mrUser);
+	pSpr->ang	= (short) nAngle;
+	
+	pSpr->x = x;
+	pSpr->y = y;
+	pSpr->z = z;
+	
 	updatenumsprites();
 	GetXSprite(nSpr);
-
-	adjSpriteByType(pSprite);
+	adjSpriteByType(pSpr);
 
 	// set a letter picnum if have nothing in autoData
-	if (pSprite->picnum == 0)
+	if (pSpr->picnum == 0)
 	{
-		pSprite->xrepeat = pSprite->yrepeat = 128;
-		pSprite->picnum = (short)(4096 + (gSpriteNames[pSprite->type][0] - 32));
+		pSpr->xrepeat = pSpr->yrepeat = 128;
+		pSpr->picnum = (short)(4096 + (gSpriteNames[pSpr->type][0] - 32));
 	}
 
-	clampSprite(pSprite);
-	return pSprite;
+	clampSprite(pSpr);
+	return pSpr;
 
 }
 
@@ -736,6 +657,7 @@ enum {
 	mrMarker,
 	mrFavesPut,
 	mrModern,
+	mrUserItem,
 	mrPrefabPut,
 	mrPrefabAdd,
 };
@@ -746,6 +668,7 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
 	int i, j, t, pfbAng = 0;
 	char* filename = NULL;
 	int pfbThumb = -1;
+	int by = 92;
 
 	Window dialog(0, 0, 135, ydim, "Game objects");
 	dialog.height = 112;
@@ -758,11 +681,31 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
 	dialog.Insert(new TextButton( 66, 48, 60, 20,  "&Misc",     mrMisc ));
 	dialog.Insert(new TextButton( 4,  70, 60, 20,  "Mar&ker",   mrMarker ));
 	dialog.Insert(new TextButton( 66, 70, 60, 20,  "&Faves",    mrFavesPut ));
-	if (gMisc.showTypes > 1)
+	
+	TextButton* bUserItems = new TextButton( 4, 92, 122, 20,  "&User items", mrUserItem);
+	dialog.Insert(bUserItems);
+	dialog.height+=22;
+	by+=22;
+	
+	if (userItemsCount() <= 0)
 	{
-		dialog.Insert(new TextButton( 4, 92, 122, 20,  "Modern &Types",	mrModern ));
-		dialog.height+=22;
+		bUserItems->fontColor = kColorDarkGray;
+		bUserItems->disabled = 1;
+		bUserItems->canFocus = 0;
 	}
+	
+	TextButton* bModernTypes = new TextButton( 4, by, 122, 20,  "Modern &Types", mrModern);
+	dialog.Insert(bModernTypes);
+	dialog.height+=22;
+	by+=22;
+	
+	if (!gModernMap)
+	{
+		bModernTypes->fontColor = kColorDarkGray;
+		bModernTypes->disabled = 1;
+		bModernTypes->canFocus = 0;
+	}
+	
 
 	dialog.Insert(new Label(6, dialog.height - 8, "PREFABS. . . . . . . . . ."));
 
@@ -806,6 +749,9 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
 			break;
 		case mrModern:
 			pSpr = InsertModernSpriteType(nSector, x, y, z, nAngle);
+			break;
+		case mrUserItem:
+			pSpr = InsertUserItem(nSector, x, y, z, nAngle);
 			break;
 		case mrPrefabPut:
 			if ((filename = browseOpenFS(gPaths.prefabs, kPrefabFileExt, "Insert prefab")) != NULL)
@@ -948,15 +894,20 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
 													
 						pSpr2->index = j;
 						pSpr2->type  = gStackDB[i][(pSpr->type == gStackDB[i][0])];
-						pSpr2->y 	+= 64; // move second one down a bit...
-
-						if (pSpr2->extra > 0)
-							dbDeleteXSprite(pSpr2->extra);
-
+						pSpr2->y += 64; // move second one down a bit...
+						pSpr2->extra = -1;
+						
 						xsprite[GetXSprite(j)].data1 = t;
 						xsprite[GetXSprite(pSpr->index)].data1 = t;
 						
-						AutoAdjustSprites();
+						if ((i = adjIdxByType(pSpr2->type)) >= 0)
+						{
+							pSpr2->picnum	= autoData[i].picnum;
+							pSpr2->xrepeat	= autoData[i].xrepeat;
+							pSpr2->yrepeat	= autoData[i].yrepeat;
+							pSpr2->pal		= autoData[i].plu;
+						}
+						
 						clampSprite(pSpr2);
 						CleanUp();
 					}
@@ -1505,12 +1456,12 @@ char dlgSpriteText()
 
 		Label* pFontSizeL = new Label(x, 10, "Size:");
 		x+=gfxGetTextLen(pFontSizeL->string, pFontSizeL->font)+6;
-		EditNumber* pFontSizeE	= new EditNumber(x, 7, 32, 16, nSize, kValNone, 1, 255);
+		EditNumber* pFontSizeE	= new EditNumber(x, 7, 32, 16, nSize, '\0', 1, 255);
 		x+=pFontSizeE->width+8;
 		
 		Label* pCharSpaceL = new Label(x, 10, "Space:");
 		x+=gfxGetTextLen(pCharSpaceL->string, pCharSpaceL->font)+6;
-		EditNumber* pCharSpaceE	= new EditNumber(x, 7, 32, 16, nSpace, kValNone, 0, 255);
+		EditNumber* pCharSpaceE	= new EditNumber(x, 7, 32, 16, nSpace, '\0', 0, 255);
 		x = dwh-60;
 		
 		TextButton* pCancel 	= new TextButton(x, 0, 60, 26, "&Quit", mrCancel);
@@ -3121,64 +3072,79 @@ void ProcessKeys3D( void )
 			}
 			break;
 		case KEY_S:
-			i = -1;
-			hit2sector(&sect, &x, &y, &z, 0, BLOCK_MOVE | BLOCK_HITSCAN);
-			if (sect < 0 || searchstat == OBJ_MASKED)
+			if (searchstat == OBJ_SPRITE)
+			{
+				if ((sprite[searchwall].cstat & kSprRelMask) == kSprFace)
+				{
+					BeepFail();
+					break;
+				}
+			}
+			
+			if (camHitscan(&hitsect, &hitwall, &hitsprite, &x, &y, &z, 0) < 0)
 			{
 				BeepFail();
 				break;
-
 			}
-			else if (alt)
+			
+			i = -1;
+			if (!alt)
 			{
-				i = InsertGameObject(searchstat, sect, x, y, z, ang);
+				int nPic = OBJ_SPRITE;
+				if (somethingintab != OBJ_SPRITE)
+				{
+					switch(searchstat)
+					{
+						case OBJ_SPRITE:
+							switch (sprite[searchwall].cstat & kSprRelMask)
+							{
+								case kSprFloor:
+								case kSprSloped:
+								case kSprWall:
+									nPic = OBJ_FLATSPRITE;
+									break;
+							}
+							break;
+						case OBJ_WALL:
+							nPic = OBJ_FLATSPRITE;
+							break;
+					}
+					
+					if ((nPic = tilePick(-1, -1, nPic)) < 0)
+					{
+						BeepFail();
+						break;
+					}
+				}
+				
+				if ((i = InsertSprite(hitsect, kStatDecoration)) >= 0)
+				{
+					if (somethingintab == OBJ_SPRITE)
+					{
+						sprite[i].picnum	= temppicnum;
+						sprite[i].shade		= tempshade;
+						sprite[i].pal		= temppal;
+						sprite[i].xrepeat	= tempxrepeat;
+						sprite[i].yrepeat	= tempyrepeat;
+						sprite[i].xoffset	= (char)tempxoffset;
+						sprite[i].yoffset	= (char)tempyoffset;
+						sprite[i].cstat		= (short)tempcstat;
+						if ((sprite[i].cstat & kSprRelMask) == kSprSloped)
+							spriteSetSlope(i, tempslope);
+					}
+					else
+					{
+						sprite[i].picnum = (short)nPic;
+						sprite[i].shade  = -8;
+					}
+				}
 			}
-			else if ((i = InsertSprite(searchsector, kStatDecoration)) >= 0)
+			else
 			{
-				int picnum = OBJ_SPRITE;
-				switch (searchstat) {
-					case OBJ_SPRITE:
-						switch (sprite[searchwall].cstat & kSprRelMask) {
-							case kSprFloor:
-							case 48: // sloped
-							case kSprWall:
-								picnum = OBJ_FLATSPRITE;
-								break;
-						}
-						break;
-					case OBJ_WALL:
-						picnum = OBJ_FLATSPRITE;
-						break;
-				}
-
-				if (somethingintab == OBJ_SPRITE)
-				{
-					sprite[i].picnum = temppicnum;
-					sprite[i].shade = tempshade;
-					sprite[i].pal = temppal;
-					sprite[i].xrepeat = tempxrepeat;
-					sprite[i].yrepeat = tempyrepeat;
-					sprite[i].xoffset = (char)tempxoffset;
-					sprite[i].yoffset = (char)tempyoffset;
-					sprite[i].cstat = (short)tempcstat;
-					if ((sprite[i].cstat & kSprRelMask) == kSprVoxel)
-						spriteSetSlope(i, tempslope);
-				}
-				else if ((picnum = tilePick(-1, -1, picnum)) >= 0)
-				{
-					sprite[i].shade  = -8;
-					sprite[i].picnum = (short)picnum;
-				}
-				else
-				{
-					DeleteSprite(i);
-					i = -1;
-				}
+				i = InsertGameObject(searchstat, hitsect, x, y, z, ang);
 			}
-
-			updatenumsprites();
-
-			if (i >= 0)
+			
+			if (Beep(i >= 0))
 			{
 				sprite[i].x = x;
 				sprite[i].y = y;
@@ -3186,8 +3152,10 @@ void ProcessKeys3D( void )
 
 				AutoAdjustSprites();
 
-				switch (searchstat) {
+				switch (searchstat)
+				{
 					case OBJ_WALL:
+					case OBJ_MASKED:
 						doWallCorrection(searchwall2, &sprite[i].x, &sprite[i].y);
 						sprite[i].ang = (short)((GetWallAngle(searchwall2) + kAng90) & kAngMask);
 						if ((sprite[i].cstat & kSprRelMask) != kSprWall)
@@ -3198,20 +3166,20 @@ void ProcessKeys3D( void )
 						sprite[i].cstat |= kSprOneSided;
 						break;
 					case OBJ_SPRITE:
-						sprite[i].x = sprite[searchwall].x;
-						sprite[i].y = sprite[searchwall].y;
-						ChangeSpriteSect(i, sprite[searchwall].sectnum);
-						switch (sprite[searchwall].cstat & 48) {
-							case 32:
-							case 48:
-								clampSprite(&sprite[i]);
+						switch (sprite[searchwall].cstat & kSprRelMask)
+						{
+							case kSprSloped:
+							case kSprFloor:
 								sprite[i].z = sprite[searchwall].z;
-								clampSpriteZ(&sprite[i], sprite[searchwall].z, (posz > sprite[searchwall].z) ? 0x01 : 0x02);
-								if (((sprite[i].cstat & 48) == 16) && (sprite[i].cstat & kSprOneSided))
-									sprite[i].ang = (short)((ang + kAng180) & kAngMask);
+								clampSpriteZ(&sprite[i], sprite[searchwall].z,
+										(posz > sprite[searchwall].z) ? 0x01 : 0x02);
+								
+								if (((sprite[i].cstat & kSprRelMask) == kSprWall)
+									&& (sprite[i].cstat & kSprOneSided))
+											sprite[i].ang = (short)((ang + kAng180) & kAngMask);
 								break;
-							case 16:
-								sprite[i].ang = (short)(sprite[searchwall].ang & kAngMask);
+							case kSprWall:
+								sprite[i].ang = sprite[searchwall].ang;
 								sprite[i].cstat |= kSprWall;
 								break;
 						}
@@ -3220,13 +3188,14 @@ void ProcessKeys3D( void )
 					case OBJ_CEILING:
 						clampSprite(&sprite[i]);
 						doGridCorrection(&sprite[i].x, &sprite[i].y, grid);
-						if (((sprite[i].cstat & 48) == 16) && (sprite[i].cstat & kSprOneSided))
-							sprite[i].ang = (short)((ang + kAng180) & kAngMask);
+						
+						if (((sprite[i].cstat & kSprRelMask) == kSprWall)
+							&& (sprite[i].cstat & kSprOneSided))
+								sprite[i].ang = (short)((ang + kAng180) & kAngMask);
 						break;
 				}
 
 				scrSetMessage("Sprite inserted.");
-				BeepOk();
 			}
 			break;
 		case KEY_T:

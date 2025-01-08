@@ -93,11 +93,7 @@ char dlgDoorWizard()
 
 						if (i < 0)
 						{
-							if (pGDoorR) 		DELETE_AND_NULL(pGDoorR);
-							if (pGDoorSM) 		DELETE_AND_NULL(pGDoorSM);
-							if (pGLBuild)		DELETE_AND_NULL(pGLBuild);
-							if (pGLShape)		DELETE_AND_NULL(pGLShape);
-							if (pGCircleW)		DELETE_AND_NULL(pGCircleW);
+							sectorToolDisableAll(1);
 							
 							pGDoorSM					= new DOOR_SLIDEMARKED(nDoorType, nPad);
 							pGDoorSM->prefs.reverse		= (gDoorOptions[1].checkbox->checked > 0);
@@ -129,11 +125,7 @@ char dlgDoorWizard()
 						
 						if (i < 0)
 						{
-							if (pGDoorR) 		DELETE_AND_NULL(pGDoorR);
-							if (pGDoorSM) 		DELETE_AND_NULL(pGDoorSM);
-							if (pGLBuild)		DELETE_AND_NULL(pGLBuild);
-							if (pGLShape)		DELETE_AND_NULL(pGLShape);
-							if (pGCircleW)		DELETE_AND_NULL(pGCircleW);
+							sectorToolDisableAll(1);
 							
 							pGDoorR						= new DOOR_ROTATE();
 							pGDoorR->info.reverse		= (gDoorOptions[1].checkbox->checked > 0);
@@ -191,8 +183,8 @@ char DOOR_ROTATE::Setup(int nWall, int nWidth, int x, int y)
 {
 	SIDEINFO* pSide = info.side;
 	SCANWALL src, self, other;
-	int x1, y1, x2, y2, d1, d2;
-	int zTop, zBot, nAng;
+	int zTop, zBot, nAng, nSect, tSect;
+	int x1, y1, x2, y2, d1, d2, i;
 	POSOFFS pos;
 	
 	info.canDraw		= 0;
@@ -247,7 +239,41 @@ char DOOR_ROTATE::Setup(int nWall, int nWidth, int x, int y)
 	}
 	else
 	{
-		getWallCoords(nWall, &x1, &y1, &x2, &y2);
+		i = nWall;
+		if ((nSect = wall[nWall].nextsector) >= 0)
+		{
+			nAng = GetWallAngle(nWall);
+			
+			do	// to the left
+			{
+				i = wall[i].point2;
+				getWallCoords(i, &x2, &y2);
+				
+				if ((tSect = wall[i].nextsector) < 0)						break;
+				else if (sector[tSect].floorz != sector[nSect].floorz)		break;
+				else if (sector[tSect].ceilingz != sector[nSect].ceilingz)	break;
+				else if (GetWallAngle(i) != nAng)							break;
+			}
+			while(i != nWall);
+			
+			
+			i = nWall;
+			do // to the right
+			{
+				getWallCoords(i, &x1, &y1);
+				i = lastwall(i);
+				
+				if ((tSect = wall[i].nextsector) < 0)						break;
+				else if (sector[tSect].floorz != sector[nSect].floorz)		break;
+				else if (sector[tSect].ceilingz != sector[nSect].ceilingz)	break;
+				else if (GetWallAngle(i) != nAng)							break;
+			}
+			while(i != nWall);
+		}
+		
+		if (i == nWall)
+			getWallCoords(nWall, &x1, &y1, &x2, &y2);
+		
 		info.angle			= (getangle(x2 - x1, y2 - y1) + kAng90) & kAngMask;
 		info.height			= exactDist(x2 - x1, y2 - y1);
 		info.solidWall		= 0;
@@ -445,8 +471,6 @@ void DOOR_ROTATE::SetupSector(SIDEINFO* pSide)
 			pXDoor->rxID		= pXSide0->txID;
 			pXDoor->txID		= pXSide0->rxID;
 			pXDoor->command		= kCmdToggle;
-			pXDoor->triggerOn	= 1;
-			pXDoor->triggerOff	= 1;
 			pXDoor->decoupled	= 1;
 		}
 	}

@@ -14,12 +14,14 @@
 #define kMaxMessageLength	64
 
 // dialog helper function prototypes
+static char helperSetPanAngle(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key);
 static char helperGetNextUnusedID(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key);
 static char helperDoSectorFXDialog(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key);
 static char helperAuditSound(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key);
 static char helperPickItemTile(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE key);
 static char helperPickEnemyTile(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 static char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
+static char helperSetFlags(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 
 static int dlgCountItems(DIALOG_ITEM* pDlg)
 {
@@ -87,10 +89,10 @@ DIALOG_ITEM dlgXSprite[] =
 	{ NO,	1,		46,	5,	33,	CHECKBOX, 		"Player only" },
 
 	{ NO,	1,		46,	6,	0,	HEADER, 		"Data:           " },
-	{ NO,	1,		46, 7,	kSprDialogData1,	NUMBER, 	"Data1", -32767, 32767, NULL, helperAuditSound },
-	{ NO,	1,		46,	8,	kSprDialogData2,	NUMBER, 	"Data2", -32767, 32767, NULL, helperAuditSound },
-	{ NO,	1,		46,	9,	kSprDialogData3,	NUMBER, 	"Data3", -32767, 32767, NULL, helperAuditSound },
-	{ NO,	1,		46,	10,	kSprDialogData4,	NUMBER, 	"Data4", -65535, 65535, NULL, helperAuditSound },
+	{ NO,	1,		46, 7,	kSprDialogData1,	NUMBER, 	"Data1", -32768, 32767, NULL, helperAuditSound },
+	{ NO,	1,		46,	8,	kSprDialogData2,	NUMBER, 	"Data2", -32768, 32767, NULL, helperAuditSound },
+	{ NO,	1,		46,	9,	kSprDialogData3,	NUMBER, 	"Data3", -32768, 32767, NULL, helperAuditSound },
+	{ NO,	1,		46,	10,	kSprDialogData4,	NUMBER, 	"Data4", -65536, 65535, NULL, helperAuditSound },
 
 	{ NO,	1,		64,	0,	0,	HEADER, 		"Respawn:      " },
 	{ NO,	1,		64,	1,	38,	LIST, 			"When %1d: %-6.6s", 0, 3, gRespawnNames },
@@ -105,9 +107,9 @@ DIALOG_ITEM dlgXSprite[] =
 	{ NO,	1,		64,	5,	0,	HEADER, 		"Miscellaneous:" },
 	{ NO,	1,		64,	6,	44,	LIST,			"Key:  %1d %-7.7s", 0, 7, gKeyItemNames },
 	{ NO,	1,		64,	7,	45,	LIST,			"Wave: %1d %-7.7s", 0, 3, gBusyNames },
-	{ NO,	1,		64,	8,	46,	NUMBER,			"Hi-tag: %-6d",  -32767, 32767, },
+	{ NO,	1,		64,	8,	46,	NUMBER,			"Hi-tag: %-6d",  -32768, 32767, NULL,  helperSetFlags },
 	{ NO,	1,		64,	9,	47,	NUMBER,			"Message:   %-3d", 0, 255, NULL, helperPickIniMessage },
-	{ NO,	1,		64,	10,	48,	NUMBER,			"Drop item: %-3d", 0, kItemMax, NULL, helperPickItemTile },
+	{ NO,	1,		64,	10,	48,	NUMBER,			"Drop item: %-3d", 0, 199, NULL, helperPickItemTile },
 
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
@@ -120,8 +122,8 @@ DIALOG_ITEM dlgSprite[] =
 	{ NO,	1,		0,	3,	3,	NUMBER,			"Z-coordinate..: %d", 		-13421721, 			13421722, 			NULL,	NULL},
 	{ NO,	0,		0,	4,	4,	NUMBER,			"Sectnum.......: %d", 		0, 					kMaxSectors-1,		NULL,	NULL},
 	{ NO,	1,		0,	5,	5,	NUMBER,			"Statnum.......: %d", 		0, 					kMaxStatus,			NULL,	NULL},
-	{ NO,	1,		0,	6,	6,	NUMBER,			"Hi-tag........: %d",  		-32767, 			32768, 				NULL,	NULL},
-	{ NO,	1,		0,	7,	7,	NUMBER,			"Lo-tag........: %d",  		-32767, 			32768, 				NULL,	NULL},
+	{ NO,	1,		0,	6,	6,	NUMBER,			"Hi-tag........: %d",  		-32768, 			32767, 				NULL,	helperSetFlags},
+	{ NO,	1,		0,	7,	7,	NUMBER,			"Lo-tag........: %d",  		-32768, 			32767, 				NULL,	NULL},
 	{ NO,	1,		0,	8,	8,	NUMBER,			"Clipdist......: %d", 		0, 					255,				NULL,	NULL},
 	{ NO,	0,		0,	9,	9,	NUMBER,			"Extra.........: %d", 		-1, 				kMaxXSprites - 1,	NULL,	NULL},
 	
@@ -132,32 +134,18 @@ DIALOG_ITEM dlgSprite[] =
 	{ NO,	1,		24,	4,	12,	NUMBER,			"Palookup......: %d", 		0, 					kPluMax - 1,		NULL,	NULL},
 	{ NO,	1,		24,	5,	13,	NUMBER,			"X-repeat......: %d", 		0, 					255,				NULL,	NULL},
 	{ NO,	1,		24,	6,	14,	NUMBER,			"Y-repeat......: %d", 		0, 					255,				NULL,	NULL},
-	{ NO,	1,		24,	7,	15,	NUMBER,			"X-offset......: %d", 		0, 					127,				NULL,	NULL},
-	{ NO,	1,		24,	8,	16,	NUMBER,			"Y-offset......: %d", 		0, 					127,				NULL,	NULL},
-	{ NO,	1,		24,	9,	17,	NUMBER,			"Slope.........: %d", 		-32767, 			32768,				NULL,	NULL},
+	{ NO,	1,		24,	7,	15,	NUMBER,			"X-offset......: %d", 		-128, 				127,				NULL,	NULL},
+	{ NO,	1,		24,	8,	16,	NUMBER,			"Y-offset......: %d", 		-128, 				127,				NULL,	NULL},
+	{ NO,	1,		24,	9,	17,	NUMBER,			"Slope.........: %d", 		-32768, 			32767,				NULL,	NULL},
 	
 	{ NO,	1,		46,	1,	0,	HEADER, 		"Miscellaneous:" },
-	{ NO,	1,		46,	2,	18,	NUMBER,			"Angle...........: %d",		-32767, 			32768,				NULL,	NULL},
-	{ NO,	0,		46,	3,	19,	NUMBER,			"X-velocity......: %d", 	-13421721, 			13421728,			NULL,	NULL},
-	{ NO,	0,		46,	4,	20,	NUMBER,			"Y-velocity......: %d", 	-13421721, 			13421728,			NULL,	NULL},
-	{ NO,	0,		46,	5,	21,	NUMBER,			"Z-velocity......: %d", 	-13421721, 			13421728,			NULL,	NULL},
-	{ NO,	0,		46,	6,	22,	NUMBER,			"Owner...........: %d", 	-1, 				32767,				NULL,	NULL},
-	
-/* 	{ NO,	1,		74,	1,	0,	HEADER, 		"Cstat flags:        " },
-	{ NO,	1,		74,	2,	23,	RADIOBUTTON,	"Flor", 					0, 						0,				NULL,	NULL},
-	{ NO,	1,		81,	2,	24,	RADIOBUTTON,	"Wall", 					0, 						0,				NULL,	NULL},
-	{ NO,	1,		88,	2,	25,	RADIOBUTTON,	"Slop", 					0, 						0,				NULL,	NULL},
-	{ NO,	1,		74,	3,	26,	CHECKBOX,		"Blocking", 				0, 						0,				NULL,	NULL},
-	{ NO,	1,		74,	4,	27,	CHECKBOX,		"Hitscan", 					0, 						0,				NULL,	NULL},
-	{ NO,	1,		74,	5,	28,	CHECKBOX,		"One-Sided", 				0, 						0,				NULL,	NULL},
-	{ NO,	1,		74,	6,	29,	CHECKBOX,		"Invisible", 				0, 						0,				NULL,	NULL},
-	{ NO,	1,		74,	7,	30,	CHECKBOX,		"Center align",				0, 						0,				NULL,	NULL},
-	{ NO,	1,		74,	8,	31,	CHECKBOX,		"Flip-X", 					0, 						0,				NULL,	NULL},
-	{ NO,	1,		83,	8,	32,	CHECKBOX,		"Y", 						0, 						0,				NULL,	NULL},	
-	{ NO,	1,		74,	9,	33,	CHECKBOX,		"Translucent", 				0, 						0,				NULL,	NULL},
-	{ NO,	1,		88,	9,	34,	CHECKBOX,		"less", 					0, 						0,				NULL,	NULL},
-	{ NO,	1,		74,	10,	35,	RADIOBUTTON,	"Move normal", 				0, 						0,				NULL,	NULL},
-	{ NO,	1,		88,	10,	36,	RADIOBUTTON,	"reverse", 					0, 						0,				NULL,	NULL}, */
+	{ NO,	1,		46,	2,	18,	NUMBER_HEX,		"Cstat flags:....: 0x%0X", -32768, 				32767,				NULL,	helperSetFlags},
+	{ NO,	1,		46,	3,	19,	NUMBER,			"Detail..........: %d",		0, 					4,					NULL,	NULL},
+	{ NO,	1,		46,	4,	20,	NUMBER,			"Angle...........: %d",		-32768, 			32767,				NULL,	NULL},
+	{ NO,	0,		46,	5,	21,	NUMBER,			"X-velocity......: %d", 	-13421721, 			13421728,			NULL,	NULL},
+	{ NO,	0,		46,	6,	22,	NUMBER,			"Y-velocity......: %d", 	-13421721, 			13421728,			NULL,	NULL},
+	{ NO,	0,		46,	7,	23,	NUMBER,			"Z-velocity......: %d", 	-13421721, 			13421728,			NULL,	NULL},
+	{ NO,	0,		46,	8,	24,	NUMBER,			"Owner...........: %d", 	-32768, 			32767,				NULL,	NULL},
 	
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
@@ -196,7 +184,7 @@ DIALOG_ITEM dlgXWall[] =
 	{ NO,	1,		48,	5,	kWallLockout,		CHECKBOX,	"Player only" },
 
 	{ NO,	1,		48,	7,	0,					HEADER, 	"Data:         " },
-	{ NO,	1,		48,	8,	kWallData,			NUMBER, 	"Data", -65535, 65535, NULL, helperAuditSound },
+	{ NO,	1,		48,	8,	kWallData,			NUMBER, 	"Data", -65536, 65535, NULL, helperAuditSound },
 
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
@@ -210,40 +198,26 @@ DIALOG_ITEM dlgWall[] =
 	{ NO,	0,		0,	4,	4,	NUMBER,			"Sector......: %d", 		0,						kMaxSectors - 1, 	NULL,	NULL},
 	{ NO,	0,		0,	5,	5,	NUMBER,			"Next wall...: %d", 		-1, 					kMaxWalls - 1,		NULL,	NULL},
 	{ NO,	0,		0,	6,	6,	NUMBER,			"Next sector.: %d", 		-1, 					kMaxSectors - 1,	NULL,	NULL},
-	{ NO,	1,		0,	7,	7,	NUMBER,			"Hi-tag......: %d",  		-32767, 				32768, 				NULL,	NULL},
-	{ NO,	1,		0,	8,	8,	NUMBER,			"Lo-tag......: %d",  		-32767, 				32768, 				NULL,	NULL},
-	{ NO,	0,		0,	9,	9,	NUMBER,			"Extra.......: %d", 		-1, 					kMaxXWalls - 1,		NULL,	NULL},
+	{ NO,	1,		0,	7,	7,	NUMBER,			"Hi-tag......: %d",  		-32768, 				32767, 				NULL,	helperSetFlags},
+	{ NO,	1,		0,	8,	8,	NUMBER,			"Lo-tag......: %d",  		-32768, 				32767, 				NULL,	NULL},
+	{ NO,	0,		0,	9,	9,	NUMBER,			"Extra.......: %d", 		-32768, 				kMaxXWalls - 1,		NULL,	NULL},
 	
 	{ NO,	1,		22,	1,	0,	HEADER, 		"Appearance:" },
 	{ NO,	1,		22,	2,	10,	NUMBER,			"Tilenum.....: %d", 		0, 						kMaxTiles - 1,		NULL,	NULL},
 	{ NO,	1,		22,	3,	11,	NUMBER,			"Mask tilenum: %d", 		0, 						kMaxTiles - 1,		NULL,	NULL},
-	{ NO,	1,		22,	4,	12,	NUMBER,			"Shade.......: %d", 		-127, 					128,					NULL,	NULL},
+	{ NO,	1,		22,	4,	12,	NUMBER,			"Shade.......: %d", 		-128, 					127,				NULL,	NULL},
 	{ NO,	1,		22,	5,	13,	NUMBER,			"Palookup....: %d", 		0, 						kPluMax - 1,		NULL,	NULL},
 	{ NO,	1,		22,	6,	14,	NUMBER,			"X-repeat....: %d", 		0, 						255,				NULL,	NULL},
 	{ NO,	1,		22,	7,	15,	NUMBER,			"Y-repeat....: %d", 		0, 						255,				NULL,	NULL},
 	{ NO,	1,		22,	8,	16,	NUMBER,			"X-panning...: %d", 		0, 						255,				NULL,	NULL},
 	{ NO,	1,		22,	9,	17,	NUMBER,			"Y-panning...: %d", 		0, 						255,				NULL,	NULL},
-		
-/* 	{ NO,	1,		44,	1,	0,	HEADER, 		"Cstat settings:" },
-	{ NO,	1,		44,	2,	18,	CHECKBOX,		"Blocking", 				0, 						0,					NULL,	NULL},
-	{ NO,	1,		44,	3,	19,	CHECKBOX,		"Bottom Swap", 				0, 						0,					NULL,	NULL},
-	{ NO,	1,		44,	4,	20,	CHECKBOX,		"Bottom Pegged", 			0, 						0,					NULL,	NULL},
-	{ NO,	1,		44,	5,	21,	CHECKBOX,		"Flip-X", 					0, 						0,					NULL,	NULL},
-	{ NO,	1,		53,	5,	22,	CHECKBOX,		"Y", 						0, 						0,					NULL,	NULL},
-	{ NO,	1,		44,	6,	23,	CHECKBOX,		"Masked", 					0, 						0,					NULL,	NULL},
-	{ NO,	1,		44,	7,	24,	CHECKBOX,		"OneWay", 					0, 						0,					NULL,	NULL},
-	{ NO,	1,		44,	8,	25,	CHECKBOX,		"Hitscan", 					0, 						0,					NULL,	NULL},
-	{ NO,	1,		44,	9,	26,	CHECKBOX,		"Translucent", 				0, 						0,					NULL,	NULL},
-	{ NO,	1,		58,	9,	27,	CHECKBOX,		"less", 					0, 						0,					NULL,	NULL},
-	{ NO,	1,		44,	10,	28,	RADIOBUTTON,	"Move normal", 				0, 						0,					NULL,	NULL},
-	{ NO,	1,		58,	10,	29,	RADIOBUTTON,	"reverse", 					0, 						0,					NULL,	NULL}, */
-	
-	//{ NO,	1,		70,	1,	0,	HEADER, 		"Miscellaneous:" },
-	//{ NO,	1,		70,	2,	30,	NUMBER,			"Cstat (hex).....: 0x%08lx",	0, 					65535,				NULL,	NULL},
-	//{ NO,	1,		70,	3,	31,	NUMBER,			"Angle (2048 deg): %d",			0, 					2047,				NULL,	NULL},
-	//{ NO,	1,		70,	4,	32,	NUMBER,			"Length..........: %d", 		0, 					0x800000,			NULL,	NULL},
-	//{ NO,	1,		70,	5,	33,	NUMBER,			"Pixel height....: %d", 		0, 					0x800000,			NULL,	NULL},
 
+
+	{ NO,	1,		46,	1,	0,	HEADER, 		"Miscellaneous:" },
+	{ NO,	1,		46,	2,	18,	NUMBER_HEX,		"Cstat flags:....: 0x%0X", 	-32768, 		32767,				NULL,	helperSetFlags},
+	{ NO,	0,		46,	3,	19,	NUMBER,			"Angle...........: %d",		0, 				2048,				NULL,	NULL},
+	{ NO,	0,		46,	4,	20,	NUMBER,			"Pixel length....: %d", 	0, 				0x800000,			NULL,	NULL},
+	{ NO,	0,		46,	5,	21,	NUMBER,			"Pixel height....: %d", 	0, 				0x800000,			NULL,	NULL},
 	
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
@@ -267,14 +241,14 @@ DIALOG_ITEM dlgXSectorFX[] =
 
 	{ NO,	1,		40,	0,	0,	HEADER, 	"Motion FX:" },
 	{ NO,	1,		40,	1,	12,	NUMBER, 	"Speed = %4d", 0, 255 },
-	{ NO,	1,		40,	2,	13,	NUMBER, 	"Angle = %4d", 0, kAngMask },
+	{ NO,	1,		40,	2,	13,	NUMBER, 	"Angle = %4d", 0, kAngMask, NULL, helperSetPanAngle },
 	{ NO,	1,		40,	3,	14,	CHECKBOX,	"pan floor" },
 	{ NO,	1,		40,	4,	15,	CHECKBOX,	"pan ceiling" },
 	{ NO,	1,		40,	5,	16,	CHECKBOX,	"panAlways" },
 	{ NO,	1,		40,	6,	17,	CHECKBOX,	"drag" },
 
 	{ NO,	1,		40,	8,	18,	NUMBER,		"Wind vel: %4d", 0, 1023 },
-	{ NO,	1,		40,	9,	19,	NUMBER,		"Wind ang: %4d", 0, kAngMask },
+	{ NO,	1,		40,	9,	19,	NUMBER,		"Wind ang: %4d", 0, kAngMask, NULL, helperSetPanAngle },
 	{ NO,	1,		40,	10,	20,	CHECKBOX,	"Wind always" },
 
 	{ NO,	1,		60,	0,	0,	HEADER, 	"Continuous motion:" },
@@ -327,10 +301,10 @@ DIALOG_ITEM dlgXSector[] =
 	{ NO,	1,		47,	4,	kSectTrExit,		CHECKBOX,	"Exit" },
 
 	{ NO,	1,		47,	6,	0,					HEADER, 	"Sound:         " },
-	{ NO,	1,		47,	7,	kSectSndOffOn,		NUMBER,		"Off->On : %5d", 0, 32768, NULL, helperAuditSound },
-	{ NO,	1,		47,	8,	kSectSndOffStop,	NUMBER,		"Stopping: %5d", 0, 32768, NULL, helperAuditSound },
-	{ NO,	1,		47,	9,	kSectSndOnOff,		NUMBER,		"On->Off : %5d", 0, 32768, NULL, helperAuditSound },
-	{ NO,	1,		47,	10,	kSectSndOnStop,		NUMBER,		"Stopping: %5d", 0, 65535, NULL, helperAuditSound },
+	{ NO,	1,		47,	7,	kSectSndOffOn,		NUMBER,		"Off->On : %5d", -32768, 32767, NULL, helperAuditSound },
+	{ NO,	1,		47,	8,	kSectSndOffStop,	NUMBER,		"Stopping: %5d", -32768, 32767, NULL, helperAuditSound },
+	{ NO,	1,		47,	9,	kSectSndOnOff,		NUMBER,		"On->Off : %5d", -32768, 32767, NULL, helperAuditSound },
+	{ NO,	1,		47,	10,	kSectSndOnStop,		NUMBER,		"Stopping: %5d", -65536, 65535, NULL, helperAuditSound },
 
 	{ NO,	1,		65,	0,	kSectKey,			LIST,		"Key:   %1d %-7.7s", 0, 7, gKeyItemNames },
 	{ NO,	1,		65,	1,	kSectDepth,			LIST,		"Depth: %1d %-7.7s", 0, 7, gDepthNames },
@@ -338,7 +312,7 @@ DIALOG_ITEM dlgXSector[] =
 	{ NO,	1,		65,	4,	kSectCrush,			CHECKBOX, 	"Crush" },
 
 	{ NO,	1,		65,	6,	0,					HEADER, 	"Data:         " },
-	{ NO,	1,		65,	7,	kSectData,			NUMBER,		"Data", -32768, 32767 },
+	{ NO,	1,		65,	7,	kSectData,			NUMBER,		"Data", 0, 32767 },
 	{ NO,	1,		65,	10,	kSectFX,			DIALOG,		"FX...",  0, 0, NULL, helperDoSectorFXDialog },
 	{ NO,	1,		0,	0,	0,					CONTROL_END },
 };
@@ -350,63 +324,59 @@ DIALOG_ITEM dlgSector[] =
 	{ NO,	1,		0,	2,	2,	NUMBER,			"First wall...: %d",		0,					kMaxWalls - 1,		NULL,	NULL},
 	{ NO,	0,		0,	3,	3,	NUMBER,			"Total sprites: %d",		0,					kMaxSprites - 1,	NULL,	NULL},
 	{ NO,	0,		0,	4,	4,	NUMBER,			"First sprite : %d",		-1,					kMaxSprites - 1,	NULL,	NULL},
-	{ NO,	1,		0,	5,	5,	NUMBER,			"Hi-tag.......: %d",  		-32767, 			32768, 				NULL,	NULL},
-	{ NO,	1,		0,	6,	6,	NUMBER,			"Lo-tag.......: %d",  		-32767, 			32768, 				NULL,	NULL},
-	{ NO,	1,		0,	7,	7,	NUMBER,			"Visibility...: %d",  		0, 					239, 				NULL,	NULL},
-	{ NO,	0,		0,	8,	8,	NUMBER,			"Extra........: %d",  		-1, 				kMaxXSectors - 1, 	NULL,	NULL},
+	{ NO,	1,		0,	5,	5,	NUMBER,			"Hi-tag.......: %d",  		-32768, 			32767, 				NULL,	helperSetFlags},
+	{ NO,	1,		0,	6,	6,	NUMBER,			"Lo-tag.......: %d",  		-32768, 			32767, 				NULL,	NULL},
+	{ NO,	1,		0,	7,	7,	NUMBER,			"Visibility...: %d",  		0, 					255, 				NULL,	NULL},
+	{ NO,	0,		0,	8,	8,	NUMBER,			"Extra........: %d",  		-32768, 			kMaxXSectors - 1, 	NULL,	NULL},
 	
 	{ NO,	1,		22,	1,	0,	HEADER, 		"Ceiling settings:" },
 	{ NO,	1,		22,	2,	9,	NUMBER,			"Tilenum......: %d", 		0, 					kMaxTiles - 1,		NULL,	NULL},
-	{ NO,	1,		22,	3,	10,	NUMBER,			"Shade........: %d", 		-127, 				128,					NULL,	NULL},
+	{ NO,	1,		22,	3,	10,	NUMBER,			"Shade........: %d", 		-128, 				127,				NULL,	NULL},
 	{ NO,	1,		22,	4,	11,	NUMBER,			"Palookup.....: %d", 		0, 					kPluMax - 1,		NULL,	NULL},
 	{ NO,	1,		22,	5,	12,	NUMBER,			"X-panning....: %d", 		0, 					255,				NULL,	NULL},
 	{ NO,	1,		22,	6,	13,	NUMBER,			"Y-panning....: %d", 		0, 					255,				NULL,	NULL},
-	{ NO,	1,		22,	7,	14,	NUMBER,			"Slope........: %d", 		-32767, 			32768,				NULL,	NULL},
+	{ NO,	1,		22,	7,	14,	NUMBER,			"Slope........: %d", 		-32768, 			32767,				NULL,	NULL},
 	{ NO,	1,		22,	8,	15,	NUMBER,			"Z-coordinate.: %d",		-13421721,			13421722,			NULL,	NULL},
+	{ NO,	1,		22,	9,	16,	NUMBER_HEX,		"Cstat flags:.: 0x%0X", 	-32768, 			32767,				NULL,	helperSetFlags},
 	
-	{ NO,	1,		46,	1,	0,	HEADER, 		"Floor settings:" },
-	{ NO,	1,		46,	2,	16,	NUMBER,			"Tilenum......: %d", 		0, 					kMaxTiles - 1,		NULL,	NULL},
-	{ NO,	1,		46,	3,	17,	NUMBER,			"Shade........: %d", 		-127, 				128,					NULL,	NULL},
-	{ NO,	1,		46, 4,	18,	NUMBER,			"Palookup.....: %d", 		0, 					kPluMax - 1,		NULL,	NULL},
-	{ NO,	1,		46,	5,	19,	NUMBER,			"X-panning....: %d", 		0, 					255,				NULL,	NULL},
-	{ NO,	1,		46,	6,	20,	NUMBER,			"Y-panning....: %d", 		0, 					255,				NULL,	NULL},
-	{ NO,	1,		46,	7,	21,	NUMBER,			"Slope........: %d", 		-32767, 			32768,				NULL,	NULL},
-	{ NO,	1,		46,	8,	22,	NUMBER,			"Z-coordinate.: %d",		-13421721,			13421722,			NULL,	NULL},
 	
-/* 	{ NO,	1,		70,	0,	0,	HEADER, 		"Cstat flags     C F" },
-	{ NO,	1,		70,	1,	0,	LABEL,			"Sloped..........", 		0, 					0,					NULL,	NULL},
-	{ NO,	1,		86,	1,	23,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	{ NO,	1,		88,	1,	24,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	
-	{ NO,	1,		70,	2,	0,	LABEL,			"Parallax........", 		0, 					0,					NULL,	NULL},
-	{ NO,	1,		86,	2,	25,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	{ NO,	1,		88,	2,	26,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	
-	{ NO,	1,		70,	3,	0,	LABEL,			"Expanded........", 		0, 					0,					NULL,	NULL},
-	{ NO,	1,		86,	3,	27,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	{ NO,	1,		88,	3,	28,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	
-	{ NO,	1,		70,	4,	0,	LABEL,			"Relative align..", 		0, 					0,					NULL,	NULL},
-	{ NO,	1,		86,	4,	29,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	{ NO,	1,		88,	4,	30,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	
-	{ NO,	1,		70,	5,	0,	LABEL,			"Flip-X..........:", 		0, 					0,					NULL,	NULL},
-	{ NO,	1,		86,	5,	31,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	{ NO,	1,		88,	5,	32,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	
-	{ NO,	1,		70,	6,	0,	LABEL,			"Flip-Y..........:", 		0, 					0,					NULL,	NULL},
-	{ NO,	1,		86,	6,	33,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	{ NO,	1,		88,	6,	34,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	
-	{ NO,	1,		70,	7,	0,	LABEL,			"Shade from......:", 		0, 					0,					NULL,	NULL},
-	{ NO,	1,		86,	7,	35,	RADIOBUTTON,	"", 						0, 					0,					NULL,	NULL},
-	{ NO,	1,		88,	7,	36,	RADIOBUTTON,	"", 						0, 					0,					NULL,	NULL},
-	
-	{ NO,	1,		70,	8,	0,	LABEL,			"Masked..........:", 		0, 					0,					NULL,	NULL},
-	{ NO,	1,		86,	8,	37,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL},
-	{ NO,	1,		88,	8,	38,	CHECKBOX,		"", 						0, 					0,					NULL,	NULL}, */
+	{ NO,	1,		48,	1,	0,	HEADER, 		"Floor settings:" },
+	{ NO,	1,		48,	2,	17,	NUMBER,			"Tilenum......: %d", 		0, 					kMaxTiles - 1,		NULL,	NULL},
+	{ NO,	1,		48,	3,	18,	NUMBER,			"Shade........: %d", 		-128, 				127,				NULL,	NULL},
+	{ NO,	1,		48, 4,	19,	NUMBER,			"Palookup.....: %d", 		0, 					kPluMax - 1,		NULL,	NULL},
+	{ NO,	1,		48,	5,	20,	NUMBER,			"X-panning....: %d", 		0, 					255,				NULL,	NULL},
+	{ NO,	1,		48,	6,	21,	NUMBER,			"Y-panning....: %d", 		0, 					255,				NULL,	NULL},
+	{ NO,	1,		48,	7,	22,	NUMBER,			"Slope........: %d", 		-32768, 			32767,				NULL,	NULL},
+	{ NO,	1,		48,	8,	23,	NUMBER,			"Z-coordinate.: %d",		-13421721,			13421722,			NULL,	NULL},
+	{ NO,	1,		48,	9,	24,	NUMBER_HEX,		"Cstat flags:.: 0x%0X", 	-32768, 			32767,				NULL,	helperSetFlags},
 	
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
+};
+
+DIALOG_ITEM dlgFlagsPicker[] =
+{
+	{ NO,	1,		1,	0,	0,	HEADER, 		"Flags picker",				0,			1,			NULL,				NULL, },
+	{ NO,	1,		1,	2,	1,	CHECKBOX,		"0x0001 (1)",				0,			1,			NULL,				NULL, },
+	{ NO,	1,		1,	3,	2,	CHECKBOX,		"0x0002 (2)",				0,			1,			NULL,				NULL, },
+	{ NO,	1,		1,	4,	3,	CHECKBOX,		"0x0004 (4)",				0,			1,			NULL,				NULL, },
+	{ NO,	1,		1,	6,	4,	CHECKBOX,		"0x0008 (8)",				0,			1,			NULL,				NULL, },
+	{ NO,	1,		1,	7,	5,	CHECKBOX,		"0x0010 (16)",				0,			1,			NULL,				NULL, },
+	{ NO,	1,		1,	8,	6,	CHECKBOX,		"0x0020 (32)",				0,			1,			NULL,				NULL, },
+	
+	{ NO,	1,		20,	2,	7,	CHECKBOX,		"0x0040 (64)",				0,			1,			NULL,				NULL, },
+	{ NO,	1,		20,	3,	8,	CHECKBOX,		"0x0080 (128)",				0,			1,			NULL,				NULL, },
+	{ NO,	1,		20,	4,	9,	CHECKBOX,		"0x0100 (256)",				0,			1,			NULL,				NULL, },
+	
+	{ NO,	1,		20,	6,	10,	CHECKBOX,		"0x0200 (512)",				0,			1,			NULL,				NULL, },
+	{ NO,	1,		20,	7,	11,	CHECKBOX,		"0x0400 (1024)",			0,			1,			NULL,				NULL, },
+	{ NO,	1,		20,	8,	12,	CHECKBOX,		"0x0800 (2048)",			0,			1,			NULL,				NULL, },
+	
+	{ NO,	1,		40,	2,	13,	CHECKBOX,		"0x1000 (4096)",			0,			1,			NULL,				NULL, },
+	{ NO,	1,		40,	3,	14,	CHECKBOX,		"0x2000 (8192)",			0,			1,			NULL,				NULL, },
+	{ NO,	1,		40,	4,	15,	CHECKBOX,		"0x4000 (16384)",			0,			1,			NULL,				NULL, },
+	{ NO,	1,		40,	6,	16,	CHECKBOX,		"0x8000 (32768)",			0,			1,			NULL,				NULL, },
+	{ NO,	1,		0,	0,	0,	CONTROL_END },
+	
 };
 
 static DIALOG_INFO gDialogInfo[] =
@@ -454,6 +424,7 @@ DIALOG_HANDLER::DIALOG_HANDLER(MAPEDIT_HUD* pHud, DIALOG_ITEM* pItem)
 				break;
 			case LIST:
 			case NUMBER:
+			case NUMBER_HEX:
 				break;
 			case LABEL:
 				pCur->readyLabel = (pCur->names) ? NULL : pCur->formatLabel;
@@ -488,7 +459,12 @@ void DIALOG_HANDLER::Paint(DIALOG_ITEM* pItem, char focus)
 
 	if (focus)
 	{
-		fc = clr2std(kColorYellow);
+		if (pItem->type != DIALOG && pItem->pHelpFunc)
+			fc = clr2std(kColorWhite);
+		else
+			fc = clr2std(kColorYellow);
+		
+		
 		bc = clr2std(kColorBlack);
 
 		// show hints while editing only
@@ -523,6 +499,7 @@ void DIALOG_HANDLER::Paint(DIALOG_ITEM* pItem, char focus)
 			PrintText(pItem, fc, bc);
 			break;
 		case NUMBER:
+		case NUMBER_HEX:
 			if (pDlg == dlgXSprite && irngok(pItem->tabGroup, kSprDialogData1, kSprDialogData4))
 			{
 				int nType = pDlg->value, maxRng = LENGTH(gSpriteDataNames);
@@ -749,6 +726,7 @@ char DIALOG_HANDLER::Edit()
 					continue;
 				case LIST:
 				case NUMBER:
+				case NUMBER_HEX:
 					if (mouse.wheel == -1)
 					{
 						if (ctrl || alt) key = KEY_PAGEUP;
@@ -796,23 +774,23 @@ char DIALOG_HANDLER::Edit()
 
 		switch (pCur->type)
 		{
+			case NUMBER_HEX:
 			case NUMBER:
 			case LIST:
 				switch (key)
 				{
 					case KEY_DELETE:
-					case KEY_SPACE:
 						nVal = 0;
 						break;
 					case KEY_PAGEUP:
 					case KEY_PADPLUS:
 					case KEY_UP:
-						if (pCur->type == NUMBER)
+						if (pCur->type == NUMBER || pCur->type == NUMBER_HEX)
 						{
 							if (key == KEY_PAGEUP)
 							{
 								if (ctrl) nVal = pCur->maxValue;
-								else nVal = IncBy(nVal, 10);
+								else nVal = IncBy(nVal, (pCur->type == NUMBER_HEX) ? 16 : 10);
 							}
 							else
 							{
@@ -841,12 +819,12 @@ char DIALOG_HANDLER::Edit()
 					case KEY_PAGEDN:
 					case KEY_PADMINUS:
 					case KEY_DOWN:
-						if (pCur->type == NUMBER)
+						if (pCur->type == NUMBER || pCur->type == NUMBER_HEX)
 						{
 							if (key == KEY_PAGEDN)
 							{
 								if (ctrl) nVal = pCur->minValue;
-								else nVal = DecBy(nVal, 10);
+								else nVal = DecBy(nVal, (pCur->type == NUMBER_HEX) ? 16 : 10);
 							}
 							else
 							{
@@ -887,14 +865,26 @@ char DIALOG_HANDLER::Edit()
 						nVal = atoi(tmp);
 						break;
 					default:
-						if (irngok(key, KEY_1, KEY_0) || irngok(key, KEY_PAD7, KEY_PAD0))
+						key = toupper(keyAscii[key]);
+						if (pCur->type == NUMBER_HEX)
+						{
+							if (irngok(key, '0', '9') || irngok(key, 'A', 'F'))
+							{
+								i = 0;
+								if (!irngok(pCur->maxValue, 0, 15))
+									i += sprintf(tmp, "%X", nVal);
+								
+								sprintf(&tmp[i], "%c", key);
+								nVal = strtol(tmp, NULL, 16);
+							}
+						}
+						else if (irngok(key, '0', '9'))
 						{
 							i = 0;
-							i += sprintf(tmp, "%d", nVal);
-							if (irngok(pCur->maxValue, 0, 9))
-								i = 0;
+							if (!irngok(pCur->maxValue, 0, 9))
+								i += sprintf(tmp, "%d", nVal);
 							
-							sprintf(&tmp[i], "%c", keyAscii[key]);
+							sprintf(&tmp[i], "%c", key);
 							nVal = atoi(tmp);
 						}
 						break;
@@ -1525,14 +1515,26 @@ void EditSpriteData(int nSprite, BOOL xFirst)
 	ShowSpriteData(nSprite, xFirst);
 }
 
-char helperGetNextUnusedID(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key )
+char helperSetPanAngle(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
+{
+	if ((key == KEY_F10 || key == KEY_SPACE)
+		&& searchsector >= 0)
+		{
+			control->value = (GetWallAngle(sector[searchsector].wallptr) + kAng90) & kAngMask;
+			return 0;
+		}
+	
+	return key;
+}
+
+char helperGetNextUnusedID(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 {
 	int i;
-	switch (key) {
-		case KEY_F10:
-			if ((i = findUnusedChannel(dialog)) == -1) return key;
-			control->value = i;
-			return 0;
+	if (key == KEY_F10)
+	{
+		if ((i = findUnusedChannel(dialog)) == -1) return key;
+		control->value = i;
+		return 0;
 	}
 
 	return key;
@@ -1581,6 +1583,7 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 			}
 			return 0;
 		case KEY_F10:
+		case KEY_SPACE:
 			if (dialog == dlgXWall)
 			{
 				switch (dialog->value)
@@ -1683,7 +1686,7 @@ int helperPickTypeHelper(int nGroup, char* title)
 char helperPickEnemyTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 {
 	int value;
-	if (key == KEY_F10)
+	if (key == KEY_F10 || key == KEY_SPACE)
 	{
 		if ((value = helperPickTypeHelper(kOGrpDude, "Select enemy to spawn")) >= 0)
 			control->value = value;
@@ -1695,7 +1698,7 @@ char helperPickEnemyTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 char helperPickItemTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 {
 	int value;
-	if (key == KEY_F10)
+	if (key == KEY_F10 || key == KEY_SPACE)
 	{
 		if ((value = helperPickTypeHelper(kOGrpWeapon | kOGrpAmmo | kOGrpAmmoMix | kOGrpItem, "Select item")) >= 0)
 			control->value = value;
@@ -1706,7 +1709,7 @@ char helperPickItemTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 
 char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key)
 {
-	if (key != KEY_F10)
+	if (key != KEY_F10 && key != KEY_SPACE)
 		return key;
 
 	char messages[kMaxMessages][kMaxMessageLength], tmpbuf[BMAX_PATH];
@@ -1777,6 +1780,65 @@ char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key)
 	
 	return key;
 
+}
+
+void dlgFlagsToDialog(DIALOG_HANDLER* pHandle, int nVal)
+{
+	pHandle->SetValue(1,	(nVal & 0x0001) != 0);
+	pHandle->SetValue(2,	(nVal & 0x0002) != 0);
+	pHandle->SetValue(3,	(nVal & 0x0004) != 0);
+	pHandle->SetValue(4,	(nVal & 0x0008) != 0);
+	pHandle->SetValue(5,	(nVal & 0x0010) != 0);
+	pHandle->SetValue(6,	(nVal & 0x0020) != 0);
+	pHandle->SetValue(7,	(nVal & 0x0040) != 0);
+	pHandle->SetValue(8,	(nVal & 0x0080) != 0);
+	pHandle->SetValue(9,	(nVal & 0x0100) != 0);
+	pHandle->SetValue(10,	(nVal & 0x0200) != 0);
+	pHandle->SetValue(11,	(nVal & 0x0400) != 0);
+	pHandle->SetValue(12,	(nVal & 0x0800) != 0);
+	pHandle->SetValue(13,	(nVal & 0x1000) != 0);
+	pHandle->SetValue(14,	(nVal & 0x2000) != 0);
+	pHandle->SetValue(15,	(nVal & 0x4000) != 0);
+	pHandle->SetValue(16,	(nVal & 0x8000) != 0);
+}
+
+int dlgDialogToFlags(DIALOG_HANDLER* pHandle)
+{
+	int nFlags = 0x0000;
+	
+	if (pHandle->GetValue(1))		nFlags |= 0x0001;
+	if (pHandle->GetValue(2))		nFlags |= 0x0002;
+	if (pHandle->GetValue(3))		nFlags |= 0x0004;
+	if (pHandle->GetValue(4))		nFlags |= 0x0008;
+	if (pHandle->GetValue(5))		nFlags |= 0x0010;
+	if (pHandle->GetValue(6))		nFlags |= 0x0020;
+	if (pHandle->GetValue(7))		nFlags |= 0x0040;
+	if (pHandle->GetValue(8))		nFlags |= 0x0080;
+	if (pHandle->GetValue(9))		nFlags |= 0x0100;
+	if (pHandle->GetValue(10))		nFlags |= 0x0200;
+	if (pHandle->GetValue(11))		nFlags |= 0x0400;
+	if (pHandle->GetValue(12))		nFlags |= 0x0800;
+	if (pHandle->GetValue(13))		nFlags |= 0x1000;
+	if (pHandle->GetValue(14))		nFlags |= 0x2000;
+	if (pHandle->GetValue(15))		nFlags |= 0x4000;
+	if (pHandle->GetValue(16))		nFlags |= 0x8000;
+	return nFlags;
+}
+
+char helperSetFlags(DIALOG_ITEM* pItem, DIALOG_ITEM *control, BYTE key)
+{
+	if (key == KEY_F10 || key == KEY_SPACE)
+	{
+		DIALOG_HANDLER dialog(&gMapedHud, dlgFlagsPicker);
+		dlgFlagsToDialog(&dialog, (short)control->value);
+		
+		if (dialog.Edit())
+			control->value = (short)dlgDialogToFlags(&dialog);
+		
+		return 0;
+	}
+	
+	return key;
 }
 
 void dlgXWallToDialog(DIALOG_HANDLER* pHandle, int nWall)
@@ -1856,7 +1918,12 @@ void dlgDialogToXWall(DIALOG_HANDLER* pHandle, int nWall)
 void dlgWallToDialog(DIALOG_HANDLER* pHandle, int nWall)
 {
 	dassert(nWall >= 0 && nWall < kMaxWalls);
-	walltype* pWall =&wall[nWall];
+	walltype* pWall = &wall[nWall]; sectortype* pSect = NULL;
+	int nSect = sectorofwall(nWall);
+	int x, y, cz, fz;
+	
+	if (nSect >= 0)
+		pSect = &sector[nSect];
 
 	pHandle->SetValue(1, pWall->x);
 	pHandle->SetValue(2, pWall->y);
@@ -1877,24 +1944,22 @@ void dlgWallToDialog(DIALOG_HANDLER* pHandle, int nWall)
 	pHandle->SetValue(16, pWall->xpanning);
 	pHandle->SetValue(17, pWall->ypanning);
 	
-/* 	pHandle->SetValue(18, pWall->cstat & kWallBlock);
-	pHandle->SetValue(19, pWall->cstat & kWallSwap);
-	pHandle->SetValue(20, pWall->cstat & kWallOrgBottom);
-	pHandle->SetValue(21, pWall->cstat & kWallFlipX);
-	pHandle->SetValue(22, pWall->cstat & kWallFlipY);
-	pHandle->SetValue(23, pWall->cstat & kWallMasked);
-	pHandle->SetValue(24, pWall->cstat & kWallOneWay);
-	pHandle->SetValue(25, pWall->cstat & kWallHitscan);
-	pHandle->SetValue(26, pWall->cstat & kWallTransluc2);
-	pHandle->SetValue(27, pWall->cstat & kWallTranslucR);
-	pHandle->SetValue(28, pWall->cstat & kWallMoveForward);
-	pHandle->SetValue(29, pWall->cstat & kWallMoveReverse); */
-		
-	//pHandle->SetValue(30, GetWallAngle(nWall) & kAngMask);
-	//pHandle->SetValue(31, getWallLength(nWall));
-	//pHandle->SetValue(32, (pSect->floorz - pSect->ceilingz)>>8);
-
-
+	pHandle->SetValue(18, pWall->cstat);
+			
+	pHandle->SetValue(19, GetWallAngle(nWall) & kAngMask);
+	pHandle->SetValue(20, getWallLength(nWall));
+	
+	if (pSect)
+	{
+		getWallCoords(nWall, &x, &y);
+		getzsofslope(nSect, x, y, &cz, &fz);
+		pHandle->SetValue(21, klabs(cz - fz)>>8);
+	}
+	else
+	{
+		pHandle->SetValue(21, -1);
+	}
+	
 }
 
 void dlgDialogToWall(DIALOG_HANDLER* pHandle, int nWall)
@@ -1921,18 +1986,7 @@ void dlgDialogToWall(DIALOG_HANDLER* pHandle, int nWall)
 	pWall->xpanning 	= pHandle->GetValue(16);
 	pWall->ypanning 	= pHandle->GetValue(17);
 	
-/* 	setCstat(pHandle->GetValue(18), &pWall->cstat, kWallBlock);
-	setCstat(pHandle->GetValue(19), &pWall->cstat, kWallSwap);
-	setCstat(pHandle->GetValue(20), &pWall->cstat, kWallOrgBottom);
-	setCstat(pHandle->GetValue(21), &pWall->cstat, kWallFlipX);
-	setCstat(pHandle->GetValue(22), &pWall->cstat, kWallFlipY);
-	setCstat(pHandle->GetValue(23), &pWall->cstat, kWallMasked);
-	setCstat(pHandle->GetValue(24), &pWall->cstat, kWallOneWay);
-	setCstat(pHandle->GetValue(25), &pWall->cstat, kWallHitscan);
-	setCstat(pHandle->GetValue(26), &pWall->cstat, kWallTransluc);
-	setCstat(pHandle->GetValue(27), &pWall->cstat, kWallTransluc2);
-	setCstat(pHandle->GetValue(28), &pWall->cstat, kWallMoveForward);
-	setCstat(pHandle->GetValue(29), &pWall->cstat, kWallMoveReverse); */
+	pWall->cstat 		= pHandle->GetValue(18);
 }
 
 void dlgSectorToDialog(DIALOG_HANDLER* pHandle, int nSector)
@@ -1963,39 +2017,16 @@ void dlgSectorToDialog(DIALOG_HANDLER* pHandle, int nSector)
 	pHandle->SetValue(13, pSect->ceilingypanning);
 	pHandle->SetValue(14, pSect->ceilingheinum);
 	pHandle->SetValue(15, pSect->ceilingz);
+	pHandle->SetValue(16, pSect->ceilingstat);
 	
-	pHandle->SetValue(16, pSect->floorpicnum);
-	pHandle->SetValue(17, pSect->floorshade);
-	pHandle->SetValue(18, pSect->floorpal);
-	pHandle->SetValue(19, pSect->floorxpanning);
-	pHandle->SetValue(20, pSect->floorypanning);
-	pHandle->SetValue(21, pSect->floorheinum);
-	pHandle->SetValue(22, pSect->floorz);
-	
-/* 	pHandle->SetValue(23, pSect->ceilingstat  & kSectSloped);
-	pHandle->SetValue(24, pSect->floorstat    & kSectSloped);
-	
-	pHandle->SetValue(25, pSect->ceilingstat  & kSectParallax);
-	pHandle->SetValue(26, pSect->floorstat    & kSectParallax);
-	
-	pHandle->SetValue(27, pSect->ceilingstat  & kSectExpand);
-	pHandle->SetValue(28, pSect->floorstat    & kSectExpand);
-	
-	pHandle->SetValue(29, pSect->ceilingstat  & kSectRelAlign);
-	pHandle->SetValue(30, pSect->floorstat    & kSectRelAlign);
-	
-	pHandle->SetValue(31, pSect->ceilingstat  & kSectFlipX);
-	pHandle->SetValue(32, pSect->floorstat    & kSectFlipX);
-	
-	pHandle->SetValue(33, pSect->ceilingstat  & kSectFlipY);
-	pHandle->SetValue(34, pSect->floorstat    & kSectFlipY);
-	
-	BOOL floorshade = (!(pSect->ceilingstat & kSectParallax) || (pSect->ceilingstat & kSectShadeFloor));
-	pHandle->SetValue(35, !floorshade);
-	pHandle->SetValue(36,  floorshade);
-	
-	pHandle->SetValue(37, pSect->ceilingstat & kSectMasked);
-	pHandle->SetValue(38, pSect->floorstat   & kSectMasked); */
+	pHandle->SetValue(17, pSect->floorpicnum);
+	pHandle->SetValue(18, pSect->floorshade);
+	pHandle->SetValue(19, pSect->floorpal);
+	pHandle->SetValue(20, pSect->floorxpanning);
+	pHandle->SetValue(21, pSect->floorypanning);
+	pHandle->SetValue(22, pSect->floorheinum);
+	pHandle->SetValue(23, pSect->floorz);
+	pHandle->SetValue(24, pSect->floorstat);
 }
 
 void dlgDialogToSector(DIALOG_HANDLER* pHandle, int nSector)
@@ -2016,72 +2047,35 @@ void dlgDialogToSector(DIALOG_HANDLER* pHandle, int nSector)
 	pSect->lotag 					= pHandle->GetValue(6);
 	pSect->visibility				= pHandle->GetValue(7);
 	
-	pSect->ceilingpicnum			= ClipHigh(pHandle->GetValue(9), kMaxTiles-1);
+	pSect->ceilingpicnum			= pHandle->GetValue(9);
 	pSect->ceilingshade				= pHandle->GetValue(10);
 	pSect->ceilingpal				= pHandle->GetValue(11);
 	pSect->ceilingxpanning			= pHandle->GetValue(12);
 	pSect->ceilingypanning			= pHandle->GetValue(13);
 	
+	// forward set
+	pSect->ceilingstat				= pHandle->GetValue(16);
 	SetCeilingSlope(nSector,		pHandle->GetValue(14));
 	SetCeilingZ(nSector, 			pHandle->GetValue(15));
 	
-	pSect->floorpicnum				= ClipHigh(pHandle->GetValue(16), kMaxTiles-1);
-	pSect->floorshade				= pHandle->GetValue(17);
-	pSect->floorpal					= pHandle->GetValue(18);
-	pSect->floorxpanning			= pHandle->GetValue(19);
-	pSect->floorypanning			= pHandle->GetValue(20);
 	
-	SetFloorSlope(nSector,			pHandle->GetValue(21));
-	SetFloorZ(nSector,				pHandle->GetValue(22));
-
+	pSect->floorpicnum				= pHandle->GetValue(17);
+	pSect->floorshade				= pHandle->GetValue(18);
+	pSect->floorpal					= pHandle->GetValue(19);
+	pSect->floorxpanning			= pHandle->GetValue(20);
+	pSect->floorypanning			= pHandle->GetValue(21);
 	
-	/* i = kSectSloped;
-	setCstat(pHandle->GetValue(23), &pSect->ceilingstat, i);
-	setCstat(pHandle->GetValue(24), &pSect->floorstat, i);
-	
-	if (!(pSect->ceilingstat & i)) SetCeilingSlope(nSector, 0);
-	if (!(pSect->floorstat & i)) SetFloorSlope(nSector, 0);
-	
-	i = kSectParallax;
-	setCstat(pHandle->GetValue(25), &pSect->ceilingstat, i);
-	setCstat(pHandle->GetValue(26), &pSect->floorstat, i);
-	
-	i = kSectExpand;
-	setCstat(pHandle->GetValue(27), &pSect->ceilingstat, i);
-	setCstat(pHandle->GetValue(28), &pSect->floorstat, i);
-	
-	i = kSectRelAlign;
-	setCstat(pHandle->GetValue(29), &pSect->ceilingstat, i);
-	setCstat(pHandle->GetValue(30), &pSect->floorstat, i);
-	
-	i = kSectFlipX;
-	setCstat(pHandle->GetValue(31), &pSect->ceilingstat, i);
-	setCstat(pHandle->GetValue(32), &pSect->floorstat, i);
-	
-	i = kSectFlipY;
-	setCstat(pHandle->GetValue(33), &pSect->ceilingstat, i);
-	setCstat(pHandle->GetValue(34), &pSect->floorstat, i);
-	
-	if (pSect->ceilingstat & kSectParallax)
-	{
-		// 35 for ceiling
-		setCstat(pHandle->GetValue(36), &pSect->floorstat, kSectShadeFloor);
-	}
-	else
-	{
-		pSect->floorstat &= ~kSectShadeFloor;
-	}
-	
-	i = kSectMasked;
-	setCstat(pHandle->GetValue(37), &pSect->ceilingstat, i);
-	setCstat(pHandle->GetValue(38), &pSect->floorstat, i); */
+	// forward set
+	pSect->floorstat				= pHandle->GetValue(24);
+	SetFloorSlope(nSector,			pHandle->GetValue(22));
+	SetFloorZ(nSector,				pHandle->GetValue(23));
 }
 
 
 void dlgSpriteToDialog(DIALOG_HANDLER* pHandle, int nSprite)
 {
 	dassert(nSprite >= 0 && nSprite < kMaxSprites);
-	spritetype* pSpr =&sprite[nSprite];
+	spritetype* pSpr = &sprite[nSprite];
 	
 	pHandle->SetValue(1, pSpr->x);
 	pHandle->SetValue(2, pSpr->y);
@@ -2102,26 +2096,13 @@ void dlgSpriteToDialog(DIALOG_HANDLER* pHandle, int nSprite)
 	pHandle->SetValue(16, pSpr->yoffset);
 	pHandle->SetValue(17, spriteGetSlope(nSprite));
 	
-	pHandle->SetValue(18, pSpr->ang);
-	pHandle->SetValue(19, pSpr->xvel);
-	pHandle->SetValue(20, pSpr->yvel);
-	pHandle->SetValue(21, pSpr->zvel);
-	pHandle->SetValue(22, pSpr->owner);
-	
-/* 	pHandle->SetValue(23, (pSpr->cstat & kSprRelMask) == kSprFloor);
-	pHandle->SetValue(24, (pSpr->cstat & kSprRelMask) == kSprWall);
-	pHandle->SetValue(25, (pSpr->cstat & kSprRelMask) == kSprVoxel);
-	pHandle->SetValue(26, pSpr->cstat & kSprBlock);
-	pHandle->SetValue(27, pSpr->cstat & kSprHitscan);
-	pHandle->SetValue(28, pSpr->cstat & kSprOneSided);
-	pHandle->SetValue(29, pSpr->cstat & kSprInvisible);
-	pHandle->SetValue(30, pSpr->cstat & kSprOrigin);
-	pHandle->SetValue(31, pSpr->cstat & kSprFlipX);
-	pHandle->SetValue(32, pSpr->cstat & kSprFlipY);
-	pHandle->SetValue(33, pSpr->cstat & kSprTransluc2);
-	pHandle->SetValue(34, pSpr->cstat & kSprTranslucR);
-	pHandle->SetValue(35, pSpr->cstat & kSprMoveForward);
-	pHandle->SetValue(36, pSpr->cstat & kSprMoveReverse); */
+	pHandle->SetValue(18, pSpr->cstat);
+	pHandle->SetValue(19, pSpr->detail);
+	pHandle->SetValue(20, pSpr->ang);
+	pHandle->SetValue(21, pSpr->xvel);
+	pHandle->SetValue(22, pSpr->yvel);
+	pHandle->SetValue(23, pSpr->zvel);
+	pHandle->SetValue(24, pSpr->owner);
 }
 
 
@@ -2261,7 +2242,7 @@ void dlgDialogToXSprite(DIALOG_HANDLER* pHandle, int nSprite)
 
 	pXSprite->key				= pHandle->GetValue(44);
 	pXSprite->wave				= pHandle->GetValue(45);
-	sprite[nSprite].flags       = (short)pHandle->GetValue(46);
+	sprite[nSprite].flags       = pHandle->GetValue(46);
 	pXSprite->lockMsg			= pHandle->GetValue(47);
 	pXSprite->dropItem			= pHandle->GetValue(48);
 
@@ -2270,7 +2251,7 @@ void dlgDialogToXSprite(DIALOG_HANDLER* pHandle, int nSprite)
 void dlgDialogToSprite(DIALOG_HANDLER* pHandle, int nSprite)
 {
 	int i;
-	dassert(nSprite > 0 && nSprite < kMaxSprites);
+	dassert(nSprite >= 0 && nSprite < kMaxSprites);
 	spritetype *pSpr = &sprite[nSprite];
 	
 	pSpr->x 			= pHandle->GetValue(1);
@@ -2291,33 +2272,20 @@ void dlgDialogToSprite(DIALOG_HANDLER* pHandle, int nSprite)
 	pSpr->xoffset 		= pHandle->GetValue(15);
 	pSpr->yoffset 		= pHandle->GetValue(16);
 	
+	pSpr->cstat 		= pHandle->GetValue(18);
+	pSpr->detail		= pHandle->GetValue(19);
+	pSpr->ang 			= pHandle->GetValue(20);
+	pSpr->xvel 			= pHandle->GetValue(21);
+	pSpr->yvel 			= pHandle->GetValue(22);
+	pSpr->zvel 			= pHandle->GetValue(23);
+	pSpr->owner 		= pHandle->GetValue(24);
+	
+	
 	i = pHandle->GetValue(17);
 	if (i && (pSpr->cstat & kSprRelMask) != kSprFloor)
 		pSpr->cstat |= kSprFloor;
 
 	spriteSetSlope(nSprite, i);
-	
-	pSpr->ang 			= pHandle->GetValue(18);
-	pSpr->xvel 			= pHandle->GetValue(19);
-	pSpr->yvel 			= pHandle->GetValue(20);
-	pSpr->zvel 			= pHandle->GetValue(21);
-	pSpr->owner 		= pHandle->GetValue(22);
-	
-	// 23
-	// 24
-	// 25
-	
-/* 	setCstat(pHandle->GetValue(26), &pSpr->cstat, kSprBlock);
-	setCstat(pHandle->GetValue(27), &pSpr->cstat, kSprHitscan);
-	setCstat(pHandle->GetValue(28), &pSpr->cstat, kSprOneSided);
-	setCstat(pHandle->GetValue(29), &pSpr->cstat, kSprInvisible);
-	setCstat(pHandle->GetValue(30), &pSpr->cstat, kSprOrigin);
-	setCstat(pHandle->GetValue(31), &pSpr->cstat, kSprFlipX);
-	setCstat(pHandle->GetValue(32), &pSpr->cstat, kSprFlipY);
-	setCstat(pHandle->GetValue(33), &pSpr->cstat, kSprTransluc1);
-	setCstat(pHandle->GetValue(34), &pSpr->cstat, kSprTranslucR);
-	setCstat(pHandle->GetValue(35), &pSpr->cstat, kSprMoveForward);
-	setCstat(pHandle->GetValue(36), &pSpr->cstat, kSprMoveReverse); */
 }
 
 void dlgXSectorToDialog(DIALOG_HANDLER* pHandle, int nSector)

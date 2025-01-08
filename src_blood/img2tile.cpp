@@ -845,7 +845,7 @@ int palLoad(char* fname, PALETTE out) {
 			retn = -4;
 			break;
 		case kPaletteDAT:								
-			if (((flen - 65536 - 2 - 768) % 256 == 0) || ((flen - 32640 - 768) % 256 == 0))
+			if (((flen - 65536 - 2 - 768) % 256 == 0) || ((flen - 32640 - 768) % 256 == 0) || (flen == 8960))
 			{
 				// standard BUILD palette
 				read(hFile, out, palsiz);

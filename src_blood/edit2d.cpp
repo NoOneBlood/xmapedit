@@ -1,4 +1,4 @@
-/**********************************************************************************
+/*********************************************************************************
 ///////////////////////////////////////////////////////////////////////////////////
 // Copyright (C) 1996: Originally written by Peter Freese.
 // Copyright (C) 2021: Updated by NoOne.
@@ -36,6 +36,7 @@ DOOR_SLIDEMARKED* pGDoorSM = NULL;
 CIRCLEWALL* pGCircleW = NULL;
 LOOPSHAPE* pGLShape = NULL;
 LOOPBUILD* pGLBuild = NULL;
+SECTAUTOARC* pGArc = NULL;
 
 short sectorhighlight;		// which sector mouse is inside in 2d mode
 short pointdrag = -1;
@@ -869,14 +870,16 @@ void ProcessKeys2D( void )
 				if ((pointdrag & 0xc000) == 0)
 				{
 					int x1, y1, x2, y2, x3, y3;
-					int s, k;
+					int nNext;
 					
-					k = 0;
 					j = pointdrag;
 					getWallCoords(j, &x3, &y3);
 					worldSprCallFunc(sprFixSector, 0x01);
 					
-					i = numwalls;
+					if (wall[j].nextwall < 0 && (j = sectorofwall(j)) >= 0)
+						sectAttach(j);
+					
+ 					i = numwalls;
 					while(--i >= 0)
 					{
 						getWallCoords(i, &x1, &y1, &x2, &y2);
@@ -1266,6 +1269,69 @@ void ProcessKeys2D( void )
 				}
 			}
 		}
+		else if (pGArc)
+		{
+			msg = buffer;
+			msg += sprintf(buffer, "Arc wizard");
+			
+			if (sectorhighlight >= 0 && hgltCheck(OBJ_SECTOR, sectorhighlight) >= 0)
+			{
+				pGArc->ClearList();
+				pGArc->insertNew = 0;
+				for (i = 0; i < highlightsectorcnt; i++)
+					pGArc->slist->Add(highlightsector[i]);
+			}
+			else
+			{
+				pGArc->insertNew = 1;
+			}
+						
+			pGArc->Setup(linehighlight, grid);
+			
+			switch(nStat = pGArc->StatusGet())
+			{
+				case 1:
+					gMapedHud.SetMsgImp(16, "%s: Press SPACE to build arc from %d pieces", buffer, pGArc->NumPieces());
+					break;
+				case 2:
+					gMapedHud.SetMsgImp(16, "%s: Press SPACE to build arc from %d sectors", buffer, highlightsectorcnt);
+					break;
+				default:
+					if (nStat >= 0 || (msg = retnCodeCheck(nStat, gAutoArcErrors)) == NULL) break;
+					gMapedHud.SetMsgImp(16, "%s error #%d: %s", buffer, klabs(nStat), msg);
+					break;
+			}
+			
+			switch (key)
+			{
+				case KEY_SPACE:
+					if (pGArc->StatusGet() > 0)
+					{
+						if (dlgArcWizard(pGArc))
+						{
+							if ((nStat = pGArc->Insert()) < 0
+								&& (msg = retnCodeCheck(nStat, gAutoArcErrors)) != NULL)
+									Alert("Error #%d: %s",  klabs(nStat), msg);
+							
+							updatesector(posx, posy, &cursectnum);
+							DELETE_AND_NULL(pGArc);
+							Beep(nStat > 0);
+						}
+					}
+					key = 0;
+					break;
+				case KEY_PLUS:
+				case KEY_MINUS:
+					if (pGArc->insertNew)
+					{
+						if (!shift) Beep(pGArc->IterateSideStep(key == KEY_PLUS, grid));
+						else Beep(pGArc->IterateMidStep(key == KEY_PLUS, grid));
+						break;
+					}
+					BeepFail();
+					break;
+			}
+		}
 	}
 		
 	switch (key)
@@ -1280,78 +1346,64 @@ void ProcessKeys2D( void )
 			break;
 		case KEY_SPACE:
 		case KEY_C:
-			i = 0;
-			if (pGDoorSM)	i = 1, DELETE_AND_NULL(pGDoorSM);
-			if (pGDoorR)	i = 1, DELETE_AND_NULL(pGDoorR);
-			if (pGCircleW)  i = 1, DELETE_AND_NULL(pGCircleW);
-			if (pGLShape)	i = 1, DELETE_AND_NULL(pGLShape);
-			if (i == 0)
+			sectorToolDisableAll(0);
+			if (key == KEY_SPACE)
 			{
-				if (key == KEY_SPACE)
+				if (alt)
 				{
-					if (alt)
+					if (sectorToolDlgLauncher())
 					{
-						if ((i = showButtons(gLoopShapeTypes, LENGTH(gLoopShapeTypes), "Select shape type...") - mrUser) >= 0)
+						if (pGLBuild)
+							DELETE_AND_NULL(pGLBuild);
+					}
+					
+					break;
+				}
+				else
+				{
+					int nStat; char* p;
+					if (!pGLBuild)
+					{
+						pGLBuild = new LOOPBUILD();
+						helperDoGridCorrection(&x, &y);
+						if (!pGLBuild->Setup(x, y))
 						{
-							if (pGLBuild)
-								DELETE_AND_NULL(pGLBuild);
+							nStat = pGLBuild->StatusGet();
+							if ((p = retnCodeCheck(nStat, gLoopBuildErrors)) != NULL)
+								gMapedHud.SetMsgImp(128, "%s", p);
 							
-							pGLShape = new LOOPSHAPE(i, sectorhighlight, x, y);
-							scrSetMessage("Loop shape tool started.");
-							BeepOk();
+							DELETE_AND_NULL(pGLBuild);
+							BeepFail();
+							break;
 						}
 					}
-					else
+					
+					if ((nStat = pGLBuild->StatusGet()) >= 0)
 					{
-						int nStat; char* p;
-						if (!pGLBuild)
+						switch(nStat)
 						{
-							pGLBuild = new LOOPBUILD();
-							helperDoGridCorrection(&x, &y);
-							if (!pGLBuild->Setup(x, y))
-							{
-								nStat = pGLBuild->StatusGet();
-								if ((p = retnCodeCheck(nStat, gLoopBuildErrors)) != NULL)
-									gMapedHud.SetMsgImp(128, "%s", p);
-								
-								DELETE_AND_NULL(pGLBuild);
-								BeepFail();
+							case 0: 
+								pGLBuild->AddPoint(x, y);
+								BeepOk();
 								break;
-							}
-						}
-						
-						if ((nStat = pGLBuild->StatusGet()) >= 0)
-						{
-							switch(nStat)
-							{
-								case 0: 
-									pGLBuild->AddPoint(x, y);
-									BeepOk();
-									break;
-								default:
-									if (Beep(nStat > 0))
-									{
-										pGLBuild->Make();
-										DELETE_AND_NULL(pGLBuild);
-									}
-									break;
-							}
+							default:
+								if (Beep(nStat > 0))
+								{
+									pGLBuild->Make();
+									DELETE_AND_NULL(pGLBuild);
+								}
+								break;
 						}
 					}
 				}
-			
-				if (key == KEY_C)
+			}
+		
+			if (key == KEY_C)
+			{
+				if (sectorToolEnable(kSectToolCurveWall, 0))
 				{
-					if (Beep(linehighlight >= 0))
-					{
-						pGCircleW			= new CIRCLEWALL(linehighlight, x, y);
-						pGCircleW->count	= gMisc.circlePoints;
-						
-						if (pGLBuild)
-							DELETE_AND_NULL(pGLBuild);
-						
-						break;
-					}
+					if (pGLBuild)
+						DELETE_AND_NULL(pGLBuild);
 				}
 			}
 			break;
@@ -1508,6 +1560,27 @@ void ProcessKeys2D( void )
 				if ((highlightcnt > 0 && type == 200 && sprInHglt(searchwall)) || type == 200)
 				{
 					scrSetMessage("%d sprite(s) duplicated and stamped.", ClipLow(hgltSprCallFunc(sprClone), 1));
+					if (pointdrag >= 0 && (pointdrag & 0xC000) != 0)
+					{
+						i = pointdrag & 0x3FFF;
+						if (!sprInHglt(i))
+						{
+							x = sprite[i].x;
+							y = sprite[i].y;
+							
+							i = -1;
+							while(nextSpriteAt(x, y, &i) >= 0)
+							{
+								if (sprInHglt(i))
+								{
+									ChangeSpriteSect(sprite[i].index, sprite[i].sectnum);
+									pointhighlight = i | 0x4000;
+									break;
+								}
+							}
+						}
+					}
+					
 					BeepOk();
 					break;
 				}

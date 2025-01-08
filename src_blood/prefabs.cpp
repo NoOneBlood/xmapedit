@@ -461,15 +461,8 @@ int pfbInsert(IniFile* pfbFile, int nStat, int nID, int nSect, int x, int y, int
 				{
 					pSpr = &sprite[fspr];
 					hgltSprRotate((fang + (GetWallAngle(nID) + kAng90)) & kAngMask);
-					if (width || height)
-					{
-						if (wallHoriz(nID)) hgltSprChgXYZ(x - pSpr->x, 0);
-						else if (wallVert(nID)) hgltSprChgXYZ(0, y - pSpr->y);
-						// don't know how to make centerring better for angled walls...:((((
-						else hgltSprChgXYZ(x - pSpr->x, y - pSpr->y);
-						
-					}
 				}
+				hgltSprPutOnWall(nID, x, y);
 				break;
 			case OBJ_SPRITE:
 				switch (sprite[nID].cstat & kSprRelMask)

@@ -1106,7 +1106,7 @@ void seqeditDrawTile(SEQFRAME *pFrame, int zoom, int *nTileArg, int nOctant)
 
 	if ( !pFrame->invisible )
 		rotatesprite(gSeqEd.origin.x << 16, gSeqEd.origin.y << 16, zoom, ang, nTile, nShade,
-			(char)gSeqEd.curPal, kRSNoClip|flags, 0, 0, xdim-1, ydim-1);
+			(char)gSeqEd.curPal, flags, 0, 0, xdim-1, ydim-1);
 	
 	*nTileArg = nTile;
 }

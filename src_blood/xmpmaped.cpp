@@ -1,5 +1,15 @@
 #include "xmpmaped.h"
 #include "aadjust.h"
+#include "preview.h"
+
+char* const gSectToolNames[] = 
+{
+	"Loop shape",
+	"Door wizard",
+	"Arc wizard",
+	"Curve wall",
+	"Unknown",
+};
 
 void avePointLoop(int s, int e, int *x, int *y)
 {
@@ -117,15 +127,9 @@ void loopFlip(int s, int e, int cx, int cy, int flags)
 	// based on eduke32
 	////////////////////////////////////
 	
-	int32_t* pWalls = (int32_t*)malloc(sizeof(int32_t)*kMaxWalls);
 	int i = numwalls, j, t, x1, y1, x2, y2, wA, wB;
 	int nSLoop, nELoop;
 	walltype buf;
-	
-	dassert(pWalls != NULL);
-	
-	while(--i >= 0)
-		pWalls[i] = i;
 	
 	// save position of wall at start of loop
 	getWallCoords(s, &x1, &y1, NULL, NULL);
@@ -169,9 +173,6 @@ void loopFlip(int s, int e, int cx, int cy, int flags)
 				memcpy(&buf, &wall[wA], sizeof(walltype));
 				memcpy(&wall[wA], &wall[wB], sizeof(walltype));
 				memcpy(&wall[wB], &buf, sizeof(walltype));
-
-				pWalls[wA] = wB;
-				pWalls[wB] = wA;
 			}
 			
 			// make point2 point to next wall in loop
@@ -183,15 +184,6 @@ void loopFlip(int s, int e, int cx, int cy, int flags)
 			getWallCoords(nSLoop, &x1, &y1, NULL, NULL);
 		}
 	}
-	
-	// fix nextwalls
-	for (i = s; i <= e; i++)
-	{
-		if (wall[i].nextwall >= 0)
-			wall[i].nextwall = pWalls[wall[i].nextwall];
-	}
-	
-	free(pWalls);
 }
 
 void loopDelete(int s, int e)
@@ -211,7 +203,53 @@ void loopDelete(int s, int e)
 	}
 }
 
+int loopIsEmpty(int nWall)
+{
+	IDLIST* pList = new IDLIST(1);
+	int ix, iy, x1, y1, x2, y2; int32_t* p;
+	int n = numwalls;
+	char stop = 0;
 
+	getWallCoords(nWall, &ix, &iy);
+	x1 = ix, y1 = iy;
+	
+	do
+	{
+		pList = new IDLIST(1);
+		collectWallsOfNode(pList, nWall);
+		for (p = pList->GetPtr(); *p >= 0; p++)
+		{
+			getWallCoords(*p, NULL, NULL, &x2, &y2);
+			if (*p == nWall || x2 != x1 || y2 != y1)
+				continue;
+			
+			nWall = *p;
+			if (wall[nWall].nextwall < 0)
+			{
+				memcpy(&wall[n], &wall[nWall], sizeof(walltype));
+				
+				wall[n].point2 = ++n;
+				if (wall[n].x == ix && wall[n].y == iy)
+					wall[n].point2 = numwalls, stop = 1;
+			}
+			else
+			{
+				stop = 2;
+			}
+			
+			break;
+		}
+		
+		delete(pList);
+	}
+	while(!stop && *p >=0);
+	
+	if (stop == 1
+		&& clockdir(numwalls) == 1)
+			return n - numwalls;
+	
+	return 0;
+}
 
 void getSectorWalls(int nSect, int* s, int *e)
 {
@@ -266,7 +304,7 @@ void sectRotate(int nSect, int cx, int cy, int nAng, int flags)
 void sectFlip(int nSect, int cx, int cy, int flags, int)
 {
 	char flipX = ((flags & 0x01) > 0);
-	int i, s, e;
+	int i, t, s, e;
 		
 	// flip walls
 	getSectorWalls(nSect, &s, &e);
@@ -276,6 +314,24 @@ void sectFlip(int nSect, int cx, int cy, int flags, int)
 		// outer loop
 		loopGetWalls(wall[s].nextwall, &s, &e);
 		loopFlip(s, e, cx, cy, flags);
+	}
+	
+	// fix nextwalls?
+	for (i = s; i <= e; i++)
+	{
+		if (wall[i].nextwall >= 0
+			&& (t = findNextWall(i, 1)) >= 0)
+			{
+				// forces sectorofwall() to
+				// actually *search* the
+				// sector...
+				
+				wall[i].nextwall = -1;
+				wall[t].nextwall = -1;
+				
+				wallAttach(i, sectorofwall(t), t);
+				wallAttach(t, sectorofwall(i), i);
+			}
 	}
 	
 	// flip sprites
@@ -376,26 +432,29 @@ int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
 			{
 				i = k;
 				loopGetWalls(j, &ls, &le);
-				// copy the loop if at least one of walls is inside?
-				while(ls <= le)
+				if (ls != s || le != e)
 				{
-					if (insideLoop(wall[ls].x, wall[ls].y, numwalls))
+					// copy the loop if at least one of walls is inside?
+					while(ls <= le)
 					{
-						k = nWall;
-						f = j;
-						do
+						if (insideLoop(wall[ls].x, wall[ls].y, numwalls))
 						{
-							memcpy(&wall[nWall], &wall[f], sizeof(walltype));
-							wall[nWall].point2 = nWall+1;
-							f = wall[f].point2;
-							nWall++;
+							k = nWall;
+							f = j;
+							do
+							{
+								memcpy(&wall[nWall], &wall[f], sizeof(walltype));
+								wall[nWall].point2 = nWall+1;
+								f = wall[f].point2;
+								nWall++;
+							}
+							while(f != j);
+							wall[nWall-1].point2 = k;
+							break;
 						}
-						while(f != j);
-						wall[nWall-1].point2 = k;
-						break;
+						
+						ls++;
 					}
-					
-					ls++;
 				}
 			}
 		}
@@ -430,26 +489,29 @@ int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
 			{
 				i = k;
 				loopGetWalls(j, &ls, &le);
-				// copy the loop if at least one of walls is inside?
-				while(ls <= le)
+				if (ls != s || le != e)
 				{
-					if (insideLoop(wall[ls].x, wall[ls].y, nWallOther))
+					// copy the loop if at least one of walls is inside?
+					while(ls <= le)
 					{
-						f = j;
-						k = nWall;
-						do
+						if (insideLoop(wall[ls].x, wall[ls].y, nWallOther))
 						{
-							memcpy(&wall[nWall], &wall[f], sizeof(walltype));
-							wall[nWall].point2 = nWall+1;
-							f = wall[f].point2;
-							nWall++;
+							f = j;
+							k = nWall;
+							do
+							{
+								memcpy(&wall[nWall], &wall[f], sizeof(walltype));
+								wall[nWall].point2 = nWall+1;
+								f = wall[f].point2;
+								nWall++;
+							}
+							while(f != j);
+							wall[nWall-1].point2 = k;
+							break;
 						}
-						while(f != j);
-						wall[nWall-1].point2 = k;
-						break;
+						
+						ls++;
 					}
-					
-					ls++;
 				}
 			}
 		}
@@ -836,6 +898,18 @@ short sectCstatGet(int nSect, int objType)
 	
 }
 
+short sectCstatGet(int nSect, short cstat, int objType)
+{
+	if (objType == OBJ_FLOOR)
+	{
+		return sector[nSect].floorstat & cstat;
+	}
+	else
+	{
+		return sector[nSect].ceilingstat & cstat;
+	}
+}
+
 short sectCstatSet(int nSect, short cstat, int objType)
 {
 	if (objType == OBJ_FLOOR)
@@ -885,6 +959,31 @@ void sectAttach(int nSect)
 	}
 }
 
+char sectAutoAlignSlope(int nSect, char which)
+{
+	sectortype* pSect = &sector[nSect];
+	if (!pSect->alignto)
+		return 0;
+	
+	int nWall = pSect->wallptr+pSect->alignto;
+	int nSectNext = wall[nWall].nextsector;
+	int x, y, x1, y1, x2, y2;
+	if (nSectNext < 0)
+		return 0;
+	
+	getWallCoords(nWall, &x1, &y1, &x2, &y2);
+	x = (x1+x2)>>1;
+	y = (y1+y2)>>1;
+	
+	if (which & 0x01)
+		alignceilslope(nSect, x, y, getceilzofslope(nSectNext, x, y));
+	
+	if (which & 0x02)
+		alignflorslope(nSect, x, y, getflorzofslope(nSectNext, x, y));
+	
+	return 1;
+}
+
 char pointOnLine(int x, int y, int x1, int y1, int x2, int y2)
 {
 	if ((x1 <= x && x <= x2) || (x2 <= x && x <= x1))
@@ -899,18 +998,32 @@ char pointOnWallLine(int nWall, int x, int y)
 {
 	int x1, y1, x2, y2;
 	getWallCoords(nWall, &x1, &y1, &x2, &y2);
-	if (x1 != x || y1 != y)
-		if (x2 != x || y2 != y)
-			return pointOnLine(x, y, x1, y1, x2, y2);
-
+	
+	if (x1 == x && y1 == y) return 1;
+	if (x2 == x && y2 == y) return 2;
+	if (pointOnLine(x, y, x1, y1, x2, y2))
+		return 3;
+	
 	return 0;
 }
 
-char pointOnWallLine(int x, int y)
+char pointOnWallLine(int x, int y, int* out)
 {
 	int i = numwalls;
-	while(--i >= 0 && !pointOnWallLine(i, x, y));
-	return (i >= 0);
+	char r;
+	
+	while(--i >= 0)
+	{
+		if ((r = pointOnWallLine(i, x, y)) > 0)
+		{
+			if (out)
+				*out = i;
+			
+			return r;
+		}
+	}
+	
+	return 0;
 }
 
 int findWallAtPos(int x, int y)
@@ -918,6 +1031,21 @@ int findWallAtPos(int x, int y)
 	int i = numwalls;
 	while(--i >= 0 && (wall[i].x != x || wall[i].y != y));
 	return i;
+}
+
+int findWallAtPos(int x1, int y1, int x2, int y2)
+{
+	int tx1, ty1, tx2, ty2;
+	int i = numwalls;
+	
+	while(--i >= 0)
+	{
+		getWallCoords(i, &tx1, &ty1, &tx2, &ty2);
+		if (tx1 == x1 && ty1 == y1 && tx2 == x2 && ty2 == y2)
+			return i;
+	}
+	
+	return -1;
 }
 
 void insertPoint_OneSide(int nWall, int x, int y)
@@ -939,7 +1067,7 @@ void insertPoint_OneSide(int nWall, int x, int y)
 	fixrepeats(nWall);
 	
 	if ((wall[nWall].cstat & kWallFlipMask) == 0)
-		AlignWalls(nWall, GetWallZPeg(nWall), wall[nWall].point2, GetWallZPeg(wall[nWall].point2), wall[nWall].picnum);
+		AlignWalls(nWall, GetWallZPeg(nWall), wall[nWall].point2, GetWallZPeg(wall[nWall].point2), 1);
 	
 	fixrepeats(nWall+1);
 	fixXWall(nWall+1);
@@ -1008,6 +1136,35 @@ void wallAttach(int nWall, int nNextS, int nNextW)
 	}
 }
 
+void wallAttach(int nWall, int nNext)
+{
+	wallAttach(nWall, wallGetSect(nNext), nNext);
+	wallAttach(nNext, wallGetSect(nWall), nWall);
+}
+
+int wallGetSect(int nWall)
+{
+	int i, s, e;
+	
+	// Slower, but safier version
+	// of sectorofwall() that
+	// ignores nexsector
+	// value
+	
+	if (rngok(nWall, 0, numwalls))
+	{
+		i = numsectors;
+		while(--i >= 0)
+		{
+			getSectorWalls(i, &s, &e);
+			if (irngok(nWall, s, e))
+				return i;
+			
+		}
+	}
+	
+	return -1;
+}
 
 double getWallLength(int nWall, int nGrid)
 {
@@ -1065,6 +1222,26 @@ short wallCstatToggle(int nWall, short cstat, char nextWall)
 	return wall[nWall].cstat;
 }
 
+char wallVisible(int nWall)
+{
+	int nSect, nNext;
+	int x, y;
+	
+	nSect = sectorofwall(nWall);
+	
+	if ((nNext = wall[nWall].nextsector) >= 0)
+	{
+		if ((wall[nWall].cstat & kWallMasked) == 0 && (wall[nWall].cstat & kWallOneWay) == 0)
+		{
+			getWallCoords(nWall, &x, &y);
+			return ((getceilzofslope(nSect, x, y) < getceilzofslope(nNext, x, y))
+						|| (getflorzofslope(nSect, x, y) > getflorzofslope(nNext, x, y)));
+		}
+	}
+	
+	return (klabs(sector[nSect].floorz - sector[nSect].ceilingz) > 0);
+}
+
 char insideLoop(int x, int y, int nStartWall)
 {
 	int x1, y1, x2, y2;
@@ -1104,6 +1281,17 @@ int getSectorHeight(int nSector)
 	return fz-cz;
 }
 
+char setAligntoWall(int nSect, int nWall)
+{
+	if ((nWall = nWall - sector[nSect].wallptr) >= 0)
+	{
+		sector[nSect].alignto = nWall;
+		return sector[nSect].alignto;
+	}
+	
+	return 0;
+}
+
 void setFirstWall(int nSect, int nWall)
 {
 	int start, length, shift;
@@ -1117,9 +1305,15 @@ void setFirstWall(int nSect, int nWall)
 
 	dassert(nWall >= start && nWall < start + length);
 	shift = nWall - start;
-
+	
+	int aWall = start + sector[nSect].alignto;
+	int ax, ay;
+	
 	if (shift == 0)
 		return;
+
+	if (aWall != start)
+		getWallCoords(aWall, &ax, &ay);
 
 	i = k = start;
 
@@ -1146,6 +1340,12 @@ void setFirstWall(int nSect, int nWall)
 
 	for (i = start; i < start + length; i++)
 	{
+		if (aWall != start)
+		{
+			if (wall[i].x == ax && wall[i].y == ay)
+				sector[nSect].alignto = i - start, aWall = start;
+		}
+		
 		if ((wall[i].point2 -= shift) < start)
 			wall[i].point2 += length;
 
@@ -1410,36 +1610,98 @@ int redSectorCanMake(int nStartWall)
 	else return addwalls;
 }
 
-
-int redSectorMake(int nStartWall)
+char collectOuterWalls(int nWall, IDLIST* pLoop)
 {
-	dassert(nStartWall >= 0 && nStartWall < numwalls);
+	if (wall[nWall].nextwall >= 0)
+		return 0;
 	
-	int i, addwalls, swal, ewal;
-	if ((addwalls = redSectorCanMake(nStartWall)) <= 0)
-		return addwalls;
-
-	for (i = numwalls; i < addwalls; i++)
+	IDLIST* pNode; int32_t* p;
+	int i = nWall;
+	int c = 0;
+	
+	do
 	{
-		wall[wall[i].nextwall].nextwall = i;
-		wall[wall[i].nextwall].nextsector = numsectors;
-	}
+		c++;
+		i = wall[i].point2;
+		if (wall[i].nextwall >= 0)
+		{
+			pNode = new IDLIST(true);
+			if (collectWallsOfNode(pNode, i) > 2)
+			{
+				for (p = pNode->GetPtr(); *p >= 0; p++)
+				{
+					if (wall[*p].nextwall < 0)
+					{
+						i = *p;
+						break;
+					}
+				}
+			}
+			
+			delete(pNode);
+		}
 		
-	sectortype* pSect =& sector[numsectors];
-	getSectorWalls(numsectors, &swal, &ewal);
-	
-	for (i = swal; i <= ewal; i++)
-	{
-		// we for sure don't need cstat inheriting for walls
-		wall[i].cstat = wall[wall[i].nextwall].cstat = 0;
-		fixrepeats(wall[i].nextwall);
-		fixrepeats(i);
+		if (!pLoop->Exists(i))
+			pLoop->Add(i);
 	}
-	numwalls = addwalls;
-	numsectors++;
+	while(i != nWall && c < kMaxWalls);
+	return (c < kMaxWalls);
+}
+
+
+int redSectorMake(int nWall)
+{
+	dassert(nWall >= 0 && nWall < numwalls);
+	int nSect = sectorofwall(nWall), nNext;
+	int32_t c, s, e, r = -5, *p;
+	IDLIST list(true);
+	POINT2D* point;
 	
-	worldSprCallFunc(sprFixSector);
-	return 0;
+	if (wall[nWall].nextwall >= 0)				return -1;
+	if (nSect < 0)								return -5;
+	if (numsectors >= kMaxSectors)				return -4;
+	if (!collectOuterWalls(nWall, &list))		return -2;
+	if (numwalls+list.GetLength() >= kMaxWalls)	return -3;
+	
+	point = (POINT2D*)malloc(sizeof(POINT2D)*list.GetLength());
+	dassert(point != NULL);
+	
+	for (c = 0, p = list.GetPtr(); *p >= 0; c++, p++)
+	{
+		point[c].x = wall[*p].x;
+		point[c].y = wall[*p].y;
+	}
+	
+	if (insertLoop(-1, point, c, &wall[nWall], &sector[nSect]) >= 0)
+	{
+		nSect = numsectors - 1;
+		getSectorWalls(nSect, &s, &e);
+		while(s <= e && (nNext = findNextWall(s)) >= 0)
+		{
+			wall[s].cstat = wall[nNext].cstat = 0;
+			fixrepeats(nNext);
+			fixrepeats(s);
+			
+			wallAttach(s, sectorofwall(nNext), nNext);
+			wallAttach(nNext, nSect, s);
+			s++;
+		}
+		
+		if (s > e)
+		{
+			worldSprCallFunc(sprFixSector);
+			r = 0;
+		}
+		else
+		{
+			numsectors	-= 1;
+			numwalls	-= c;
+			r = -5;
+		}
+	}
+	
+	free(point);
+	return r;
 }
 
 int redSectorMerge(int nThis, int nWith)
@@ -1542,17 +1804,16 @@ void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int*
 	*y1 = *y2 = pSpr->y;
 	
 	if (flags & 0x01)
-	{
 		xoff = panm[nPic].xcenter;
-	}
-	
+
 	if (flags & 0x02)
-	{
 		xoff += pSpr->xoffset;
-	}
-	
+
 	if (pSpr->cstat & kSprFlipX)
 		xoff = -xoff;
+	
+	if ((pSpr->cstat & kSprRelMask) == kSprFace)
+		wh = (wh * 3) >> 2;
 	
 	cx = sintable[nAng & kAngMask] * xrep;
 	cy = sintable[(nAng + kAng90 + kAng180) & kAngMask] * xrep;
@@ -1740,11 +2001,10 @@ int worldSprCallFunc(HSPRITEFUNC pFunc, int nData)
 	return c;
 }
 
-int collectWallsOfNode(IDLIST* pList, int nWall)
+int collectWallsOfNode(IDLIST* pList, int nWall, char flags)
 {
 	int nWallNum = numwalls;
-	int  n = 0;
-	int t;
+	int32_t *p, l, n, t;
 
 	pList->Add(nWall);
 	t = nWall;
@@ -1781,5 +2041,399 @@ int collectWallsOfNode(IDLIST* pList, int nWall)
 		nWallNum--;
 	}
 	while (t != nWall && nWallNum > 0);
+	
+	if (flags & 0x01)
+	{
+		if ((l = pList->GetLength()) > 0)
+		{
+			p = pList->GetPtr();
+			while(--l >= 0)
+			{
+				n = p[l];
+				if (wall[n].nextwall >= 0)
+					pList->AddIfNot(wall[n].nextwall), p = pList->GetPtr();
+			}
+		}
+	}
+
 	return pList->GetLength();
 }
+
+
+char sectorToolDisableAll(char alsoFreeDraw)
+{
+	char r = 0;
+	
+	if (pGDoorSM)	r = 1, DELETE_AND_NULL(pGDoorSM);
+	if (pGDoorR)	r = 1, DELETE_AND_NULL(pGDoorR);
+	if (pGCircleW)  r = 1, DELETE_AND_NULL(pGCircleW);
+	if (pGLShape)  	r = 1, DELETE_AND_NULL(pGLShape);
+	if (pGArc)		r = 1, DELETE_AND_NULL(pGArc);
+	
+	if (alsoFreeDraw && pGLBuild)
+		r = 1, DELETE_AND_NULL(pGLBuild)
+	
+	return r;
+}
+
+
+char sectorToolEnable(int nType, int nData)
+{
+	char r = 0;
+	
+	switch(nType)
+	{
+		case kSectToolShape:
+			if (rngok(nData, 0, LENGTH(gLoopShapeTypes)))
+			{
+				sectorToolDisableAll(1);
+				pGLShape = new LOOPSHAPE(nData, sectorhighlight, mousxplc, mousyplc);
+				r = 1;
+			}
+			break;
+		case kSectToolDoorWiz:
+			// other tools will be disabled in the dialog
+			r = dlgDoorWizard();
+			break;
+		case kSectToolArcWiz:
+			sectorToolDisableAll(1);
+			pGArc = new SECTAUTOARC();
+			r = 1;
+			break;
+		case kSectToolCurveWall:
+			if (linehighlight >= 0)
+			{
+				sectorToolDisableAll(1);
+				pGCircleW = new CIRCLEWALL(linehighlight, mousxplc, mousyplc);
+				pGCircleW->count = gMisc.circlePoints;
+				r = 1;
+			}
+			break;
+		default:
+			nType = LENGTH(gSectToolNames) - 1;
+			break;
+	}
+	
+	if (Beep(r)) scrSetMessage("%s started.", gSectToolNames[nType]);
+	else scrSetMessage("Unable to start %s tool.", gSectToolNames[nType]);
+	return r;
+}
+
+char sectorToolDlgLauncher()
+{
+	#define AFTERH(a, b) (a->left+a->width+b)
+	#define AFTERV(a, b) (a->top+a->height+b)
+	
+	TextButton* bButton; NAMED_TYPE* pEntry;
+	int i,  y = 8;
+	int nCode;
+	
+	Window dialog(0, 0, 180, 200, "Sector tools");
+	FieldSet* fDrawShape	= new FieldSet(8, 8, dialog.client->width-16, 0, "SHAPE DRAWING", kColorRed, kColorBlack, 0);
+	
+	for (i = 0; i < LENGTH(gLoopShapeTypes); i++, y += 22)
+	{
+		pEntry = &gLoopShapeTypes[i];
+		bButton = new TextButton(8, y, fDrawShape->client->width-16, 22, pEntry->name, 1000+pEntry->id);
+		fDrawShape->Insert(bButton);
+	}
+	
+	fDrawShape->client->height += y;
+	fDrawShape->height = fDrawShape->client->height+8;
+	
+	FieldSet* fOther		= new FieldSet(8, AFTERV(fDrawShape, 16), dialog.client->width-16, 80, "OTHER TOOLS", kColorRed, kColorBlack, 0);
+	TextButton* bDoorWiz	= new TextButton(8, 8, fOther->client->width-16, 22, "Door wizard",						100);
+	TextButton* bArcWiz		= new TextButton(8, AFTERV(bDoorWiz, 0), fOther->client->width-16, 22, "Arc wizard",	101);
+	TextButton* bCurveW		= new TextButton(8, AFTERV(bArcWiz, 0), fOther->client->width-16, 22, "Curve wall",		102);
+	
+	fOther->Insert(bDoorWiz);
+	fOther->Insert(bArcWiz);
+	fOther->Insert(bCurveW);
+	
+	dialog.Insert(fDrawShape);
+	dialog.Insert(fOther);
+	
+	dialog.client->height = AFTERV(fOther, 0);
+	dialog.height = dialog.client->height+32;
+	
+
+	while( 1 )
+	{
+		ShowModal(&dialog);
+		
+		nCode = 0;
+		if (dialog.endState != mrCancel)
+		{
+			if (fDrawShape->focus != &fDrawShape->head)
+			{
+				bButton = (TextButton*)((Container*)fDrawShape->client->focus);
+				if ((nCode = sectorToolEnable(kSectToolShape, bButton->result - 1000)) <= 0)
+					continue;
+			}
+			else if (fOther->focus != &fOther->head)
+			{
+				bButton = (TextButton*)((Container*)fOther->client->focus);
+				switch(bButton->result)
+				{
+					case 100:
+						if ((nCode = sectorToolEnable(kSectToolDoorWiz, 0)) <= 0) continue;
+						break;
+					case 101:
+						if ((nCode = sectorToolEnable(kSectToolArcWiz, 0)) <= 0) continue;
+						break;
+					case 102:
+						if ((nCode = sectorToolEnable(kSectToolCurveWall, 0)) <= 0) continue;
+						break;
+					default:
+						continue;
+				}
+			}
+			else
+			{
+				continue;
+			}
+		}
+		
+		break;
+	}
+	
+	return (nCode != 0);
+}
+
+int GetWallZPeg( int nWall )
+{
+	int z;
+
+	int nSector = sectorofwall(nWall);
+	int nNextSector = wall[nWall].nextsector;
+
+	if (nNextSector == -1)
+	{
+		// one sided wall
+		if ( wall[nWall].cstat & kWallOrgBottom )
+			z = sector[nSector].floorz;
+		else
+			z = sector[nSector].ceilingz;
+	}
+	else
+	{
+		// two sided wall
+		if ( wall[nWall].cstat & kWallOrgOutside )
+			z = sector[nSector].ceilingz;
+		else
+		{
+			// top step
+			if (sector[nNextSector].ceilingz > sector[nSector].ceilingz)
+				z = sector[nNextSector].ceilingz;
+			// bottom step
+			if (sector[nNextSector].floorz < sector[nSector].floorz)
+				z = sector[nNextSector].floorz;
+		}
+	}
+	return z;
+}
+
+char AlignWalls(int nTile, int z0, int z1, char doxpan, int w0_pan, int w0_rep, int w1_pan, int w1_rep)
+{
+	if (tilesizx[nTile] == 0 || tilesizy[nTile] == 0)
+		return 0;
+
+	uint8_t r = 0, t;
+
+	//do the x alignment
+	if (doxpan)
+	{		
+		t = (uint8_t)((wall[w0_pan].xpanning + (wall[w0_rep].xrepeat<<3))%tilesizx[nTile]);
+		if (t != wall[w1_pan].xpanning)
+			wall[w1_pan].xpanning = t, r = 1;
+	}
+		
+	uint8_t first_yPan = wall[w0_pan].ypanning;										// Y panning of first wall
+	uint8_t first_yRepeat = wall[w0_rep].yrepeat;									// Y repeat of first wall
+	int32_t yPan_offset = (((z1-z0) * first_yRepeat) / (tilesizy[nTile] << 3));		// y-panning offset.
+	uint8_t second_yPan = (uint8_t)(yPan_offset + first_yPan);						// The final y-panning for the second wall
+	
+	if (first_yRepeat != wall[w1_rep].yrepeat)
+		wall[w1_rep].yrepeat = first_yRepeat, r = 1;
+	
+	if (second_yPan != wall[w1_pan].ypanning)
+		wall[w1_pan].ypanning = second_yPan, r = 1;
+
+	return r;
+}
+
+char AlignWalls(int w0, int z0, int w1, int z1, char doxpan)
+{
+	return AlignWalls(wall[w0].picnum, z0, z1, doxpan, w0, w0, w1, w1);
+}
+
+int ED32_AutoAlignWalls_GetWall(char bot, int32_t w)
+{
+	return (bot && (wall[w].cstat & kWallSwap) && wall[w].nextwall >= 0) ? wall[w].nextwall : w;
+}
+
+// flags:
+//	0x01: more than once
+//	0x02: (unused)
+//	0x04: carry pixel width from first wall over to the rest
+//	0x08: (unused)
+//	0x10: iterate lastwall()s (point2 in reverse)
+//	0x20: use special logic for 'bottom-swapped' walls
+int32_t ED32_AutoAlignWalls(IDLIST* pDone, int w0, char flags, int32_t nrecurs)
+{
+	// based on eduke32
+	////////////////////////////////////
+	
+	static int numaligned, wall0;
+	static uint32_t lenrepquot;
+	static int32_t cstat0;
+	
+	int w0b, w1, w1b, z0, z1;
+	int nTile;
+	
+	char dir = ((flags & 0x10) != 0);
+	char bot = ((flags & 0x20) != 0);
+	
+	w1 = (dir) ? lastwall(w0) : wall[w0].point2;
+	w0b = ED32_AutoAlignWalls_GetWall(bot, w0);
+	nTile = wall[w0b].picnum;
+	z0	= GetWallZPeg(w0);
+	
+	if (nrecurs == 0)
+	{
+		lenrepquot = getlenbyrep(getWallLength(w0), wall[w0].xrepeat), wall0 = w0;
+		cstat0 = wall[w0b].cstat & kWallFlipMask;
+		numaligned = 0;
+		pDone->Add(w0);
+	}
+
+	//loop through walls at this vertex in point2 order
+	while( 1 )
+	{
+		w1b = ED32_AutoAlignWalls_GetWall(bot, w1);
+		
+		//break if this wall would connect us in a loop
+		if (pDone->Exists(w1))
+			break;
+
+		pDone->Add(w1);
+
+		//break if reached back of left wall
+		if (wall[w1].nextwall == w0)
+			break;
+
+		if (wall[w1b].picnum == nTile && wallVisible(w1b))
+		{
+			if ((flags & 0x04) && w1 != wall0)
+				fixxrepeat(w1, lenrepquot);
+
+			if (AlignWalls(nTile, GetWallZPeg(w0), GetWallZPeg(w1), 1, w0b, w0, w1b, w1))
+				numaligned++;
+			
+			wall[w1b].cstat &= ~kWallFlipMask;
+			wall[w1b].cstat |= cstat0;
+			
+			if ((flags & 0x01) == 0)
+				return numaligned;
+
+			//if wall was 1-sided, no need to recurse
+			if (wall[w1].nextwall < 0)
+			{
+				w0 = w1;
+				w0b = ED32_AutoAlignWalls_GetWall(bot, w0);
+				w1 = (dir) ? lastwall(w0) : wall[w0].point2;
+				continue;
+			}
+
+			ED32_AutoAlignWalls(pDone, w1, flags, nrecurs+1);
+		}
+
+		if (wall[w1].nextwall < 0)
+			break;
+		
+		w1 = (dir) ? lastwall(wall[w1].nextwall)
+						: wall[wall[w1].nextwall].point2;
+	}
+	
+	return numaligned;
+}
+
+int AutoAlignWalls(int nWall0, char flags)
+{
+	IDLIST* pDone = new IDLIST(1);
+	int c = ED32_AutoAlignWalls(pDone, nWall0, flags, 0);
+	delete(pDone);
+	
+	pDone = new IDLIST(1);
+	ED32_AutoAlignWalls(pDone, nWall0, flags, 0); // second trial?
+	delete(pDone);
+	return c;
+}
+
+int AutoAlignSectors(int nStart, int nFor, IDLIST* pList)
+{
+	int sbfz, stfz, sbcz, stcz, tz, bz;
+	int s, e, n;
+	
+	sectortype *pSect, *pSrc = &sector[nStart];
+	getSectorWalls(nStart, &s, &e);
+
+	floorGetEdgeZ(nStart, &sbfz, &stfz);
+	ceilGetEdgeZ(nStart, &sbcz, &stcz);
+	
+	sectCstatRem(nStart, kSectRelAlign, nFor);
+	pList->Add(nStart);
+
+	do
+	{
+		if ((n = wall[s].nextsector) < 0 || pList->Exists(n))
+			continue;
+		
+		if (sectCstatGet(n, kSectRelAlign, nFor)
+			&& sectCstatGet(n, kSectSloped, nFor))
+				continue;
+		
+		pSect = &sector[n];
+		if (nFor == OBJ_CEILING)
+		{
+			if (pSrc->ceilingpicnum != pSect->ceilingpicnum)
+				continue;
+			
+			ceilGetEdgeZ(n, &bz, &tz);
+			if (bz != sbcz && tz != stcz)
+				continue;
+			
+			pSect->ceilingxpanning = pSrc->ceilingxpanning;
+			pSect->ceilingypanning = pSrc->ceilingypanning;
+		}
+		else
+		{
+			if (pSrc->floorpicnum != pSect->floorpicnum)
+				continue;
+			
+			
+			floorGetEdgeZ(n, &bz, &tz);
+			if (bz != sbfz && tz != stfz)
+				continue;
+			
+			pSect->floorxpanning = pSrc->floorxpanning;
+			pSect->floorypanning = pSrc->floorypanning;
+		}
+					
+		if (sectCstatGet(nStart, kSectSwapXY, nFor)) sectCstatAdd(n, kSectSwapXY, nFor);
+		else sectCstatRem(n, kSectSwapXY, nFor);
+		
+		if (sectCstatGet(nStart, kSectFlipX, nFor)) sectCstatAdd(n, kSectFlipX, nFor);
+		else sectCstatRem(n, kSectFlipX, nFor);
+		
+		if (sectCstatGet(nStart, kSectFlipY, nFor)) sectCstatAdd(n, kSectFlipY, nFor);
+		else sectCstatRem(n, kSectFlipY, nFor);
+		
+		AutoAlignSectors(n, nFor, pList);
+	}
+	while(++s <= e);
+	
+	return pList->GetLength();
+}
+
+

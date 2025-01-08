@@ -41,6 +41,7 @@ SPRITEMASS gSpriteMass[];   		// cache for getSpriteMassBySize();
 EXTERNAL_FILES_LIST gExternFiles[] =
 {
     { kCdudeFileNamePrefixWild, kCdudeFileExt },
+	{ kCitemFileName, kCitemFileExt },
 };
 
 int nnExtResAddExternalFiles(Resource* pIn, const char* pPath, EXTERNAL_FILES_LIST* pList, int nLen)
@@ -125,6 +126,103 @@ DICTNODE* nnExtResFileSearch(Resource* pIn, int nID, const char* pExt)
     return NULL;
 }
 
+#define kMaxLasers 2048
+LASER* gLaser[kMaxLasers];
+int gNumLasers = 0;
+
+void lasersClear()
+{
+	int i = gNumLasers;
+	while(--i >= 0)
+		DELETE_AND_NULL(gLaser[i]);
+	
+	gNumLasers = 0;
+}
+
+void lasersInit()
+{
+	spritetype* pSpr; LASER* pLaser;
+	int i = numsectors;
+	int j;
+	
+	lasersClear();
+	LASER::GenerateTiles(0);
+	LASER::GenerateTables();
+	
+	while(--i >= 0)
+	{
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+		{
+			pSpr = &sprite[j];
+			if (pSpr->type != kModernLaserGen)
+				continue;
+			
+			dassert(gNumLasers < kMaxLasers);
+			
+			if (pSpr->extra <= 0)
+				dbInsertXSprite(pSpr->index);
+			
+			gLaser[gNumLasers] = new LASER(pSpr);
+			
+			pLaser = gLaser[gNumLasers];
+			pLaser->pXOwn->sysData1 = gNumLasers++;
+		}
+	}
+}
+
+void lasersProcess()
+{
+	int i = gNumLasers;
+	LASER* pLaser;
+	
+	while(--i >= 0)
+	{
+		pLaser = gLaser[i];
+		if (pLaser->pXOwn->state)
+			pLaser->Process();
+	}
+}
+
+
+
+void lasersProcessView3D(int camx, int camy, int camz, int cama, int cams, int camh)
+{
+	int i = numsectors, j;
+	char cameraSet = 0;
+	LASER* pLaser;
+	
+	while(--i >= 0)
+	{
+		if (!TestBitString(gotsector, i))
+				continue;
+		
+		if (!cameraSet)
+		{
+			LASER::cam.x = camx;
+			LASER::cam.y = camy;
+			LASER::cam.z = camz;
+			LASER::cam.s = cams;
+			LASER::cam.a = cama;
+			LASER::cam.h = camh;
+			cameraSet = 1;
+		}
+		
+		j = gNumLasers;
+		while(--j >= 0)
+		{
+			pLaser = gLaser[j];
+			if (!pLaser->pXOwn->state) continue;
+			else if (!pLaser->RayShow(i))
+				return;
+		}
+	}
+}
+
+LASER* laserGet(spritetype* pSpr)
+{
+	dassert(pSpr->extra > 0);
+	return gLaser[xsprite[pSpr->extra].sysData1];
+}
 
 int getSpriteMassBySize(spritetype* pSprite) {
     int mass = 0; int seqId = -1; int clipDist = pSprite->clipdist; Seq* pSeq = NULL;
@@ -577,6 +675,27 @@ bool modernTypeOperateSprite(int nSprite, spritetype* pSprite, XSPRITE* pXSprite
 		case kModernPlayerControl:
 		case kModernThingTNTProx:
 		case kModernDudeTargetChanger:
+			return true;
+		case kModernLaserGen:
+            switch (event.cmd)
+			{
+                case kCmdOff:
+					if (pXSprite->state == 1) laserGet(pSprite)->SetState(0);
+                    break;
+                case kCmdOn:
+                    if (pXSprite->state == 0) laserGet(pSprite)->SetState(1);
+                    break;
+                default:
+					laserGet(pSprite)->SetState(pXSprite->state ^ 1);
+                    break;
+            }
+			
+			if (pXSprite->state && pXSprite->waitTime)
+			{
+				evKill(nSprite, EVOBJ_SPRITE);
+				evPost(nSprite, EVOBJ_SPRITE, EVTIME2TICKS(pXSprite->waitTime), kCmdOff);
+			}
+			
 			return true;
         case kModernCondition:
         case kModernConditionFalse:
@@ -1465,6 +1584,9 @@ void nnExtResetGlobals()
 	// free all condition trackers
 	conditionsTrackingClear();
 	
+	// destroy lasers
+	lasersClear();
+	
 	// clear sprite mass cache
 	memset(gSpriteMass, 0, sizeof(gSpriteMass));
 }
@@ -1640,6 +1762,9 @@ void nnExtInitModernStuff() {
 	// prepare conditions for use
 	if (gStatCount[kStatModernCondition])
 		conditionsInit();
+	
+	// prepare lasers for use
+	lasersInit();
 }
 
 
@@ -1819,6 +1944,8 @@ void idListProcessPhysSprite(int32_t nSpr)
 void nnExtProcessSuperSprites()
 {
 	conditionsTrackingProcess();							// process tracking conditions
+	lasersProcess();
+	
 	gProxySpritesList.Process(idListProcessProxySprite);	// process additional proximity sprites
 	gSightSpritesList.Process(idListProcessSightSprite);	// process sight sprites (for players only)
 	gPhysSpritesList.Process(idListProcessPhysSprite);		// process debris physics affected sprites
@@ -4278,4 +4405,214 @@ bool modernTypeOperateSector(int nSector, sectortype* pSector, XSECTOR* pXSector
 
     return false;
 
+}
+
+
+// Custom items 
+/////////////////////////////////////////////
+
+enum enum_PAR_APPEARANCE
+{
+kParItemAppearTile              = 0,
+kParItemAppearSeq,
+kParItemAppearSize,
+kParItemAppearPal,
+};
+
+NAMED_TYPE gItemParAppearEntry[] =
+{
+	{kParItemAppearTile, 	"Tile"},
+	{kParItemAppearSeq, 	"Seq"},
+	{kParItemAppearSize, 	"Size"},
+	{kParItemAppearPal, 	"Pal"},
+};
+
+enum enum_ITEM_GROUP
+{
+kItemGroupItem             = 0,
+kItemGroupWeapon,
+kItemGroupAmmo,
+kItemGroupArmor,
+kItemGroupHealth,
+kItemGroupPowerup,
+kItemGroupKey,
+kItemGroupMax,
+};
+NAMED_TYPE gItemGroup[] =
+{
+	{kItemGroupItem, 	"Item"},
+	{kItemGroupWeapon, 	"Weapon"},
+	{kItemGroupAmmo, 	"Ammo"},
+	{kItemGroupArmor, 	"Armor"},
+	{kItemGroupHealth, 	"Health"},
+	{kItemGroupPowerup, "Powerup"},
+	{kItemGroupKey, 	"Key"},
+};
+
+char userItemGetType(char* str, int* nGroup, int* nType)
+{
+    int nPar, i = 0, t; char val[256];
+    if (isarray(str, &t))
+    {
+        if ((i = enumStr(i, str, val)) != 0
+			&& (nPar = findNamedID(val, gItemGroup, LENGTH(gItemGroup))) >= 0)
+                *nGroup = nPar, t--;
+		
+		if ((i = enumStr(i, str, val)) != 0 && isufix(val))
+			*nType = atoi(val), t--;
+
+        return (t == 0);
+    }
+    else if (isufix(str))
+    {
+        *nGroup = kItemGroupItem;
+        *nType = atoi(str);
+        return 1;
+    }
+
+    return 0;
+}
+
+char userItemGetAppearance(const char* str, AUTODATA* pAppear)
+{
+    int nPar, nVal, i = 0, c, t;
+    char key[256], val[256];
+
+    while ((i = enumStr(i, str, key, val)) != 0)
+    {
+        switch (nPar = findNamedID(key, gItemParAppearEntry, LENGTH(gItemParAppearEntry)))
+        {
+            case kParItemAppearSize:
+                if (isarray(val, &t))
+                {
+                    t = c = 0;
+                    while ((t = enumStr(t, val, key)) != 0 && c < 2)
+                    {
+                        if (isufix(key) && (nVal = atoi(key)) <= 255)
+                        {
+                            if (c == 0)     pAppear->xrepeat = nVal;
+                            else            pAppear->yrepeat = nVal;
+                        }
+                        
+                        c++;
+                    }
+                }
+                else if (isufix(val) && (nVal = atoi(val)) <= 255)
+                {
+                    pAppear->xrepeat = pAppear->yrepeat = nVal;
+                }
+                break;
+            case kParItemAppearTile:
+            case kParItemAppearSeq:
+            case kParItemAppearPal:
+                if (isfix(val))
+                {
+                    nVal = atoi(val);
+                    switch (nPar)
+                    {
+                        case kParItemAppearTile:    if (rngok(nVal, 0, kMaxTiles))  pAppear->picnum = nVal;     break;
+                        case kParItemAppearSeq:     if (rngok(nVal, 0, 65536))      pAppear->seq = nVal;      break;
+                        case kParItemAppearPal:     if (irngok(nVal, 0, 255))       pAppear->plu = nVal;        break;
+                    }
+                }
+                break;
+        }
+    }
+
+    return 1;
+}
+
+int userItemsInit()
+{
+	char *pSect = NULL, *pKey, *pVal, **pName, **pCapt;
+	RESHANDLE hIni; IniFile* pIni; AUTODATA itm;
+	int nGroup, nType, i, c = 0;
+
+	if ((hIni = gSysRes.Lookup(kCitemFileName, kCitemFileExt)) == NULL)
+		return 0;
+	
+	pIni = new IniFile((BYTE*)gSysRes.Load(hIni), gSysRes.Size(hIni));
+	
+	if (pIni->GetKeyInt("General", "Version") != 1)
+		return 0;
+	
+	itm.xsprite		=  1;
+	itm.exception	=  0;
+	itm.type		=  0;
+	itm.hitBit  	= -1;
+
+	while(pIni->GetNextSection(&pSect))
+	{
+		pVal = pIni->GetKeyString(pSect, "Type");
+		if (!userItemGetType(pVal, &nGroup, &nType))
+			continue;
+		
+		if (!rngok(nType, kItemWeaponBase, kDudeBase))
+			continue;
+		
+		pVal = pIni->GetKeyString(pSect, "Caption");
+		pCapt = &gSpriteCaptions[nType];
+		pName = &gSpriteNames[nType];
+		
+		if (*pCapt && *pCapt != *pName)
+			FREE_AND_NULL(*pCapt);
+		
+		*pName = (char*)realloc(*pName, strlen(pSect)+1);
+		dassert(*pName != NULL);
+		strcpy(*pName, pSect);
+		
+		if (!isempty(pVal))
+		{
+			*pCapt = (char*)malloc(strlen(pVal)+1);
+			dassert(*pCapt != NULL);
+			strcpy(*pCapt, pVal);
+		}
+		else
+		{
+			*pCapt = *pName;
+		}
+				
+		itm.group		= kOGrpItemUser;
+		itm.type		= nType;
+		
+		i = autoDataLength;
+		while(--i >= 0 && autoData[i].type != nType);
+		if (i < 0)
+		{
+			i = autoDataLength;
+			autoData = (AUTODATA*)realloc(autoData, sizeof(AUTODATA) * (i + 1));
+			autoDataLength++;
+			c++;
+		}
+		else
+		{
+			itm.group |= autoData[i].group;
+		}
+		
+		
+		
+/* 		switch(nGroup) // this will require to update tilePick() later
+		{
+			case kItemGroupAmmo:	itm.group |= kOGrpAmmo;		break;
+			case kItemGroupWeapon:	itm.group |= kOGrpWeapon;	break;
+			default:				itm.group |= kOGrpItem;		break;
+		} */
+		
+		itm.picnum		= -1;
+		itm.xrepeat 	= -1;
+		itm.yrepeat		= -1;
+		itm.seq			= -1;
+		itm.plu			= -1;
+		
+		pVal = pIni->GetKeyString(pSect, "Appearance");
+		userItemGetAppearance(pVal, &itm);
+		if (itm.seq > 0)
+			getSeqPrefs(itm.seq, &itm.picnum, &itm.xrepeat, &itm.yrepeat, &itm.plu);
+		
+		itm.seq = -1;
+		memcpy(&autoData[ClipLow(i, 0)], &itm, sizeof(itm));
+	}
+	
+	delete(pIni);
+	return c;
 }

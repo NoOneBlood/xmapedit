@@ -58,7 +58,7 @@ SYS_STATNUM_GROUP sysStatData[] =
 	{ 0x03,		kStatPathMarker,				kMarkerPath,				0,					NULL, 0 },
 	{ 0x03,		kStatDude,						kDudeBase, 					kDudeMax - 1,		NULL, 0 },
 	{ 0x03,		kStatThing,						kThingBase, 				kThingMax - 1,		NULL, 0 },
-	{ 0x03,		kStatItem,						kItemWeaponBase, 			kItemMax - 1,		NULL, 0 },
+	{ 0x03,		kStatItem,						kItemWeaponBase, 			199,				NULL, 0 },
 	{ 0x03,		kStatProjectile,				kMissileBase, 				kMissileMax - 1,	NULL, 0 },
 	{ 0x03,		kStatTraps,						kTrapBase, 					kTrapMax - 1,		NULL, 0 },
 	{ 0x03,		kStatAmbience,					kSoundAmbient,				0,					NULL, 0 },
@@ -550,17 +550,13 @@ void cleanUpSectWalls(int nSect)
 		// useless x-object check
 		if (pWall->extra > 0)
 		{
-			if (pWall->type == 0 && obsoleteXObject(OBJ_WALL, pWall->extra))
-			{
-				dbDeleteXWall(pWall->extra);
-			}
-			else
-			{
-				XWALL* pXWall =& xwall[pWall->extra];
-				if(pXWall->txID && !pXWall->triggerOn && !pXWall->triggerOff)
-					pXWall->triggerOn = pXWall->triggerOff = 1;
-			}
+			if (pWall->type == 0
+				&& obsoleteXObject(OBJ_WALL, pWall->extra))
+					dbDeleteXWall(pWall->extra);
 		}
+		
+		if ((pWall->cstat & kWallMoveMask) == kWallMoveMask)
+			pWall->cstat &= ~kWallMoveReverse;
 		
 		// clear useless cstat for white walls...
 		if (pWall->nextwall < 0)
@@ -733,14 +729,9 @@ void CleanUpMisc() {
 		// useless x-object check
 		if (pSector->extra > 0)
 		{
-			if (pSector->type == 0 && obsoleteXObject(OBJ_FLOOR, pSector->extra))
-				dbDeleteXSector(pSector->extra);
-			else
-			{
-				XSECTOR* pXSect = &xsector[pSector->extra];
-				if(pXSect->txID && !pXSect->triggerOn && !pXSect->triggerOff)
-					pXSect->triggerOn = pXSect->triggerOff = 1;
-			}
+			if (pSector->type == 0
+				&& obsoleteXObject(OBJ_FLOOR, pSector->extra))
+					dbDeleteXSector(pSector->extra);
 		}
 
 		// fix ceiling slopes
@@ -778,6 +769,9 @@ void CleanUpMisc() {
 			
 			CleanUpStatnum(j);
 			
+			if ((pSprite->cstat & kSprMoveMask) == kSprMoveMask)
+				pSprite->cstat &= ~kSprMoveReverse;
+			
 			if (pSprite->extra > 0)
 			{
 				XSPRITE* pXSpr =&xsprite[sprite[j].extra];
@@ -787,11 +781,8 @@ void CleanUpMisc() {
 					pXSpr->triggerPickup = FALSE;
 				
 				// item out of a range
-				if (pXSpr->dropItem >= kItemMax)
+				if (pXSpr->dropItem >= kDudeBase)
 					pXSpr->dropItem = 0;
-				
-				if(pXSpr->txID && !pXSpr->triggerOn && !pXSpr->triggerOff)
-					pXSpr->triggerOn = pXSpr->triggerOff = 1;
 				
 				if (pSprite->statnum == kStatDude)
 				{

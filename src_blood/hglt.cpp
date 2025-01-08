@@ -989,52 +989,68 @@ void hgltSprPutOnZ(int z, int which, int tofs, int bofs) {
 
 }
 
-void hgltSprPutOnWall(int nwall, int x, int y) {
+void hgltSprPutOnWall(int nwall, int x, int y)
+{	
+	spritetype* pSpr;
+	int nAng, ex[4], ey[4];
+	int x1, y1, x2, y2;
+	int i, j, k, e;
 
-	short ls = -1, rs = -1, bs = -1, ts = -1, zbs = -1, zts = -1;
-	hgltSprGetEdgeSpr(&ls, &rs, &ts, &bs, &zts, &zbs);
-
-	int tang = getangle(sprite[ts].x - sprite[bs].x, sprite[ts].y - sprite[bs].y);
-	int wang = GetWallAngle(nwall);
+	getWallCoords(nwall, &x1, &y1, &x2, &y2);
+	nAng = getangle(x2-x1, y2-y1);
 	
-	int width  = abs(sprite[rs].x - sprite[ls].x);
-	int height = abs(sprite[ts].y - sprite[bs].y);
-	if (!width || !height)
-		return;
-
-	int dx = sprite[ls].x - sprite[rs].x;
-	int dy = sprite[ts].y - sprite[bs].y;
-
-	RotateVector(&dx, &dy, wang);
-
-	int edge = sprite[ts].y;
-	int oct = GetOctant(dx, dy);
-
-	switch (oct) {
-		case 0:
-		case 1:
-			edge = sprite[ls].x;
-			//angw = abs(angw);
-			//angh = abs(angh);
-			break;
-		case 2:
-		case 3:
-			edge = sprite[bs].y;
-			break;
-		case 4:
-		case 5:
-			edge = sprite[rs].x;
-			break;
-
+	for (i = 0; i < highlightcnt; i++)
+	{
+		if ((highlight[i] & 0xC000) == 0)
+			continue;
+		
+		j = highlight[i] & 16383;
+		pSpr = &sprite[j];
+		e = 0;
+		
+		while(e >= 0)
+		{
+			switch(pSpr->cstat & kSprRelMask)
+			{
+				case kSprSloped:
+				case kSprFloor:
+					GetSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3]);
+					e = 4;
+					break;
+				case kSprWall:
+					GetSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1]);
+					e = 2;
+					break;
+				default:
+					ex[0] = pSpr->x;
+					ey[0] = pSpr->y;
+					e = 1;
+					break;
+			}
+			
+			while(--e >= 0)
+			{
+				// don't know how to make it better
+				if (pointBehindLine(ex[e], ey[e], x1, y1, x2, y2))
+				{
+					for (k = 0; k < highlightcnt; k++)
+					{
+						if ((highlight[k] & 0xC000) == 0)
+							continue;
+						
+						// j is safe for use
+						j = highlight[k] & 16383;
+						offsetPos(0, 12, 0, nAng + kAng90,
+									&sprite[j].x, &sprite[j].y, NULL);
+					}
+					
+					break;
+				}
+			}
+		}
 	}
-
-	//scrSetMessage("wall %d:   %d / %d / %d / %d / %d", nwall, oct, wang, tang, x - dx, y - dy);
-
-	if (wallHoriz(nwall)) hgltSprChgXYZ(x - edge, 0);
-	else if (wallVert(nwall)) hgltSprChgXYZ(0, y - edge);
-	// don't know how to handle angled walls...:(((
-	//else hgltSprSetXYZ(x - ((sprite[rs].x - sprite[ls].x) >> 1), y - ((sprite[bs].y - sprite[ts].y) >> 1), z);
-		//hgltSprChgXYZ(dx, dy);
+	
+	hgltSprCallFunc(sprFixSector);
 	
 }
 

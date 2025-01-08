@@ -61,7 +61,7 @@ void viewRotateSprite(spritetype* pTSprite, int nView, int x, int y, int* offset
 	
 }
 
-spritetype *viewInsertTSprite( int nSector, int nStatus, spritetype *pSource = NULL ) {
+spritetype *viewInsertTSprite( int nSector, int nStatus, spritetype *pSource) {
 	
 	if (spritesortcnt >= kMaxViewSprites)
 		return NULL;
@@ -494,7 +494,7 @@ void viewSpriteHighlight(spritetype* pSpr)
 	spritetype* pView; char floor = 0x0;
 	int nSect = pSpr->sectnum, nAng = pSpr->ang, t = pSpr->ang;
 	int i, x1, y1, x2, y2, x3, y3, x4, y4, zt, zb;
-	int size, fz, cz;
+	int size, fz, cz, xofs = -1, yofs = -1;
 	int nFSpr;
 	
 	if ((nFSpr = headspritestat[kStatFree]) < 0)
@@ -506,6 +506,8 @@ void viewSpriteHighlight(spritetype* pSpr)
 			pSpr->ang = nAng = (ang + kAng180) & kAngMask;
 			GetSpriteExtents(pSpr, &x1, &y1, &x2, &y2, &zt, &zb);
 			pSpr->ang = t;
+			xofs = -4;
+			yofs = -1;
 			break;
 		case kSprWall:
 			GetSpriteExtents(pSpr, &x1, &y1, &x2, &y2, &zt, &zb);
@@ -533,7 +535,8 @@ void viewSpriteHighlight(spritetype* pSpr)
 		if ((pView = viewInsertTSprite(nSect, -32767, pSpr)) == NULL)
 			break;
 		
-		pView->xoffset		= pView->yoffset = -1;
+		pView->xoffset		= xofs;
+		pView->yoffset		= yofs;
 		pView->picnum 		= gSysTiles.wallHglt;
 		pView->xrepeat 		= pView->yrepeat = size;
 		pView->shade 		= -128;
@@ -759,9 +762,6 @@ void viewProcessSprites(int x, int y, int z, int a) {
 				nView = (viewType[nTile] < kSprViewVox) ? viewType[nTile] : kSprViewSingle;
 		}
 	
-		if (nSpr == gHovSpr && gSysTiles.wallHglt > 0)
-			viewSpriteHighlight(pTSpr);
-		
 		if (!gPreviewMode)
 		{
 			if (nSpr == gHovSpr)
@@ -802,6 +802,9 @@ void viewProcessSprites(int x, int y, int z, int a) {
 
 		for (; offset > 0; offset-- )
 			pTSpr->picnum += 1 + panm[pTSpr->picnum].frames;
+
+		if (nSpr == gHovSpr && gSysTiles.wallHglt > 0)
+			viewSpriteHighlight(pTSpr);
 
 		if (pTSpr->statnum != kStatFX)
 		{
@@ -883,6 +886,6 @@ void viewProcessSprites(int x, int y, int z, int a) {
 				pTSpr->pal = (char)pSect->floorpal;
 		}
 	}
-
-
+	
+	lasersProcessView3D(x, y, z, a, 0, 0);
 }

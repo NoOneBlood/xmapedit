@@ -72,6 +72,7 @@ class IniFile
 		int   GetKeyInt(char* section, char* key, const int32_t nRetn = -1);
 		char  GetNextString(char* out, char** pKey, char** pVal, int* prevNode, char *section = NULL);
 		char  GetNextString(char** pKey, char** pVal, int* prevNode, char *section = NULL);
+		int   GetNextSection(char** section);
 		//---------------------------------------------------------------
 		char  PutKeyInt(char* section, char* hiWord, const int nVal);
 		char  PutKeyHex(char* section, char* hiWord, const int nVal);

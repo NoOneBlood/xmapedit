@@ -2195,6 +2195,7 @@ int reverseSectorPosition(int nSect, char flags)
 			return -1;
 	}
 	
+	worldSprCallFunc(sprFixSector);
 	return 1;
 }
 
@@ -2235,9 +2236,26 @@ int findNextWall(int nWall, char forceSearch)
 	if (!forceSearch && wall[nWall].nextwall >= 0)
 		return wall[nWall].nextwall;
 	
-	i = numwalls;
-	while(--i >= 0 && !isNextWallOf(nWall, i));
-	return i;
+	int nSect = sectorofwall(nWall);
+	int s, e;
+	
+	i = numsectors;
+	while(--i >= 0)
+	{
+		if (i == nSect)
+			continue;
+		
+		getSectorWalls(i, &s, &e);
+		while(s <= e)
+		{
+			if (isNextWallOf(nWall, s))
+				return s;
+			
+			s++;
+		}
+	}
+		
+	return -1;
 }
 
 void posChg(int* x, int* y, int bx, int by, char chgRel)
@@ -2262,88 +2280,79 @@ void posRotate(int* x, int* y, int rAng, int cx, int cy, char rPoint)
 	*x = dx, *y = dy;
 }
 
-
-char scanWallOfSector(SCANWALL* pIn, SCANWALL* pOut)
+char scanWallOfSector(SCANWALL* pIn, SCANWALL* pOut, int snapDist)
 {
 	sectortype* pSect = &sector[pIn->s];
-	short* pWallCstat = (short*)malloc(pSect->wallnum*(sizeof(short)+1));
-	short* pSprCstat = NULL;
-	int nSect = pIn->s, i, j, s, e;
-	int hx, hy, hz;
-	short hsp;
-
+	int nSect = pIn->s, hx, hy, hz;
+	char r = 0; short hsp;
 	
-	int backSlope[2]	= {pSect->floorslope, pSect->ceilingslope};
-	int backGoal[2]		= {hitscangoalx, hitscangoaly};
-
-	pOut->w = -1;
-	if (pWallCstat)
+	static struct
 	{
-		getSectorWalls(nSect, &s, &e);
-		for (i = s, j = 0; i <= e; i++)
-		{
-			pWallCstat[j++] = wall[i].cstat;
-			wall[i].cstat = kWallBlock;
-		}
+		int fslope, fstat;
+		int cslope, cstat;
+		int goalx, goaly;
+		int headspr;
+		int fz, cz;
 	}
+	backup;
 	
-	if ((i = countSpritesOfSector(nSect)) > 0)
-	{
-		if ((pSprCstat = (short*)malloc(i*sizeof(short))) != NULL)
-		{
-			for (i = headspritesect[nSect], j = 0; i >= 0; i = nextspritesect[i])
-			{
-				pSprCstat[j++] = sprite[i].cstat;
-				sprite[i].cstat = kSprFloor;
-			}
-		}
-	}
+	backup.fslope	= pSect->floorslope;
+	backup.cslope	= pSect->ceilingslope;
+	backup.fstat	= pSect->floorstat;
+	backup.cstat	= pSect->ceilingstat;
+	backup.fz		= pSect->floorz;
+	backup.cz		= pSect->ceilingz;
+	backup.goalx	= hitscangoalx;
+	backup.goaly	= hitscangoaly;
+	backup.headspr	= headspritesect[nSect];
 	
-	pSect->floorslope = pSect->ceilingslope = 0;
+	pSect->floorz		= 0x7ffffff >> 3;
+	pSect->ceilingz		= pSect->floorz - 8192;
+	pSect->floorslope	= pSect->ceilingslope = 0;
+	pSect->floorstat	= pSect->ceilingstat = 0;
+	
 	hitscangoalx = hitscangoaly = 0x1fffffff;
+	headspritesect[nSect] = -1;
+	pOut->w = -1;
 	
 	hitscan
 	(
-		pIn->pos.x, pIn->pos.y, pIn->pos.z, nSect,
+		pIn->pos.x, pIn->pos.y, pSect->floorz - 4096, nSect,
 		Cos(pIn->pos.a)>>16, Sin(pIn->pos.a)>>16, 0,
 		&pOut->s, &pOut->w, &hsp,
 		&hx, &hy, &hz,
 		BLOCK_MOVE
 	);
+
+	pSect->floorslope	= backup.fslope;
+	pSect->ceilingslope = backup.cslope;
+	pSect->floorstat	= backup.fstat;
+	pSect->ceilingstat	= backup.cstat;
+	pSect->floorz		= backup.fz;
+	pSect->ceilingz 	= backup.cz;
 	
-	hitscangoalx = backGoal[0];
-	hitscangoaly = backGoal[1];
-	
-	pSect->floorslope	= backSlope[0];
-	pSect->ceilingslope = backSlope[1];
-	
-	if (pWallCstat)
-	{
-		for (i = s, j = 0; i <= e; i++)
-			wall[i].cstat = pWallCstat[j++];
-		
-		free(pWallCstat);
-	}
-	
-	if (pSprCstat)
-	{
-		for (i = headspritesect[nSect], j = 0; i >= 0; i = nextspritesect[i])
-			sprite[i].cstat = pSprCstat[j++];
-		
-		free(pSprCstat);
-	}
-	
+	hitscangoalx = backup.goalx; hitscangoaly = backup.goaly;
+	headspritesect[nSect] = backup.headspr;
+
 	if (pOut->w >= 0)
 	{
-		pOut->pos.New((GetWallAngle(pOut->w) + kAng90) & kAngMask, hx, hy, hz);
-		return 1;
+		r = 1;
+		if (snapDist > 0)
+		{
+			int x1, y1, x2, y2, d1, d2;
+			getWallCoords(pOut->w, &x1, &y1, &x2, &y2);
+			d1 = exactDist(x1-hx, y1-hy), d2 = exactDist(x2-hx, y2-hy);
+			
+			if (d1 < d2 && d1 < snapDist) hx = x1, hy = y1, r = 2;
+			if (d1 > d2 && d2 < snapDist) hx = x2, hy = y2, r = 3;
+		}
+		
+		pOut->pos.New((GetWallAngle(pOut->w) + kAng90) & kAngMask, hx, hy, pIn->pos.z);
+		return r;
 	}
-	else
-	{
-		pOut->pos.New(pIn->pos.a, hx, hy, hz);
-	}
-	
-	return 0;
+
+	pOut->pos.New(pIn->pos.a, hx, hy, pIn->pos.z);
+	return r;
 }
 
 BOOL testXSectorForLighting(int nXSect)

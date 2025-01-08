@@ -44,6 +44,22 @@
 #pragma pack(push, 1)
 struct AISTATE;
 
+enum
+{
+	kMapTypeUNK					= 0,
+	kMapTypeBLOOD                  ,
+	kMapTypeBUILD                  ,
+	kMapTypeSAVEGAME_NBLOOD        ,
+	kMapTypeMax					   ,
+};
+
+struct CHECKMAPINFO
+{
+	unsigned int type			: 8;
+	unsigned int version		: 32;
+};
+
+
 struct BLMMAGIC
 {
     char sign[4];
@@ -283,6 +299,45 @@ struct XWALL {
     unsigned int unused4 : 32;          // unused
 };
 
+#ifdef SUPPORT_MAPV3
+struct SECTOR3 {
+	uint16_t wallptr, wallnum;
+	uint8_t  ceilingstat, ceilingpanning;
+	int8_t   ceilingshade;
+	int32_t  ceilingz;
+	int16_t  ceilingpicnum, ceilingheinum;
+	uint8_t  floorstat, floorpanning;
+	int8_t   floorshade;
+	int32_t  floorz;
+	int16_t  floorpicnum, floorheinum;
+	int32_t  tag;
+};
+
+struct WALL3 {
+	int32_t x, y;
+	int16_t point2;
+	uint8_t cstat;
+	int8_t  shade;
+	uint8_t xrepeat, yrepeat, panning;
+	int16_t picnum, overpicnum;
+	int16_t nextsector1, nextwall1;
+	int16_t nextsector2, nextwall2;
+	int32_t tag;
+};
+
+struct SPRITE3 {
+	int32_t x, y, z;
+	uint8_t cstat;
+	int8_t  shade;
+	uint8_t xrepeat, yrepeat;
+	int16_t picnum, ang, vel, zvel, owner;
+	int16_t sectnum, statnum;
+	int32_t tag;
+	uint8_t *extra;
+};
+#endif
+
+
 struct SECTOR4 {
 	uint16_t wallptr, wallnum;
 	int8_t   ceilingstat, ceilingxpanning, ceilingypanning;
@@ -318,6 +373,47 @@ struct SPRITE4 {
 	int8_t *extra;
 };
 
+struct SECTOR5 {
+	uint16_t wallptr, wallnum;
+	int16_t  ceilingpicnum, floorpicnum;
+	int16_t  ceilingheinum, floorheinum;
+	int32_t  ceilingz, floorz;
+	int8_t   ceilingshade, floorshade;
+	uint8_t  ceilingxpanning, floorxpanning;
+	uint8_t  ceilingypanning, floorypanning;
+	uint8_t  ceilingstat, floorstat;
+	uint8_t  ceilingpal, floorpal;
+	uint8_t  visibility;
+	int16_t  lotag, hitag;
+	int16_t  extra;
+};
+
+
+
+struct WALL5 {
+	int32_t x, y;
+	int16_t point2;
+	int16_t picnum, overpicnum;
+	int8_t shade;
+	int16_t cstat;
+	uint8_t xrepeat, yrepeat, xpanning, ypanning;
+	int16_t nextsector1, nextwall1;
+	int16_t nextsector2, nextwall2;
+	int16_t lotag, hitag;
+	int16_t extra;
+};
+
+struct SPRITE5 {
+	int32_t x, y, z;
+	uint8_t cstat;
+	int8_t shade;
+	uint8_t xrepeat, yrepeat;
+	int16_t picnum, ang, xvel, yvel, zvel, owner;
+	int16_t sectnum, statnum;
+	int16_t lotag, hitag;
+	int16_t extra;
+};
+
 struct SECTOR6 {
 	uint16_t wallptr, wallnum;
 	int16_t ceilingpicnum, floorpicnum;
@@ -329,7 +425,8 @@ struct SECTOR6 {
 	uint8_t ceilingstat, floorstat;
 	uint8_t ceilingpal, floorpal;
 	uint8_t visibility;
-	int16_t lotag, hitag, extra;
+	int16_t lotag, hitag;
+	int16_t extra;
 };
 
 struct WALL6 {
@@ -357,7 +454,7 @@ struct SPRITE6 {
 #pragma pack(pop)
 
 extern int gMapRev;
-extern int gSuppMapVersions[5];
+extern int gSuppMapVersions[7];
 extern bool gModernMap;
 extern unsigned short gStatCount[kMaxStatus + 1];
 extern short numxsprites, numxwalls, numxsectors;
@@ -396,8 +493,9 @@ void dbXSectorClean(void);
 void dbInit(void);
 void PropagateMarkerReferences(void);
 
-int dbCheckMap(IOBuffer* pIo, int* pSuppVerDB, int DBLen, BOOL* bloodMap);
+int dbCheckMap(IOBuffer* pIo, CHECKMAPINFO* pInfo, int* pSuppVerDB);
 int dbLoadMap(IOBuffer* pIo, char* cmtpath);
 int dbLoadBuildMap(IOBuffer* pIo);
+int dbLoadSaveGame(IOBuffer* pIo);
 int dbSaveMap(char *filename, BOOL ver7);
 void dbCrypt(char *pPtr, int nLength, int nKey);

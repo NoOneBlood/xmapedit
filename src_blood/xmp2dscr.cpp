@@ -720,6 +720,7 @@ void SCREEN2D::DrawWall(int nWall)
 {
 	walltype* pWall = &wall[nWall];
 	int nNext = pWall->nextwall;
+	char masked = 0;
 	short flags;
 	
 	getWallCoords(nWall, &x1, &y1, &x2, &y2);
@@ -731,12 +732,20 @@ void SCREEN2D::DrawWall(int nWall)
 		if (nWall == linehighlight)			flags = pWall->cstat;
 		else if (nNext == linehighlight)	flags = wall[nNext].cstat, nWall = nNext;
 		else								flags = pWall->cstat | wall[nNext].cstat;
-
+		
+		masked = ((flags & kWallMasked) > 0);
 		THICK = ((flags & kWallBlock) > 0);
 	}
 
 	color = GetWallColor(nWall, (nWall == linehighlight) ? h : 0);
 	DrawLine(x1, y1, x2, y2, color, THICK);
+	
+	if (masked)
+	{
+		color = ColorGet(kColorLightMagenta,  0);
+		DrawLine(x1, y1, x2, y2, color, 0, 0xFFF);
+	}
+	
 }
 
 char SCREEN2D::OnScreen(int x1, int y1, int x2, int y2)
@@ -1089,6 +1098,20 @@ void SCREEN2D::ScreenDraw(void)
 		}
 	}
 	
+	/* redraw hovered wall line */
+	////////////////////////////
+	if (linehighlight >= 0)
+	{
+		DrawWall(linehighlight);
+		if (data.zoom >= kZoomVertexAll && vertexSize)
+		{
+			if (OnScreen(x1, y1, vertexSize))	DrawVertex(x1, y1, fc, bc, vertexSize);
+			if (OnScreen(x2, y2, vertexSize))	DrawVertex(x2, y2, fc, bc, vertexSize);
+			
+			gfxSetColor(ColorGet(kColorWhite, h));
+			gfxPixel(x1, y1);
+		}
+	}
 	
 	/* draw highlight sector walls that's gonna be detached */
 	////////////////////////////
@@ -1392,6 +1415,8 @@ void SCREEN2D::ScreenDraw(void)
 		else if (pGDoorSM && pGDoorSM->StatusGet() > 0) pGDoorSM->Draw(this);
 		else if (pGDoorR && pGDoorR->StatusGet() > 0)	pGDoorR->Draw(this);
 		else if (pGLShape)								pGLShape->Draw(this);
+		else if (pGArc)									pGArc->Draw(this);
+			
 		
 		/* draw RX/TX tracker */
 		////////////////////////////
@@ -1522,6 +1547,9 @@ void SCREEN2D::DrawSprite(spritetype* pSprite)
 				case kMarkerMPStart:
 					DrawSpritePlayer();
 					break;
+				case kModernLaserGen:
+					DrawSpriteLaser();
+					break;
 				case kModernStealthRegion:
 					DrawSpriteStealth();
 					break;
@@ -1640,6 +1668,13 @@ void SCREEN2D::DrawSpriteStealth(void)
 	DrawSpriteCommon();
 }
 
+void SCREEN2D::DrawSpriteLaser(void)
+{
+	DrawSpriteCommon();
+	if (gModernMap && gPreviewMode)
+		laserGet(pSpr)->RayShow(this);
+}
+
 void SCREEN2D::DrawSpriteFX(void)
 {
 	char c = GetSpriteColor(pSpr, h);
@@ -1688,71 +1723,66 @@ void SCREEN2D::DrawSpritePlayer(void)
 
 void SCREEN2D::DrawSpriteCommon(void)
 {
-	char onScreen = OnScreen(x1, y1, 8);
+	if (!OnScreen(x1, y1, 8))
+		return;
+	
+	
 	switch(pSpr->cstat & kSprRelMask)
 	{
 		case kSprWall:
-			if (onScreen)
+			if (!tilesizx[pSpr->picnum])
 			{
-				if (!tilesizx[pSpr->picnum])
-				{
-					ScaleAngLine(80, pSpr->ang + kAng90, &x2, &y2);
-					DrawLine(x1-x2, y1-y2, x1+x2, y1+y2, color, THICK);
-				}
-				
-				if (!THICK)
-					DrawIconFaceSpr_SMALL(x1, y1, color);
-				
-				DrawAngLine(128, pSpr->ang, x1, y1, color, THICK); // face
-				if (!(pSpr->cstat & kSprOneSided))
-					DrawAngLine(182, pSpr->ang + kAng180, x1, y1, color, THICK); // back
+				ScaleAngLine(80, pSpr->ang + kAng90, &x2, &y2);
+				DrawLine(x1-x2, y1-y2, x1+x2, y1+y2, color, THICK);
 			}
+			
+			if (!THICK)
+				DrawIconFaceSpr_SMALL(x1, y1, color);
+			
+			DrawAngLine(128, pSpr->ang, x1, y1, color, THICK); // face
+			if (!(pSpr->cstat & kSprOneSided))
+				DrawAngLine(182, pSpr->ang + kAng180, x1, y1, color, THICK); // back
 			break;
 		case kSprFloor:
+			DrawAngLine(200, pSpr->ang, x1, y1, color, THICK);
+			DrawSquare(x1, y1, color, 3 + THICK);
+			break;
 		case kSprSloped:
-			if (onScreen)
-			{
-				DrawAngLine(200, pSpr->ang, x1, y1, color, THICK);
-				DrawSquare(x1, y1, color, 3 + THICK);
-			}
+			DrawAngLine(200, pSpr->ang, x1, y1, color, THICK);
+			DrawVertex(x1, y1, color, color, 8 + THICK);
 			break;
 		default:
-			if (onScreen)
-			{
-				DrawAngLine(80, pSpr->ang, x1, y1, color, THICK);
-				if (THICK) DrawIconFaceSpr_NORMAL(x1, y1, color);
-				else DrawIconFaceSpr_SMALL(x1, y1, color);
-			}
+			DrawAngLine(80, pSpr->ang, x1, y1, color, THICK);
+			if (THICK) DrawIconFaceSpr_NORMAL(x1, y1, color);
+			else DrawIconFaceSpr_SMALL(x1, y1, color);
 			break;
 	}
 }
 
 void SCREEN2D::DrawGrid()
 {
-	int i, cx, cy, xp, yp;
+	int i, x, y, xp1, yp1, xp2, yp2;
 	int dst;
-	
-	gfxSetColor(ColorGet(kColorGrey29));
-	x1 = cscalex(-boardWidth);	y1 = cscaley(-boardHeight);
-	x2 = cscalex(boardWidth);	y2 = cscaley(boardHeight);
+
+	dst = 2048 >> data.grid;
+	GetPoint(view.wx1, view.wy1, &xp1, &yp1, 1);
+	GetPoint(view.wx2, view.wy2, &xp2, &yp2, 1);
+		
+	doGridCorrection(&xp1, &yp1, data.grid);
+	doGridCorrection(&xp2, &yp2, data.grid);
+		
+	x1 = cscalex(xp1);	y1 = cscaley(yp1);
+	x2 = cscalex(xp2);	y2 = cscaley(yp2);
 	
 	if (gridSize > 1)
 	{
-		cx = data.camx, cy = data.camy;
-		doGridCorrection(&cx, &cy, data.grid);
-		dst = 2048 >> data.grid;
-		
-		GetPoint(view.wx1, view.wy1, &xp, &yp, 1);
-		i = cx; while(i >= xp) gfxVLine(cscalex(i), y1, y2), i-=dst;
-		i = cy; while(i >= yp) gfxHLine(cscaley(i), x1, x2), i-=dst;
-		
-		GetPoint(view.wx2, view.wy2, &xp, &yp, 1);
-		i = cx; while(i <= xp) gfxVLine(cscalex(i), y1, y2), i+=dst;
-		i = cy; while(i <= yp) gfxHLine(cscaley(i), x1, x2), i+=dst;
-		
+		gfxSetColor(ColorGet(kColorGrey29));
+		while(xp1 <= xp2) gfxVLine(cscalex(xp1), y1, y2), xp1+=dst;
+		while(yp1 <= yp2) gfxHLine(cscaley(yp1), x1, x2), yp1+=dst;
 		return;
 	}
 	
+	gfxSetColor(ColorGet(kColorGrey29));
 	gfxFillBox(x1, y1, x2, y2);
 	return;
 }

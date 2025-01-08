@@ -180,41 +180,41 @@ char IniFile::Save(char* saveName)
 	int hFil, i; char c[1];
 	ININODE* pNode;
 	
-	if (numnodes <= 0)
-		return 0;
-	
 	if (isempty(pSaveName))
 		pSaveName = "inifile.ini";
 	
 	if ((hFil = open(pSaveName, O_CREAT|O_WRONLY|O_TEXT|O_TRUNC, S_IREAD|S_IWRITE)) >= 0)
 	{
-		i = 0;
-		while( 1 )
+		if (numnodes > 0)
 		{
-			pNode =& node[i];
-			switch(pNode->type)
+			i = 0;
+			while( 1 )
 			{
-				case kIniNodeEmpty:
+				pNode =& node[i];
+				switch(pNode->type)
+				{
+					case kIniNodeEmpty:
+						break;
+					case kIniNodeSection:
+						c[0] = '[';	write(hFil, c, 1);
+						write(hFil, pNode->hiWord, strlen(pNode->hiWord));
+						c[0] = ']';	write(hFil, c, 1);
+						break;
+					case kIniNodeKeySep:
+						write(hFil, pNode->hiWord, strlen(pNode->hiWord));
+						c[0] = '=';	write(hFil, c, 1);
+						write(hFil, pNode->loWord, strlen(pNode->loWord));
+						break;
+					default:
+						write(hFil, pNode->hiWord, strlen(pNode->hiWord));
+						break;
+				}
+				
+				if (++i == numnodes)
 					break;
-				case kIniNodeSection:
-					c[0] = '[';	write(hFil, c, 1);
-					write(hFil, pNode->hiWord, strlen(pNode->hiWord));
-					c[0] = ']';	write(hFil, c, 1);
-					break;
-				case kIniNodeKeySep:
-					write(hFil, pNode->hiWord, strlen(pNode->hiWord));
-					c[0] = '=';	write(hFil, c, 1);
-					write(hFil, pNode->loWord, strlen(pNode->loWord));
-					break;
-				default:
-					write(hFil, pNode->hiWord, strlen(pNode->hiWord));
-					break;
+				
+				c[0] = '\n';	write(hFil, c, 1);
 			}
-			
-			if (++i == numnodes)
-				break;
-			
-			c[0] = '\n';	write(hFil, c, 1);
 		}
 		
 		close(hFil);
@@ -301,6 +301,27 @@ char IniFile::GetNextString(char* out, char** pKey, char** pVal, int* prevNode, 
 char IniFile::GetNextString(char** pKey, char** pVal, int* prevNode, char *section)
 {
 	return GetNextString(NULL, pKey, pVal, prevNode, section);
+}
+
+int IniFile::GetNextSection(char** section)
+{
+    int i = 0;
+    if (*section == NULL || (i = SectionFind(*section) + 1) > 0)
+    {
+        while (i < numnodes)
+        {
+            ININODE* pNode = &node[i];
+            if (pNode->type == kIniNodeSection)
+            {
+                *section = pNode->hiWord;
+                return 1;
+            }
+
+            i++;
+        }
+    }
+
+    return 0;
 }
 
 void IniFile::NodeSetWord(char** wordPtr, char* string)

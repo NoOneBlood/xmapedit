@@ -42,6 +42,20 @@ int nMGunFireClient = seqRegisterClient(MGunFireSeqCallback);
 int nMGunOpenClient = seqRegisterClient(MGunOpenSeqCallback);
 int nTreeToGibClient = seqRegisterClient(TreeToGibCallback);
 
+uint16_t gPathSprIndex[kMaxSectors];
+IDLIST* pPathSpr[512];
+int gPathSprCount = 0;
+
+IDLIST* pathSpriteGetList(unsigned int nSect);
+XSPRITE* findNextMarker(XSECTOR* pXSect, XSPRITE *pXMark = NULL);
+void pathSpriteClear();
+void pathSpriteInit();
+void pathSpriteOperate(unsigned int nSect, XSECTOR *pXSect, EVENT event);
+int pathSpriteProcessBusy(unsigned int nSect, unsigned int a2);
+void pathSpriteTranslate(int nSect, int nBusyA, int nBusyB, int fX, int fY, int cX, int cY, int cZ, int cA, int nX, int nY, int nZ, int nA);
+char pathSpriteStaysOnSprite(IDLIST* pList, spritetype* pSpr);
+void pathSpriteFixSector(spritetype* pSpr);
+
 unsigned int GetWaveValue(unsigned int nPhase, int nType)
 {
 	switch (nType)
@@ -1691,6 +1705,9 @@ void OperateSector(unsigned int nSector, XSECTOR *pXSector, EVENT event)
 				case kSectorTeleport:
 					OperateTeleport(nSector, pXSector);
 					break;
+				case 611:
+					pathSpriteOperate(nSector, pXSector, event);
+					break;
 				case kSectorPath:
 					OperatePath(nSector, pXSector, event);
 					break;
@@ -2040,7 +2057,8 @@ int(*gBusyProc[])(unsigned int, unsigned int) =
 	RDoorBusy,
 	StepRotateBusy,
 	GenSectorBusy,
-	PathBusy
+	PathBusy,
+	pathSpriteProcessBusy,
 };
 
 void trProcessBusy(void)
@@ -2253,7 +2271,9 @@ void trInit(void)
 			if (pXSprite->triggerPush) sprite[i].cstat |= 4096;
 		}
 	}
-
+	
+	pathSpriteInit();
+	
 	evSend(0, 0, kChannelLevelStart, kCmdOn);
 	switch (gPreview.mode) {
 		case kGameModeCoop:
@@ -2407,4 +2427,359 @@ void MGunFireSeqCallback(int, int nXSprite)
 void MGunOpenSeqCallback(int, int nXSprite)
 {
 	seqSpawn(39, 3, nXSprite, nMGunFireClient);
+}
+
+IDLIST* pathSpriteGetList(unsigned int nSect) { return pPathSpr[gPathSprIndex[nSect]]; }
+
+XSPRITE* findNextMarker(XSECTOR* pXSect, XSPRITE *pXMark)
+{
+	spritetype* pSpr; XSPRITE* pXSpr;
+	int nID, i;
+	
+	nID = (pXMark == NULL) ? pXSect->data : pXMark->data2;
+
+	for (i = headspritestat[kStatPathMarker]; i >= 0; i = nextspritestat[i])
+	{
+		pSpr = &sprite[i];
+		if (!xspriRangeIsFine(pSpr->extra))
+			continue;
+		
+		pXSpr = &xsprite[pSpr->extra];
+		if (!pXSpr->locked && !pXSpr->isTriggered && pXSpr->data1 == nID)
+			return pXSpr;
+	}
+	
+	return NULL;
+}
+
+void pathSpriteClear()
+{
+	int i = gPathSprCount;
+	while(--i >= 0)
+	{
+		if (pPathSpr[i])
+			DELETE_AND_NULL(pPathSpr[i]);
+	}
+	
+	gPathSprCount = 0;
+}
+
+void pathSpriteInit()
+{
+	sectortype* pSect; XSECTOR* pXSect; spritetype* pSpr;
+	XSPRITE *pXFirst = NULL, *pXNext, *pXPrev;
+	int i = numsectors, j, dz;
+	IDLIST* pList;
+	
+	pathSpriteClear();
+	
+	while(--i >= 0)
+	{
+		pSect = &sector[i];
+		if (pSect->type != 611)
+			continue;
+		
+		pXSect = &xsector[pSect->extra];
+		pPathSpr[gPathSprCount] = new IDLIST(true);
+		pList = pPathSpr[gPathSprCount];
+		
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+		{
+			spritetype *pSpr = &sprite[j];
+			if (pSpr->statnum == kStatMarker || pSpr->statnum == kStatPathMarker)
+				continue;
+			
+			pList->Add(j);
+		}
+		
+		if ((pXFirst = findNextMarker(pXSect)) != NULL)
+		{
+			dz = pSect->floorz - sprite[pXFirst->reference].z;
+			pXNext = pXFirst;
+			
+			do
+			{
+				// offset all markers relative to first marker
+				// so sprites won't get weird positions
+				// on sector activation
+				
+				sprite[pXNext->reference].z += dz;
+				pXPrev = pXNext;
+			}
+			while((pXNext = findNextMarker(pXSect, pXNext)) != NULL && pXNext != pXPrev && pXNext != pXFirst);
+			
+			pXSect->marker0		= pXFirst->reference;
+			basePath[i]			= pXFirst->reference;
+			gPathSprIndex[i]	= gPathSprCount++;
+			
+			if (pXSect->state)
+				evPost(i, 6, 0, kCmdOn);
+		}
+		else
+		{
+			previewMessage("Unable to find path marker with id #%d for path sector #%d", pXSect->data, i);
+			DELETE_AND_NULL(pPathSpr[gPathSprCount]);
+		}
+	}
+}
+
+void pathSpriteOperate(unsigned int nSect, XSECTOR *pXSect, EVENT event)
+{
+	
+	spritetype* pThis	= &sprite[pXSect->marker0];
+	XSPRITE* pXThis		= &xsprite[pThis->extra];
+	XSPRITE* pXNext		= findNextMarker(pXSect, pXThis);
+	
+	// !!! trigger marker after it gets reached
+	if (!pXThis->state)
+		trTriggerSprite(pThis->index, pXThis, kCmdOn);
+	
+	if (!pXNext)
+	{
+		previewMessage("Unable to find path marker with id #%d for path sector #%d", pXSect->data, nSect);
+		return;
+	}
+	
+	pXSect->state	= 0;
+	pXSect->busy	= 0;
+	
+	if (pXNext != pXThis)
+	{
+		pXSect->marker1	= pXNext->reference;
+
+		switch (event.cmd)
+		{
+			case kCmdOn:
+				AddBusy(nSect, BUSYID_8, 65536 / ClipLow(EVTIME2TICKS(pXThis->busyTime), 1));
+				
+				SectorStartSound(nSect, 1);
+				if (pXThis->data3)
+					PathSound(nSect, pXThis->data3);
+
+				break;
+		}
+	}
+}
+
+void pathSpriteFixSector(spritetype* pSpr)
+{
+	int s;
+	
+	if (pSpr->type == kSoundSector)
+	{
+		// we don't change sector for this because
+		// it seems like it doesn't matter
+		// for sound
+		
+		return;
+	}
+	
+	s = pSpr->sectnum;
+	if (!FindSector(pSpr->x, pSpr->y, pSpr->z, &s))		// try 3D first
+		if (!FindSector(pSpr->x, pSpr->y, &s))			// then 2D
+			return;
+		
+	if (s != pSpr->sectnum)
+		ChangeSpriteSect(pSpr->index, s);
+}
+
+char pathSpriteStaysOnSprite(IDLIST* pList, spritetype* pSpr)
+{
+	if (pSpr->extra > 0)
+	{
+		int nHit = gSpriteHit[pSpr->extra].florhit;
+		if ((nHit & 0xC000) != 0xC000)
+			return 0;
+		
+		int nSpr = nHit & 0x3FFF;
+		if (pList->Exists(nSpr))
+		{
+			if (sprite[nSpr].cstat & kSprMoveReverse)
+				return 2;
+			
+			return 1;
+		}
+	}
+	
+	return 0;
+}
+
+void pathSpriteTranslate(int nSect, int nBusyA, int nBusyB, int fX, int fY, int cX, int cY, int cZ, int cA, int nX, int nY, int nZ, int nA)
+{
+	XSECTOR *pXSect = &xsector[sector[nSect].extra];
+	IDLIST* pList = pathSpriteGetList(nSect);
+	spritetype *pSpr;
+	int nSpr, x, y;
+	int32_t* p;
+	char r;
+	
+	int x1 = interpolate(cX, nX, nBusyA);
+	int x2 = interpolate(cX, nX, nBusyB);
+	int dx = x2 - x1;
+	
+	int y1 = interpolate(cY, nY, nBusyA);
+	int y2 = interpolate(cY, nY, nBusyB);
+	int dy = y2 - y1;
+	
+	int a1 = interpolate(cA, nA, nBusyA);
+	int a2 = interpolate(cA, nA, nBusyB);
+	int da = a2 - a1;
+	
+	int dz = nZ - cZ;
+	int oz;
+	
+	if (dz)
+	{
+		oz = baseFloor[nSect];
+		baseFloor[nSect] = cZ + mulscale16(dz, nBusyB);
+		dz = baseFloor[nSect] - oz;
+		velFloor[nSect] += (dz<<8);
+	}
+	
+	for (p = pList->GetPtr(); *p >= 0; p++)
+	{
+		nSpr = *p;
+		pSpr = &sprite[nSpr];
+		x = baseSprite[nSpr].x;
+		y = baseSprite[nSpr].y;
+		
+		if (pSpr->cstat & kSprMoveForward)
+		{
+			if (a2)
+				RotatePoint(&x, &y, a2, fX, fY);
+			//viewBackupSpriteLoc(nSpr, pSpr);
+			pSpr->ang = (pSpr->ang+da) & kAngMask;
+			pSpr->x = x+x2-fX;
+			pSpr->y = y+y2-fY;
+			pSpr->z += dz;
+		}
+		else if (pSpr->cstat & kSprMoveReverse)
+		{
+			if (a2)
+				RotatePoint(&x, &y, -a2, fX, fY);
+			//viewBackupSpriteLoc(nSpr, pSpr);
+			pSpr->ang = (pSpr->ang-da) & kAngMask;
+			pSpr->x = x-(x2-fX);
+			pSpr->y = y-(y2-fY);
+			pSpr->z -= dz;
+		}
+		else if (pXSect->drag)
+		{
+			if ((r = pathSpriteStaysOnSprite(pList, pSpr)) > 0)
+			{
+				switch(r)
+				{
+					case 2:
+						if (da)
+							RotatePoint(&pSpr->x, &pSpr->y, -da, x1, y1);
+						
+						//viewBackupSpriteLoc(nSpr, pSpr);
+						pSpr->ang = (pSpr->ang-da) & kAngMask;
+						pSpr->x -= dx;
+						pSpr->y -= dy;
+						pSpr->z -= dz;
+						break;
+					default:
+						if (da)
+							RotatePoint(&pSpr->x, &pSpr->y, da, x1, y1);
+						
+						//viewBackupSpriteLoc(nSpr, pSpr);
+						pSpr->ang = (pSpr->ang+da) & kAngMask;
+						pSpr->x += dx;
+						pSpr->y += dy;
+						pSpr->z += dz;
+						break;
+				}
+
+				// small impulse for physyics affected sprites
+				// so their processing functions starts
+				// actually working
+				
+				if (!xvel[pSpr->index])
+					xvel[pSpr->index] -= 0x10;
+			}
+		}
+		
+		pathSpriteFixSector(pSpr);
+	}
+}
+
+int pathSpriteProcessBusy(unsigned int nSect, unsigned int a2)
+{
+	static BITSECTOR visited; spritetype* pSpr;
+	int i, j, t; IDLIST* pList;
+	int32_t* p;
+	
+	XSECTOR *pXSect		= &xsector[sector[nSect].extra];
+	
+	spritetype *pFirst	= &sprite[basePath[nSect]];
+	spritetype *pThis	= &sprite[pXSect->marker0];
+	spritetype *pNext	= &sprite[pXSect->marker1];
+	XSPRITE *pXThis		= &xsprite[pThis->extra];	
+	XSPRITE *pXNext		= &xsprite[pNext->extra];
+	
+	// the hardest part is to add/remove sprites dynamically...
+	
+	memset(visited, 0, sizeof(visited));
+	pList = pathSpriteGetList(nSect);
+	i = pList->GetLength();
+	p = pList->GetPtr();
+	
+	while(--i >= 0)
+	{
+		pSpr = &sprite[p[i]];
+		if (pSpr->statnum >= kMaxStatus || pSpr->sectnum < 0)
+		{
+			pList->Remove(pSpr->index), p = pList->GetPtr(); 	// watch out for ptr!
+			continue;
+		}
+		
+		if (pXSect->drag)
+		{
+			if (!(pSpr->cstat & kSprMoveMask))
+			{
+				if (!pathSpriteStaysOnSprite(pList, pSpr))
+					pList->Remove(pSpr->index), p = pList->GetPtr(); 	// watch out for ptr!
+			}
+			
+			t = pSpr->sectnum;
+			if (!TestBitString(visited, t))
+			{
+				for (j = headspritesect[t]; j >= 0; j = nextspritesect[j])
+				{
+                    if (!pList->Exists(j) && pathSpriteStaysOnSprite(pList, &sprite[j]))
+                        pList->Add(j);
+				}
+				
+				SetBitString(visited, t);
+                p = pList->GetPtr(); // watch out for ptr!
+			}
+		}
+	}
+
+	pathSpriteTranslate
+	(
+		nSect,
+		GetWaveValue(pXSect->busy, pXThis->wave), GetWaveValue(a2, pXThis->wave),
+		pFirst->x, pFirst->y,
+		pThis->x, pThis->y, pThis->z, pThis->ang,
+		pNext->x, pNext->y, pNext->z, pNext->ang
+	);
+
+	pXSect->busy = a2;
+	if ((pXSect->busy & 0xffff) == 0)
+	{
+		evPost(nSect, 6, EVTIME2TICKS(pXNext->waitTime), kCmdOn);
+		pXSect->busy = pXSect->state = 0;
+		SectorEndSound(nSect, 1);
+		
+		if (pXThis->data4)
+			PathSound(nSect, pXThis->data4);
+		
+		pXSect->marker0		= pXSect->marker1;
+		pXSect->data		= pXNext->data1;
+		return 3;
+	}
+	
+	return 0;
 }
