@@ -1540,83 +1540,64 @@ void tileDrawTileRect(Rect* pARect, int flags, int nTile, int nSize, int nPlu, i
 	tileDrawTileRect(&pDummy, flags, nTile, nSize, nPlu, nShade, nDrawFlags);
 }
 
-void tileDrawTile(int x, int y, short pic, int size, short plu, char flags, schar shade) {
-
+void tileDrawTile(int x, int y, short pic, int size, short plu, char flags, schar shade)
+{
 #if USE_POLYMOST
 	if (getrendermode() >= 3)
 		return;
 #endif
 	
-	BOOL trans = (BOOL)(flags & 0x02);
-	intptr_t pTile = (intptr_t)tileLoadTile(pic);
-	intptr_t pScreen = (intptr_t)frameplace + ylookup[y] + x;
-	int i, k, nShift = 30 - max(picsiz[pic] >> 4, picsiz[pic] & 15), height = 0, width = 0;
-	int32_t uSize = tilesizx[pic]; int vSize = tilesizy[pic];
-	uint32_t u, du, dv;
-
-	if (!pTile || uSize <= 0 || vSize <= 0) return;
-	else if (trans) setupmvlineasm(nShift);
-	else setupvlineasm(nShift);
-
-	for (i = 0; i < 4; i++)
-		palookupoffse[i] = (intptr_t)(palookup[plu] + shgetpalookup(0, shade));
+    typedef void (*PVLINEASM1)(int a, void* b, int c, unsigned int d, void* e, void* f);
+    unsigned char *pTile, *p, *pScr, *pPlu; static PVLINEASM1 pvlineasm1;
+	int wh, hg, heigh, sh, i;
+    uint32_t du, dv;
+    
+    if ((pTile = tileLoadTile(pic)) == NULL)
+        return;
+    
+    sh = 30 - max(picsiz[pic] >> 4, picsiz[pic] & 15);
+	if (flags & 0x02)
+    {
+        pvlineasm1 = (PVLINEASM1)mvlineasm1; // skips 255's
+        setupmvlineasm(sh);
+    }
+    else
+    {
+        pvlineasm1 = (PVLINEASM1)vlineasm1;
+        setupvlineasm(sh);
+    }
+    
+    pScr = (unsigned char*)frameplace + ylookup[y] + x;
+    pPlu = (palookup[plu] + shgetpalookup(0, shade));
+    heigh = hg = tilesizy[pic];
+    wh = tilesizx[pic];
 
 	if (!size)
 	{
-		bufplce[3] = pTile - vSize;
-		vince[0] = vince[1] = vince[2] = vince[3] = 1 << nShift;
-		for (u = 0; u + 3 < uSize; u += 4)
-		{
-			bufplce[0] = bufplce[3] + vSize;
-			bufplce[1] = bufplce[0] + vSize;
-			bufplce[2] = bufplce[1] + vSize;
-			bufplce[3] = bufplce[2] + vSize;
-			memset(vplce, 0, sizeof(vplce));
-
-			if (trans) mvlineasm4(vSize, (char*)pScreen);
-			else vlineasm4(vSize, (char*)pScreen);
-			pTile += 4 * vSize;
-			pScreen += 4;
-		}
-
-		while(u++ < uSize)
-		{
-
-			if (trans) mvlineasm1(1 << nShift, (void*)palookupoffse[0], vSize - 1, 0, (void*)pTile, (void*)pScreen);
-			else vlineasm1(1 << nShift, (void*)palookupoffse[0], vSize - 1, 0, (void*)pTile, (void*)pScreen);
-			pTile += vSize;
-			pScreen++;
-		}
+        if (--hg > 0)
+        {
+            i = 1 << sh;
+            while(wh--)
+            {
+                pvlineasm1(i, pPlu, hg, 0, pTile, pScr);
+                pTile += heigh;
+                pScr++;
+            }
+        }
 
 		return;
 	}
 	
-	tileDrawGetSize(pic, size, &width, &height, &du, &dv);
-	if (height <= 0 || width <= 0)
+    tileDrawGetSize(pic, size, &wh, &hg, &du, &dv);
+	if (wh <= 0 || --hg <= 0)
 		return;
-
-	vince[0] = vince[1] = vince[2] = vince[3] = dv;
-	for (k = 0, u = 0; k + 3 < width; k += 4)
+    
+    for (i = 0; wh--; i += du)
 	{
-		for (i = 0; i < 4; i++, u += du)
-			bufplce[i] = pTile + vSize * (u >> 16);
-
-		memset(vplce, 0, sizeof(vplce));
-		if (trans) mvlineasm4(height, (char*)pScreen);
-		else vlineasm4(height, (char*)pScreen);
-		pScreen += 4;
+		p = pTile + heigh * (i >> 16);
+        pvlineasm1(dv, pPlu, hg, 0, p, pScr);
+        pScr++;
 	}
-
-	while (k++ < width)
-	{
-		pTile = (intptr_t)waloff[pic] + vSize * (u >> 16);
-
-		if (trans) mvlineasm1(dv, (void*)palookupoffse[0], height - 1, 0, (void*)pTile, (void*)pScreen);
-		else vlineasm1(dv, (void*)palookupoffse[0], height - 1, 0, (void*)pTile, (void*)pScreen);
-		pScreen++;
-		u += du;
-	}
-
 }
 
 int tileExists(BYTE* image, int wh, int hg) {

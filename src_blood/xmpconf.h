@@ -173,6 +173,7 @@ class MISC_PREFS {
 	unsigned int editMode			: 2;
 	unsigned int circlePoints		: 8;
 	unsigned int forceEditorPos		: 1;
+    unsigned int undoCamRestore     : 1;
 	char tilesBaseName[5];
 	void Init(IniFile* pIni, char* section);
 	void Save(IniFile* pIni, char* section);
@@ -358,7 +359,6 @@ class TIMERS
 	uint32_t autosave;
 	uint32_t compatCheck;
 	uint32_t hudObjectInfo;
-	uint32_t sectRL;
 	uint32_t pan;
 	uint32_t tileScroll;
 	

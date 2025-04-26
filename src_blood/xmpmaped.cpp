@@ -5,6 +5,7 @@
 char* const gSectToolNames[] = 
 {
 	"Loop shape",
+	"Loop split",
 	"Door wizard",
 	"Arc wizard",
 	"Curve wall",
@@ -186,21 +187,51 @@ void loopFlip(int s, int e, int cx, int cy, int flags)
 	}
 }
 
-void loopDelete(int s, int e)
+void loopDelete(int nWall)
 {
 	int x1, y1, x2, y2, x3, y3;
-	int i = numwalls;
+	int i;
 	
-	getWallCoords(s, &x3, &y3);
-	while(s <= e)
-		wall[s].x = x3, wall[s].y = y3, s++;
-
+    getWallCoords(nWall, &x3, &y3);
+    i = nWall;
+    do
+    {
+        wall[i].x = x3, wall[i].y = y3;
+        i = wall[i].point2;
+    }
+    while(i != nWall);
+    
+    i = numwalls;
 	while(--i >= 0)
 	{
 		getWallCoords(i, &x1, &y1, &x2, &y2);
 		if ((x1 == x2 && y1 == y2) && ((x3 == x1 && y3 == y1) || (x3 == x2 && y3 == y2)))
-			deletepoint(i);
+			deletePoint(i); // this will delete sector when wallnum == 1
 	}
+}
+
+char loopLocalIsEmpty(int nWall)
+{
+    int i, s, e, ls, le;
+    int nSect;
+    
+    if (wall[nWall].nextwall >= 0)
+        return 0;
+    
+    nSect = sectorofwall(nWall);
+    getSectorWalls(nSect, &s, &e);
+    loopGetWalls(nWall, &ls, &le);
+    
+    if (ls == s && le == e)
+        return 0;
+    
+    for (i = ls; i <= le; i++)
+    {
+        if (wall[i].nextwall >= 0)
+            return 0;
+    }
+
+    return 1;
 }
 
 int loopIsEmpty(int nWall)
@@ -249,6 +280,44 @@ int loopIsEmpty(int nWall)
 			return n - numwalls;
 	
 	return 0;
+}
+
+int loopTransfer(int nWall, int nSect, char flags)
+{
+    VOIDLIST wl(sizeof(walltype));
+    int s = nWall;
+    int i, j;
+    
+    do
+    {
+        wl.Add(&wall[s]);
+        s = wall[s].point2;
+    }
+    while(s != nWall);
+    
+    if (flags & 0x01)
+        loopDelete(nWall);
+    
+    if ((i = insertLoop(nSect, (walltype*)wl.First(), wl.Length(), NULL)) >= 0)
+    {
+        if (flags & 0x02)
+        {
+            s = i;
+            do
+            {
+                if ((j = findNextWall(s)) >= 0)
+                {
+                    wallAttach(s, sectorofwall(j), j);
+                    wallAttach(j, nSect, s);
+                }
+                
+                s = wall[s].point2;
+            }
+            while(s != i);
+        }
+    }  
+    
+    return i;
 }
 
 void getSectorWalls(int nSect, int* s, int *e)
@@ -365,6 +434,7 @@ int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
 	int i, j, k, f, s, e, ax, ay, ls, le;
 	int nWall, nWallOther, nWallNum;
 	int nLoopNumA, nLoopNumB;
+	int nRetn = 0;
 	
 	if (nWallA < 0 || nWallB < 0)
 		return -1;
@@ -591,7 +661,7 @@ int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
 			checksectorpointer(i, sectorofwall(i));
 		}
 		
-		return 1;
+		nRetn = 1;
 	}
 	else
 	{
@@ -704,10 +774,23 @@ int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
 			checksectorpointer(i, numsectors-1);
 		}
 		
-		return 2;
+		nRetn = 2;
 	}
 	
-	return 0;
+	if (nRetn > 0)
+	{
+		for(i = numwalls - j; i < numwalls; i++)
+		{
+			if(!wallVisible(i))
+			{
+				fixrepeats(i);
+				if (wall[i].nextwall >= 0 && !wallVisible(wall[i].nextwall))
+					fixrepeats(wall[i].nextwall);
+			}
+		}
+	}
+	
+	return nRetn;
 }
 
 int sectSplit(int nSect, POINT2D* points, int nPoints)
@@ -1033,6 +1116,29 @@ int findWallAtPos(int x, int y)
 	return i;
 }
 
+int findWallAtPos(int nSect, int x, int y)
+{
+    int s, e;
+    getSectorWalls(nSect, &s, &e);
+    
+	while(s <= e)
+    {
+        if (wall[s].x == x && wall[s].y == y)
+            return s;
+        
+        s++;
+    }
+    
+    return -1;
+}
+
+int findSolidWallAtPos(int x, int y)
+{
+	int i = numwalls;
+	while(--i >= 0 && (wall[i].nextwall >= 0 || wall[i].x != x || wall[i].y != y));
+	return i;
+}
+
 int findWallAtPos(int x1, int y1, int x2, int y2)
 {
 	int tx1, ty1, tx2, ty2;
@@ -1046,6 +1152,25 @@ int findWallAtPos(int x1, int y1, int x2, int y2)
 	}
 	
 	return -1;
+}
+
+int findWallAtPos(int nSect, int x1, int y1, int x2, int y2)
+{
+    int s, e;
+    int tx1, ty1, tx2, ty2;
+    
+    getSectorWalls(nSect, &s, &e);
+    
+	while(s <= e)
+    {
+		getWallCoords(s, &tx1, &ty1, &tx2, &ty2);
+		if (tx1 == x1 && ty1 == y1 && tx2 == x2 && ty2 == y2)
+			return s;
+        
+        s++;
+    }
+    
+    return -1;
 }
 
 void insertPoint_OneSide(int nWall, int x, int y)
@@ -1572,6 +1697,49 @@ int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectort
 	return nStartWall;
 }
 
+int insertLoop(int nSect, walltype* pWalls, int nCount, sectortype* pSModel)
+{
+    VOIDLIST point(sizeof(POINT2D));
+    POINT2D buf; int n, i, j, k;
+    
+    for (i = 0; i < nCount; i++)
+    {
+        buf.x = pWalls[i].x;
+        buf.y = pWalls[i].y;
+        point.Add(&buf);        
+    }
+    
+    if ((n = insertLoop(nSect, (POINT2D*)point.First(), nCount, pWalls, pSModel)) >= 0)
+    {
+        i = n;
+        j = 0;
+        
+        do
+        {
+            wall[i].picnum      = pWalls[j].picnum;
+            wall[i].overpicnum  = pWalls[j].overpicnum;
+            wall[i].shade       = pWalls[j].shade;
+            wall[i].pal         = pWalls[j].pal;
+            wall[i].xrepeat     = pWalls[j].xrepeat;
+            wall[i].yrepeat     = pWalls[j].yrepeat;
+            wall[i].xpanning    = pWalls[j].xpanning;
+            wall[i].ypanning    = pWalls[j].ypanning;
+            wall[i].lotag       = pWalls[j].lotag;
+            wall[i].hitag       = pWalls[j].hitag;
+            wall[i].cstat       = pWalls[j].cstat;
+            wall[i].extra       = pWalls[j].extra;
+            wall[i].nextwall    = -1;
+            wall[i].nextsector  = -1;
+            
+            j = IncRotate(j, nCount);
+            i = wall[i].point2;
+        }
+        while(i != n);
+    }
+    
+    return n;
+}
+
 void insertPoints(WALLPOINT_INFO* pInfo, int nCount)
 {
 	for (int i = 0; i < nCount; i++)
@@ -1648,31 +1816,92 @@ char collectOuterWalls(int nWall, IDLIST* pLoop)
 	return (c < kMaxWalls);
 }
 
+void sectLoopMain(int nSect, int* s, int* e)
+{
+    int x, y, i, ts, te;
+    getSectorWalls(nSect, &ts, &te);
+    getWallCoords(ts, &x, &y);
+    i = ts;
+    
+    while(ts <= te)
+    {
+        if (wall[ts].x <= x && wall[ts].y <= y)
+        {
+            x = wall[ts].x;
+            y = wall[ts].y;
+            i = ts;
+        }
+        
+        ts++;
+    }
+    
+    loopGetWalls(i, s, e);
+}
+
+
+int sectLoopTransfer(int nSectA, int nSectB)
+{
+    int i, j, s, e, ls, le, done = 0;
+    int skip[4];
+    
+    if (nSectA == nSectB)
+        return 0;
+    
+    sectLoopMain(nSectA, &skip[0], &skip[1]);
+    skip[2] = skip[0], skip[3] = skip[1];
+    
+    getSectorWalls(nSectB, &s, &e);
+    while(s <= e)
+    {
+        if (wall[s].nextsector == nSectA)
+        {
+            loopGetWalls(wall[s].nextwall, &skip[2], &skip[3]);
+            break;
+        }
+        
+        s++;
+    }
+    
+    
+    getSectorWalls(nSectA, &s, &e);
+    
+    for (i = e; i >= s; i--)
+    {
+        loopGetWalls(i, &ls, &le);
+        if (irngok(ls, skip[0], skip[1]))
+            continue;
+        
+        if (irngok(ls, skip[2], skip[3]))
+            continue;
+        
+        for (j = ls; j <= le && inside(wall[j].x, wall[j].y, nSectB); j++);
+        if (j > le && loopTransfer(ls, nSectB) >= 0)
+            done++;
+    }
+    
+    sectAttach(nSectB);
+    return done;
+}
 
 int redSectorMake(int nWall)
 {
-	dassert(nWall >= 0 && nWall < numwalls);
-	int nSect = sectorofwall(nWall), nNext;
+	POINT2D buf; VOIDLIST point(sizeof(buf)); IDLIST list(true);
+    int nSect = sectorofwall(nWall), nOSect = nSect, nNext;
 	int32_t c, s, e, r = -5, *p;
-	IDLIST list(true);
-	POINT2D* point;
-	
+    
 	if (wall[nWall].nextwall >= 0)				return -1;
 	if (nSect < 0)								return -5;
 	if (numsectors >= kMaxSectors)				return -4;
 	if (!collectOuterWalls(nWall, &list))		return -2;
 	if (numwalls+list.GetLength() >= kMaxWalls)	return -3;
 	
-	point = (POINT2D*)malloc(sizeof(POINT2D)*list.GetLength());
-	dassert(point != NULL);
-	
 	for (c = 0, p = list.GetPtr(); *p >= 0; c++, p++)
 	{
-		point[c].x = wall[*p].x;
-		point[c].y = wall[*p].y;
+		buf.x = wall[*p].x, buf.y = wall[*p].y;
+        point.Add(&buf);
 	}
-	
-	if (insertLoop(-1, point, c, &wall[nWall], &sector[nSect]) >= 0)
+    
+	if (insertLoop(-1, (POINT2D*)point.First(), c, &wall[nWall], &sector[nSect]) >= 0)
 	{
 		nSect = numsectors - 1;
 		getSectorWalls(nSect, &s, &e);
@@ -1689,7 +1918,8 @@ int redSectorMake(int nWall)
 		
 		if (s > e)
 		{
-			worldSprCallFunc(sprFixSector);
+			sectLoopTransfer(nOSect, nSect);
+            worldSprCallFunc(sprFixSector);
 			r = 0;
 		}
 		else
@@ -1699,8 +1929,7 @@ int redSectorMake(int nWall)
 			r = -5;
 		}
 	}
-	
-	free(point);
+    
 	return r;
 }
 
@@ -2059,16 +2288,125 @@ int collectWallsOfNode(IDLIST* pList, int nWall, char flags)
 	return pList->GetLength();
 }
 
+int isClockDir(POINT2D* p, int c)
+{
+	int minx, x0, x1, x2, y0, y1, y2;
+    int i, themin; int64_t templong;
+	int j;
+	
+	minx = 0x7fffffff;
+	themin = -1;
+	
+	
+	i = -1;
+	j = IncRotate(i, c);
+	
+	do
+	{
+		i = IncRotate(i, c);
+		j = IncRotate(j, c);
+		
+		if (p[j].x < minx)
+		{
+			minx = p[j].x;
+			themin = i;
+		}
+	}
+	while (j != 0);
+
+	j = themin;
+	x0 = p[j].x;
+	y0 = p[j].y;
+	
+	j = IncRotate(j, c);
+	x1 = p[j].x;
+	y1 = p[j].y;
+
+	j = IncRotate(j, c);
+	x2 = p[j].x;
+	y2 = p[j].y;
+
+	if ((y1 >= y2) && (y1 <= y0)) return 0;
+	if ((y1 >= y0) && (y1 <= y2)) return 1;
+
+	templong = (x0-x1)*(y2-y1) - (x2-x1)*(y0-y1);
+	if (templong < 0)
+		return 0;
+	else
+		return 1;
+}
+
+void flipPoints(POINT2D* p, int c)
+{
+    int i = 0, h = c >> 1;
+    POINT2D t;
+    
+    while(i < h)
+        t = p[i], p[i] = p[c-i-1], p[c-i-1] = t, i++;
+}
+
+void rotatePoints(POINT2D* point, int numpoints, int s)
+{
+	int n = numpoints, i = 0, k = 0, j;
+	POINT2D tmp;
+	
+	if (s > 0)
+	{
+		while(n > 0)
+		{
+			if (i == k)
+				memcpy(&tmp, &point[i], sizeof(tmp));
+			
+			j = i+s;
+			while (j >= numpoints)
+				j -= numpoints;
+			
+			if (j == k)
+			{
+				memcpy(&point[i], &tmp, sizeof(tmp));
+				i = ++k;
+			}
+			else
+			{
+				memcpy(&point[i], &point[j], sizeof(tmp));
+				i = j;
+			}
+			
+			n--;
+		}
+	}
+}
+
+int nextSpriteAt(int x, int y, int *prv)
+{
+	int i;
+	for (i = ClipLow(*prv, 0); i < kMaxSprites; i++)
+	{
+		if (sprite[i].statnum >= kMaxStatus) continue;
+		else if (sprite[i].x == x && sprite[i].y == y)
+		{
+			if (*prv == -1 || *prv < i)
+			{
+				*prv = i;
+				return i;
+			}
+		}
+	}
+	
+	*prv = -1;
+	return -1;
+}
 
 char sectorToolDisableAll(char alsoFreeDraw)
 {
 	char r = 0;
 	
-	if (pGDoorSM)	r = 1, DELETE_AND_NULL(pGDoorSM);
-	if (pGDoorR)	r = 1, DELETE_AND_NULL(pGDoorR);
-	if (pGCircleW)  r = 1, DELETE_AND_NULL(pGCircleW);
-	if (pGLShape)  	r = 1, DELETE_AND_NULL(pGLShape);
-	if (pGArc)		r = 1, DELETE_AND_NULL(pGArc);
+	if (pGDoorSM)		r = 1, DELETE_AND_NULL(pGDoorSM);
+	if (pGDoorR)		r = 1, DELETE_AND_NULL(pGDoorR);
+	if (pGCircleW)  	r = 1, DELETE_AND_NULL(pGCircleW);
+	if (pGLShape)  		r = 1, DELETE_AND_NULL(pGLShape);
+	if (pGArc)			r = 1, DELETE_AND_NULL(pGArc);
+	if (pGLoopSplit)	r = 1, DELETE_AND_NULL(pGLoopSplit);
 	
 	if (alsoFreeDraw && pGLBuild)
 		r = 1, DELETE_AND_NULL(pGLBuild)
@@ -2090,6 +2428,10 @@ char sectorToolEnable(int nType, int nData)
 				pGLShape = new LOOPSHAPE(nData, sectorhighlight, mousxplc, mousyplc);
 				r = 1;
 			}
+			break;
+		case kSectToolLoopSplit:
+			pGLoopSplit = new LOOPSPLIT();
+			r = 1;
 			break;
 		case kSectToolDoorWiz:
 			// other tools will be disabled in the dialog
@@ -2141,14 +2483,16 @@ char sectorToolDlgLauncher()
 	fDrawShape->client->height += y;
 	fDrawShape->height = fDrawShape->client->height+8;
 	
-	FieldSet* fOther		= new FieldSet(8, AFTERV(fDrawShape, 16), dialog.client->width-16, 80, "OTHER TOOLS", kColorRed, kColorBlack, 0);
+	FieldSet* fOther		= new FieldSet(8, AFTERV(fDrawShape, 16), dialog.client->width-16, 104, "OTHER TOOLS", kColorRed, kColorBlack, 0);
 	TextButton* bDoorWiz	= new TextButton(8, 8, fOther->client->width-16, 22, "Door wizard",						100);
 	TextButton* bArcWiz		= new TextButton(8, AFTERV(bDoorWiz, 0), fOther->client->width-16, 22, "Arc wizard",	101);
 	TextButton* bCurveW		= new TextButton(8, AFTERV(bArcWiz, 0), fOther->client->width-16, 22, "Curve wall",		102);
+	TextButton* bLoopSpl	= new TextButton(8, AFTERV(bCurveW, 0), fOther->client->width-16, 22, "Loop split",		103);
 	
 	fOther->Insert(bDoorWiz);
 	fOther->Insert(bArcWiz);
 	fOther->Insert(bCurveW);
+	fOther->Insert(bLoopSpl);
 	
 	dialog.Insert(fDrawShape);
 	dialog.Insert(fOther);
@@ -2183,6 +2527,9 @@ char sectorToolDlgLauncher()
 						break;
 					case 102:
 						if ((nCode = sectorToolEnable(kSectToolCurveWall, 0)) <= 0) continue;
+						break;
+					case 103:
+						if ((nCode = sectorToolEnable(kSectToolLoopSplit, 0)) <= 0) continue;
 						break;
 					default:
 						continue;

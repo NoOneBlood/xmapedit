@@ -50,6 +50,7 @@ short gHovWall = -1, gHovStat = -1;
 int bpsx, bpsy, bpsz, bang, bhorz;
 //int bsrcwall, bsrcsector, bsrcstat, bsrchit;
 
+static int oldnumwalls = 0, oldnumsectors = 0, oldnumsprites = 0;
 short temptype = 0, tempslope = 0, tempidx = -1;
 char tempvisibility = 0;
 short tempang = 0;
@@ -84,6 +85,9 @@ char buffer2[kBufferSize] = "";
 char buffer3[kBufferSize] = "";
 char gMapInfoStr[kBufferSize] = "";
 
+int boardSnapshotLoad(BYTE* pData, int nLen, char dir);
+int boardSnapshotMake(BYTE** pData, int* crcSiz);
+SNAPSHOT_MANAGER gMapSnapshot(boardSnapshotMake, boardSnapshotLoad);
 OBJECT_LIST gModernTypes;
 
 struct COMPAT_STRING
@@ -183,15 +187,14 @@ char* gDepthNames[8] =
 	"Swim",					// 7
 };
 
-char* gDamageNames[7] =
+char* gDamageNames[6] =
 {
-	"None",					// 0
-	"Fall",					// 1
-	"Burn",					// 2
-	"Vector",				// 3
-	"Explode",				// 4
-	"Choke",				// 5
-	"Electric",				// 6
+	"None/Fall",			// 0
+	"Burn",					// 1
+	"Vector",				// 2
+	"Explode",				// 3
+	"Choke",				// 4
+	"Electric",				// 5
 };
 
 
@@ -276,13 +279,6 @@ NAMED_TYPE gToolNames[] =
 	{kToolSeqEdit, 		"SEQedit"},
 	{kToolArtEdit,		"ARTedit"},
 	{kToolQavEdit,		"QAVedit"},
-};
-
-NAMED_TYPE gSectorMergeMenu[] =
-{
-	{0, "&Just make a new sector"},
-	{1, "&Make and merge with outer sector"},
-	{2, "&Cancel"},
 };
 
 NAMED_TYPE gGameObjectGroupNames[] =
@@ -969,11 +965,11 @@ void xmpSplitModeProcess(Rect* r3D, Rect* r2D)
 void ExtCheckKeys( void )
 {
 	int FPSy = 4, l; QFONT* pFont;
-	static int oldnumwalls = 0, oldnumsectors = 0, oldnumsprites = 0;
 	static char hudLogoChanged = 0, compatStat = 0;
 	static OBJECT object;
 	char fullLayout;
 	
+	keyGetHelper(&key, &ctrl, &shift, &alt);
 	h = (totalclock & kHClock) ? 8 : 0;
 	updateClocks();
 	
@@ -1014,8 +1010,40 @@ void ExtCheckKeys( void )
 		if (numwalls != oldnumwalls || numsectors != oldnumsectors || numsprites != oldnumsprites)
 		{
 			oldnumwalls = numwalls, oldnumsectors = numsectors, oldnumsprites = numsprites;
+			asksave = 1;
 			CleanUp();
 		}
+		
+		if (irngok(asksave, 1, 2))
+		{
+			if (!gMouse.buttons)
+			{
+				l = LENGTH(keystatus);
+				while(--l >= 0)
+				{
+					switch(l)
+					{
+						case KEY_LSHIFT:
+						case KEY_RSHIFT:
+						case KEY_LCTRL:
+						case KEY_RCTRL:
+						case KEY_LALT:
+						case KEY_RALT:
+							continue;
+					}
+					
+					if (keystatus[l])
+						break;
+				}
+				
+				if (l < 0)
+				{
+					gMapSnapshot.Make(asksave == 1);
+					asksave = 3;
+				}
+			}
+		}
+	
 		
 		if (gSound.ambientAlways)
 			ambProcess();
@@ -1057,31 +1085,34 @@ void ExtCheckKeys( void )
 	{
 		previewProcess();
 		FPSy+=20;
+		
+		if (previewProcessKeys() || !previewCheckKey(key))
+		{
+			keystatus[key] = 0;
+			keyClear();
+			key = 0;
+		}
 	}
 	
-	keyGetHelper(&key, &ctrl, &shift, &alt);
-	if ((key) && (gPreviewMode && (previewProcessKeys() || !previewCheckKey(key))) || (processKeysShared()))
-	{
-		keystatus[key] = 0;
-		keyClear();
-		key = 0;
-	}
-
 	scrDisplayMessage();
 	CalcFrameRate();
 	processMove();
+    
+    getHighlightedObject();
 	
 	if (ED3D)
 	{
 		process3DMode();
-		ProcessKeys3D();
+		ProcessInput3D();
 	}
 	else
 	{
 		process2DMode();
-		ProcessKeys2D();
+		ProcessInput2D();
 	}
 	
+    ProcesInputShared();
+    
 	if (hudLogoChanged)
 	{
 		if (totalclock >= gTimers.diskPic)
@@ -1090,13 +1121,10 @@ void ExtCheckKeys( void )
 			hudLogoChanged = 0;
 		}
 	}
-	
+    
 	pFont = qFonts[1];
 	sprintf(buffer, "%4d FPS", gFrameRate); l = gfxGetTextLen(buffer, pFont);
 	gfxPrinTextShadow(xdim-l-4, FPSy, clr2std((gFrameRate<30) ? kColorLightRed : kColorWhite), buffer, pFont);
-	
-	if (key)
-		asksave = 1;
 }
 
 char dlgMapSettings()
@@ -1227,7 +1255,7 @@ char dlgMapSettings()
 				boardWidth				= MET2PIX(eW->value);
 				boardHeight				= MET2PIX(eH->value);
 				visibility				= eVis->value;
-				gFogMode				|= cFog->checked;
+				gFogMode				= cFog->checked;
 				
 				scrLoadPLUs();
 				
@@ -1267,9 +1295,9 @@ char dlgMapSettings()
 					}
 				}
 				
-				
-				
 				parallaxtype = nSkyType;
+				asksave = 1;
+				
 				return true;
 			case 1000:
 				if ((i = showButtons(skyTilesNames, LENGTH(skyTilesNames), "Select") - mrUser) >= 0)
@@ -1374,6 +1402,9 @@ static int OSDFUNC_ShiftSysStatnum(const osdfuncparm_t *arg)
 	buildprintf(">>>> %d of %d sprites shifted in total.\n", nShifted, nTotal);
 	if (nShifted)
 		CleanUp();
+	
+	if (nShifted > 0)
+		asksave = 1;
 	
 	return OSDCMD_OK;
 }
@@ -1618,7 +1649,8 @@ int ExtInit(int argc, char const * const argv[])
 	gObjectLock.Init();		gBeep.Init();
 	AutoAdjustSpritesInit();
 	userItemsInit();
-	
+	editInputInit();
+
 	gExtApps.Init(MapEditINI, "ExternalCommands");
 
 	memset(joinsector, -1, sizeof(joinsector));
@@ -2063,1312 +2095,31 @@ int boardTestExternal(EXTERNAL_APPS* pDb, int* sysErrNo = NULL)
 	#endif
 }
 
-BOOL processKeysShared() {
-
-	if (!key)
-		return FALSE;
+BOOL ProcesInputShared()
+{
+	INPUTPROC* pInput = &gEditInputShared[key];
+	int i, r;
+    
+	if (pInput->pFunc)
+	{
+		r = pInput->pFunc(key, ctrl, shift, alt);
 		
-	int x, y, swal, ewal, sect2;
-	BOOL in2d = ED2D;
-	int i = 0, j = 0, k = 0, f = 0, sect = -1, nwall = -1;
-	int type;
+		if (r & PROC_OK)
+		{
+			switch(r & PROC_UNDO_MASK)
+			{
+				case PROC_UNDO_CMP: asksave = 1; break;
+				case PROC_UNDO_ADD: asksave = 2; break;
+			}
+		}
+		
+		if (r & PROC_BEEP)
+			Beep(r & PROC_OK);
+
+        return (r & PROC_OK) != 0;	
+	}
 	
-	if (in2d)
-	{
-		if (pGLShape || pGCircleW || pGDoorR || pGDoorSM || pGArc)
-		{
-			switch(key)
-			{
-				case KEY_PLUS:
-				case KEY_MINUS:
-				case KEY_SPACE:
-				case KEY_F1:
-				case KEY_F2:
-				case KEY_F3:
-				case KEY_F4:
-				case KEY_COMMA:
-				case KEY_PERIOD:
-					return 0;
-			}
-		}
-	}
-
-	type = getHighlightedObject();
-		
-	switch (key)
-	{
-		default:
-			return FALSE;
-		case KEY_ENTER:
-			if (ctrl && alt)
-			{
-				// call the advanced clipboard
-				
-				if (!type)
-				{
-					BeepFail();
-					break;
-				}
-				
-				if (somethingintab == OBJ_NONE)
-				{
-					scrSetMessage("There is nothing to paste.");
-					BeepFail();
-					break;
-				}
-				
-				i = 1;
-				if (somethingintab != searchstat)
-				{
-					if (somethingintab == OBJ_SECTOR)
-					{
-						if ((searchsector = getSector()) < 0)
-						{
-							scrSetMessage("Failed to get destination sector.");
-							BeepFail();
-							break;
-						}
-
-						searchstat = OBJ_SECTOR;
-					}
-					else
-					{
-						i = 0;
-					}
-				}
-				
-				if (i == 0)
-				{
-					scrSetMessage("Can't copy from %s to %s", gSearchStatNames[ClipHigh(somethingintab, 7)], gSearchStatNames[searchstat]);
-					BeepFail();
-					break;
-				}
-				
-				if (Beep(tempidx >= 0))
-				{
-					i = -1;
-					switch(searchstat)
-					{
-						case OBJ_WALL:
-						case OBJ_MASKED:
-							i = dlgCopyObjectSettings(dlgXWall, OBJ_WALL, tempidx, searchwall, wallInHglt(searchwall));
-							break;
-						case OBJ_SPRITE:
-							i = dlgCopyObjectSettings(dlgXSprite, OBJ_SPRITE, tempidx, searchwall, sprInHglt(searchwall));
-							break;
-						case OBJ_SECTOR:
-						case OBJ_FLOOR:
-						case OBJ_CEILING:
-							i = tempidx;
-							DIALOG_ITEM* pDlg = (shift || (sector[i].extra > 0 && testXSectorForLighting(sector[i].extra)))
-								? dlgXSectorFX : dlgXSector;
-							
-							i = dlgCopyObjectSettings(pDlg, OBJ_SECTOR, tempidx, searchsector, sectInHglt(searchsector));
-							break;
-					}
-					
-					if (Beep(i >= 0))
-						scrSetMessage("Selected properties were copied for %d objects", i);
-				}
-				
-				break;
-			}
-			return FALSE;
-		case KEY_PADENTER:
-			if (ED23)
-			{
-				if (keystatus[KEY_PADPERIOD])
-				{
-					i = ED3D, i |=0x80;
-					xmpSetEditMode(i);
-				}
-				else if (ED3D) ED23 |= 0x10;
-				else if (ED2D) ED23 |= 0x08;
-			}
-			else if (!keystatus[KEY_PADPERIOD])
-			{
-				if (ED2D)
-				{
-					updatesector(posx, posy, &cursectnum);
-					if (gNoclip || cursectnum >= 0)
-					{
-						xmpSetEditMode(0x01);
-					}
-					else
-					{
-						gMapedHud.SetMsgImp(128, "Arrow must be inside a sector before entering 3D mode.");
-					}
-				}
-				else
-				{
-					xmpSetEditMode(0x00);
-				}
-			}
-			else
-			{
-				xmpSetEditMode(0x02);
-			}
-			keystatus[KEY_PADENTER]	 = 0;
-			keyClear();
-			key = 0;
-			return TRUE;
-		case KEY_ESC:
-			if (sectorToolDisableAll(0))
-			{
-				scrSetMessage("Sector tools disabled.");
-				BeepFail();
-				break;
-			}
-			else
-			{
-				if (highlightcnt > 0) hgltReset(kHgltPoint), i = 1;
-				if (!in2d && highlightsectorcnt > 0) hgltReset(kHgltSector), i = 1;
-				if (gListGrd.Length() > 0) gListGrd.Clear(), i = 1;
-				if (i == 1)
-				{
-					scrSetMessage("Highlight reset.");
-					BeepFail();
-					break;
-				}
-			}
-			xmpMenuProcess();
-			keyClear();
-			break;
-		case KEY_COMMA:
-		case KEY_PERIOD:
-			if (in2d && (highlightsectorcnt > 0 || type == 300))
-			{
-				j = 0;
-				i = (shift) ? ((ctrl) ? 128 : 256) : 512;
-				if (key == KEY_COMMA)
-					i = -i;
-				
-				if (highlightsectorcnt > 0)
-				{
-					j = hgltSectRotate(0x04, i);
-				}
-				else if (isIslandSector(searchsector))
-				{
-					int s, e, flags = 0;
-					int cx, cy;
-					
-					flags |= 0x02; // rotate with outer loop of red sector
-					getSectorWalls(searchsector, &s, &e); midPointLoop(s, e, &cx, &cy);
-					sectRotate(searchsector, cx, cy, i, flags);
-					j = 1;
-				}
-				else
-				{
-					scrSetMessage("You cannot rotate sectors with connections");
-				}
-				
-				if (Beep(j > 0))
-					scrSetMessage("Rotate %d sectors by %d.", j, i);
-				
-				break;
-			}
-			else if (type == 200)
-			{
-				if (sprInHglt(searchwall))
-				{
-					i = (shift) ? ((ctrl) ? 128 : 256) : 512;
-					if (key == KEY_COMMA)
-						i = -i;
-					
-					hgltSprRotate(i);
-					scrSetMessage("Rotate %d sprite(s) by %d", hgltSprCount(), i);
-					BeepOk();
-					break;
-				}
-
-				i = (shift) ? 16 : 256;
-				if (key == KEY_COMMA) sprite[searchwall].ang = (short)DecNext(sprite[searchwall].ang, i);
-				else sprite[searchwall].ang = (short)IncNext(sprite[searchwall].ang, i);
-				
-				if (!isMarkerSprite(searchwall))
-					sprite[searchwall].ang = sprite[searchwall].ang & kAngMask;
-				
-				scrSetMessage("%s #%d angle: %i", gSearchStatNames[searchstat], searchwall, sprite[searchwall].ang);
-				BeepOk();
-				break;
-			}
-			else if (!in2d && type == 100)
-			{
-				char flags = 0x00;
-				if (searchwall != searchwall2)	flags |= 0x20;
-				if (key == KEY_COMMA)			flags |= 0x10;	
-				if (!shift)						flags |= 0x01;
-				if (ctrl)						flags |= 0x04;
-				
-				i = AutoAlignWalls(searchwall, flags);
-				scrSetMessage("%d walls affected.", i);
-				Beep(i);
-				break;
-			}
-			break;
-		case KEY_PAD5:
-			if (!ctrl)
-			{
-				if (in2d)
-				{
-					switch(searchstat)
-					{
-						case OBJ_SPRITE:
-							if ((sprite[searchwall].cstat & kSprRelMask) >= kSprWall) break;
-						case OBJ_WALL:
-							searchsector = sectorhighlight;
-							// no break
-						case OBJ_FLOOR:
-						case OBJ_CEILING:
-							switch(gScreen2D.prefs.showMap)
-							{
-								case 0: return true;
-								case 1: searchstat = OBJ_FLOOR;		break;
-								case 2: searchstat = OBJ_CEILING;	break;
-							}
-							if (isSkySector(searchsector, searchstat)) return true;
-							else break;
-					}
-				}
-				
-				if (searchstat < 255)
-					sprintf(buffer, gSearchStatNames[searchstat]);
-				
-				i = -1;
-				switch (searchstat)
-				{
-					case OBJ_SPRITE:
-						i = searchwall;
-						sprintf(buffer2, "repeat");
-						sprite[searchwall].xrepeat = sprite[searchwall].yrepeat = 64;
-						break;
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						i = searchwall;
-						sprintf(buffer2, "pan/repeat");
-						wall[searchwall].xpanning = wall[searchwall].ypanning = 0;
-						wall[searchwall].xrepeat  = wall[searchwall].yrepeat  = 8;
-						fixrepeats(searchwall);
-						break;
-					case OBJ_FLOOR:
-					case OBJ_CEILING:
-						i = searchsector;
-						sprintf(buffer2, "pan");
-						if (searchstat == OBJ_FLOOR) sector[i].floorxpanning = sector[i].floorypanning = 0;
-						else sector[i].ceilingxpanning = sector[i].ceilingypanning = 0;
-						if (isSkySector(i, searchstat))
-						{
-							Sky::SetPan(i, searchstat, 0, 0, alt);
-							i = -2;
-						}
-						break;
-				}
-				
-				if (i >= 0)
-					scrSetMessage("%s[%d] %s reset", buffer, i, buffer2);
-				
-				Beep(i >= 0 || i == -2);
-			}
-			break;
-		case KEY_PAD7:
-		case KEY_PAD9:
-		case KEY_PADUP:
-		case KEY_PADDOWN:
-		case KEY_PADLEFT:
-		case KEY_PADRIGHT:
-		{
-			walltype* pWall; spritetype* pSpr; sectortype* pSect;
-			BOOL bCoarse, chx = 0, chy = 0;
-			signed char changedir, step;
-			int vlx, vly;
-
-			changedir = (key == KEY_PADUP || key == KEY_PADRIGHT || key == KEY_PAD9) ? 1 : -1;
-			bCoarse = (!shift) ? TRUE : FALSE;
-			step = (bCoarse) ? 8 : 1;
-
-			chx = (key == KEY_PADLEFT || key == KEY_PADRIGHT);
-			chy = (key == KEY_PADUP   || key == KEY_PADDOWN);
-			if (key == KEY_PAD7 || key == KEY_PAD9)
-				chx = chy = TRUE;
-			
-			if (in2d)
-			{
-				switch(searchstat)
-				{
-					case OBJ_SPRITE:
-						if ((sprite[searchwall].cstat & kSprRelMask) >= kSprWall) break;
-					case OBJ_WALL:
-						searchsector = sectorhighlight;
-						// no break
-					case OBJ_FLOOR:
-					case OBJ_CEILING:
-						switch(gScreen2D.prefs.showMap)
-						{
-							case 0: return true;
-							case 1: searchstat = OBJ_FLOOR;		break;
-							case 2: searchstat = OBJ_CEILING;	break;
-						}
-						if (isSkySector(searchsector, searchstat)) return true;
-						else break;
-				}
-			}
-			
-			if (searchstat < 255)
-				sprintf(buffer, gSearchStatNames[searchstat]);
-
-			i = -1;
-			switch (searchstat)
-			{
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					pWall = (!ctrl) ? getCorrectWall(searchwall) : &wall[searchwall];
-					changedir = -changedir;
-					i = searchwall;
-					
-					if (ctrl)
-					{
-						sprintf(buffer2, "panning");
-						if (chx)
-						{
-							// fix wrong panning direction when wall x-flipped and/or bottom swapped.
-							if ((pWall->nextwall >= 0 && (wall[pWall->nextwall].cstat & kWallSwap)
-								&& (wall[pWall->nextwall].cstat & kWallFlipX)) || (pWall->cstat & kWallFlipX))
-									changedir = -changedir;
-									
-							pWall->xpanning = changechar(pWall->xpanning, changedir, bCoarse, 0);
-						}
-						
-						if (chy) pWall->ypanning = changechar(pWall->ypanning, -changedir, bCoarse, 0);
-						
-						vlx = pWall->xpanning;
-						vly = pWall->ypanning;
-					}
-					else
-					{
-						sprintf(buffer2, "repeat");
-						if (changedir < 0) step = -step;
-						if (chx) pWall->xrepeat = ClipRange(pWall->xrepeat + step, 0, 255);
-						if (chy) pWall->yrepeat = ClipRange(pWall->yrepeat + step, 0, 255);
-						
-						vlx = pWall->xrepeat;
-						vly = pWall->yrepeat;
-					}
-					break;
-				case OBJ_SPRITE:
-					pSpr = &sprite[searchwall];
-					i = searchwall;
-					if (alt)
-					{
-						sprintf(buffer2, "pos");
-						if (chx) offsetPos((changedir == 1) ? -step : step, 0, 0, ang, &pSpr->x, &pSpr->y, NULL);
-						if (chy) offsetPos(0, (changedir == 1) ? step : -step, 0, ang, &pSpr->x, &pSpr->y, NULL);
-						
-						vlx = pSpr->x;
-						vly = pSpr->y;
-					}
-					else if (ctrl)
-					{
-						sprintf(buffer2, "offset");
-						if ((pSpr->cstat & kSprRelMask) != 48)
-						{
-							if (chx)
-							{
-								j = -changedir;
-								if (pSpr->cstat & kSprFlipX)
-									j = -j;
-								
-								pSpr->xoffset = changechar(pSpr->xoffset, j, bCoarse, 0);
-							}
-							
-							if (chy)
-							{
-								j = changedir;
-								if ((pSpr->cstat & kSprRelMask) != kSprFace) // fix wrong offset direction when sprite flipped
-								{
-									if (pSpr->cstat & kSprFlipY)
-										j = -j;
-								}
-								
-								pSpr->yoffset = changechar(pSpr->yoffset, j, bCoarse, 0);
-								
-							}
-						}
-						
-						vlx = pSpr->xoffset;
-						vly = pSpr->yoffset;
-					}
-					else
-					{
-						sprintf(buffer2, "repeat");
-						if (changedir < 0) step = -step;
-						if (chx) pSpr->xrepeat = ClipRange(pSpr->xrepeat + step, 2, 255);
-						if (chy) pSpr->yrepeat = ClipRange(pSpr->yrepeat + step, 2, 255);
-						
-						vlx = pSpr->xrepeat;
-						vly = pSpr->yrepeat;
-					}
-					break;
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-					pSect = &sector[searchsector];
-					sprintf(buffer2, "panning");
-					i = searchsector;
-					if (searchstat == OBJ_FLOOR)
-					{
-						if (chx) pSect->floorxpanning = changechar(pSect->floorxpanning, changedir, bCoarse, 0);
-						if (chy) pSect->floorypanning = changechar(pSect->floorypanning, changedir, bCoarse, 0);
-						
-						vlx = pSect->floorxpanning;
-						vly = pSect->floorypanning;
-					}
-					else
-					{
-						if (chx) pSect->ceilingxpanning = changechar(pSect->ceilingxpanning, changedir, bCoarse, 0);
-						if (chy) pSect->ceilingypanning = changechar(pSect->ceilingypanning, changedir, bCoarse, 0);
-						
-						vlx = pSect->ceilingxpanning;
-						vly = pSect->ceilingypanning;
-					}
-					
-					if (isSkySector(searchsector, searchstat))
-					{
-						i = -2; // show just Sky messages!
-						if (chy)
-							Sky::SetPan(searchsector, searchstat, 0, vly, alt);
-						
-						if (chx)
-						{
-							Sky::FixPan(searchsector, searchstat,  alt); 	// fix panning first
-							Sky::Rotate((changedir < 0) ? 0 : 1); 			// rotate global sky
-						}
-					}
-					else if (alt)
-					{
-						IDLIST visited(1);
-						i = AutoAlignSectors(searchsector, searchstat, &visited);
-						//scrSetMessage("%d %s textures auto-aligned.", i, buffer);
-						Beep(i);
-					}
-					break;
-			}
-			
-			if (i >= 0) scrSetMessage("%s #%d x%s: %d  y%s: %d", strlwr(buffer), i, buffer2, vlx, buffer2, vly);
-			Beep(i >= 0 || i == -2);
-			break;
-		}
-		case KEY_F11:
-			if (!alt)
-			{
-				if (in2d)
-				{
-					i = IncRotate(gScreen2D.prefs.showMap, 3);
-					scrSetMessage("Show 2D map: %s", gShowMapNames[i]);
-					gScreen2D.prefs.showMap = i;
-					Beep(i);
-					break;
-				}
-				
-				return FALSE;
-			}
-			
-			if (ctrl)
-			{
-				gHudPrefs.fontPack = IncRotate(gHudPrefs.fontPack, kHudFontPackMax);
-				gMapedHud.SetMsgImp(128, "HUD font: %s", gHudFontNames[gHudPrefs.fontPack]);
-				hudSetFontPack(&gMapedHud, gHudPrefs.fontPack, &gMouse);
-				BeepOk();
-			}
-			else
-			{
-				while( 1 )
-				{
-					if (ED23)
-					{
-						strcpy(buffer, "SPLIT");
-						if (gHudPrefs.dynamicLayoutSPLIT) gHudPrefs.layoutSPLIT = kHudLayoutNone;
-						else gHudPrefs.layoutSPLIT = IncRotate(gHudPrefs.layoutSPLIT, kHudLayoutMax);
-						gHudPrefs.dynamicLayoutSPLIT = (gHudPrefs.layoutSPLIT == kHudLayoutDynamic);
-						
-						i = gHudPrefs.layoutSPLIT;
-						if (gHudPrefs.dynamicLayoutSPLIT)
-							gHudPrefs.layoutSPLIT = kHudLayoutFull;
-
-						hudSetLayout(&gMapedHud, gHudPrefs.layoutSPLIT, &gMouse);
-					}
-					else if (in2d)
-					{
-						strcpy(buffer, "2D");
-						if (gHudPrefs.dynamicLayout2D) gHudPrefs.layout2D = kHudLayoutNone;
-						else gHudPrefs.layout2D = IncRotate(gHudPrefs.layout2D, kHudLayoutMax);
-						gHudPrefs.dynamicLayout2D = (gHudPrefs.layout2D == kHudLayoutDynamic);
-						
-						i = gHudPrefs.layout2D;
-						if (gHudPrefs.dynamicLayout2D)
-							gHudPrefs.layout2D = kHudLayoutFull;
-
-						hudSetLayout(&gMapedHud, gHudPrefs.layout2D, &gMouse);
-					}
-					else
-					{
-						strcpy(buffer, "3D");
-						gHudPrefs.layout3D = IncRotate(gHudPrefs.layout3D, kHudLayoutMax);
-						if (gHudPrefs.layout3D == kHudLayoutDynamic) continue;
-						else hudSetLayout(&gMapedHud, gHudPrefs.layout3D, &gMouse);
-						i = gHudPrefs.layout3D;
-					}
-					
-					gMapedHud.SetMsgImp(128, "HUD layout (%s Mode): %s", buffer, gHudLayoutNames[i]);
-					Beep(i > 0);
-					break;
-				}
-			}
-			break;
-		case KEY_W:
-		{
-			int x1, y1, x2, y2;
-			if (!gCmtPrefs.enabled)
-			{
-				Alert("Comment system disabled!");
-				return FALSE;
-			}
-			else if (!in2d && !alt) return FALSE;
-			else if (in2d) gScreen2D.GetPoint(searchx, searchy, &x1, &y1), x2 = x1, y2 = y1;
-			else x1 = posx, y1 = posy, hit2pos(&x2, &y2);
-			
-			if (in2d)
-			{
-				if (cmthglt >= 0)
-				{
-					// body (edit comment)
-					if ((cmthglt & 0xc000) == 0) gCommentMgr.ShowDialog(x1, y1, x2, y2, cmthglt);
-					else gCommentMgr.ShowBindMenu(cmthglt & 0x3FFF, x1, y1); // tail (bind, unbind, delete)
-					break;
-				}
-			}
-			else
-			{
-				i = searchstat; j = -1;
-				switch (searchstat) {
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						i = OBJ_WALL;
-						j = wall[searchwall].extra;
-						break;
-					case OBJ_FLOOR:
-					case OBJ_CEILING:
-						i = OBJ_SECTOR;
-						j = sector[searchsector].extra;
-						break;
-					case OBJ_SPRITE:
-						j = searchwall;
-						break;
-				}
-				
-				if ((i = gCommentMgr.IsBind(i, j)) >= 0)
-				{
-					// tail (bind, unbind, delete)
-					if (ctrl) gCommentMgr.ShowBindMenu(i, x2, y2);
-					else gCommentMgr.ShowDialog(x1, y1, x2, y2, i); // body (edit comment)
-					break;
-				}
-			}
-		
-			if (gCommentMgr.ShowDialog(x1, y1, x2, y2) >= 0)
-			{
-				scrSetMessage("New comment created.");
-				BeepOk();
-			}
-		}
-		break;
-		case KEY_F5:
-		case KEY_F6:
-			i = 1;
-			switch (searchstat)
-			{
-				case OBJ_SPRITE:
-					hudSetLayout(&gMapedHud, kHudLayoutFull);
-					if (key == KEY_F6) EditSpriteData(searchwall, !ctrl);
-					else
-					{
-						sect = (in2d) ? sectorhighlight : sprite[searchwall].sectnum;
-						if (sect >= 0)
-						{
-							if (shift) EditSectorLighting(sect);
-							else EditSectorData(sect, !ctrl);
-						}
-					}
-					break;
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					hudSetLayout(&gMapedHud, kHudLayoutFull);
-					if (key == KEY_F6) EditWallData(searchwall, !ctrl);
-					else
-					{
-						i = wall[searchwall].nextwall;
-						if (in2d) sect = sectorhighlight;
-						else sect = sectorofwall((alt || i < 0) ? searchwall : i);
-						
-						if (sect < 0) i = 0;
-						else if (shift) EditSectorLighting(sect);
-						else EditSectorData(sect, !ctrl);
-					}
-					break;
-				case OBJ_CEILING:
-				case OBJ_FLOOR:
-					if (key == KEY_F5)
-					{
-						hudSetLayout(&gMapedHud, kHudLayoutFull);
-						if (!shift) EditSectorData(searchsector, !ctrl);
-						else EditSectorLighting(searchsector);
-						break;
-					}
-					// no break
-				default:
-					BeepFail();
-					i = 0;
-					break;
-			}
-			if (i)
-			{
-				if (ED23)		hudSetLayout(&gMapedHud, gHudPrefs.layoutSPLIT, &gMouse);
-				else if (ED2D)	hudSetLayout(&gMapedHud, gHudPrefs.layout2D, &gMouse);
-				else			hudSetLayout(&gMapedHud, gHudPrefs.layout3D, &gMouse);
-			}
-			break;
-		case KEY_Q: // connect one object with the one from clipboard via RX/TX
-			if (somethingintab == 255)
-			{
-				scrSetMessage("Clipboard is empty!");
-				BeepFail();
-				break;
-			}
-
-			if (shift) i = xsysConnect2(somethingintab, tempidx, searchstat, searchindex);
-			else i = xsysConnect(somethingintab, tempidx, searchstat, searchindex);
-			if (!Beep(i == 0)) break;
-			scrSetMessage("Objects connected.");
-			CleanUpMisc();
-			break;
-		case KEY_J:
-			i = j = -1;
-			if (shift || joinsector[0] >= 0) i = getSector(); // old BUILD joining method
-			else if (in2d) j = linehighlight; // one key press needs a line in 2d
-			else if ((type == 100 || type == 300) && (j = searchwall) >= 0) // one key press works just like M
-			{
-				if (wall[j].nextwall >= 0 && (wall[wall[j].nextwall].cstat & kWallSwap))
-					j = searchwall2;
-			}
-			
-			if (j < 0) scrSetMessage("Must point near red wall.");
-			else if (wall[j].nextwall < 0)
-			{
-				if (redSectorCanMake(j) > 0)
-				{
-					i = showButtons(gSectorMergeMenu, LENGTH(gSectorMergeMenu), "Select action...") - mrUser;
-					if (i == 0)
-					{
-						scrSetMessage("New sector created.");
-						redSectorMake(j);
-						CleanUp();
-						BeepOk();
-						break;
-					}
-					else if (i == 1)
-					{
-						redSectorMake(j);
-						joinsector[0] = sectorofwall(j);
-						i = wall[j].nextsector;
-					}
-					else
-					{
-						i = -1;
-					}
-				}
-			}
-			else if (sectorofwall(wall[j].nextwall) != wall[j].nextsector)
-			{
-				scrSetMessage("Must select sibling sector.");
-			}
-			else
-			{
-				joinsector[0] = sectorofwall(j);
-				i = wall[j].nextsector;
-			}
-
-			if (i < 0) BeepFail();
-			else if (joinsector[0] >= 0)
-			{
-				if (joinsector[0] == i)
-				{
-					scrSetMessage("Sector merging aborted.");
-					BeepFail();
-				}
-				else if (redSectorMerge(joinsector[0], i) == 0)
-				{
-					scrSetMessage("Sector #%d merged with sector #%d.", joinsector[0], i);
-					BeepOk();
-				}
-				else
-				{
-					scrSetMessage("Error merging sector.");
-					BeepFail();
-				}
-
-				memset(joinsector, -1, sizeof(joinsector));
-				updatesector(posx, posy, &cursectnum);
-				CleanUp();
-			}
-			else
-			{
-				scrSetMessage("Join sector - press J again on sector to join with.");
-				joinsector[0] = i;
-				BeepOk();
-			}
-			break;
-		case KEY_TAB:
-			if (!alt)
-			{
-				if (!type)
-				{
-					//scrSetMessage("Can't copy properties of an unknown object.");
-					scrSetMessage("Clipboard buffer cleared.");
-					somethingintab = 255;
-					BeepFail();
-					break;
-				}
-
-				switch (searchstat) {
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						i = tempidx 	= searchwall;
-						temppicnum		= (searchstat == OBJ_MASKED) ? wall[i].overpicnum : wall[i].picnum;
-						tempshade		= wall[i].shade;
-						temppal			= wall[i].pal;
-						tempxrepeat		= wall[i].xrepeat;
-						tempyrepeat		= wall[i].yrepeat;
-						tempxoffset		= wall[i].xpanning;
-						tempyoffset		= wall[i].ypanning;
-						tempcstat		= wall[i].cstat;
-						tempextra		= wall[i].extra;
-						temptype		= wall[i].type;
-						tempslope		= 0;
-
-						cpywall[kTabWall] = wall[i];
-						if (wall[i].extra > 0)
-							cpyxwall[kTabXWall] = xwall[wall[i].extra];
-
-						break;
-					case OBJ_SPRITE:
-						i = tempidx 	= searchwall;
-						temppicnum 		= sprite[i].picnum;
-						tempshade 		= sprite[i].shade;
-						temppal 		= sprite[i].pal;
-						tempxrepeat 	= sprite[i].xrepeat;
-						tempyrepeat 	= sprite[i].yrepeat;
-						tempxoffset		= sprite[i].xoffset;
-						tempyoffset		= sprite[i].yoffset;
-						tempcstat 		= sprite[i].cstat;
-						tempextra 		= sprite[i].extra;
-						tempang 		= sprite[i].ang;
-						temptype 		= sprite[i].type;
-						tempslope		= spriteGetSlope(i);
-
-						cpysprite[kTabSpr] = sprite[i];
-						if (sprite[i].extra > 0)
-							cpyxsprite[kTabXSpr] = xsprite[sprite[i].extra];
-
-						break;
-					case OBJ_FLOOR:
-					case OBJ_CEILING:
-						i = tempidx 	= searchsector;
-						temptype 		= sector[i].type;
-						switch (searchstat) {
-							case OBJ_FLOOR:
-								temppicnum 		= sector[i].floorpicnum;
-								tempshade 		= sector[i].floorshade;
-								temppal 		= sector[i].floorpal;
-								tempxrepeat 	= sector[i].floorxpanning;
-								tempyrepeat 	= sector[i].floorypanning;
-								tempcstat 		= sector[i].floorstat;
-								tempextra 		= sector[i].extra;
-								tempvisibility 	= sector[i].visibility;
-								tempslope		= 0;
-								break;
-							default:
-								temppicnum 		= sector[i].ceilingpicnum;
-								tempshade 		= sector[i].ceilingshade;
-								temppal 		= sector[i].ceilingpal;
-								tempxrepeat 	= sector[i].ceilingxpanning;
-								tempyrepeat 	= sector[i].ceilingypanning;
-								tempcstat 		= sector[i].ceilingstat;
-								tempextra 		= sector[i].extra;
-								tempvisibility 	= sector[i].visibility;
-								tempslope		= 0;
-								break;
-						}
-
-						if (in2d)
-							searchstat = OBJ_SECTOR; // for names
-
-						cpysector[kTabSect] = sector[searchsector];
-						if (sector[searchsector].extra > 0)
-							cpyxsector[kTabXSect] = xsector[sector[searchsector].extra];
-
-						break;
-				}
-
-				somethingintab = (char)searchstat;
-				scrSetMessage("%s[%d] copied in clipboard.", gSearchStatNames[searchstat], i);
-				BeepOk();
-			}
-			break;
-		case KEY_F10:
-			if (highlightsectorcnt > 0) i |= kHgltSector;
-			if (highlightcnt > 0) 		i |= kHgltPoint;
-			if (i > 0)
-			{
-				hgltIsolateRorMarkers(i); hgltIsolatePathMarkers(i);
-				hgltIsolateChannels(i);
-				BeepOk();
-				
-				scrSetMessage("Objects isolated.");
-				break;
-			}
-			return FALSE;
-		case KEY_DELETE:
-			if (ctrl)
-			{
-				j = 1, i = -1;
-				if (!in2d && (searchstat == OBJ_WALL || searchstat == OBJ_MASKED))
-				{
-					TranslateWallToSector();
-					i = searchsector;
-				}
-				if ((i < 0) && (i = getSector()) < 0) break;
-				else if (hgltCheck(OBJ_SECTOR, i) < 0) sectDelete(i);
-				else j = hgltSectDelete();
-
-				scrSetMessage("%d sector(s) deleted.", j);
-				updatesector(posx, posy, &cursectnum);
-				updatenumsprites();
-				CleanUp();
-				BeepOk();
-				break;
-			}
-			else if (type == 200)
-			{
-				if (shift) sprDelete(&sprite[searchwall]);
-				else i = hgltSprCallFunc(sprDelete);
-				scrSetMessage("%d sprite(s) deleted.", ClipLow(i, 1));
-				updatenumsprites();
-				BeepOk();
-				break;
-			}
-			BeepFail();
-			break;
-		case KEY_SCROLLLOCK:
-			updatesector(posx, posy, &cursectnum);
-			if (cursectnum >= 0)
-			{
-				setStartPos(posx, posy, posz, ang, gMisc.forceEditorPos);
-				scrSetMessage("Set start position at x=%d, y=%d, z=%d, in sector #%d", startposx, startposy, startposz, startsectnum);
-				BeepOk();
-			}
-			else
-			{
-				scrSetMessage("Cannot set start position outside the sector!");
-				BeepFail();
-			}
-			break;
-		case KEY_B:
-			if (ctrl)
-			{
-				clipmovemask2d = clipmovemask3d = (clipmovemask3d == 0) ? BLOCK_MOVE : 0;
-				scrSetMessage("Block move is %s", onOff(Beep(clipmovemask3d)));
-				break;
-			}
-			switch (searchstat) {
-				case OBJ_SPRITE:
-					sprite[searchwall].cstat ^= kSprBlock;
-					scrSetMessage("sprite[%i] blocking flag is %s", searchwall, onOff(sprite[searchwall].cstat & kSprBlock));
-					BeepOk();
-					break;
-				case OBJ_FLOOR:
-					if (in2d) break;
-					// no break
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					if (hgltCheck(OBJ_WALL, searchwall) >= 0)
-					{
-						k = hgltWallsCheckStat(kWallBlock, 0x02); // red walls has cstat
-						f = hgltWallsCheckStat(kWallBlock, 0x06); // red walls has NO cstat
-						j = k + j;
-						
-						for (i = 0; i < highlightcnt; i++)
-						{
-							if ((highlight[i] & 0xC000) != 0)
-								continue;
-
-							nwall = highlight[i];
-							if (wall[nwall].nextwall < 0) continue;
-							else if (f < j && f > k)
-							{
-								if (k < j) wallCstatRem(nwall, kWallBlock, !shift);
-								else wallCstatAdd(nwall, kWallBlock, !shift);
-							}
-							else if (k < j) wallCstatAdd(nwall, kWallBlock, !shift);
-							else wallCstatRem(nwall, kWallBlock, !shift);
-						}
-					}
-					else if (wall[searchwall].nextwall >= 0)
-					{
-						wallCstatToggle(searchwall, kWallBlock, !shift);
-					}
-					else
-					{
-						BeepFail();
-						break;
-					}
-					scrSetMessage("wall[%i] blocking flag is %s", searchwall, onOff(wall[searchwall].cstat & kWallBlock));
-					BeepOk();
-					break;
-			}
-			break;
-		case KEY_E:
-			if (type != 200) return FALSE;
-			while ( 1 )
-			{
-				i = GetNumberBox("Enter statnum", sprite[searchwall].statnum, sprite[searchwall].statnum);
-				if (i == sprite[searchwall].statnum)
-					break;
-
-				//if (sysStatReserved(i))
-				//{
-					//Alert("Statnum #%d is system reserved.", i);
-					//continue;
-				//}
-				//else
-				//{
-					ChangeSpriteStat(searchwall, (short)ClipRange(i, 0, kMaxStatus - 1));
-					scrSetMessage("sprite[%d].statnum = %d", searchwall, sprite[searchwall].statnum);
-					BeepOk();
-				//}
-
-				break;
-			}
-			break;
-		case KEY_HOME:
-			if (ctrl)
-			{
-				static NAMED_TYPE searchFor[] = {
-					OBJ_SPRITE,		gSearchStatNames[OBJ_SPRITE],
-					OBJ_WALL,		gSearchStatNames[OBJ_WALL],
-					OBJ_SECTOR,		gSearchStatNames[OBJ_SECTOR],
-				};
-
-				if ((type = showButtons(searchFor, LENGTH(searchFor), "Search for...")) != mrCancel)
-				{
-					j = 0;
-					type -= mrUser;
-					sprintf(buffer, "Locate %s #", gSearchStatNames[type]);
-					if ((i = GetNumberBox(buffer, 0, -1)) >= 0)
-					{
-						switch (type) {
-							case OBJ_SPRITE:
-								for (j = 0; j < kMaxSprites; j++)
-								{
-									if (sprite[j].index != i || sprite[j].statnum >= kMaxStatus) continue;
-									posx = sprite[i].x; posy = sprite[i].y;
-									posz = sprite[i].z; ang	= sprite[i].ang;
-									cursectnum = sprite[i].sectnum;
-									break;
-								}
-								if (j >= kMaxSprites) i = -1;
-								break;
-							case OBJ_SECTOR:
-								for (j = 0; j < numwalls; j++)
-								{
-									if (sectorofwall(j) != i) continue;
-									avePointSector(i, &posx, &posy);
-									posz = getflorzofslope(i, posx, posy);
-									cursectnum = (short)i;
-									break;
-								}
-								if (j == numwalls) i = -1;
-								break;
-							case OBJ_WALL:
-								if (i >= 0 && i < numwalls)
-								{
-									j = sectorofwall(i);
-									posx = wall[i].x;
-									posy = wall[i].y;
-									posz = getflorzofslope(j, posx, posy);
-									cursectnum = (short)j;
-									break;
-								}
-								i = -1;
-								break;
-
-						}
-						
-						Beep(i >= 0);
-						scrSetMessage("%s %s found", gSearchStatNames[type], isNot(i >= 0));
-						clampCamera();
-					}
-				}
-			}
-			else if (shift)
-			{
-				if (!previewMenuProcess()) break;
-				else if (gPreviewMode) previewStop();
-				previewStart();
-			}
-			else if (!gPreviewMode) previewStart();
-			else previewStop();
-			break;
-		case KEY_F12:
-			scrSetMessage("Beeps are %s", onOff(gMisc.beep^=1));
-			BeepOk();
-			break;
-		case KEY_1:
-			switch (searchstat) {
-				case OBJ_SPRITE:
-					sprite[searchwall].cstat ^= kSprOneSided;
-					i = sprite[searchwall].cstat;
-					if ((i & kSprRelMask) >= kSprFloor)
-					{
-						sprite[searchwall].cstat &= ~kSprFlipY;
-						if (i & kSprOneSided)
-						{
-							if (!ED2D && posz > sprite[searchwall].z)
-								sprite[searchwall].cstat |= kSprFlipY;
-						}
-					}
-					scrSetMessage("Sprite #%i one-sided flag is %s", searchwall, onOff(sprite[searchwall].cstat & kSprOneSided));
-					BeepOk();
-					break;
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-					// no break
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					if (Beep(searchwall > 0 && wall[searchwall].nextwall >= 0))
-					{
-						i = wallCstatToggle(searchwall, kWallOneWay, FALSE);
-						if ((i & kWallOneWay) && !(i & kWallMasked))
-								wall[searchwall].overpicnum = wall[searchwall].picnum;
-
-						scrSetMessage("Wall #%i one-sided flag is %s", searchwall, onOff(i & kWallOneWay));
-					}
-					break;
-			}
-			break;
-		case KEY_D:
-			if (type == 200)
-			{
-				if (alt)
-				{
-					sprintf(buffer, "Sprite #%d clipdist", searchwall);
-					i = GetNumberBox(buffer, sprite[searchwall].clipdist, sprite[searchwall].clipdist);
-					sprite[searchwall].clipdist = (BYTE)ClipRange(i, 0, 255);
-					scrSetMessage("sprite[%d].clipdist = %d", searchwall, sprite[searchwall].clipdist);
-					BeepOk();
-					return TRUE;
-				}
-			}
-			return FALSE;
-		case KEY_K:
-			if (type != 100 && type != 200) BeepFail();
-			
-			switch (searchstat) {
-				case OBJ_SPRITE:
-					i = (short)(sprite[searchwall].cstat & kSprMoveMask);
-					switch (i) {
-						case kSprMoveNone:
-							i = kSprMoveForward;
-							scrSetMessage("sprite[%d] moves forward (blue).", searchwall);
-							break;
-						case kSprMoveForward:
-							i = kSprMoveReverse;
-							scrSetMessage("sprite[%d] moves reverse (green).", searchwall);
-							break;
-						case kSprMoveReverse:
-							i = kSprMoveNone;
-							scrSetMessage("sprite[%d] kinetic move disabled.", searchwall);
-							break;
-					}
-					sprite[searchwall].cstat &= ~kSprMoveMask;
-					sprite[searchwall].cstat |= (short)i;
-					BeepOk();
-					break;
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					i = (short)(wall[searchwall].cstat & kWallMoveMask);
-					switch (i) {
-						case kWallMoveNone:
-							i = kWallMoveForward;
-							scrSetMessage("wall[%d] moves forward (blue).", searchwall);
-							break;
-						case kWallMoveForward:
-							i = kWallMoveReverse;
-							scrSetMessage("wall[%d] moves reverse (green).", searchwall);
-							break;
-						case kWallMoveReverse:
-						default:
-							i = kWallMoveNone;
-							scrSetMessage("wall[%d] kinetic move disabled.", searchwall);
-							break;
-					}
-					wallCstatRem(searchwall, kWallMoveMask, !shift);
-					wallCstatAdd(searchwall, i, !shift);
-					BeepOk();
-					break;
-			}
-			break;
-		case KEY_M:
-			//if (type != 100) break;
-			if (searchwall < 0 || (i = wall[searchwall].nextwall) < 0)
-			{
-				BeepFail();
-				break;
-			}
-
-			if (wallCstatToggle(searchwall, kWallMasked, !shift) & kWallMasked)
-			{
-				if (!shift)
-				{
-					// other side flip-x
-					if (!(wall[searchwall].cstat & kWallFlipX)) wallCstatAdd(i, kWallFlipX, FALSE);
-					else if (wall[i].cstat & kWallFlipX) // other side unflip-x
-						wallCstatRem(i, kWallFlipX, FALSE);
-					
-					wall[searchwall].overpicnum = ClipLow(wall[searchwall].overpicnum, 0);
-					wall[i].overpicnum = wall[searchwall].overpicnum;
-				}
-				
-				// useless to have this together
-				wallCstatRem(searchwall, kWallOneWay, !shift);
-			}
-			scrSetMessage("wall[%i] %s masked", searchwall, isNot(wall[searchwall].cstat & kWallMasked));
-			BeepOk();
-			break;
-		case KEY_I:
-			if (ctrl)
-			{
-				scrSetMessage("Show invisible sprites is %s", onOff(showinvisibility^=1));
-				BeepOk();
-			}
-			else if (type == 200)
-			{
-				sprite[searchwall].cstat ^= kSprInvisible;
-				scrSetMessage("sprite[%i] %s invisible", searchwall, isNot(sprite[searchwall].cstat & kSprInvisible));
-				BeepOk();
-			}
-			else
-			{
-				BeepFail();
-			}
-			break;
-		case KEY_R:
-			if (type != 200) return FALSE;
-			switch ((i = sprite[searchwall].cstat & kSprRelMask)) {
-				case 0x00:
-					i = 0x10;
-					scrSetMessage("sprite[%i] is wall sprite", searchwall);
-					break;
-				case 0x10:
-					i = 0x20;
-					scrSetMessage("sprite[%i] is floor sprite", searchwall);
-					break;
-				default:
-					i = 0x00;
-					scrSetMessage("sprite[%i] is face sprite", searchwall);
-					break;
-			}
-			sprite[searchwall].cstat &= ~kSprRelMask;
-			sprite[searchwall].cstat |= (ushort)i;
-			BeepOk();
-			break;
-		case KEY_U:
-			if (ctrl) return FALSE;
-			else if (type == 300)
-			{
-				GetXSector(searchsector);
-				scrSetMessage("sector[%d] is %s underwater", searchsector, isNot(xsector[sector[searchsector].extra].underwater ^= 1));
-				Beep(xsector[sector[searchsector].extra].underwater);
-				break;
-			}
-			BeepFail();
-			break;
-		case KEY_X:
-			if (ctrl) return FALSE;
-			if (alt & 0x01)
-			{
-				// disable auto align for walls in a highlight
-				for (i = 0; i < highlightsectorcnt; i++) sector[highlightsector[i]].alignto = 0;
-				for (i = 0; i < highlightcnt; i++)
-				{
-					if ((highlight[i] & 0xC000) == 0x4000) continue;
-					sector[sectorofwall(highlight[i])].alignto = 0;
-				}
-				scrSetMessage("Auto slope disabled for all highlighted walls.");
-				BeepOk();
-			}
-			else if (type != 100 && type != 300) BeepFail();
-			switch (searchstat) {
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					sect = sectorofwall(searchwall);
-					nwall = sector[sect].wallptr;
-					if (sector[sect].alignto)
-					{
-						if (nwall == searchwall || nwall + sector[sect].alignto == searchwall)
-						{
-							scrSetMessage("Sector #%d auto-alignment disabled", sect);
-							sector[sect].alignto = 0;
-							BeepFail();
-							break;
-						}
-					}
-					else if (nwall == searchwall)
-					{
-						scrSetMessage("You cannot select first wall for sector auto-alignment");
-						BeepFail();
-						break;
-					}
-					
-					if (wall[searchwall].nextwall >= 0)
-					{
-						setAligntoWall(sect, searchwall);
-						
-						if (sector[sect].alignto)
-						{
-							scrSetMessage("Sector #%d will align to wall #%d (%d)", sect, searchwall, sector[sect].alignto);
-							BeepOk();
-							break;
-						}
-					}
-					else
-					{
-						scrSetMessage("Must select the red wall!");
-						BeepFail();
-						break;
-					}
-					// no break
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-					if (sect < 0) sect = searchsector;
-					if (Beep(sector[sect].alignto))
-					{
-						scrSetMessage("Sector %d auto-alignment disabled!", sect);
-						sector[sect].alignto = 0;
-					}
-					break;
-			}
-			break;
-	}
-
-	return TRUE;
+	return 0;
 }
 
 void xmpOptions(void)
@@ -4127,6 +2878,7 @@ int xmpMenuProcess() {
 							"directory for detailed information\n"
 							"if manual editing required.", i, kChannelCleanerLog
 						);
+						asksave = 1;
 					}
 					else
 					{
@@ -4245,40 +2997,35 @@ void processMove() {
 	#define kVelStep3 16
 	#define kVelStep4 12
 	
-	BOOL block = FALSE;
-	BYTE ctrl, shift, alt; BOOL in2d = (qsetmode != 200);
+	#define MOVEUP	keystatus[KEY_A]
+	#define MOVEDN	keystatus[KEY_Z]
+	#define MOVERT	keystatus[KEY_RIGHT]
+	#define MOVELT	keystatus[KEY_LEFT]
+	#define MOVEFW	keystatus[KEY_UP]
+	#define MOVEBK	keystatus[KEY_DOWN]
+	
+	BOOL block = FALSE; BOOL in2d = ED2D;
 	BOOL strafe = (!in2d && gMouseLook.strafe && gMouseLook.mode);
 	int goalz, hiz = 0x80000000, loz = 0x7FFFFFFF, hihit = 0, lohit = 0, nSector;
 	int i, hit, px = posx, py = posy, pz = posz, xvect = 0, yvect = 0;
-	keyGetHelper(NULL, &ctrl, &shift, &alt);
 	
 	int nTicks = gFrameTicks;
 	if (nTicks == gFrameClock)
 		nTicks = 0;
-	
 	
 	if (!in2d && (gMouse.hold & 2) && gMouse.wheel)
 	{
 		if (zmode == 0)
 			zmode = 3;
 		
-		if (gMouse.wheel < 0)
-		{
-			posz = posz - (kVelStep1<<6) * nTicks;
-		}
-		else if (gMouse.wheel > 0)
-		{
-			posz = posz + (kVelStep1<<6) * nTicks;
-			
-		}
+		if (gMouse.wheel < 0)		posz = posz - (kVelStep1<<6) * nTicks;
+		else if (gMouse.wheel > 0)	posz = posz + (kVelStep1<<6) * nTicks;
 	}
-	else if (keystatus[KEY_UP])
-		vel = min(vel + kVelStep1 * nTicks, 127);
-	else if (keystatus[KEY_DOWN])
-		vel = max(vel - kVelStep1 * nTicks, -128);
+	else if (MOVEFW)	vel = min(vel + kVelStep1 * nTicks, 127);
+	else if (MOVEBK)	vel = max(vel - kVelStep1 * nTicks, -128);
 	
 	
-	if (keystatus[KEY_LEFT])
+	if (MOVELT)
 	{
 		if (strafe)
 		{
@@ -4288,7 +3035,7 @@ void processMove() {
 		else
 			angvel = max(angvel - kVelStep3 * nTicks, -128);
 	}
-	else if (keystatus[KEY_RIGHT])
+	else if (MOVERT)
 	{
 		if (strafe)
 		{
@@ -4463,34 +3210,20 @@ void processMove() {
 		if (goalz < hiz+kMoveVal3)   		//ceiling&floor too close
 			goalz = (loz+hiz) >> 1;
 
-		if (!in2d && !alt)
+		if (!in2d && !alt && !((ctrl && shift) | (ctrl && !shift)))
 		{
-			if (keystatus[KEY_A])
+			if (MOVEUP)
 			{
-				if (ctrl && !gMouseLook.mode)
-				{
-					if (horiz > 0) horiz -= 4;
-				}
-				else
-				{
-					goalz -= kMoveVal3;
-					if (shift)
-						goalz-=kMoveVal4;
-				}
+				goalz -= kMoveVal3;
+				if (shift)
+					goalz-=kMoveVal4;
 			}
 			
-			if (keystatus[KEY_Z])                            //Z (stand low)
+			if (MOVEDN)
 			{
-				if (ctrl && !gMouseLook.mode)
-				{
-					if (horiz < 200) horiz += 4;
-				}
-				else
-				{
+				goalz+=kMoveVal5;
+				if (shift)
 					goalz+=kMoveVal5;
-					if (shift)
-						goalz+=kMoveVal5;
-				}
 			}
 		}
 
@@ -4507,26 +3240,18 @@ void processMove() {
 	else
 	{
 		goalz = posz;
-		if (!in2d && !alt)
+		if (!in2d && !alt && !((ctrl && shift) | (ctrl && !shift)))
 		{
-			if (keystatus[KEY_A])
+			if (MOVEUP)
 			{
-				if (ctrl && !gMouseLook.mode)
-				{
-					if (horiz > 0) horiz -= 4;
-				}
-				else if (zmode != 1) goalz-=kMoveVal3;
-				else zlock+=kMoveVal1, keystatus[KEY_A] = 0; 
+				if (zmode != 1) goalz-=kMoveVal3;
+				else zlock+=kMoveVal1;
 			}
 			
-			if (keystatus[KEY_Z])
+			if (MOVEDN)
 			{
-				if (ctrl && !gMouseLook.mode)
-				{
-					if (horiz < 200) horiz += 4;
-				}
-				else if (zmode != 1) goalz+=kMoveVal3;
-				else if (zlock > 0)	 zlock-=kMoveVal1, keystatus[KEY_Z] = 0;
+				if (zmode != 1) goalz+=kMoveVal3;
+				else if (zlock > 0)	 zlock-=kMoveVal1;
 			}
 		}
 		
@@ -4565,12 +3290,12 @@ void processMove() {
 			int legs = posz + val;
 			int nSect = cursectnum, nLink = 0;
 			
-			if ((zmode || gPreviewMode) || (!zmode && (keystatus[KEY_A]|keystatus[KEY_Z])))
+			if ((zmode || gPreviewMode) || (!zmode && (MOVEUP|MOVEDN) && !ctrl && !shift))
 			{
 				if ((nLink = CheckLinkCamera(&posx, &posy, &legs, &nSect, 0)) == 0)
 				{
 					legs = posz - val;
-					if ((zmode == 0 && keystatus[KEY_A]) || zmode != 0)
+					if ((zmode == 0 && MOVEUP) || zmode != 0)
 						nLink = CheckLinkCamera(&posx, &posy, &legs, &nSect, 0);
 				}
 			}
@@ -4579,7 +3304,8 @@ void processMove() {
 			{
 				scrSetMessage("Moving through stack!");
 				
-				switch (nLink) {
+				switch (nLink)
+				{
 					case kMarkerLowLink:
 					case kMarkerLowWater:
 					case kMarkerLowStack:
@@ -4622,7 +3348,7 @@ void processMove() {
 		case KEY_CAPSLOCK:
 			if (alt)
 			{
-				gNoclip = (gNoclip) ? 0 : 1;				
+				gNoclip = !gNoclip;
 				scrSetMessage("Noclip %s", onOff(gNoclip));
 				if (Beep(gNoclip))
 					zmode = (gMouseLook.mode) ? 3 : 2;
@@ -5008,6 +3734,12 @@ int boardLoad(char *filename)
 	gMapedHud.SetMsgImp(128, gMapInfoStr);
 	clampCamera();
 	
+    gMapSnapshot.Make(0);
+    
+    oldnumsectors = numsectors;
+    oldnumsprites = numsprites;
+    oldnumwalls = numwalls;
+    
 	return 0;
 }
 
@@ -5054,6 +3786,8 @@ int boardSaveAuto()
 void boardReset(int hgltreset)
 {
 	gTimers.autosave = gFrameClock + gAutosave.interval;
+	
+	oldnumsprites = oldnumsectors = oldnumwalls = 0;
 	numsprites  = numsectors = numwalls		= 0;
 	numxsectors = numxwalls  = numxsprites	= 0;
 	gModernMap  = (BOOL)gCompat.modernMap;
@@ -5077,6 +3811,7 @@ void boardReset(int hgltreset)
 	sectorToolDisableAll(1);
 	memset(gMapInfoStr, 0, sizeof(gMapInfoStr));
 	gCommentMgr.DeleteAll();
+	gMapSnapshot.Remove();
 	CXTracker::Clear();
 	eraseExtra();
 	dbInit();
@@ -5092,6 +3827,539 @@ void boardStartNew()
 	
 	startsectnum = cursectnum = 0;
 	gMapLoaded = 1;
+}
+
+struct MAPSNAPEXTRA
+{
+	CAMERA cam;
+	uint16_t msx, msy;
+	uint8_t  zmode;
+};
+
+static MAPSNAPEXTRA oldsnapextra;
+int boardSnapshotMake(BYTE** pData, int* crcSiz)
+{
+	sectortype* pSect; XSECTOR* pXSect; walltype* pWall; XWALL* pXWall;
+	MAPSNAPEXTRA extra;
+	
+	int totalsiz = 0, miscsiz = 0, curofs, miscofs, t, i, j;
+	short numcomments = gCommentMgr.commentsCount;
+	uint8_t pana[4], panb[4];
+	uint8_t restore;
+
+	// Count size of everything
+	
+	totalsiz += sizeof(boardWidth) * 2;
+	totalsiz += sizeof(startposx)  * 3;
+	totalsiz += sizeof(startsectnum);
+	totalsiz += sizeof(startang);
+	
+	totalsiz += sizeof(pskybits);
+	totalsiz += sizeof(parallaxtype);
+	totalsiz += sizeof(Sky::pieces);
+	totalsiz += sizeof(visibility);
+
+	totalsiz += sizeof(numcomments);
+	totalsiz += sizeof(numsectors);
+	totalsiz += sizeof(numwalls);
+	totalsiz += sizeof(numsprites);
+	totalsiz += sizeof(miscofs);
+	
+	totalsiz += sizeof(pskyoff[0]) * Sky::pieces;
+	totalsiz += sizeof(MAP_COMMENT) * numcomments;
+	totalsiz += sizeof(walltype)    * numwalls;
+	totalsiz += sizeof(sectortype)  * numsectors;
+	totalsiz += sizeof(spritetype)  * numsprites;
+	
+
+	i = numsectors;
+	while(--i >= 0)
+	{
+		for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+			if (sprite[j].extra > 0)
+				totalsiz += sizeof(XSPRITE);
+		
+		pSect = &sector[i];
+		if (pSect->extra > 0)
+		{
+			totalsiz += sizeof(XSECTOR);
+			pXSect = &xsector[pSect->extra];
+			if (!pXSect->panAlways && !pXSect->busy)	continue;
+			if (pXSect->panFloor)						miscsiz += sizeof(pana);
+			if (pXSect->panCeiling)						miscsiz += sizeof(panb);
+		}
+	}
+	
+	i = numwalls;
+	while(--i >= 0)
+	{
+		pWall = &wall[i];
+		if (pWall->extra > 0)
+		{
+			totalsiz += sizeof(XWALL);
+			pXWall = &xwall[pWall->extra];
+			if (!pXWall->panAlways && !pXWall->busy)	continue;
+			if (pXWall->panXVel)						miscsiz += (sizeof(pana)>>1);
+			if (pXWall->panYVel)						miscsiz += (sizeof(pana)>>1);
+		}
+	}
+    
+    if (gMisc.undoCamRestore)
+        miscsiz += sizeof(extra);
+
+	*crcSiz		= totalsiz;		// This is edge for crc
+	miscofs		= totalsiz;		// This is start for writing non-crc stuff
+	totalsiz 	+= miscsiz;
+	
+	if ((*pData = (BYTE*)malloc(totalsiz)) == NULL)
+		return -1;
+	
+	IOBuffer Io(totalsiz, *pData);
+	
+	// Write header
+	Io.write(&boardWidth,	sizeof(boardWidth));
+	Io.write(&boardHeight,	sizeof(boardHeight));
+	
+	Io.write(&startposx,	sizeof(startposx));
+	Io.write(&startposy,	sizeof(startposy));
+	Io.write(&startposz,	sizeof(startposz));
+	Io.write(&startang,		sizeof(startang));
+	Io.write(&startsectnum,	sizeof(startsectnum));
+	
+	Io.write(&pskybits,		sizeof(pskybits));
+	Io.write(&parallaxtype, sizeof(parallaxtype));
+	Io.write(&Sky::pieces,	sizeof(Sky::pieces));
+	Io.write(&visibility,	sizeof(visibility));
+	Io.write(&numcomments,	sizeof(numcomments));
+	Io.write(&numsectors,	sizeof(numsectors));
+	Io.write(&numwalls,		sizeof(numwalls));
+	Io.write(&numsprites,	sizeof(numsprites));
+	Io.write(&miscofs,		sizeof(miscofs));
+	
+	Io.write(&pskyoff,		sizeof(pskyoff[0]) * Sky::pieces);
+	
+	// Write comments before objects
+	for (i = 0; i < numcomments; i++)
+		Io.write(&gCommentMgr.comments[i], sizeof(MAP_COMMENT));
+	
+	UndoSectorLighting();
+	
+	for (i = 0; i < numsectors; i++)
+	{
+		pSect = &sector[i];
+		pXSect = NULL;
+		restore = 0;
+
+		if (pSect->extra > 0)
+		{
+			pXSect = &xsector[pSect->extra];
+			if (pXSect->panAlways || pXSect->busy)
+			{
+				// This is so complicated, but has
+				// to be done for proper
+				// crc calculation!
+				
+				curofs = Io.tell();			// Save current offset
+				Io.seek(miscofs, SEEK_SET);	// Go to misc
+				
+				if (pXSect->panFloor)
+				{
+					// Save object panning
+					pana[0] = pSect->floorxpanning;
+					pana[1] = pSect->floorypanning;
+					pana[2] = pXSect->floorXPanFrac;
+					pana[3] = pXSect->floorYPanFrac;
+					
+					// Now clear panning for object
+					pXSect->floorXPanFrac = pXSect->floorYPanFrac = 0;
+					pSect->floorxpanning  = pSect->floorypanning  = 0;
+					
+					// Write saved panning into misc
+					Io.write(&pana, sizeof(pana));
+					restore |= 0x01;
+				}
+				
+				if (pXSect->panCeiling)
+				{
+					// Save object panning
+					panb[0] = pSect->ceilingxpanning;
+					panb[1] = pSect->ceilingypanning;
+					panb[2] = pXSect->ceilXPanFrac;
+					panb[3] = pXSect->ceilYPanFrac;
+					
+					// Now clear panning for object
+					pXSect->ceilXPanFrac	= pXSect->ceilYPanFrac = 0;
+					pSect->ceilingxpanning  = pSect->ceilingypanning  = 0;
+					
+					// Write saved panning into misc
+					Io.write(&panb, sizeof(panb));
+					restore |= 0x02;
+				}
+				
+				miscofs = Io.tell();		// Update misc offset
+				Io.seek(curofs, SEEK_SET);	// Back to current
+			}
+		}
+		
+		// Write into object offset
+		Io.write(pSect, sizeof(sectortype));
+		if (pXSect)
+		{
+			// Write into xobject offset
+			Io.write(pXSect, sizeof(XSECTOR));
+			
+			if (restore & 0x01)
+			{
+				pSect->floorxpanning	= pana[0];
+				pSect->floorypanning	= pana[1];
+				pXSect->floorXPanFrac	= pana[2];
+				pXSect->floorYPanFrac	= pana[3];
+			}
+			
+			if (restore & 0x02)
+			{
+				pSect->ceilingxpanning	= panb[0];
+				pSect->ceilingypanning	= panb[1];
+				pXSect->ceilXPanFrac	= panb[2];
+				pXSect->ceilYPanFrac	= panb[3];
+			}
+		}
+	}
+	
+	for (i = 0; i < numwalls; i++)
+	{
+		pWall = &wall[i];
+		pXWall = NULL;
+		restore = 0;
+		
+		if (pWall->extra > 0)
+		{
+			pXWall = &xwall[pWall->extra];
+			if (pXWall->panAlways || pXWall->busy)
+			{
+				// This is so complicated, but has
+				// to be done for proper
+				// crc calculation!
+				
+				curofs = Io.tell();			// Save current offset
+				Io.seek(miscofs, SEEK_SET);	// Go to misc
+				
+				if (pXWall->panXVel)
+				{
+					// Save object panning
+					pana[0] = pWall->xpanning;
+					pana[1] = pXWall->xpanFrac;
+					
+					// Now clear panning for object
+					pWall->xpanning  = 0;
+					pXWall->xpanFrac = 0;
+					
+					// Write saved panning into misc
+					Io.write(&pana, sizeof(pana)>>1);
+					restore |= 0x01;
+				}
+				
+				if (pXWall->panYVel)
+				{
+					// Save object panning
+					panb[0] = pWall->ypanning;
+					panb[1] = pXWall->ypanFrac;
+					
+					// Now clear panning for object
+					pWall->ypanning  = 0;
+					pXWall->ypanFrac = 0;
+					
+					// Write saved panning into misc
+					Io.write(&panb, sizeof(panb)>>1);
+					restore |= 0x02;
+				}
+				
+				miscofs = Io.tell();		// Update misc offset
+				Io.seek(curofs, SEEK_SET);	// Back to current
+			}
+		}
+		
+		// Write into current offset
+		Io.write(pWall, sizeof(walltype));
+		if (pXWall)
+		{
+			// Write into current offset
+			Io.write(pXWall, sizeof(XWALL));
+			
+			if (restore & 0x01)
+			{
+				pWall->xpanning  = pana[0];
+				pXWall->xpanFrac = pana[1];
+			}
+			
+			if (restore & 0x02)
+			{
+				pWall->ypanning  = panb[0];
+				pXWall->ypanFrac = panb[1];
+			}
+		}
+	}
+	
+	for (i = 0; i < kMaxSprites; i++)
+	{
+		if (sprite[i].statnum < kMaxStatus)
+		{
+			Io.write(&sprite[i], sizeof(spritetype));
+			if (sprite[i].extra > 0)
+				Io.write(&xsprite[sprite[i].extra], sizeof(XSPRITE));
+		}	
+	}
+    
+	if (gMisc.undoCamRestore)
+    {
+        // Also write other non-crc
+        // stuff into misc
+        // offset
+        
+        extra.cam.x	= posx;
+        extra.cam.y = posy;
+        extra.cam.z = posz;
+        extra.cam.s = cursectnum;
+        extra.cam.a = ang;
+        extra.cam.h = horiz;
+        extra.msx   = searchx;
+        extra.msy   = searchy;
+        extra.zmode = zmode;
+        
+        Io.seek(miscofs, SEEK_SET);
+        Io.write(&extra, sizeof(extra));
+        memcpy(&oldsnapextra, &extra, sizeof(extra));
+    }
+    
+	return totalsiz;
+}
+
+
+int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
+{
+	sectortype *pSect; XSECTOR *pXSect; walltype *pWall; XWALL *pXWall;
+	spritetype *pSpr, tspr;  MAP_COMMENT cmt; MAPSNAPEXTRA extra;
+	int NumSprites, miscofs, curofs, i, j, k;
+	short numcomments;
+	uint8_t pan[4];
+	
+	IOBuffer Io(nLen, pData);
+	
+	// Read header
+	Io.read(&boardWidth,	sizeof(boardWidth));
+	Io.read(&boardHeight,	sizeof(boardHeight));
+	
+	Io.read(&startposx,		sizeof(startposx));
+	Io.read(&startposy,		sizeof(startposy));
+	Io.read(&startposz,		sizeof(startposz));
+	Io.read(&startang,		sizeof(startang));
+	Io.read(&startsectnum,	sizeof(startsectnum));
+	
+	Io.read(&pskybits,		sizeof(pskybits));
+	Io.read(&parallaxtype,	sizeof(parallaxtype));
+	Io.read(&Sky::pieces,	sizeof(Sky::pieces));
+	Io.read(&visibility,	sizeof(visibility));
+	Io.read(&numcomments,	sizeof(numcomments));
+	Io.read(&numsectors,	sizeof(numsectors));
+	Io.read(&numwalls,		sizeof(numwalls));
+	Io.read(&numsprites,	sizeof(numsprites));
+	Io.read(&miscofs,		sizeof(miscofs));
+	
+	Io.read(&pskyoff, sizeof(pskyoff[0]) * Sky::pieces);
+	
+	gCommentMgr.DeleteAll();
+	numxsprites = numxwalls = numxsectors = 0;
+	NumSprites = numsprites;
+	numsprites = 0;
+	dbInit();
+	
+	for (i = 0; i < numcomments; i++)
+	{
+		Io.read(&cmt, sizeof(cmt));
+		cmt.initRebind = 0;
+		
+		gCommentMgr.Add(&cmt);
+	}
+	
+	for (i = 0; i < numsectors; i++)
+	{
+		pSect = &sector[i];
+		Io.read(pSect, sizeof(sectortype));
+		if (pSect->extra <= 0)
+			continue;
+		
+		k = pSect->extra;
+		j = dbInsertXSector(i); pXSect = &xsector[j];
+		Io.read(pXSect, sizeof(XSECTOR));
+		
+		if (numcomments && k != j)
+			gCommentMgr.RebindMatching(OBJ_SECTOR, k, OBJ_SECTOR, j, 1);
+		
+		if (pXSect->panAlways || pXSect->busy)
+		{
+			// Read the actual object panning
+			
+			curofs = Io.tell();				// Save current offset
+			Io.seek(miscofs, SEEK_SET);		// Go to misc
+			
+			if (pXSect->panFloor)
+			{
+				Io.read(&pan, sizeof(pan));
+				
+				pSect->floorxpanning  = pan[0];
+				pSect->floorypanning  = pan[1];
+				pXSect->floorXPanFrac = pan[2];
+				pXSect->floorYPanFrac = pan[3];
+			}
+			
+			if (pXSect->panCeiling)
+			{
+				Io.read(&pan, sizeof(pan));
+				
+				pSect->ceilingxpanning = pan[0];
+				pSect->ceilingypanning = pan[1];
+				pXSect->ceilXPanFrac   = pan[2];
+				pXSect->ceilYPanFrac   = pan[3];
+			}
+			
+			miscofs = Io.tell();		// Update misc offset
+			Io.seek(curofs, SEEK_SET);	// Go to object offset
+		}
+	}
+
+	for (i = 0; i < numwalls; i++)
+	{
+		pWall = &wall[i];
+		Io.read(pWall, sizeof(walltype));
+		
+		if (pWall->extra > 0)
+		{
+			k = pWall->extra;
+			j = dbInsertXWall(i); pXWall = &xwall[j];
+			Io.read(pXWall, sizeof(XWALL));
+			
+			if (numcomments && k != j)
+				gCommentMgr.RebindMatching(OBJ_WALL, k, OBJ_WALL, j, 1);
+			
+			if (pXWall->panAlways || pXWall->busy)
+			{
+				// Read the actual object panning
+				
+				curofs = Io.tell();				// Save current offset
+				Io.seek(miscofs, SEEK_SET);		// Go to misc
+				
+				if (pXWall->panXVel)
+				{
+					Io.read(&pan, sizeof(pan)>>1);
+					
+					pWall->xpanning  = pan[0];
+					pXWall->xpanFrac = pan[1];
+				}
+				
+				if (pXWall->panYVel)
+				{
+					Io.read(&pan, sizeof(pan)>>1);
+					
+					pWall->ypanning  = pan[0];
+					pXWall->ypanFrac = pan[1];
+				}
+				
+				miscofs = Io.tell();		// Update misc offset
+				Io.seek(curofs, SEEK_SET);	// Go to object offset
+			}
+		}
+	}
+
+	for (i = 0; i < NumSprites; i++)
+	{
+		Io.read(&tspr, sizeof(spritetype));
+
+		if ((j = InsertSprite(tspr.sectnum, tspr.statnum)) >= 0)
+		{
+			pSpr = &sprite[j];
+			memcpy(pSpr, &tspr, sizeof(spritetype));
+			pSpr->index = j;
+			
+			if (numcomments && tspr.index != j)
+				gCommentMgr.RebindMatching(OBJ_SPRITE, tspr.index, OBJ_SPRITE, j, 1);
+			
+			if (tspr.statnum == kStatMarker)
+			{
+				if ((k = tspr.owner) >= 0 && sector[k].extra > 0)
+				{
+					pXSect = &xsector[sector[k].extra];
+					if (pXSect->marker0 == tspr.index)
+						pXSect->marker0 = j;
+					
+					if (pXSect->marker1 == tspr.index)
+						pXSect->marker1 = j;
+				}	
+			}
+		}
+		
+		if (tspr.extra > 0)
+		{
+			if (j >= 0)
+			{
+				k = dbInsertXSprite(j);
+				Io.read(&xsprite[k], sizeof(XSPRITE));
+				xsprite[k].reference = j;
+			}
+			else
+			{
+				Io.skip(sizeof(XSPRITE));
+			}
+		}
+	}
+    
+	if (gMisc.undoCamRestore)
+    {
+        // Also read other non-crc
+        // stuff from misc
+        // offset
+        
+        Io.seek(miscofs, SEEK_SET);
+        Io.read(&extra, sizeof(extra));
+
+        if (isRedo)
+        {
+            memcpy(&oldsnapextra, &extra, sizeof(extra));
+            
+            posx		= oldsnapextra.cam.x;
+            posy		= oldsnapextra.cam.y;
+            posz		= oldsnapextra.cam.z;
+            ang 		= oldsnapextra.cam.a;
+            cursectnum	= oldsnapextra.cam.s;
+            horiz		= oldsnapextra.cam.h;
+            searchx		= oldsnapextra.msx;
+            searchy		= oldsnapextra.msy;
+            zmode		= oldsnapextra.zmode;
+        }
+        else
+        {
+            posx		= oldsnapextra.cam.x;
+            posy		= oldsnapextra.cam.y;
+            posz		= oldsnapextra.cam.z;
+            ang 		= oldsnapextra.cam.a;
+            cursectnum	= oldsnapextra.cam.s;
+            horiz		= oldsnapextra.cam.h;
+            searchx		= oldsnapextra.msx;
+            searchy		= oldsnapextra.msy;
+            zmode		= oldsnapextra.zmode;
+            
+            memcpy(&oldsnapextra, &extra, sizeof(extra));
+        }
+    }
+
+	oldnumsectors	= numsectors;
+	oldnumwalls		= numwalls;
+	oldnumsprites	= numsprites;
+	
+	hgltReset(kHgltSector | kHgltGradient | kHgltPoint);
+	sectorToolDisableAll(1);
+	CleanUp();
+	
+    return 1;
 }
 
 static NAMED_TYPE gObjectInfoGroups[] =
@@ -5523,4 +4791,24 @@ void xmpCreateToolTestMap(char withSprite)
 	
 	gMapLoaded = 1;
 	
+}
+
+char IsHoverSector()
+{
+	return (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING || searchstat == OBJ_SECTOR);
+}
+
+char IsHoverWall()
+{
+	return (searchstat == OBJ_WALL || searchstat == OBJ_MASKED);
+}
+
+char* GetHoverName()
+{
+	const int nMax = LENGTH(gSearchStatNames);
+	
+	if (rngok(searchstat, 0, nMax-1))
+		return gSearchStatNames[searchstat];
+	
+	return gSearchStatNames[nMax-1];
 }

@@ -526,6 +526,85 @@ void offsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z)
 
 }
 
+// Ken's intersection detection (lintersect)
+char kintersection(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, int* ix, int* iy)
+{
+	int64_t x21, y21, x34, y34, x31, y31;
+	int64_t bot, topt, topu;
+	int64_t t;
+
+	x21 = x2-x1; x34 = x3-x4;
+	y21 = y2-y1; y34 = y3-y4;
+	bot = x21*y34 - y21*x34;
+	
+	if (bot >= 0)
+	{
+		if (bot == 0)
+			return 0;
+		
+		x31 = x3-x1; y31 = y3-y1;
+		topt = x31*y34 - y31*x34;	if (topt < 0 || topt >= bot) return 0;
+		topu = x21*y31 - y21*x31;	if (topu < 0 || topu >= bot) return 0;
+	}
+	else
+	{
+		x31 = x3-x1; y31 = y3-y1;
+		topt = x31*y34 - y31*x34;	if (topt > 0 || topt <= bot) return 0;
+		topu = x21*y31 - y21*x31;	if (topu > 0 || topu <= bot) return 0;
+	}
+	
+	if (ix || iy)
+	{
+		t = divscale24(topt, bot);
+		if (ix) *ix = (int)(x1 + mulscale24(x21, t));
+		if (iy) *iy = (int)(y1 + mulscale24(y21, t));
+	}
+	
+	return 1;
+}
+
+char kintersection(LINE2D* a, LINE2D* b, int* ix, int* iy)
+{
+	return kintersection(a->x1, a->y1, a->x2, a->y2, b->x1, b->y1, b->x2, b->y2, ix, iy);
+}
+
+char dintersection(double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4, int* iX, int* iY)
+{
+	double v1 = ((x4 - x3) * (y1 - y3)) - ((x1 - x3) * (y4 - y3));
+	double v2 = ((x4 - x3) * (y2 - y3)) - ((x2 - x3) * (y4 - y3));
+	double v3 = ((x2 - x1) * (y3 - y1)) - ((x3 - x1) * (y2 - y1));
+	double v4 = ((x2 - x1) * (y4 - y1)) - ((x4 - x1) * (y2 - y1));
+
+	if(v1 * v2 < 0 && v3 * v4 < 0)
+	{
+		if (iX || iY)
+		{
+			double a1, b1, c1;
+			double a2, b2, c2;
+			double d;
+			
+			// line1 equation
+			c1 = (-x1 * (y2 - y1)) + (y1 * (x2 - x1));
+			a1 = y2 - y1;
+			b1 = x1 - x2;
+			
+			// line2 equation
+			c2 = (-x3 * (y4 - y3)) + (y3 * (x4 - x3));
+			a2 = y4 - y3;
+			b2 = x3 - x4;
+			
+			d = (a1 * b2) - (b1 * a2);
+			if (iX) *iX = (int)(((-c1 * b2) + (b1 * c2)) / d);
+			if (iY) *iY = (int)(((-a1 * c2) + (c1 * a2)) / d);
+		}
+		
+		return 1;
+	}
+	
+	return 0;
+}
+
+
 unsigned char mostUsedByte(unsigned char* bytes, int l, short nExcept)
 {
 	if (bytes == NULL || *bytes == NULL)
@@ -580,11 +659,6 @@ void doGridCorrection(int* x, int* y, int nGrid)
 	
 	if (x) *x = (*x+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
 	if (y) *y = (*y+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
-}
-
-void doGridCorrection(int* x, int nGrid)
-{
-	doGridCorrection(x, NULL, nGrid);
 }
 
 void doWallCorrection(int nWall, int* x, int* y, int shift)
@@ -654,11 +728,4 @@ void _ThrowError(const char *pzFormat, ...)
 }
 
 
-void __dassert(const char * pzExpr, const char * pzFile, int nLine)
-{
-    buildprintf("Assertion failed: %s in file %s at line %i\n", pzExpr, pzFile, nLine);
-    wm_msgbox("Assertion failed", "Assertion failed: %s in file %s at line %i\n", pzExpr, pzFile, nLine);
 
-    fflush(NULL);
-    exit(0);
-}

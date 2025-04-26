@@ -1010,8 +1010,9 @@ void QAVEDIT::LayerHighlight(int nFrame, int nLayer)
 	// NOTE:
 	// i don't know how to scale frame size to the screen resolution
 	// so let's use rotatesprite instead
-
-	int x0 = 0, 					x1 = tilesizx[pLayer->picnum] + 2;
+    static int owh = 0, ohg = 0;
+	
+    int x0 = 0, 					x1 = tilesizx[pLayer->picnum] + 2;
 	int y0 = 0, 					y1 = tilesizy[pLayer->picnum] + 2;
 	int wh = x1-x0,					hg = y1-y0;
 	int nTile = gSysTiles.drawBuf;
@@ -1024,15 +1025,16 @@ void QAVEDIT::LayerHighlight(int nFrame, int nLayer)
 		yoffs = mulscale16(panm[pLayer->picnum].ycenter, pLayer->z);
 	}
 	
-	if (wh != tilesizy[nTile] || hg != tilesizx[nTile])
+	if (wh != owh || hg != ohg)
 	{
-		tileFreeTile(nTile);
-		BYTE* pTile = tileAllocTile(nTile, wh, hg);
-		memset((void*)waloff[nTile], 255, wh*hg);
+        memset((void*)waloff[nTile], 255, tilesizx[nTile]*tilesizy[nTile]);
 		
 		setviewtotile(nTile, hg, wh);
 		DrawRect(0, 0, wh, hg, gStdColor[kColorLightGray]);
 		setviewback();
+        
+        owh = tilesizx[pLayer->picnum];
+        ohg = tilesizy[pLayer->picnum];
 	}
 	
 	nShade = (totalclock & 32) ? 0 : 16;

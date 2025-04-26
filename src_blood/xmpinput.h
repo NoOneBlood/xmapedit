@@ -148,6 +148,7 @@ extern unsigned char const keyAsciiSH[128];
 
 void keyClear(void);
 unsigned char keyGet(void);
+unsigned char keyGetHit(void);
 void keyGetHelper(unsigned char* key, unsigned char* ctrl, unsigned char* shift, unsigned char* alt);
 
 class MOUSE

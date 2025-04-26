@@ -259,7 +259,7 @@ DIALOG_ITEM dlgXSectorFX[] =
 	{ NO,	1,		60,	5,	25,	CHECKBOX,	"bob floor" },
 	{ NO,	1,		60,	6,	26,	CHECKBOX,	"bob ceiling" },
 	{ NO,	1,		60,	7,	27,	CHECKBOX,	"rotate" },
-	{ NO,	1,		60,	9,	28,	LIST,		"DamageType: %1d %-7.7s", 0, 6, gDamageNames},
+	{ NO,	1,		60,	9,	28,	LIST,		"DamageType: %1d %-10.10s", 0, 5, gDamageNames},
 
 	{ NO,	1,		0,	0,	0,	CONTROL_END },
 };
@@ -1662,20 +1662,17 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 
 int helperPickTypeHelper(int nGroup, char* title)
 {
-	int retn = -1;
+	int retn = -1, i;
 	scrSave();
 	
 	if (adjFillTilesArray(nGroup))
 	{
-		int i, j;
-		if ((j = tilePick(-1, -1, OBJ_CUSTOM, title)) >= 0)
+		if ((i = tilePick(-1, -1, OBJ_CUSTOM, title)) >= 0)
 		{
-			for (i = 0; i < autoDataLength; i++)
-			{
-				if (autoData[i].picnum != j) continue;
-				retn = autoData[i].type;
-				break;
-			}
+			if ((i = adjIdxByTileInfo(i, adjCountSkips(i))) >= 0)
+            {
+                retn = autoData[i].type;
+            }
 		}
 	}
 	
@@ -1889,6 +1886,7 @@ void dlgDialogToXWall(DIALOG_HANDLER* pHandle, int nWall)
 	pXWall->txID				= pHandle->GetValue(kWallTX);
 
 	pXWall->state				= pHandle->GetValue(kWallState);
+	pXWall->busy				= pXWall->state << 16;
 	pXWall->command				= pHandle->GetValue(kWallCmd);
 
 	pXWall->triggerOn			= pHandle->GetValue(kWallGoingOn);
@@ -2184,6 +2182,7 @@ void dlgDialogToXSprite(DIALOG_HANDLER* pHandle, int nSprite)
 	pXSprite->rxID				= pHandle->GetValue(2);
 	pXSprite->txID				= pHandle->GetValue(3);
 	pXSprite->state				= pHandle->GetValue(4);
+	pXSprite->busy				= pXSprite->state << 16;
 	pXSprite->command			= pHandle->GetValue(5);
 
 	pXSprite->triggerOn			= pHandle->GetValue(6);
@@ -2369,6 +2368,8 @@ void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
 	pXSector->rxID 				= pHandle->GetValue(kSectRX);
 	pXSector->txID 				= pHandle->GetValue(kSectTX);
 	pXSector->state 			= pHandle->GetValue(kSectState);
+	pXSector->busy				= pXSector->state << 16;
+	
 	pXSector->command 			= pHandle->GetValue(kSectCmd);
 
 	pXSector->decoupled			= pHandle->GetValue(kSectDecoupled);
@@ -2633,6 +2634,7 @@ int dlgCopyObjectSettings(DIALOG_ITEM* pDialog, int nType, int nSrc, int nDst, c
 				break;
 		}
 		
+        et->pHelpFunc = NULL;
 		et->flags = NO;
 		et++;
 	}

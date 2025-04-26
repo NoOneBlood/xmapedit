@@ -62,7 +62,9 @@ class LASER
 		unsigned int noplayers			: 1;
 		unsigned int nothings			: 1;
 		unsigned int nomasks			: 1;
+		unsigned int nodead				: 1;
 		unsigned int hasignoreflags		: 1;
+		unsigned int usehitscan			: 1;
 		unsigned int troncehit			: 1;
 		unsigned int troncelast			: 1;
 		unsigned int strictcmd			: 1;

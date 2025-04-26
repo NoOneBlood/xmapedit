@@ -575,9 +575,9 @@ void DOOR_ROTATE::Draw(SCREEN2D* pScr)
 		
 		if (pScr->prefs.useTransluc)
 		{
-			pScr->LayerOpen();
+			gfxTranslucency(1);
 			pScr->FillPolygon(fill, LENGTH(fill), pScr->ColorGet(c), 1);
-			pScr->LayerShowAndClose(kRSTransluc);
+            gfxTranslucency(0);
 		}
 		else
 		{

@@ -212,7 +212,7 @@ void seqeditProcess( void ) {
 			{
 				processDrawRooms();
 				processMove();
-				processMouseLook3D(TRUE);
+				processMouseLook3D();
 				gMouse.Draw();
 				
 				nTileView = toolGetViewTile(nTile, nOctant, NULL, NULL);

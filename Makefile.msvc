@@ -214,6 +214,7 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\gui.$o \
 	$(XMAPEDSRC)\edit2d.$o \
 	$(XMAPEDSRC)\edit3d.$o \
+	$(XMAPEDSRC)\maproc.$o \
 	$(XMAPEDSRC)\fire.$o \
 	$(XMAPEDSRC)\callback.$o \
 	$(XMAPEDSRC)\eventq.$o \
@@ -255,6 +256,7 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
 	$(XMAPEDSRC)\xmploop.$o \
 	$(XMAPEDSRC)\xmpshape.$o \
 	$(XMAPEDSRC)\xmparcwiz.$o \
+	$(XMAPEDSRC)\xmplsplt.$o \
 	$(XMAPEDSRC)\xmpinput.$o \
 	$(XMAPEDSRC)\buildres.$(res) \
 	$(BUILDSRC)\$(EDITORLIB) \

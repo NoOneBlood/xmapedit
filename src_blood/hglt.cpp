@@ -1665,7 +1665,7 @@ void sectChgXY(int nSector, int bx, int by, int flags, int)
 	sectortype* pSect = &sector[nSector];
 	getSectorWalls(nSector, &s, &e);
 	
-	if ((flags & 0x01))
+	if (flags & 0x01)
 	{
 		if (!(pSect->floorstat & kSectRelAlign) && !(pSect->floorstat & kSectParallax))
 			fixupPan(nSector, OBJ_FLOOR, bx, by);
@@ -1681,11 +1681,14 @@ void sectChgXY(int nSector, int bx, int by, int flags, int)
 		s++;
 	}
 	
-	for (s = headspritesect[nSector]; s >= 0; s = nextspritesect[s])
-	{
-		sprite[s].x += bx;
-		sprite[s].y += by;
-	}
+    if (flags & 0x02)
+    {
+        for (s = headspritesect[nSector]; s >= 0; s = nextspritesect[s])
+        {
+            sprite[s].x += bx;
+            sprite[s].y += by;
+        }
+    }
 }
 
 void sectChgZ(int nSect, int bz, int a2, int flags, int a4)

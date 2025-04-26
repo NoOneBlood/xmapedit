@@ -28,6 +28,10 @@
 #define kMaxQFonts 13
 #define kMaxVFonts 16
 
+typedef void (*PUGFXPIXEL)(int x, int y);
+extern PUGFXPIXEL u_gfxPixel;
+extern Rect clipRect;
+
 // font types
 enum
 {
@@ -144,6 +148,7 @@ void gfxGetTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont, 
 void viewDrawText(int x, int y, QFONT* pFont, char *string, int shade = 0, int nPLU = 0, int nAlign = 0);
 void gfxDrawCaption(int x, int y, int fr, int bg, int bgpad, char* txt, QFONT* pFont);
 void gfxPrinTextShadow(int x, int y, int col, char* text, QFONT *pFont = NULL, int shofs = 1);
+void gfxTranslucency(char nMode);
 void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup );
 void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags = 0x0);
 

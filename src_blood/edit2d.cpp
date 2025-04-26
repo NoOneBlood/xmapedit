@@ -37,6 +37,7 @@ CIRCLEWALL* pGCircleW = NULL;
 LOOPSHAPE* pGLShape = NULL;
 LOOPBUILD* pGLBuild = NULL;
 SECTAUTOARC* pGArc = NULL;
+LOOPSPLIT* pGLoopSplit = NULL;
 
 short sectorhighlight;		// which sector mouse is inside in 2d mode
 short pointdrag = -1;
@@ -95,8 +96,8 @@ void CIRCLEWALL::Setup(int x, int y)
 			x = cenx + mulscale14(sintable[(j + kAng90) & kAngMask], radius);
 			y = ceny + mulscale14(sintable[j], radius);
 			
-			if (shift && gridlock && grid)
-				doGridCorrection(&x, &y, grid);
+			if (shift)
+				helperDoGridCorrection(&x, &y);
 			
 			x = ClipRange(x, -boardWidth, boardWidth);
 			y = ClipRange(y, -boardHeight, boardHeight);
@@ -127,9 +128,9 @@ void CIRCLEWALL::Draw(SCREEN2D* pScr)
 	fc = pScr->ColorGet(kColorGrey26);
 	if (pScr->prefs.useTransluc)
 	{
-		pScr->LayerOpen();
+		gfxTranslucency(1);
 		pScr->FillPolygon(lines, i, fc, 1);
-		pScr->LayerShowAndClose(kRSTransluc);
+        gfxTranslucency(0);
 	}
 	else
 	{
@@ -157,15 +158,27 @@ void CIRCLEWALL::Draw(SCREEN2D* pScr)
 
 void CIRCLEWALL::Insert()
 {
-	int i, j;
-	i = count;
+	int nSectA = sectorofwall(line);
+    int nSectB = -1;
+    int i, j;
+
+    if ((j = wall[line].nextwall) >= 0)
+        nSectB = sectorofwall(j);
+
+    i = count;
 	while(--i > 0)
 	{
 		j = rngok(wall[line].nextwall, 0, line);
 		insertPoint(line,coords[i].x, coords[i].y);
 		line += j;
 	}
-	
+    
+    if (nSectA >= 0 && nSectB >= 0)
+    {
+        sectLoopTransfer(nSectA, nSectB);
+        sectLoopTransfer(nSectB, nSectA);
+    }
+    
 	CleanUp();
 }
 
@@ -194,26 +207,6 @@ int countSpritesAt(int x, int y)
 	}
 	
 	return j;
-}
-
-int nextSpriteAt(int x, int y, int *prv)
-{
-	int i;
-	for (i = ClipLow(*prv, 0); i < kMaxSprites; i++)
-	{
-		if (sprite[i].statnum >= kMaxStatus) continue;
-		else if (sprite[i].x == x && sprite[i].y == y)
-		{
-			if (*prv == -1 || *prv < i)
-			{
-				*prv = i;
-				return i;
-			}
-		}
-	}
-	
-	*prv = -1;
-	return -1;
 }
 
 int findUnusedChannel(DIALOG_ITEM* dialog) {
@@ -422,34 +415,52 @@ int getlinehighlight(int nTresh, int x, int y, int nZoom)
 
 int getpointhighlight(int nTresh, int x, int y, int nZoom)
 {
-	int j, d, i = 0, n = -1;
 	int closest = divscale14(nTresh, nZoom);
-	while(i < numsectors)
-	{
-		j = headspritesect[i++];
-		while(j >= 0)
-		{
+    int nSect = -1, i = 0, n = -1;
+    int d, s, e;
+    
+    for (i = 0; i < numsectors; i++)
+    {
+        for (s = headspritesect[i]; s >= 0; s = nextspritesect[s])
+        {
 			// last closest sprite
-			if ((d = approxDist(x - sprite[j].x, y - sprite[j].y)) <= closest)
+			if ((d = approxDist(x - sprite[s].x, y - sprite[s].y)) <= closest)
 			{
-				closest = d;
-				n = j | 0x4000;
+				n = s | 0x4000;
+                closest = d;
+                nSect = i;
 			}
-			
-			j = nextspritesect[j];
-		}
-	}
-	
-	for (i = 0; i < numwalls; i++)
-	{
-		// first closest wall
-		if ((d = approxDist(x - wall[i].x, y - wall[i].y)) < closest)
-		{
-			closest = d;
-			n = i;
-		}
-	}
-	
+        }
+        
+        getSectorWalls(i, &s, &e);
+        while(s <= e)
+        {
+            if ((d = approxDist(x - wall[s].x, y - wall[s].y)) < closest)
+            {
+                closest = d;
+                nSect = i;
+                n = s;
+            }
+            
+            s++;
+        }
+    }
+    
+    if (n >= 0 && (n & 0xc000) == 0 && sectorhighlight >= 0 && nSect != sectorhighlight)
+    {
+        getSectorWalls(sectorhighlight, &s, &e);
+        while(s <= e)
+        {
+            if ((d = approxDist(x - wall[s].x, y - wall[s].y)) <= closest)
+            {
+                closest = d;
+                n = s;
+            }
+            
+            s++;
+        }
+    }
+    
 	return n;
 }
 
@@ -476,20 +487,35 @@ void clampsprite_TEMP(short nspr) {
 	}
 }
 
-void helperDoGridCorrection(int* x, int* y)
+int getSectOf(int nType, int nID)
 {
-	doGridCorrection(x, y, (!grid || !gridlock) ? 10 : grid);
+    switch(nType)
+    {
+        case OBJ_WALL:
+        case OBJ_MASKED:
+            return sectorofwall(nID);
+        case OBJ_SPRITE:
+            return sprite[nID].sectnum;
+        case OBJ_FLOOR:
+        case OBJ_CEILING:
+        case OBJ_SECTOR:
+            return nID;
+    }
+    
+    return -1;
 }
 
-void ProcessKeys2D( void )
+void ProcessInput2D( void )
 {
 	static int capstat = 0, capx = 0, capy = 0, spridx = -1;
-	int x, y, j = 0, k = 0, z = 0, i = 0, type = 0, sect = -1;
-	int dax = 0, day = 0, daz = 0, swal, ewal;
-	int nStat, nThick; char* msg;
+	int x, y, j = 0, k = 0, i = 0, sect = -1;
+	int nStat, nThick, swal, ewal; char* msg;
+	int r;
+	
+	INPUTPROC* pInput;
 	
 	short *hgltcntptr = NULL;
-	short sect2 = -1, ACTION = -1, idx = -1;
+	short ACTION = -1, idx = -1;
 	char keyhold = 0;
 	
 	gMouse.Read();
@@ -537,12 +563,12 @@ void ProcessKeys2D( void )
 		}
 	}
 
-	if ((type = getHighlightedObject()) == 200 && !gPreviewMode)
+	if (!gPreviewMode && pointhighlight >= 0 && (pointhighlight & 0x4000) != 0)
 	{
 		gScreen2D.data.sprUnderCursor = countSpritesAt(sprite[searchwall].x, sprite[searchwall].y);
 		if (gScreen2D.data.sprUnderCursor > 1)
 		{
-			if (alt && (gMouse.buttons & 48))
+			if (alt && gMouse.wheel)
 			{
 				if (totalclock >= gTimers.mouseWheelTimer1)
 				{
@@ -565,10 +591,18 @@ void ProcessKeys2D( void )
 			}
 		}
 	}
-
-	if (keystatus[KEY_A] || (gMouse.buttons & 16))	zoom = ClipHigh(zoom + gFrameTicks*(zoom/0x18), 0x010000);
-	else if (keystatus[KEY_Z] || (gMouse.buttons & 32)) zoom = ClipLow(zoom  - gFrameTicks*(zoom/0x18), 0x00020);
-
+	
+	if (gMouse.wheel < 0 | keystatus[KEY_A])
+	{
+		if (gMouse.wheel < 0 | !((ctrl && shift) | (ctrl && !shift)))
+			zoom = ClipHigh(zoom + gFrameTicks * (zoom/0x18), 0x010000);
+	}
+	else if (gMouse.wheel > 0 | keystatus[KEY_Z])
+	{
+		if (gMouse.wheel > 0 | !((ctrl && shift) | (ctrl && !shift)))
+			zoom = ClipLow(zoom  - gFrameTicks * (zoom/0x18), 0x00020);
+	}
+	
 	if (grid > 0)
 		doAutoGrid();
 		
@@ -587,12 +621,15 @@ void ProcessKeys2D( void )
 				else
 					gCommentMgr.SetXYTail(cmthglt & 0x3FFF, x, y);
 			}
+			else if (gMouse.release & 4)
+			{
+				asksave = 1;
+			}
 		}
 		
 		if (gMouse.hold & 1)
 		{
-			if (gridlock)
-				doGridCorrection(&x, &y, grid);
+			helperDoGridCorrection(&x, &y);
 			
 			// create shape loop
 			if (pGLShape)
@@ -626,7 +663,7 @@ void ProcessKeys2D( void )
 						doGridCorrection(&x, &y, 6);
 					
 					x-=capx, y-=capy; capx+=x, capy+=y;
-					hgltSectCallFunc(sectChgXY, x, y, !shift);
+					hgltSectCallFunc(sectChgXY, x, y, (shift) ? 0x02 : 0x03);
 					if (capstat == 1)
 					{
 						hgltSectDetach();
@@ -707,17 +744,14 @@ void ProcessKeys2D( void )
 							
 							if (pSpr->statnum < kMaxStatus)
 							{
-								if (shift || (!shift && !allWallsOfSectorInHglt(pSpr->sectnum)))
-								{
-									pSpr->x += x, pSpr->y += y;
-									
-									sect = pSpr->sectnum;
-									if (FindSector(pSpr->x, pSpr->y, pSpr->z, &sect) || FindSector(pSpr->x, pSpr->y, &sect))
-									{
-										if (sect != pSpr->sectnum)
-											ChangeSpriteSect(pSpr->index, sect);
-									}
-								}
+                                pSpr->x += x, pSpr->y += y;
+
+                                sect = pSpr->sectnum;
+                                if (FindSector(pSpr->x, pSpr->y, pSpr->z, &sect) || FindSector(pSpr->x, pSpr->y, &sect))
+                                {
+                                    if (sect != pSpr->sectnum)
+                                        ChangeSpriteSect(pSpr->index, sect);
+                                }
 							}
 						}
 					}
@@ -761,7 +795,19 @@ void ProcessKeys2D( void )
 		}
 		else if (gMouse.press & 4)
 		{
-			switch (searchstat) {
+            if ((pointhighlight & 0xc000) == 0)
+            {
+                searchstat = OBJ_WALL;
+                searchwall = pointhighlight;
+            }
+            else
+            {
+                searchstat = OBJ_SPRITE;
+                searchwall = pointhighlight & 16383;
+            }
+            
+            switch (searchstat)
+            {
 				case OBJ_SPRITE:
 				case OBJ_WALL:
 					if (!(shift & 0x01))
@@ -800,58 +846,60 @@ void ProcessKeys2D( void )
 					idx = searchsector;
 					break;
 			}
+            
+            if (Beep(idx >= 0))
+            {
+                int nSect, ms, me;
+                int cnt = 0;
 
-			if (idx >= 0)
-				ACTION = (hgltCheck(searchstat, idx) >= 0) ? 0 : 1;
-
-			switch (ACTION) {
-				case 1:
-				case 0:
-					if (ctrl && (i = getSector()) >= 0)
-					{
-						if (alt)
-							hgltReset(kHgltPoint);
-						
-						int cnt = 0;
-						switch (searchstat) {
-							case OBJ_WALL:
-								getSectorWalls(i, &swal, &ewal);
-								for (i = swal; i <= ewal; i++)
-									cnt+=hglt2dAdd(searchstat, i);
-								break;
-							case OBJ_SPRITE:
-								for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
-									cnt+=hglt2dAdd(searchstat, j);
-								break;
-						}
-						
-						scrSetMessage("%d %s(s) was added in a highlight.", cnt, gSearchStatNames[searchstat]);
-						Beep(cnt);
-					}				
-					else if (ACTION == 1)
-					{
-						if (searchstat == OBJ_SECTOR)
-						{
-							i = hgltAdd(searchstat, idx);
-						}
-						else
-						{
-							i = hglt2dAdd(searchstat, idx);
-						}
-						
-						scrSetMessage("%d %s(s) was added in a highlight.", i, gSearchStatNames[searchstat]);
-						BeepOk();
-					}
-					else
-					{
-						scrSetMessage("%d %s(s) was removed from a highlight.", hglt2dRemove(searchstat, idx), gSearchStatNames[searchstat]);
-						BeepFail();
-					}
-					break;
-				default:
-					BeepFail();
-					break;
-			}
+                if (ctrl && (nSect = getSectOf(searchstat, idx)) >= 0)
+                {
+                    if (alt)
+                        hgltReset(kHgltPoint);
+                    
+                    switch (searchstat)
+                    {
+                        case OBJ_WALL:
+                            sectLoopMain(nSect, &ms, &me);
+                            if (irngok(idx, ms, me))    getSectorWalls(nSect, &swal, &ewal);
+                            else                        loopGetWalls(idx, &swal, &ewal);
+                            
+                            for (i = swal; i <= ewal && hgltCheck(searchstat, i) >= 0; i++);
+                            
+                            ACTION = (i <= ewal);
+                            for (i = swal; i <= ewal; i++)
+                                cnt += ((ACTION) ? hglt2dAdd(searchstat, i) : hglt2dRemove(searchstat, i));
+                            
+                            break;
+                        case OBJ_SPRITE:
+                            for (i = headspritesect[nSect]; i >= 0
+                                && hgltCheck(searchstat, i) >= 0; i = nextspritesect[i]);
+                            
+                            ACTION = (i >= 0);
+                            for (i = headspritesect[nSect]; i >= 0; i = nextspritesect[i])
+                                cnt += ((ACTION) ? hglt2dAdd(searchstat, i) : hglt2dRemove(searchstat, i));
+                            
+                            break;
+                    }
+                }
+                else
+                {
+                    ACTION = (hgltCheck(searchstat, idx) < 0);
+                    cnt = (ACTION) ? hglt2dAdd(searchstat, idx)
+                                        : hglt2dRemove(searchstat, idx);
+                }
+                
+                if (ACTION == 1)
+                {
+                    scrSetMessage("%d %s(s) was added in a highlight.", cnt, gSearchStatNames[searchstat]);
+                }
+                else
+                {
+                    scrSetMessage("%d %s(s) was removed from a highlight.", cnt, gSearchStatNames[searchstat]);
+                }
+                
+                Beep(cnt);
+            }
 		}
 		else if (gMouse.release & 1)
 		{
@@ -865,8 +913,11 @@ void ProcessKeys2D( void )
 			else
 			{
 				if (highlightsectorcnt > 0)
-					hgltSectAttach();
+					hgltSectAttach(), asksave = 1;
 
+				if (pointdrag >= 0)
+					asksave = 1;
+				
 				if ((pointdrag & 0xc000) == 0)
 				{
 					int x1, y1, x2, y2, x3, y3;
@@ -974,8 +1025,13 @@ void ProcessKeys2D( void )
 		{
 			msg = buffer;
 			msg+=sprintf(buffer, "Sector draw:");
-			helperDoGridCorrection(&x, &y);
 			
+            helperDoGridCorrection(&x, &y);
+            
+            if (shift
+                && pointhighlight >= 0 && (pointhighlight & 0xc000) == 0)
+                    getWallCoords(pointhighlight, &x, &y);
+
 			pGLBuild->Setup(x, y);
 			if ((nStat = pGLBuild->StatusGet()) >= 0)
 			{
@@ -986,17 +1042,44 @@ void ProcessKeys2D( void )
 						gMapedHud.SetMsgImp(16, "%s insert or BACKSPACE to remove a point", buffer);
 						break;
 					case 1:
-					case 2:
 						gMapedHud.SetMsgImp(16, "%s split sector", buffer);
+						break;
+					case 2:
+						gMapedHud.SetMsgImp(16, "%s create a split line", buffer);
 						break;
 					case 3:
 						gMapedHud.SetMsgImp(16, "%s insert walls", buffer);
 						break;
 					case 4:
 					case 5:
+                    case 7:
 						gMapedHud.SetMsgImp(16, "%s create new sector", buffer);
 						break;
+                    case 6:
+						gMapedHud.SetMsgImp(16, "%s auto-complete loop and create new sector", buffer);
+						break;
 				}
+				
+				switch(key)
+				{
+					case KEY_SPACE:
+						switch(nStat)
+						{
+							case 0: 
+								pGLBuild->AddPoint(x, y);
+                                BeepOk();
+                                break;
+							default:
+								pGLBuild->Make();
+								DELETE_AND_NULL(pGLBuild);
+								updatesector(posx, posy, &cursectnum);
+                                BeepOk();
+								break;
+						}
+						key = 0;
+						break;
+				}
+				
 			}
 			else if ((msg = retnCodeCheck(nStat, gLoopBuildErrors)) != NULL)
 			{
@@ -1072,7 +1155,7 @@ void ProcessKeys2D( void )
 					}
 					if (key != KEY_SPACE || !alt)
 					{
-						keystatus[key] = 0, key = 0;
+						key = 0;
 						BeepOk();
 					}
 					break;
@@ -1103,7 +1186,7 @@ void ProcessKeys2D( void )
 							DELETE_AND_NULL(pGCircleW);
 							break;
 					}
-					keystatus[key] = 0, key = 0;
+					key = 0;
 					BeepOk();
 					break;
 			}
@@ -1173,7 +1256,7 @@ void ProcessKeys2D( void )
 									}
 									break;
 							}
-							keystatus[key] = 0, key = 0;
+							key = 0;
 							BeepOk();
 							break;
 					}
@@ -1257,7 +1340,7 @@ void ProcessKeys2D( void )
 									break;
 								}
 							}
-							keystatus[key] = 0, key = 0;
+							key = 0;
 							BeepOk();
 							break;
 					}
@@ -1332,621 +1415,60 @@ void ProcessKeys2D( void )
 					break;
 			}
 		}
-	}
-		
-	switch (key)
-	{
-		case KEY_BACKSPACE:
-			if (pGLBuild)
-			{
-				pGLBuild->RemPoint();
-				if (pGLBuild->NumPoints() <= 0)
-					DELETE_AND_NULL(pGLBuild);
-			}
-			break;
-		case KEY_SPACE:
-		case KEY_C:
-			sectorToolDisableAll(0);
-			if (key == KEY_SPACE)
-			{
-				if (alt)
-				{
-					if (sectorToolDlgLauncher())
-					{
-						if (pGLBuild)
-							DELETE_AND_NULL(pGLBuild);
-					}
-					
-					break;
-				}
-				else
-				{
-					int nStat; char* p;
-					if (!pGLBuild)
-					{
-						pGLBuild = new LOOPBUILD();
-						helperDoGridCorrection(&x, &y);
-						if (!pGLBuild->Setup(x, y))
-						{
-							nStat = pGLBuild->StatusGet();
-							if ((p = retnCodeCheck(nStat, gLoopBuildErrors)) != NULL)
-								gMapedHud.SetMsgImp(128, "%s", p);
-							
-							DELETE_AND_NULL(pGLBuild);
-							BeepFail();
-							break;
-						}
-					}
-					
-					if ((nStat = pGLBuild->StatusGet()) >= 0)
-					{
-						switch(nStat)
-						{
-							case 0: 
-								pGLBuild->AddPoint(x, y);
-								BeepOk();
-								break;
-							default:
-								if (Beep(nStat > 0))
-								{
-									pGLBuild->Make();
-									DELETE_AND_NULL(pGLBuild);
-								}
-								break;
-						}
-					}
-				}
-			}
-		
-			if (key == KEY_C)
-			{
-				if (sectorToolEnable(kSectToolCurveWall, 0))
-				{
-					if (pGLBuild)
-						DELETE_AND_NULL(pGLBuild);
-				}
-			}
-			break;
-		case KEY_X:
-		case KEY_Y:
-			if (ctrl)
-			{
-				int flags = (key == KEY_X);
-				int s, e, cx, cy;
-				
-				i = -1;
-				if (hgltSectInsideBox(mousxplc, mousyplc))
-				{
-					flags |= 0x04; // flip with highlight outer loops
-					i = hgltSectFlip(flags);
-				}
-				else if (sectorhighlight >= 0)
-				{
-					if (isIslandSector(sectorhighlight))
-					{
-						flags |= 0x02; // flip with outer loop of red sector
-						getSectorWalls(sectorhighlight, &s, &e); midPointLoop(s, e, &cx, &cy);
-						sectFlip(sectorhighlight, cx, cy, flags, 0);
-						i = 1;
-					}
-					else
-					{
-						scrSetMessage("You cannot flip sectors with connections");
-					}
-				}
-				
-				if (Beep(i > 0))
-					scrSetMessage("%d sectors were flipped-%s", i, (flags & 0x01) ? "X" : "Y");
-			}
-			break;
-		case KEY_ENTER:
-			if (!type)
-			{
-				BeepFail();
-				break;
-			}
-			else if (somethingintab != searchstat)
-			{
-				if (somethingintab == OBJ_SECTOR)
-				{
-					if ((searchsector = getSector()) < 0)
-					{
-						scrSetMessage("Failed to get destination sector.");
-						BeepFail();
-						break;
-					}
-
-					searchstat = OBJ_SECTOR;
-				}
-				else
-				{
-					if (somethingintab == 255) scrSetMessage("There is nothing to paste.");
-					else scrSetMessage("Can't copy from %s to %s", gSearchStatNames[ClipHigh(somethingintab, 7)], gSearchStatNames[searchstat]);
-					BeepFail();
-					break;
-				}
-			}
-			
-			switch (searchstat)
-			{
-				case OBJ_WALL:
-					if (cpywall[kTabWall].extra > 0)
-					{
-						i = GetXWall(searchwall);
-						xwall[i] = cpyxwall[kTabXWall];
-						xwall[i].reference = searchwall;
-						wall[searchwall].extra = (short)i;
-					}
-					else if (wall[searchwall].extra > 0)
-					{
-						dbDeleteXWall(wall[searchwall].extra);
-						j = 1;
-					}
-					wall[searchwall].type = cpywall[kTabWall].type;
-					i = searchwall;
-					break;
-				case OBJ_SPRITE:
-					if (cpysprite[kTabSpr].extra > 0)
-					{
-						i = GetXSprite(searchwall);
-						xsprite[i] = cpyxsprite[kTabXSpr];
-						xsprite[i].reference = searchwall;
-						sprite[searchwall].extra = (short)i;
-					}
-					else if (sprite[searchwall].extra > 0)
-					{
-						dbDeleteXSprite(sprite[searchwall].extra);
-						j = 1;
-					}
-					sprite[searchwall].type = cpysprite[kTabSpr].type;
-					i = searchwall;
-					break;
-				case OBJ_SECTOR:
-					if (cpysector[kTabSect].extra > 0)
-					{
-						i = GetXSector(searchsector);
-						xsector[i] = cpyxsector[kTabXSect];
-						xsector[i].reference = searchsector;
-						xsector[i].marker0 = xsector[i].marker1 = -1;
-						sector[searchsector].extra = (short)i;
-					}
-					else if (sector[searchsector].extra > 0)
-					{
-						dbDeleteXSector(sector[searchsector].extra);
-						j = 1;
-					}
-					sector[searchsector].type = cpysector[kTabSect].type;
-					searchstat = OBJ_SECTOR;
-					i = searchsector;
-					break;
-			}
-			scrSetMessage("X-properties %s for %s[%d]", (j == 1) ? "cleared" : "pasted", gSearchStatNames[searchstat], i);
-			CleanUp();
-			BeepOk();
-			break;
-		case KEY_INSERT:
-			if (highlightsectorcnt > 0)
-			{
-				int nGrid = (grid <= 0) ? 10 : grid;
-				i = highlightsectorcnt;
-				
-				while(--i >= 0)
-				{
-					sect = highlightsector[i];
-					sectClone(sect, numsectors, numwalls);
-					sectChgXY(numsectors, 2048>>nGrid, 2048>>nGrid, 0x01);
-					
-					getSectorWalls(sect, &swal, &ewal);
-					j = sector[numsectors].wallptr;
-					
-					while(swal <= ewal)
-					{
-						gNextWall[j] = wall[swal].nextwall;
-						wallDetach(j);
-						numwalls++;
-						swal++;
-						j++;
-					}
-					
-					highlightsector[i] = numsectors++;
-				}
-				
-				hgltSectAttach(); // call this to attach the sectors inside highlight
-				scrSetMessage("%d sector(s) duplicated and stamped.", highlightsectorcnt);
-				BeepOk();
-			}
-			else if (highlightcnt > 0 || type == 200)
-			{
-				if ((highlightcnt > 0 && type == 200 && sprInHglt(searchwall)) || type == 200)
-				{
-					scrSetMessage("%d sprite(s) duplicated and stamped.", ClipLow(hgltSprCallFunc(sprClone), 1));
-					if (pointdrag >= 0 && (pointdrag & 0xC000) != 0)
-					{
-						i = pointdrag & 0x3FFF;
-						if (!sprInHglt(i))
-						{
-							x = sprite[i].x;
-							y = sprite[i].y;
-							
-							i = -1;
-							while(nextSpriteAt(x, y, &i) >= 0)
-							{
-								if (sprInHglt(i))
-								{
-									ChangeSpriteSect(sprite[i].index, sprite[i].sectnum);
-									pointhighlight = i | 0x4000;
-									break;
-								}
-							}
-						}
-					}
-					
-					BeepOk();
-					break;
-				}
-				else if (type >= 200) scrSetMessage("Must aim in objects in a highlight.");
-				else if (type > 0) scrSetMessage("Must have no objects in a highlight.");
-				BeepFail();
-			}
-			else if (linehighlight >= 0)
-			{
-				getclosestpointonwall(x, y, linehighlight, &x, &y);
-				if (gridlock)
-					doGridCorrection(&x, &y, grid);
-				
-				for (i = 0; i < numwalls; i++)
-				{
-					if (wall[i].x == x && wall[i].y == y)
-						break;
-				}
-				
-				if (Beep(i >= numwalls))
-				{
-					insertPoint(linehighlight, x, y);
-					scrSetMessage("New point inserted at X:%d Y:%d", x, y);
-				}
-			}
-			break;
-		case KEY_F7:
-			if (sectorhighlight < 0) break;
-			searchstat = OBJ_FLOOR;
-		// no break
-		case KEY_F8:
-			 i = (alt) ? 0 : 1;
-			 switch (searchstat)
-			 {
-				 case OBJ_WALL:
-				 case OBJ_SPRITE:
-					CXTracker::Track(searchstat, searchwall, i);
-					break;
-				 case OBJ_FLOOR:
-					CXTracker::Track(OBJ_SECTOR, sectorhighlight, i);
-					break;
-			 }
-			 break;
-		case KEY_T:
-			if (ctrl)
-			{
-				gScreen2D.prefs.showTags = IncRotate(gScreen2D.prefs.showTags, kCaptionStyleMax);
-				scrSetMessage("Show tags: %s", gCaptionStyleNames[gScreen2D.prefs.showTags]);
-				Beep(gScreen2D.prefs.showTags);
-				break;
-			}
-			// no break
-		case KEY_H:
-			if (type > 0)
-			{
-				if (type != 300) i = searchwall;
-				else i = searchsector, searchstat = OBJ_SECTOR;
-				sprintf(buffer, "%s #%d %s: ", gSearchStatNames[searchstat], i, key == KEY_T ? "lo-tag" : "hi-tag");
-
-				switch (searchstat) {
-					case OBJ_WALL:
-						if (key == KEY_H)
-						{
-							if (ctrl) wall[i].hitag = ClipRange(GetNumberBox(buffer, wall[i].hitag, wall[i].hitag), 0, 32767);
-							else if (wall[i].nextwall >= 0)
-							{
-								wallCstatToggle(i, kWallHitscan, !shift);
-								scrSetMessage("Wall[%d] %s hitscan sensitive", i, isNot((wall[i].cstat & kWallHitscan)));
-							}
-						}
-						else wall[i].type = ClipRange(GetNumberBox(buffer, wall[i].type, wall[i].type), 0, 32767);
-						break;
-					case OBJ_SPRITE:
-						if (key == KEY_H)
-						{
-							if (ctrl) sprite[i].flags = ClipRange(GetNumberBox(buffer, sprite[i].flags, sprite[i].flags), 0, 32767);
-							else
-							{
-								sprite[i].cstat ^= kSprHitscan;
-								scrSetMessage("Sprite[%d] %s hitscan sensitive", i, isNot((sprite[i].cstat & kSprHitscan)));
-							}
-						}
-						else sprite[i].type = ClipRange(GetNumberBox(buffer, sprite[i].type, sprite[i].type), 0, 32767);
-						break;
-					case OBJ_SECTOR:
-						if (key == KEY_H)
-						{
-							if (ctrl)
-								sector[i].hitag = ClipRange(GetNumberBox(buffer, sector[i].hitag, sector[i].hitag), 0, 32767);
-						}
-						else sector[i].type = ClipRange(GetNumberBox(buffer, sector[i].type, sector[i].type), 0, 32767);
-						break;
-				}
-				BeepOk();
-				break;
-			}
-			BeepFail();
-			break;
-		case KEY_F:
-			if (linehighlight < 0 || sectorhighlight < 0) break;
-			setFirstWall(sectorofwall(linehighlight),linehighlight);
-			scrSetMessage("The wall %d now sector's %d first wall.", linehighlight, sectorhighlight);
-			break;
-		case KEY_G:
-			if (ctrl && alt)
-			{
-				if (grid && highlightcnt > 0 && Confirm("Snap %d wall points to grid %d?", hgltWallCount(), grid))
-				{
-					for (i = 0; i < highlightcnt; i++)
-					{
-						j = highlight[i];
-						if ((j & 0xC000) != 0)
-							continue;
-						
-						doGridCorrection(&wall[j].x, &wall[j].y, grid);
-					}
-					
-					BeepOk();
-					break;
-				}
-				
-				BeepFail();
-				break;
-			}
-			if (ctrl) gAutoGrid.enabled^=1;
-			else if (alt && grid > 0) grid = 0;
-			else grid = (short)ClipLow(IncRotate(grid, (shift) ? kMaxGrids : 7), 1);
-			scrSetMessage("Grid size: %d (Autogrid is %s)", grid, onOff(gAutoGrid.enabled));
-			BeepOk();
-			break;
-		case KEY_L:
-			scrSetMessage("Grid locking %s", onOff(gridlock ^= 1));
-			break;
-		case KEY_S:
+		else if (pGLoopSplit)
 		{
-			if (alt)
+			msg = buffer;
+			msg += sprintf(buffer, "Loop Split");
+
+			pGLoopSplit->Setup(linehighlight);
+			switch(nStat = pGLoopSplit->StatusGet())
 			{
-				if
-				(
-					highlightsectorcnt > 0 
-					&& hgltSectInsideBox(mousxplc, mousyplc)
-					/*&& Confirm("Try to create red loops for sectors in a highlight?")*/
-				)
-				{
-					int flags = 0x0;
-					if (!shift)
-						flags |= 0x01;
-					
-					Beep((i = hgltSectAutoRedWall(flags)) > 0);
-					scrSetMessage("%d inner loops created.", i);
+				case 1:
+					gMapedHud.SetMsgImp(16, "%s: Press SPACE to split a sector", buffer);
 					break;
-				}
-
-				if (type != 100)
+				default:
+					if (nStat >= 0 || (msg = retnCodeCheck(nStat, gLoopSplitErrors)) == NULL) break;
+					gMapedHud.SetMsgImp(16, "%s error #%d: %s", buffer, klabs(nStat), msg);
 					break;
-				
-				i = redSectorMake(searchwall);
-				if (Beep(i == 0)) scrSetMessage("Sector #%d created.", sectorofwall(wall[searchwall].nextwall));
-				else if (i == -1) scrSetMessage("%d is already red sector!", sectorofwall(searchwall));
-				else if (i == -3) scrSetMessage("Max walls reached!");
-				else if (i == -4) scrSetMessage("Max sectors reached!");
-				else scrSetMessage("Can't make a sector out there.");
-				break;
-			}
-			
-			gScreen2D.GetPoint(searchx, searchy, &x, &y);
-			dax = x, day = y;
-
-			short sect2 = -1;
-			updatesector(dax, day, &sect2);
-			sect = sect2;
-			if (sect < 0 || sect >= kMaxSectors)
-			{
-				BeepFail();
-				break;
 			}
 
-			doGridCorrection(&dax, &day, grid);
-			daz = getflorzofslope(sect,dax,day);
-
-			if (shift)
+			switch(key)
 			{
-				if ((i = InsertGameObject(OBJ_FLOOR, sect, dax, day, daz, 1536)) >= 0)
-				{
-					scrSetMessage("%s sprite inserted.", gSpriteNames[sprite[i].type]);
-					sprite[i].ang = 1536;
-				}
-
-			}
-			else if ((i = InsertSprite(sect,0)) >= 0)
-			{
-				sprite[i].ang = 1536;
-				sprite[i].x = dax, sprite[i].y = day, sprite[i].z = daz;
-
-				if (somethingintab == OBJ_SPRITE)
-				{
-					sprite[i].picnum  = cpysprite[kTabSpr].picnum;
-					sprite[i].shade   = cpysprite[kTabSpr].shade;
-					sprite[i].pal 	  = cpysprite[kTabSpr].pal;
-					sprite[i].xrepeat = cpysprite[kTabSpr].xrepeat;
-					sprite[i].yrepeat = cpysprite[kTabSpr].yrepeat;
-					sprite[i].xoffset = cpysprite[kTabSpr].xoffset;
-					sprite[i].yoffset = cpysprite[kTabSpr].yoffset;
-
-					if ((cpysprite[kTabSpr].cstat & kSprRelMask) == kSprVoxel)
-						cpysprite[kTabSpr].cstat &= ~kSprVoxel;
-
-					sprite[i].cstat = cpysprite[kTabSpr].cstat;
-
-					if (sprite[tempidx].type == kMarkerPath)
+				case KEY_PLUS:
+				case KEY_MINUS:
+					if (!shift) Beep(pGLoopSplit->IterateAngleOffset(key == KEY_PLUS));
+					else Beep(pGLoopSplit->ToggleSkipFlag());
+					break;
+				case KEY_SPACE:
+					if (Beep(nStat > 0))
 					{
-						sprite[i].type = kMarkerPath;
-						ChangeSpriteStat(i, kStatPathMarker);
-
-						sprite[i].flags    = sprite[tempidx].flags;
-						sprite[i].clipdist = sprite[tempidx].clipdist;
-						sprite[i].z        = sprite[tempidx].z; // it's worth probably to use same z
-
-						j = GetXSprite(i); k = sprite[tempidx].extra;
-
-						// create fully new path
-						if (k <= 0 || xsprite[k].reference != tempidx)
-						{
-							xsprite[j].data1 = findUnusedPath();
-							xsprite[j].data2 = findUnusedPath();
-						}
-						else
-						{
-							if (!markerIsNode(tempidx, 1))
-							{
-								xsprite[j].data1 = findUnusedPath(); // create new first id
-								xsprite[k].data2 = xsprite[j].data1; // connect previous marker with current
-							}
-							else
-							{
-								xsprite[j].data1 = xsprite[k].data2; // start new branch
-							}
-
-							xsprite[j].data2    = xsprite[j].data1; // finalize current marker?
-							xsprite[j].busyTime = xsprite[k].busyTime;
-							xsprite[j].wave 	= xsprite[k].wave;
-
-							short nAng = (short)(getangle(sprite[i].x - sprite[tempidx].x, sprite[i].y - sprite[tempidx].y) & kAngMask);
-							sprite[i].ang = nAng;
-
-							// change angle of the previous marker if it have less than 2 branches only
-							if (!markerIsNode(tempidx, 2))
-								sprite[tempidx].ang = nAng;
-						}
-
-						// make a loop?
-						if (searchstat == OBJ_SPRITE && tempidx != searchwall && sprite[searchwall].type == kMarkerPath)
-						{
-							DeleteSprite(i);
-							xsprite[k].data2 = xsprite[sprite[searchwall].extra].data1;
-							if (!Confirm("Finish path drawing now?"))
-							{
-								cpysprite[kTabSpr]   = sprite[searchwall];
-								cpyxsprite[kTabXSpr] = xsprite[searchwall];
-								tempidx = searchwall;
-							}
-							else
-							{
-								somethingintab = 255; // path drawing is finished
-							}
-						}
-						else
-						{
-							// update clipboard
-							cpysprite[kTabSpr]   = sprite[i];
-							cpyxsprite[kTabXSpr] = xsprite[j];
-							tempidx = (short)i;
-						}
+						pGLoopSplit->Insert();
+						DELETE_AND_NULL(pGLoopSplit);
 					}
-
-					CleanUp();
-				}
-
-				clampSprite(&sprite[i]);
-				scrSetMessage("Sprite inserted.");
+					key = 0;
+					break;
 			}
-			updatenumsprites();
-			break;
 		}
-		case KEY_F10:
-			if (highlightsectorcnt > 0 || highlightcnt > 0) break;
-			else if (type == 200) {
-				static int sum = 0;
-				static int odata = 0;
-				spritetype *pSprite = &sprite[searchwall];
-				GetXSprite(searchwall);
-				switch (pSprite->type) {
-					case kSoundAmbient:
-					case kDudeModernCustom:
-						playSound(xsprite[pSprite->extra].data3);
-						break;
-					case kGenSound:
-						playSound(xsprite[pSprite->extra].data2);
-						break;
-					case kSoundSector:
-						odata = (searchwall != sum) ? 0 : IncRotate(odata, 4);
-						playSound(getDataOf((BYTE)odata, OBJ_SPRITE, searchwall));
-						break;
-					case kSwitchToggle:
-					case kSwitchOneWay:
-						odata = (searchwall != sum) ? 0 : IncRotate(odata, 2);
-						playSound(getDataOf((BYTE)odata, OBJ_SPRITE, searchwall));
-						break;
-					case kSwitchCombo:
-					case kThingObjectGib:
-					case kThingObjectExplode:
-					case 425:
-					case 426:
-					case 427:
-						playSound(xsprite[pSprite->extra].data4);
-						break;
-					case kMarkerWarpDest:
-						if (pSprite->statnum == kStatMarker) break;
-						playSound(xsprite[pSprite->extra].data4);
-						break;
-					case kSoundPlayer:
-						playSound(xsprite[pSprite->extra].data1);
-						break;
-				}
-				sum = searchwall;
-			}
-			break;
-		case KEY_PADMINUS:
-		case KEY_PADPLUS:
-			if (type == 200) {
-				spritetype *pSprite = &sprite[searchwall];
-				BOOL both  = (!ctrl && !alt);
-				BYTE step = (shift) ? 10 : 20;
-				switch (pSprite->type) {
-					case kSoundAmbient:
-						if (key == KEY_PADMINUS) {
-							if (both || ctrl) xsprite[pSprite->extra].data1 = ClipLow(xsprite[pSprite->extra].data1 - step, 0);
-							if (both || alt)  xsprite[pSprite->extra].data2 = ClipLow(xsprite[pSprite->extra].data2 - step, 0);
-						} else {
-							if (both || ctrl) xsprite[pSprite->extra].data1 = ClipHigh(xsprite[pSprite->extra].data1 + step, 32767);
-							if (both || alt)  xsprite[pSprite->extra].data2 = ClipHigh(xsprite[pSprite->extra].data2 + step, 32767);
-						}
-						AutoAdjustSprites();
-						ShowSpriteData(searchwall, TRUE);
-						break;
-					default:
-						BeepFail();
-						break;
-				}
-			}
-			break;
-		case KEY_PAD1:
-		case KEY_END:
-			gScreen2D.prefs.ambRadius = (BYTE)IncRotate(gScreen2D.prefs.ambRadius, 5);
-			if (gScreen2D.prefs.ambRadius == 4 && !gScreen2D.prefs.ambRadiusHover)
-			{
-				gScreen2D.prefs.ambRadiusHover = TRUE;
-				gScreen2D.prefs.ambRadius = 3;
-			}
-			else
-			{
-				gScreen2D.prefs.ambRadiusHover = FALSE;
-			}
-			break;
 	}
 	
-	if (key != 0)
-		keyClear();
+	pInput = &gEditInput2D[key];
+	
+	if (pInput->pFunc)
+	{
+		r = pInput->pFunc(key, ctrl, shift, alt);
+		
+		if (r & PROC_OK)
+		{
+			switch(r & PROC_UNDO_MASK)
+			{
+				case PROC_UNDO_CMP: asksave = 1; break;
+				case PROC_UNDO_ADD: asksave = 2; break;
+			}
+		}
+		
+		if (r & PROC_BEEP)
+			Beep(r & PROC_OK);
+        
+        keyClear();
+	}
 }

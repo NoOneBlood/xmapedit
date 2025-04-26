@@ -362,10 +362,10 @@ int IniFile::NodeAddEmpty(int nPos)
 
 void IniFile::NodeRemove(int nID)
 {
-	if (nID < numnodes - 1)
+	numnodes--;
+    if (nID < numnodes)
 		memmove(&node[nID], &node[nID+1], sizeof(ININODE)*(numnodes-nID));
 	
-	numnodes--;
 	node = (ININODE*)realloc(node, sizeof(ININODE)*numnodes);
 	if (numnodes > 0)
 		dassert(node != NULL);

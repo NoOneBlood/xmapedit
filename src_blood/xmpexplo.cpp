@@ -2792,7 +2792,7 @@ static char getThumbnail_SEQ(char* filepath, int nTile, int wh, int hg, int bg)
 	int nTile2;
 	int i;
 
-	if (fileLoadHelper(filepath, (BYTE**)&pSeq) >= sizeof(Seq))
+	if (fileLoadHelper(filepath, (BYTE**)&pSeq) >= (int)sizeof(Seq))
 	{
 		if (memcmp(pSeq->signature, kSEQSig, strlen(kSEQSig)) == 0 && (pSeq->version & 0xff00) == 0x0300)
 		{
@@ -2824,7 +2824,7 @@ static char getThumbnail_QAV(char* filepath, int nTile, int wh, int hg, int bg)
 	char nRetn = 0;
 	int i, j;
 
-	if (fileLoadHelper(filepath, (BYTE**)&pQav) >= sizeof(QAV))
+	if (fileLoadHelper(filepath, (BYTE**)&pQav) >= (int)sizeof(QAV))
 	{
 		if (memcmp(pQav->sign, kQavSig, strlen(kQavSig)) == 0 && (pQav->version & 0xff00) == kQavVersion)
 		{

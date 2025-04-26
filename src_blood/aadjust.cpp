@@ -590,8 +590,8 @@ void CleanUp() {
 				BYTE* pDB = markerDB[j];
 				if (pSect->type - kSectorBase == pDB[0])
 				{
-					pXSect->marker0 = (pDB[1]) ? FixMarker(i, pXSect->marker0, pDB[1]) : -1;
 					pXSect->marker1 = (pDB[2]) ? FixMarker(i, pXSect->marker1, pDB[2]) : -1;
+                    pXSect->marker0 = (pDB[1]) ? FixMarker(i, pXSect->marker0, pDB[1]) : -1;
 					break;
 				}
 				

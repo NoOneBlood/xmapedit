@@ -23,6 +23,7 @@
 
 #ifndef __EDIT3D_H
 #define __EDIT3D_H
+#include "hglt.h"
 
 extern int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle);
 
@@ -45,11 +46,14 @@ void LowerSprite( spritetype *pSprite, int nStep );
 void RaiseSprite( spritetype *pSprite, int nStep );
 void PutSpriteOnFloor( spritetype *pSprite, int );
 void PutSpriteOnCeiling( spritetype *pSprite, int );
+void ProcessHighlightSectors(HSECTORFUNC FloorFunc, int nData);
+int NextSectorNeighborZ(int nSect, int nBaseZ, char topBot, char dir);
+void ProcessInput3D();
+void processMouseLook3D();
 
-
-void ProcessKeys3D();
-void processMouseLook3D(BOOL readMouse = FALSE);
-
+void LightBomb(int x, int y, int z, short nSector);
+void SetupLightBomb(void);
+BOOL F9Menu(void);
 
 char dlgSpriteText();
 #endif

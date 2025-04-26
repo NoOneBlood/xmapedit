@@ -1229,29 +1229,22 @@ short getSector() {
 
 void TranslateWallToSector( void )
 {
-	switch (searchstat)
-	{
-		case OBJ_WALL:
-			if ((searchsector = wall[searchwall2].nextsector) >= 0)
-			{
-				searchindex = searchsector;
-				break;
-			}
-			// no break
-		case OBJ_MASKED:
-			searchsector = sectorofwall(searchwall);
-			searchindex = searchsector;
-			break;
-	}
-	
-	if (searchwallcf)
-	{
-		searchstat = OBJ_FLOOR;
-	}
-	else
-	{
-		searchstat = OBJ_CEILING;
-	}
+	int nSect;
+    
+    switch (searchstat)
+    {
+        case OBJ_WALL:
+            if ((nSect = wall[searchwall2].nextsector) >= 0)
+            {
+                searchstat = (searchwallcf) ? OBJ_FLOOR : OBJ_CEILING;
+                searchsector = searchindex = nSect;
+                break;
+            }
+            // no break
+        case OBJ_MASKED:
+            searchindex = searchsector;
+            searchstat = OBJ_CEILING;
+    }
 }
 
 // carefully when using this function as it intended for autoData[]

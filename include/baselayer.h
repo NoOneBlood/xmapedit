@@ -74,11 +74,10 @@ extern int inputdevices;
 
 // keys
 #define KEYFIFOSIZ 64
-extern char keystatus[256];
-extern int keyfifo[KEYFIFOSIZ];
-extern unsigned char keyasciififo[KEYFIFOSIZ];
-extern int keyfifoplc, keyfifoend;
-extern int keyasciififoplc, keyasciififoend;
+extern char keystatus[256], keyholdtime[256];
+extern unsigned char keyfifo[KEYFIFOSIZ], keyhitfifo[KEYFIFOSIZ], keyasciififo[KEYFIFOSIZ];
+extern unsigned char keyfifoplc, keyfifoend, keyhitfifoplc, keyhitfifoend;
+extern unsigned char keyasciififoplc, keyasciififoend;
 
 // mouse
 extern int mousex, mousey, mouseb;

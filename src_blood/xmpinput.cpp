@@ -53,9 +53,19 @@ unsigned char keyGet(void)
 	if (keyfifoplc == keyfifoend)
 		return 0;
 
-	int key = keyfifo[keyfifoplc];
+	unsigned char key = keyfifo[keyfifoplc];
 	keyfifoplc = (keyfifoplc + 2) & (KEYFIFOSIZ - 1);
-	return (unsigned char)key;
+	return key;
+}
+
+unsigned char keyGetHit(void)
+{
+	if (keyhitfifoplc == keyhitfifoend)
+		return 0;
+
+	unsigned char key = keyhitfifo[keyhitfifoplc];
+	keyhitfifoplc = (keyhitfifoplc + 2) & (KEYFIFOSIZ - 1);
+	return key;
 }
 
 void keyClear(void)
@@ -103,6 +113,9 @@ void MOUSE::Init(MOUSE_PREFS* pPrefs)
 	velY = velDY		= pPrefs->speedY;
 	velRst				= 0;
 	
+	dX1 = dX2 = dfX     = 0;
+	dY1 = dY2 = dfY     = 0;
+    
 	buttons				= 0;
 	press				= 0;
 	hold				= 0;
@@ -204,8 +217,8 @@ void MOUSE::RangeSet(int x1, int y1, int x2, int y2)
 	left 	= x1;	right 	= x2;
 	top 	= y1;	bottom 	= y2;
 
-	dX1 = dX2 = dfX = 0;
-	dY1 = dY2 = dfY = 0;
+	//dX1 = dX2 = dfX = 0;
+	//dY1 = dY2 = dfY = 0;
 	
 	X = ClipRange(X, left + 1, right  - 1);
 	Y = ClipRange(Y, top  + 1, bottom - 1);

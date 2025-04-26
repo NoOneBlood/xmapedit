@@ -1712,7 +1712,10 @@ int dbSaveMap(char *filename, BOOL ver7)
 	numsprites = 0;
 	for (i = 0; i < kMaxSprites; i++)
 	{
-		if (sprite[i].statnum < kMaxStatus) numsprites++;
+		if (sprite[i].statnum >= kMaxStatus)
+				continue;
+		
+		numsprites++;
 		if (sprite[i].extra > 0)
 			nBytes += kXSpriteDiskSize;
 	}

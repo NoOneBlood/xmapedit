@@ -6,15 +6,18 @@
 #include "xmpshape.h"
 #include "xmploop.h"
 #include "xmparcwiz.h"
+#include "xmplsplt.h"
 #include "xmpstub.h"
 #include "edit2d.h"
 #include "edit3d.h"
+#include "maproc.h"
 #include "xmpmisc.h"
 #include "hglt.h"
 
 enum
 {
 kSectToolShape			= 0	,
+kSectToolLoopSplit			,
 kSectToolDoorWiz			,
 kSectToolArcWiz				,
 kSectToolCurveWall			,
@@ -37,8 +40,10 @@ void loopGetBox(int nFirst, int nLast, int* x1, int* y1, int* x2, int *y2);
 void loopChgPos(int s, int e, int bx, int by, int flags);
 void loopRotate(int s, int e, int cx, int cy, int nAng, int flags);
 void loopFlip(int s, int e, int cx, int cy, int flags);
-void loopDelete(int s, int e);
+void loopDelete(int nWall);
+char loopLocalIsEmpty(int nWall);
 int loopIsEmpty(int nWall);
+int loopTransfer(int nWall, int nSect, char flags = 0x03);
 
 
 void getSectorWalls(int nSect, int* s, int *e);
@@ -54,11 +59,11 @@ short sectCstatToggle(int nSect, short cstat, int objType);
 short sectCstatGet(int nSect, int objType);
 short sectCstatGet(int nSect, short cstat, int objType);
 short sectCstatSet(int nSect, short cstat, int objType);
-
 void sectDetach(int nSect);
 void sectAttach(int nSect);
-
 char sectAutoAlignSlope(int nSect, char which = 0x03);
+void sectLoopMain(int nSect, int* s, int* e);
+int sectLoopTransfer(int nSectA, int nSectB);
 
 void wallDetach(int nWall);
 void wallAttach(int nWall, int nNextS, int nNextW);
@@ -76,6 +81,7 @@ void setFirstWall(int nSect, int nWall);
 char setAligntoWall(int nSect, int nWall);
 char loopInside(int nSect, POINT2D* pPoint, int nCount, char full);
 int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel = NULL, sectortype* pSModel = NULL);
+int insertLoop(int nSect, walltype* pWalls, int nCount, sectortype* pSModel = NULL);
 void insertPoints(WALLPOINT_INFO* pInfo, int nCount);
 int makeSquareSector(int ax, int ay, int area);
 int redSectorCanMake(int nStartWall);
@@ -90,9 +96,11 @@ char pointOnWallLine(int nWall, int x, int y);
 char pointOnWallLine(int x, int y, int* out = NULL);
 
 int findWallAtPos(int x, int y);
+int findWallAtPos(int nSect, int x, int y);
+int findSolidWallAtPos(int x, int y);
 int findWallAtPos(int x1, int y1, int x2, int y2);
+int findWallAtPos(int nSect, int x1, int y1, int x2, int y2);
 char insideLoop(int x, int y, int nStartWall);
-
 
 int insertPoint(int nWall, int x, int y);
 void deletePoint(int nWall);
@@ -109,6 +117,11 @@ char fixXWall(int nID);
 
 int worldSprCallFunc(HSPRITEFUNC pFunc, int nData = 0);
 int collectWallsOfNode(IDLIST* pList, int nWall, char flags = 0x00);
+char collectOuterWalls(int nWall, IDLIST* pLoop);
+int isClockDir(POINT2D* p, int c);
+void flipPoints(POINT2D* p, int c);
+void rotatePoints(POINT2D* point, int numpoints, int s);
+int nextSpriteAt(int x, int y, int *prv);
 
 char sectorToolDisableAll(char alsoFreeDraw);
 char sectorToolEnable(int nType, int nData);

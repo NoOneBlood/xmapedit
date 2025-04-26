@@ -1632,12 +1632,15 @@ void EditNumber::HandleEvent( GEVENT *event )
 			case KEY_MINUS:
 				if (pos == 0 && string[0] != '-' && len < maxlen)
 				{
-					memmove(&string[1], &string[0], len);
-					string[pos++] = '-';
-					string[++len] = '\0';
-					
-					if (!value)
-						string[pos++] = '1', value = -1;
+					if (minValue < 0)
+                    {
+                        memmove(&string[1], &string[0], len);
+                        string[pos++] = '-';
+                        string[++len] = '\0';
+                        
+                        //if (!value)
+                            //string[pos++] = '1', value = -1;
+                    }
 				}
 				event->Clear();
 				break;
@@ -1687,7 +1690,21 @@ void EditNumber::HandleEvent( GEVENT *event )
 
 void EditNumber::ClampValue()
 {
-	value = ClipRange(value, minValue, maxValue);
+    value = ClipRange(value, minValue, maxValue);
+    for (char* p = string; *p != '\0'; p++)
+    {
+        if (*p == '-' || *p == '+')
+        {
+            if (!isdigit(*(p+1)))
+                return;
+            
+            continue;
+        }
+        
+        if (!isdigit(*p))
+            return;
+    }
+    
 	itoa(value, string, 10); len = strlen(string);
 	pos = ClipRange(pos, 0, len);
 	if (endChar != '\0')

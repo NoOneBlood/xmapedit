@@ -54,6 +54,8 @@ extern char buffer2[kBufferSize];
 extern char buffer3[kBufferSize];
 extern char gMapInfoStr[kBufferSize];
 
+extern SNAPSHOT_MANAGER gMapSnapshot;
+
 struct SPECIAL_DATA_NAMES
 {
 	int var1;
@@ -101,7 +103,7 @@ extern char *gKeyItemNames[8];
 extern char *gSearchStatNames[8];
 extern char *gZModeNames[4];
 extern char* gDepthNames[8];
-extern char* gDamageNames[7];
+extern char* gDamageNames[6];
 extern NAMED_TYPE gDifficNames[6];
 extern NAMED_TYPE gGameNames[5];
 extern NAMED_TYPE gGameObjectGroupNames[10];
@@ -114,6 +116,7 @@ kCaptionStyleMax			   ,
 };
 
 extern char *gCaptionStyleNames[kCaptionStyleMax];
+extern char* gShowMapNames[];
 
 enum {
 kToolDialog			= -1,
@@ -207,7 +210,7 @@ int GetXWall( int nWall );
 int GetXSprite( int nSprite );
 
 
-BOOL processKeysShared();
+BOOL ProcesInputShared();
 void processDrawRooms(int camx, int camy, int camz, int cama, int camh, int nSect);
 inline void processDrawRooms() { processDrawRooms(posx,posy,posz,ang,horiz,cursectnum); }
 char* onOff(int var);
@@ -232,4 +235,9 @@ void boardStartNew();
 const char *ExtGetSectorCaption(short sectnum, char captStyle);
 const char *ExtGetWallCaption(short wallnum, char captStyle);
 const char *ExtGetSpriteCaption(short spritenum, char captStyle);
+
+char IsHoverSector();
+char IsHoverWall();
+char* GetHoverName();
+
 #endif

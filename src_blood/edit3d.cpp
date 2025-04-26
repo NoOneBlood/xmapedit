@@ -60,15 +60,6 @@ BYTE gStackDB[4][2] = {
 	{kMarkerLowStack, 	kMarkerUpStack},
 };
 
-char* gTranslucLevNames[3] = {
-	
-	"not",
-	"less",
-	"mostly",
-	
-};
-
-
 
 int NextSectorNeighborZ(int nSect, int nBaseZ, char topBot, char dir)
 {
@@ -417,7 +408,7 @@ static void ShootRay(int x, int y, int z, short nSector, int dx, int dy, int dz,
 	}
 }
 
-static void SetupLightBomb( void )
+void SetupLightBomb( void )
 {
 	sectortype *pSector;
 	walltype *pWall;
@@ -489,7 +480,7 @@ static void SetupLightBomb( void )
 }
 
 
-static void LightBomb( int x, int y, int z, short nSector )
+void LightBomb( int x, int y, int z, short nSector )
 {
 	int dx, dy, dz;
 	for (int a = kAng90 - kAng60; a <= kAng90 + kAng60; a += kAng15)
@@ -608,10 +599,14 @@ static spritetype* InsertModernSpriteType(int nSector, int x, int y, int z, int 
 	
 	while(pObj->type != OBJ_NONE)
 	{
-		buf.name = gSpriteNames[pObj->index];
-		buf.id   = pObj->index;
-		list.Add(&buf);
-		pObj++;
+		if (pObj->type == OBJ_SPRITE)
+        {
+            buf.name = gSpriteNames[pObj->index];
+            buf.id   = pObj->index;
+            list.Add(&buf);
+		}
+        
+        pObj++;
 	}
 	
 	if (!list.Length()
@@ -925,6 +920,7 @@ enum {
 	mrStep = mrUser,
 	mrShadePhase,
 	mrTheta,
+    mrClean,
 };
 
 static void SectorShadePhase( int nSector, int dPhase )
@@ -981,62 +977,100 @@ static void SectorTheta( int nSector, int dTheta )
 	}
 }
 
-static BOOL F9Menu( void )
+BOOL F9Menu( void )
 {
-	BOOL bChanged = FALSE;
+    IDLIST list(1); XSECTOR model;
+    int const nDefault = 9999999;
+    int nValue, nTrick, i;
+    int32_t* p;
+    
+    BOOL bChanged = FALSE;
+    
+    NAMED_TYPE tricks[] =
+    {
+        { mrStep,       "&Step Height" },
+        { mrShadePhase, "&Light Phase" },
+        { mrTheta,      "&Z Phase" },
+        { mrClean,      "&Clean matching" },
+    };
+    
+    memset(visited, FALSE, sizeof(visited));
+    
+    while( 1 )
+    {
+        switch(nTrick = showButtons(tricks, LENGTH(tricks), "Sector Tricks") - mrUser)
+        {
+            case mrStep:
+            case mrShadePhase:
+            case mrTheta:
+                if ((nValue = GetNumberBox("Value", 0, nDefault)) != nDefault)
+                {
+                    switch(nTrick)
+                    {
+                        case mrStep:
+                            switch (searchstat)
+                            {
+                                case OBJ_FLOOR:
+                                    BuildStairsF(searchsector, nValue);
+                                    bChanged = TRUE;
+                                    break;
+                                case OBJ_CEILING:
+                                    BuildStairsC(searchsector, nValue);
+                                    bChanged = TRUE;
+                                    break;
+                            }
+                            break;
+                        case mrShadePhase:
+                            i = highlightsectorcnt;
+                            while(--i >= 0) GetXSector(highlightsector[i]);
 
-	Window dialog(0, 0, 180, 182, "Sector Tricks");
+                            SectorShadePhase(searchsector, nValue);
+                            bChanged = TRUE;
+                            break;
+                        case mrTheta:
+                            i = highlightsectorcnt;
+                            while(--i >= 0) GetXSector(highlightsector[i]);
 
-	dialog.Insert(new Label( 4,  8, "&Value:"));
-	EditNumber *peNumber = new EditNumber(44, 4, 80, 16, 0);
-	peNumber->hotKey = 'V';
-	dialog.Insert(peNumber);	// value field
-
-	dialog.Insert(new TextButton( 4,  24, 80, 20,  "&Step Height",	(int)mrStep ));
-	dialog.Insert(new TextButton( 4,  44, 80, 20,  "&Light Phase",	(int)mrShadePhase ));
-	dialog.Insert(new TextButton( 4,  64, 80, 20,  "&Z Phase",		(int)mrTheta ));
-
-	ShowModal(&dialog);
-	switch ( dialog.endState )
-	{
-		case mrStep:
-			switch (searchstat)
-			{
-				case OBJ_FLOOR:
-					// clear visited bits
-					memset(visited, FALSE, sizeof(visited));
-
-					BuildStairsF(searchsector, peNumber->value);
-					bChanged = TRUE;
-					break;
-
-				case OBJ_CEILING:
-					// clear visited bits
-					memset(visited, FALSE, sizeof(visited));
-
-					BuildStairsC(searchsector, peNumber->value);
-					bChanged = TRUE;
-					break;
-			}
-			break;
-
-		case mrShadePhase:
-			// clear visited bits
-			memset(visited, FALSE, sizeof(visited));
-
-			SectorShadePhase(searchsector, peNumber->value);
-			bChanged = TRUE;
-			break;
-
-		case mrTheta:
-			// clear visited bits
-			memset(visited, FALSE, sizeof(visited));
-
-			SectorTheta(searchsector, peNumber->value);
-			bChanged = TRUE;
-			break;
-	}
-
+                            SectorTheta(searchsector, nValue);
+                            bChanged = TRUE;
+                            break;
+                    }
+                    
+                    break;
+                }
+                continue;
+            case mrClean:
+                if (sector[searchsector].extra > 0)
+                {
+                    memcpy(&model, &xsector[sector[searchsector].extra], sizeof(model));
+                    list.Clear();
+                    
+                    i = numsectors;
+                    while(--i >= 0)
+                    {
+                        if (sector[i].extra > 0)
+                        {
+                            model.reference = xsector[sector[i].extra].reference;
+                            if (memcmp(&model, &xsector[sector[i].extra], sizeof(model)) == 0)
+                                list.Add(sector[i].extra);
+                        }
+                    }
+                    
+                    if ((bChanged = Confirm("Clean %d x-sectors?", list.Length())) == TRUE)
+                    {
+                        for (p = list.First(); *p >= 0; p++) dbDeleteXSector(*p);
+                        CleanUp();
+                    }
+                    
+                    break;
+                }
+                Alert("Sector #%d is not x-sector!", searchsector);
+                break;
+        }
+        
+        break;
+    }
+    
 	return bChanged;
 }
 
@@ -1157,7 +1191,8 @@ void SetWave( int nSector, int nWave )
 }
 
 
-static void ProcessHighlightSectors( HSECTORFUNC FloorFunc, int nData ) {
+void ProcessHighlightSectors( HSECTORFUNC FloorFunc, int nData )
+{
 
 	int i = 0;
 	if (gListGrd.Length())
@@ -1204,60 +1239,54 @@ static void ProcessHighlightSectors( HSECTORFUNC FloorFunc, int nData ) {
 
 }
 
-void processMouseLook3D(BOOL readMouse) {
-	
-	if (readMouse)
-		gMouse.Read();
-	
+void processMouseLook3D()
+{	
 	int x1 = windowx1, y1 = windowy1;
 	int x2 = windowx2, y2 = windowy2;
 	int wh = x2-x1, hg = y2-y1;
+	int dx, dy, sh;
 	
-	searchx = ClipRange(gMouse.X, x1+1, x2-2);
-	searchy = ClipRange(gMouse.Y, y1+1, y2-2);
+	
+	gMouse.Read();
+	searchx = ClipRange(gMouse.X, x1, x2);
+	searchy = ClipRange(gMouse.Y, y1, y2);
 	if (!gMouseLook.mode)
 		return;
 
 	// free look
-	int dx = abs(gMouse.dX2); int dy = abs(gMouse.dY2);
 	searchx = x1+(wh>>1); searchy = y1+(hg>>1);
 	gMouse.X = searchx; gMouse.Y = searchy;
+	
 	if (ctrl && keystatus[KEY_PAD5])
 	{
 		horiz = 100;
+		return;
 	}
-	else
+	
+	if (gMouseLook.dir & 0x1)
 	{
-		if (gMouseLook.dir & 0x1)
+		if (gMouse.dY2)
 		{
-			if (gMouse.dY2 < 0) horiz = (gMouseLook.invert & 0x1) ? horiz - dy : horiz + dy;
-			else if (gMouse.dY2 > 0) horiz = (gMouseLook.invert & 0x1) ? horiz + dy : horiz - dy;
+			dy = gMouse.dY2;
+			horiz = (gMouseLook.invert & 0x1) ? horiz + dy : horiz - dy;
 			horiz = ClipRange(horiz, -gMouseLook.maxSlopeF, gMouseLook.maxSlope);
-			
-			if (zmode == 3 && !keystatus[KEY_A] && !keystatus[KEY_Z])
-			{
-				int mul = (shift) ? 3 : 2;
-				if (keystatus[KEY_DOWN])
-				{
-					if (horiz < 100) posz -= (((100 - horiz) * gFrameTicks) << mul);
-					else if (horiz > 100) posz += (((horiz - 100) * gFrameTicks) << mul);
-				}
-				
-				if (keystatus[KEY_UP])
-				{
-					if (horiz < 100) posz += (((100 - horiz) * gFrameTicks) << mul);
-					else if (horiz > 100) posz -= (((horiz - 100) * gFrameTicks) << mul);
-				}
-			}
 		}
 		
-		if (gMouseLook.dir & 0x2)
+		if (zmode == 3)
 		{
-			if (gMouse.dX2 < 0) ang = (short)((gMouseLook.invert & 0x2) ? ang + dx : ang - dx);
-			else if (gMouse.dX2 > 0) ang = (short)((gMouseLook.invert & 0x2) ? ang - dx : ang + dx);
-			ang = (short)(ang & kAngMask);
+			sh = (shift) ? 3 : 2;
+			if (keystatus[KEY_UP])			posz += (((100 - horiz) * gFrameTicks) << sh);
+			else if (keystatus[KEY_DOWN])	posz += (((horiz - 100) * gFrameTicks) << sh);
 		}
 	}
+	
+	if (gMouse.dX2 && (gMouseLook.dir & 0x2))
+	{
+		dx = gMouse.dX2;
+		ang = ((gMouseLook.invert & 0x2) ? ang - dx : ang + dx);
+		ang = (ang & kAngMask);
+	}
+	
 }
 
 NAMED_TYPE gSpriteTextErrors[] =
@@ -1552,15 +1581,14 @@ char dlgSpriteText()
 
 
 
-void ProcessKeys3D( void )
+void ProcessInput3D( void )
 {
+	INPUTPROC* pInput = &gEditInput3D[key];
 	short hitsect, hitwall, hitsprite;
-	int startwall, endwall, nSector, nXSector, nXWall, nXSprite, zTop, zBot, gStep;
-	int i, j, x, y, z, changedir, hitx, hity, hitz;
-	int sect = -1; static int sectRLdelay = 4;
+	int x, y, z, r, hitx, hity, hitz;
+	
 	searchit = 2;
 
-	BYTE pad5  = keystatus[KEY_PAD5];
 	if (gObjectLock.type >= 0)
 	{
 		if (totalclock < gObjectLock.time)
@@ -1585,7 +1613,7 @@ void ProcessKeys3D( void )
 		}
 	}
 
-	processMouseLook3D(TRUE);
+	processMouseLook3D();
 
 	if (!gPreviewMode && searchstat >= 0)
 	{
@@ -1777,74 +1805,9 @@ void ProcessKeys3D( void )
 			ztofs = zbofs = 0x80000000;
 			gMouse.VelocitySet(-1, -1, true);
 			gHighSpr = -1;
+			asksave = 1;
 		}
 		
-		if ((mhold == 1 || mhold == 2) && (gMousePrefs.controls & 0x0002))
-		{
-			gMouse.VelocitySet(10, 10, false);
-
-			int step = -1, ztep = (shift) ? 256 : 1024, neigh = -1;
-			schar dir = (mhold == 1) ? -1 : 1;
-
-			switch (searchstat) {
-				case OBJ_WALL:
-				case OBJ_MASKED:
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-					if (!(totalclock < gTimers.sectRL || totalclock > gTimers.sectRL + sectRLdelay)) break;
-					else if (searchstat == OBJ_WALL || searchstat == OBJ_MASKED)
-					{
-						TranslateWallToSector();
-						if (searchsector < 0)
-						{
-							searchsector = (short)sectorofwall(searchwall);
-							searchstat = OBJ_CEILING;
-						}
-					}
-					sectRLdelay = 6; gTimers.sectRL = totalclock;
-					switch (searchstat) {
-						case OBJ_FLOOR:
-							step = sector[searchsector].floorz;
-							step = (mhold == 1) ? DecNext(step, ztep) : IncNext(step, ztep);
-							if ((neigh = NextSectorNeighborZ(searchsector, sector[searchsector].floorz, 1, dir)) >= 0)
-							{
-								if (ctrl || abs(sector[neigh].floorz - sector[searchsector].floorz) <= ztep)
-								{
-									step = sector[neigh].floorz;
-									sectRLdelay = 16;
-									BeepOk();
-								}
-							}
-							ProcessHighlightSectors(SetFloorZ, step);
-							scrSetMessage("sector[%i].floorz: %i", searchsector, sector[searchsector].floorz);
-							break;
-						case OBJ_CEILING:
-							step = sector[searchsector].ceilingz;
-							step = (mhold == 1) ? DecNext(step, ztep) : IncNext(step, ztep);
-							if ((neigh = NextSectorNeighborZ(searchsector, sector[searchsector].ceilingz, -1, dir)) >= 0)
-							{
-								if (ctrl || abs(sector[neigh].ceilingz - sector[searchsector].ceilingz) <= ztep)
-								{
-									step = sector[neigh].ceilingz;
-									sectRLdelay = 16;
-									BeepOk();
-								}
-							}
-							ProcessHighlightSectors(SetCeilingZ, step);
-							scrSetMessage("sector[%i].ceilingz: %i", searchsector, sector[searchsector].ceilingz);
-							break;
-					}
-					if (gMisc.pan) AlignSlopes();
-					break;
-			}
-
-		}
-		else
-		{
-			sectRLdelay = 3;
-			gTimers.sectRL = totalclock;
-		}
-
 		short omhold = mhold;
 		mhold = gMouse.buttons;
 
@@ -1863,1865 +1826,22 @@ void ProcessKeys3D( void )
 	// draw mouse
 	gMouse.Draw();
 
-	if (key == 0 || searchstat < 0) return;
-	else if (gPreviewMode)
+	if (pInput->pFunc)
 	{
-		switch (key) {
-			case KEY_ENTER:
-				keystatus[KEY_ENTER] = 0;
-				key = KEY_CAPSLOCK;
-				break;
-		}
-	}
-	
-	switch (key) {
-		case KEY_A:
-		case KEY_Z:
-			if (!alt) break;
-			i = (key == KEY_A) ? 0x400 : -0x400;
-			kensplayerheight = ClipRange(kensplayerheight + i, 0, 0x10000<<2);
-			scrSetMessage("Camera height (gravity): %d", kensplayerheight >> 8);
-			if (!gNoclip) zmode = 0;
-			break;
-		case KEY_CAPSLOCK:
-			if (!(shift & 0x01)) break;
-			gMouseLook.mode = (gMouseLook.mode) ? 0 : 3; //toggle mouse look on and off
-			scrSetMessage("Mouse look is %s", onOff(gMouseLook.mode));
-			BeepOk();
-			break;
-		case KEY_INSERT:
-			switch (searchstat)
+		r = pInput->pFunc(key, ctrl, shift, alt);
+		
+		if (r & PROC_OK)
+		{
+			switch(r & PROC_UNDO_MASK)
 			{
-				case OBJ_SPRITE:
-					i = ClipLow(hgltSprCallFunc(sprClone), 1);
-					scrSetMessage("%d sprite(s) duplicated and stamped.", i);
-					if (i > 1)
-					{
-						spritetype* pSprA = &sprite[searchwall];
-						for (i = 0; i < highlightcnt; i++)
-						{
-							if ((highlight[i] & 0xC000) == 0)
-								continue;
-							
-							j = highlight[i] & 0x3FFF;
-							if (sprite[j].index != searchwall)
-							{
-								spritetype* pSprB = &sprite[j];
-								if (pSprA->x == pSprB->x && pSprA->y == pSprB->y && pSprA->z == pSprB->z)
-								{
-									// give user some time to drag out new sprites
-									gObjectLock.type = searchstat;
-									gObjectLock.idx  = pSprB->index;
-									gObjectLock.time = totalclock + 256;
-									gMapedHud.SetMsgImp(256, "Locked on %s #%d", gSearchStatNames[searchstat], pSprB->index);
-									break;
-								}
-							}
-						}
-					}
-					BeepOk();
-					break;
-				default:
-					BeepFail();
-					break;
-			}
-			break;
-		case KEY_PAGEDN:
-		case KEY_PAGEUP:
-			if (searchstat == OBJ_WALL || searchstat == OBJ_MASKED)
-			{
-				if (wall[searchwall].nextsector != -1)
-					TranslateWallToSector();
-				
-				// still a wall...
-				if (searchstat == OBJ_WALL)
-				{
-					// adjust ceilings when pointing at white walls
-					searchindex = searchsector;
-					searchstat = OBJ_CEILING;
-				}
-			}
-			
-			z = 0x80000000;
-			j = (key == KEY_PAGEUP);
-			gStep = (shift) ? 0x100 : 0x400;
-			
-
-			if (ctrl && alt && (searchstat == OBJ_CEILING || searchstat == OBJ_FLOOR))
-			{
-				if (j)
-					gStep = -gStep;
-				
-				i = 1;
-				if (sectInHglt(searchindex)) i = hgltSectCallFunc(sectChgZ, gStep);
-				else sectChgZ(searchindex, gStep);
-				
-				if (gMisc.pan)
-					AlignSlopes();
-				
-				scrSetMessage("Z-offset %d sectors by %d", i, gStep);
-				BeepOk();
-				break;
-			}
-			
-			if (ctrl)
-				gStep >>= 4;
-			
-			if (ctrl && !shift)
-			{
-				switch (searchstat)
-				{
-					case OBJ_CEILING:
-						if (j) z = NextSectorNeighborZ(searchindex, sector[searchindex].ceilingz, 0, 0);
-						else z = NextSectorNeighborZ(searchindex, sector[searchindex].ceilingz, 0, 1);
-						ProcessHighlightSectors(SetCeilingZ, z);
-						break;
-					case OBJ_FLOOR:
-						if (j) z = NextSectorNeighborZ(searchindex, sector[searchindex].floorz, 1, 0);
-						else z = NextSectorNeighborZ(searchindex, sector[searchindex].floorz, 1, 1);
-						ProcessHighlightSectors(SetFloorZ, z);
-						break;
-					case OBJ_SPRITE:
-						hgltSprCallFunc((j) ? PutSpriteOnCeiling : PutSpriteOnFloor, 0);
-						z = sprite[searchindex].z;
-						break;
-				}
-			}
-			else if (alt)
-			{
-				switch (searchstat)
-				{
-					case OBJ_CEILING:
-					{
-						z = (sector[searchsector].floorz - sector[searchsector].ceilingz) / 256;
-						z = GetNumberBox("height off floor", z, z) * 256;
-						z = (sector[searchsector].floorz - z) - sector[searchsector].ceilingz;
-						ProcessHighlightSectors(SetCeilingRelative, z);
-						z = sector[searchsector].ceilingz;
-						break;
-					}
-					case OBJ_FLOOR:
-					{
-						z = (sector[searchsector].floorz - sector[searchsector].ceilingz) / 256;
-						z = GetNumberBox("height off ceiling", z, z) * 256;
-						z = (sector[searchsector].ceilingz + z) - sector[searchsector].floorz;
-						ProcessHighlightSectors(SetFloorRelative, z);
-						z = sector[searchsector].floorz;
-						break;
-					}
-					case OBJ_SPRITE:
-						if (sprInHglt(searchindex))
-						{
-							if (j)
-							{
-								sprintf(buffer, "%s", gSearchStatNames[OBJ_CEILING]);
-								hgltSprPutOnCeiling();
-							}
-							else
-							{
-								sprintf(buffer, "%s", gSearchStatNames[OBJ_FLOOR]);
-								hgltSprPutOnFloor();
-							}
-							
-							scrSetMessage("%d sprite(s) put on %s keeping the shape", hgltSprCount(), buffer);
-							BeepOk();
-						}
-						break;
-				}
-			}
-			else
-			{
-				switch(searchstat)
-				{
-					case OBJ_CEILING:
-						ProcessHighlightSectors((j) ? RaiseCeiling : LowerCeiling, gStep);
-						z = sector[searchindex].ceilingz;
-						break;
-					case OBJ_FLOOR:
-						ProcessHighlightSectors((j) ? RaiseFloor : LowerFloor, gStep);
-						z = sector[searchindex].floorz;
-						break;
-					case OBJ_SPRITE:
-						hgltSprCallFunc((j) ? RaiseSprite : LowerSprite, gStep);
-						z = sprite[searchindex].z;
-						break;
-				}
-			}
-			
-			if (z != 0x80000000)
-			{
-				scrSetMessage("%s #%d Z: %d", gSearchStatNames[searchstat], searchindex, z);
-				if (gMisc.pan)
-				{
-					if (searchstat == OBJ_CEILING || searchstat == OBJ_FLOOR)
-						AlignSlopes();
-				}
-				
-				BeepOk();
-			}
-			break;
-		case KEY_ENTER:
-			if (somethingintab == 255)		// must have something to paste
-			{
-				scrSetMessage("There is nothing in clipboard.");
-				BeepFail();
-				break;
-			}
-			
-			if (ctrl)
-			{
-				switch (searchstat) {
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						i = searchwall;
-						do
-						{
-							if (shift)
-							{
-								wall[i].shade = tempshade;
-								wall[i].pal = temppal;
-							}
-							else
-							{
-								wall[i].picnum = temppicnum;
-								switch (somethingintab) {
-									case OBJ_WALL:
-									case OBJ_MASKED:
-										wall[i].xrepeat  = tempxrepeat;
-										wall[i].yrepeat  = tempyrepeat;
-										wall[i].cstat    = tempcstat;
-										break;
-								}
-								fixrepeats(i);
-							}
-							i = wall[i].point2;
-						}
-						while (i != searchwall);
-						BeepOk();
-						break;
-					// paste to all parallax ceilings
-					case OBJ_CEILING:
-						for (i = 0; i < numsectors; i++)
-						{
-							if (isSkySector(i, searchstat))
-							{
-								sector[i].ceilingpicnum = temppicnum;
-								sector[i].ceilingshade = tempshade;
-								sector[i].ceilingpal = temppal;
-								if (somethingintab == OBJ_CEILING || somethingintab == OBJ_FLOOR)
-								{
-									sector[i].ceilingxpanning = tempxrepeat;
-									sector[i].ceilingypanning = tempyrepeat;
-									sector[i].ceilingstat = (BYTE)(tempcstat | kSectParallax);
-								}
-							}
-						}
-						BeepOk();
-						break;
-					// paste to all parallax floors
-					case OBJ_FLOOR:
-						for (i = 0; i < numsectors; i++)
-						{
-							if (isSkySector(i, searchstat))
-							{
-								sector[i].floorpicnum = temppicnum;
-								sector[i].floorshade = tempshade;
-								sector[i].floorpal = temppal;
-								if (somethingintab == OBJ_CEILING || somethingintab == OBJ_FLOOR)
-								{
-									sector[i].floorxpanning = tempxrepeat;
-									sector[i].floorypanning = tempyrepeat;
-									sector[i].floorstat = (BYTE)(tempcstat | kSectParallax);
-								}
-							}
-						}
-						BeepOk();
-						break;
-					default:
-						BeepFail();
-						break;
-				}
-				break;
-			}
-
-			if ( shift )	// paste shade and palette
-			{
-				switch (searchstat)
-				{
-					case OBJ_WALL:
-						wall[searchwall].shade = tempshade;
-						wall[searchwall].pal = temppal;
-						break;
-					case OBJ_CEILING:
-						if ( sectInHglt(searchsector) )
-						{
-							for(i = 0; i < highlightsectorcnt; i++)
-							{
-								sect = highlightsector[i];
-								sector[sect].ceilingshade = tempshade;
-								sector[sect].ceilingpal = temppal;
-								sector[sect].visibility = tempvisibility;
-							}
-						}
-						else
-						{
-							sector[searchsector].ceilingshade = tempshade;
-							sector[searchsector].ceilingpal = temppal;
-							sector[searchsector].visibility = tempvisibility;
-
-							// if this sector is a parallaxed sky...
-							if (isSkySector(searchsector, searchstat))
-							{
-								// propagate shade data on all parallaxed sky sectors
-								for (i = 0; i < numsectors; i++)
-									if (isSkySector(i, searchstat))
-									{
-										sector[i].ceilingshade = tempshade;
-										sector[i].ceilingpal = temppal;
-										sector[i].visibility = tempvisibility;
-									}
-							}
-						}
-						break;
-
-					case OBJ_FLOOR:
-						if (sectInHglt(searchsector))
-						{
-							for(i = 0; i < highlightsectorcnt; i++)
-							{
-								sect = highlightsector[i];
-								sector[sect].floorshade = tempshade;
-								sector[sect].floorpal = temppal;
-								sector[sect].visibility = tempvisibility;
-							}
-						}
-						else
-						{
-							sector[searchsector].floorshade = tempshade;
-							sector[searchsector].floorpal = temppal;
-							sector[searchsector].visibility = tempvisibility;
-						}
-						break;
-					case OBJ_SPRITE:
-						sprite[searchwall].shade = tempshade;
-						sprite[searchwall].pal = temppal;
-						break;
-					case OBJ_MASKED:
-						wall[searchwall].shade = tempshade;
-						wall[searchwall].pal = temppal;
-						break;
-				}
-				BeepOk();
-				break;
-			}
-
-			if (alt || keystatus[KEY_SPACE])	// copy extra structures
-			{
-				switch (searchstat) {
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						if (somethingintab == OBJ_WALL || somethingintab == OBJ_MASKED)
-						{
-							int oextra = wall[searchwall].extra;
-							wall[searchwall].extra = tempextra;
-							wall[searchwall].type = temptype;
-							CleanUp();
-
-							if (tempextra > 0) scrSetMessage("X-properties pasted.");
-							else if (oextra > 0) scrSetMessage("X-properties cleared.");
-							BeepOk();
-						}
-						else
-						{
-							scrSetMessage("Clipboard object is not a wall!");
-							BeepFail();
-						}
-						break;
-					case OBJ_CEILING:
-					case OBJ_FLOOR:
-						if (somethingintab == OBJ_CEILING || somethingintab == OBJ_FLOOR) {
-
-							int oextra = sector[searchsector].extra;
-							sector[searchsector].extra = tempextra;
-							sector[searchsector].type = temptype;
-							BeepOk();
-							CleanUp();
-							if (tempextra > 0) {
-
-								int nIdx1, nIdx2;
-								findSectorMarker(searchsector, &nIdx1, &nIdx2);
-
-								if (nIdx1 >= 0) {
-									sprite[nIdx1].x = wall[sector[searchsector].wallptr].x;
-									sprite[nIdx1].y = wall[sector[searchsector].wallptr].y;
-									ChangeSpriteSect(nIdx1, searchsector);
-								}
-
-								if (nIdx2 >= 0) {
-									sprite[nIdx2].x = wall[sector[searchsector].wallptr].x;
-									sprite[nIdx2].y = wall[sector[searchsector].wallptr].y;
-									ChangeSpriteSect(nIdx2, searchsector);
-								}
-
-
-								CleanUp();
-								scrSetMessage("X-properties pasted.");
-
-							} else if (oextra > 0) {
-								scrSetMessage("X-properties cleared.");
-							}
-
-						} else {
-							scrSetMessage("Clipboard object is not a sector!");
-							BeepFail();
-						}
-						break;
-					case OBJ_SPRITE:
-						if (somethingintab == OBJ_SPRITE) {
-
-							int oextra = sprite[searchwall].extra;
-							sprite[searchwall].type = temptype;
-							sprite[searchwall].extra = tempextra;
-							CleanUp();
-
-							if (tempextra > 0) scrSetMessage("X-properties pasted.");
-							else if (oextra > 0) scrSetMessage("X-properties cleared.");
-							BeepOk();
-
-						} else {
-							scrSetMessage("Clipboard object is not a sprite!");
-							BeepFail();
-						}
-						break;
-				}
-				break;
-			}
-
-			switch (searchstat)
-			{
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					wall[searchwall].pal = temppal;
-					wall[searchwall].shade = tempshade;
-					switch (searchstat) {
-						case OBJ_WALL:
-							wall[searchwall].picnum = temppicnum;
-							break;
-						default:
-							wall[searchwall].overpicnum = temppicnum;
-							if (wall[searchwall].nextwall >= 0)
-								wall[wall[searchwall].nextwall].overpicnum = temppicnum;
-							break;
-					}
-
-					if (somethingintab == searchstat)
-					{
-						int oCstat = wall[searchwall].cstat;
-						wall[searchwall].xrepeat	= tempxrepeat;
-						wall[searchwall].yrepeat	= tempyrepeat;
-						wall[searchwall].cstat		= tempcstat;
-						
-						if ((oCstat & kWallSwap) && !(tempcstat & kWallSwap))
-							wall[searchwall].cstat |= kWallSwap;
-						
-						TranslateWallToSector();
-						if (sector[searchsector].type > 0)
-						{
-							if (oCstat & kWallMoveMask)
-							{
-								wall[searchwall].cstat &= ~(kWallMoveForward | kWallMoveReverse);
-								if (oCstat & kWallMoveForward)
-									wall[searchwall].cstat |= kWallMoveForward;
-								else
-									wall[searchwall].cstat |= kWallMoveReverse;
-							}
-						}
-						
-						if (sectorofwall(tempidx) < 0 || getWallLength(tempidx) != getWallLength(searchwall))
-							fixrepeats(searchwall);
-					}
-					break;
-				case OBJ_CEILING:
-					sector[searchsector].ceilingpicnum = temppicnum;
-					sector[searchsector].ceilingshade = tempshade;
-					sector[searchsector].ceilingpal = temppal;
-					switch (somethingintab)
-					{
-						case OBJ_CEILING:
-						case OBJ_FLOOR:
-							sector[searchsector].visibility 		= tempvisibility;
-							sector[searchsector].ceilingxpanning 	= tempxrepeat;
-							sector[searchsector].ceilingypanning 	= tempyrepeat;
-							int ostat = sector[searchsector].ceilingstat;
-							sector[searchsector].ceilingstat = (BYTE)tempcstat;
-							if ((ostat & kSectSloped) && !(sector[searchsector].ceilingstat & kSectSloped))
-								sector[searchsector].ceilingstat |= kSectSloped;
-							break;
-					}
-					if (isSkySector(searchsector, searchstat))
-					{
-						Sky::FixPan(searchsector, searchstat, FALSE);
-						Sky::Setup(searchsector, searchstat, sector[searchsector].ceilingshade, sector[searchsector].ceilingpal, sector[searchsector].ceilingpicnum, -1, -1, FALSE);
-					}
-					break;
-				case OBJ_FLOOR:
-					sector[searchsector].floorpicnum = temppicnum;
-					sector[searchsector].floorshade = tempshade;
-					sector[searchsector].floorpal = temppal;
-					switch (somethingintab) {
-						case OBJ_CEILING:
-						case OBJ_FLOOR:
-							sector[searchsector].visibility 	= tempvisibility;
-							sector[searchsector].floorxpanning	= tempxrepeat;
-							sector[searchsector].floorypanning	= tempyrepeat;
-							int ostat = sector[searchsector].floorstat;
-							sector[searchsector].floorstat = (BYTE)tempcstat;
-							if ((ostat & kSectSloped) && !(sector[searchsector].floorstat & kSectSloped))
-								sector[searchsector].floorstat |= kSectSloped;
-							break;
-					}
-					if (isSkySector(searchsector, searchstat))
-					{
-						Sky::FixPan(searchsector, searchstat, FALSE);
-						Sky::Setup(searchsector, searchstat, sector[searchsector].floorshade, sector[searchsector].floorpal, sector[searchsector].floorpicnum, -1, -1, FALSE);
-					}
-					break;
-				case OBJ_SPRITE:
-					sprite[searchwall].picnum = temppicnum;
-					sprite[searchwall].shade = tempshade;
-					sprite[searchwall].pal = temppal;
-					if (somethingintab == searchstat)
-					{
-						sprite[searchwall].xrepeat = (char)ClipLow(tempxrepeat, 1);
-						sprite[searchwall].yrepeat = (char)ClipLow(tempyrepeat, 1);
-						//sprite[searchwall].xoffset = tempxoffset;
-						//sprite[searchwall].yoffset = tempyoffset;
-						sprite[searchwall].cstat = tempcstat;
-						if ((sprite[searchwall].cstat & kSprRelMask) == kSprVoxel)
-							spriteSetSlope(searchwall, tempslope);
-						
-					}
-					clampSprite(&sprite[searchwall]);
-					break;
-
-			}
-			BeepOk();
-			break;
-
-		case KEY_LBRACE:
-			if (searchstat == OBJ_WALL || searchstat == OBJ_MASKED) TranslateWallToSector();
-			if ((searchstat == OBJ_CEILING || searchstat == OBJ_FLOOR) && sector[searchsector].alignto)
-			{
-				scrSetMessage("Sector must be non auto-aligned!");
-				BeepFail();
-				break;
-			}
-			
-			gStep = (shift) ? 32 : 256;
-			switch (searchstat) {
-				case OBJ_CEILING:
-					if (sectInHglt(searchsector))
-					{
-						for (i = 0; i < highlightsectorcnt; i++)
-							SetCeilingSlope(highlightsector[i], DecNext(sector[highlightsector[i]].ceilingslope, gStep));
-						scrSetMessage("adjusted %i ceilings by %i", highlightsectorcnt, gStep);
-					}
-					else
-					{
-						SetCeilingSlope(searchsector, DecNext(sector[searchsector].ceilingslope, gStep));
-						scrSetMessage("sector[%i].ceilingslope: %i", searchsector, sector[searchsector].ceilingslope);
-					}
-					BeepOk();
-					break;
-				case OBJ_FLOOR:
-					if ( sectInHglt(searchsector) ) {
-						for(i = 0; i < highlightsectorcnt; i++)
-							SetFloorSlope(highlightsector[i], DecNext(sector[highlightsector[i]].floorslope, gStep));
-						scrSetMessage("adjusted %i floors by %i", highlightsectorcnt, gStep);
-					} else {
-						SetFloorSlope(searchsector, DecNext(sector[searchsector].floorslope, gStep));
-						scrSetMessage("sector[%i].floorslope: %i", searchsector, sector[searchsector].floorslope);
-					}
-					BeepOk();
-					break;
-				case OBJ_SPRITE: {
-					short cstat = (short)(sprite[searchwall].cstat & 48);
-					if (cstat == 32 || cstat == 48) {
- 						short newslope = 0, oldslope = spriteGetSlope(searchwall);
-						if (ctrl) newslope = sector[sprite[searchwall].sectnum].floorslope;
-						else if (alt) newslope = sector[sprite[searchwall].sectnum].ceilingslope;
-						else newslope = (short)DecNext(oldslope, gStep);
-						spriteSetSlope(searchwall, newslope);
-						scrSetMessage("sprite[%i].slope: %i", searchwall, newslope);
-						BeepOk();
-
-					} else {
-
-						scrSetMessage("Sprite #%d must be floor aligned!", searchwall);
-						BeepFail();
-
-					}
-					break;
-				}
-			}
-			break;
-		case KEY_RBRACE:
-			if (searchstat == OBJ_WALL || searchstat == OBJ_MASKED) TranslateWallToSector();
-			if ((searchstat == OBJ_CEILING || searchstat == OBJ_FLOOR) && sector[searchsector].alignto)
-			{
-				scrSetMessage("Sector must be non auto-aligned!");
-				BeepFail();
-				break;
-			}
-						
-			if (alt)
-			{
-				short nextSector = wall[searchwall].nextsector;
-				if (nextSector < 0) {
-					BeepFail();
-					break;
-				}
-
-				x = wall[searchwall].x;
-				y = wall[searchwall].y;
-				switch (searchstat) {
-					case OBJ_CEILING:
-						alignceilslope(searchsector, x, y, getceilzofslope(nextSector, x, y));
-						BeepOk();
-						break;
-					case OBJ_FLOOR:
-						alignflorslope(searchsector, x, y, getflorzofslope(nextSector, x, y));
-						BeepOk();
-						break;
-					default:
-						BeepFail();
-						break;
-				}
-				break;
-			}
-
-			gStep = (shift) ? 32 : 256;
-			switch (searchstat) {
-				case OBJ_CEILING:
-					if (sectInHglt(searchsector)) {
-						for (i = 0; i < highlightsectorcnt; i++)
-							SetCeilingSlope(highlightsector[i], IncNext(sector[highlightsector[i]].ceilingslope, gStep));
-						scrSetMessage("adjusted %i ceilings by %i", highlightsectorcnt, gStep);
-					} else {
-						SetCeilingSlope(searchsector, IncNext(sector[searchsector].ceilingslope, gStep));
-						scrSetMessage("sector[%i].ceilingslope: %i", searchsector, sector[searchsector].ceilingslope);
-					}
-					BeepOk();
-					break;
-				case OBJ_FLOOR:
-					if (sectInHglt(searchsector)) {
-						for(i = 0; i < highlightsectorcnt; i++)
-							SetFloorSlope(highlightsector[i], IncNext(sector[highlightsector[i]].floorslope, gStep));
-						scrSetMessage("adjusted %i floors by %i", highlightsectorcnt, gStep);
-					} else {
-						SetFloorSlope(searchsector, IncNext(sector[searchsector].floorslope, gStep));
-						scrSetMessage("sector[%i].floorslope: %i", searchsector, sector[searchsector].floorslope);
-					}
-					BeepOk();
-					break;
-				case OBJ_SPRITE: {
-					short cstat = (short)(sprite[searchwall].cstat & 48);
-					if (cstat == 32 || cstat == 48) {
- 						short newslope = 0;
-						short oldslope = spriteGetSlope(searchwall);
-						if (ctrl) newslope = sector[sprite[searchwall].sectnum].floorslope;
-						else if (alt) newslope = sector[sprite[searchwall].sectnum].ceilingslope;
-						else newslope = (short)IncNext(oldslope, gStep);
-						spriteSetSlope(searchwall, newslope);
-						scrSetMessage("sprite[%i].slope: %i", searchwall, newslope);
-						BeepOk();
-
-					} else {
-
-						scrSetMessage("Sprite #%d must be floor aligned!", searchwall);
-						BeepFail();
-
-					}
-					break;
-				}
-			}
-			break;
-		case KEY_BACKSLASH:		// Reset slope to 0
-			if (searchstat == OBJ_WALL || searchstat == OBJ_MASKED) TranslateWallToSector(); 
-			if ((searchstat == OBJ_CEILING || searchstat == OBJ_FLOOR) && sector[searchsector].alignto) {
-				scrSetMessage("Sector must be non auto-aligned!");
-				BeepFail();
-				break;
-			}
-
-			switch (searchstat) {
-				case OBJ_CEILING:
-					sector[searchsector].ceilingslope = 0;
-					sector[searchsector].ceilingstat &= ~kSectSloped;
-					scrSetMessage("sector[%i] ceiling slope reset", searchsector);
-					break;
-				case OBJ_FLOOR:
-					sector[searchsector].floorslope = 0;
-					sector[searchsector].floorstat &= ~kSectSloped;
-					scrSetMessage("sector[%i] floor slope reset", searchsector);
-					break;
-				case OBJ_SPRITE: {
-					short cstat = (short)(sprite[searchwall].cstat & 48);
-					if (cstat == 32 || cstat == 48) {
-						spriteSetSlope(searchwall, 0);
-						scrSetMessage("sprite[%i] slope reset", searchwall);
-					}
-					break;
-				}
-			}
-			BeepOk();
-			break;
-		case KEY_MINUS:
-		case KEY_PLUS:
-			gStep = (key == KEY_MINUS) ? 1 : -1 ;
-			sprintf(buffer, (gStep < 0) ? "more" : "less");
-			
-			// iterate sector visibility (higher numbers are less)
-			if (ctrl && alt)
-			{
-				if (sectInHglt(searchsector))
-				{
-					i = hgltSectCallFunc((HSECTORFUNC2*)sectChgVisibility, gStep);
-					scrSetMessage("%d sectors are %s visible", i, buffer);
-				}
-				else
-				{
-					sectChgVisibility(searchsector, gStep);
-					scrSetMessage("sector[%d] visibility: %i (%s)", searchsector, sector[searchsector].visibility, buffer);
-				}
-			}
-			else if (keystatus[KEY_D])
-			{
-				gStep = mulscale10((key == KEY_MINUS) ? 16 : -16, numpalookups<<5);
-				visibility = ClipRange(visibility + gStep, 0, kMaxVisibility);
-				scrSetMessage("Global visibility %d (%s)", visibility, buffer);
-			}
-			else if (ctrl || shift)
-			{
-				nXSector = GetXSector(searchsector);
-				
-				if (ctrl) // iterate lighting effect amplitude
-				{
-					xsector[nXSector].amplitude  += gStep;
-					scrSetMessage("Amplitude: %d", xsector[nXSector].amplitude);
-				}
-				else // iterate lighting effect phase
-				{
-					
-					xsector[nXSector].shadePhase += gStep;
-					scrSetMessage("Phase: %d", xsector[nXSector].shadePhase);
-				}
-				
-				BeepOk();
-			}
-			break;
-		case KEY_C:
-			if (alt)	// change all tiles matching target to tab picnum
-			{
-				if (somethingintab != searchstat)
-				{
-					BeepFail();
-					break;
-				}
-				
-				switch (searchstat)
-				{
-					case OBJ_WALL:
-						j = wall[searchwall].picnum;
-						if ( TestBitString(hgltwall, searchwall) )	// highlighted?
-						{
-							for (int i = 0; i < highlightcnt; i++)
-								if ( (highlight[i] & 0xC000) == 0 )
-								{
-									int nWall = highlight[ i ];
-									if (wall[nWall].picnum == j)
-									{
-										if (wall[nWall].picnum != temppicnum)
-											wall[nWall].picnum = temppicnum;
-										else if (wall[nWall].pal != temppal)
-											wall[nWall].pal = temppal;
-									}
-								}
-						} else {
-							for ( i = 0; i < numwalls; i++)
-								if (wall[i].picnum == j)
-								{
-									if (wall[i].picnum != temppicnum)
-										wall[i].picnum = temppicnum;
-									else if (wall[i].pal != temppal)
-										wall[i].pal = temppal;
-								}
-						}
-						break;
-
-					case OBJ_CEILING:
-						j = sector[searchsector].ceilingpicnum;
-						for (i = 0; i < numsectors; i++)
-							if (sector[i].ceilingpicnum == j)
-							{
-								if (sector[i].ceilingpicnum != temppicnum)
-									sector[i].ceilingpicnum = temppicnum;
-								else if (sector[i].ceilingpal != temppal)
-									sector[i].ceilingpal = temppal;
-							}
-						break;
-
-					case OBJ_FLOOR:
-						j = sector[searchsector].floorpicnum;
-						for (i = 0; i < numsectors; i++)
-							if (sector[i].floorpicnum == j)
-							{
-								if (sector[i].floorpicnum != temppicnum)
-									sector[i].floorpicnum = temppicnum;
-								else if (sector[i].floorpal != temppal)
-									sector[i].floorpal = temppal;
-							}
-						break;
-
-					case OBJ_SPRITE:
-						j = sprite[searchwall].picnum;
-						for (i = 0; i < kMaxSprites; i++)
-							if (sprite[i].statnum < kMaxStatus && sprite[i].picnum == j)
-							{
-								sprite[i].picnum = temppicnum;
-								sprite[i].type = temptype;
-							}
-						break;
-
-					case OBJ_MASKED:
-						j = wall[searchwall].overpicnum;
-						for (i = 0; i < numwalls; i++)
-							if (wall[i].overpicnum == j)
-							{
-								wall[i].overpicnum = temppicnum;
-							}
-						break;
-				}
-			}
-			BeepOk();
-			break;
-		case KEY_E:	// E (expand)
-			switch (searchstat)
-			{
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-					sectCstatToggle(searchsector, kSectExpand, searchstat);
-					scrSetMessage("%s texture %s expanded", gSearchStatNames[searchstat], isNot(sectCstatGet(searchsector, searchstat) & kSectExpand));
-					BeepOk();
-					break;
-				default:
-					BeepFail();
-					break;
-			}
-			break;
-		case KEY_F:
-			if (alt)
-			{
-				switch (searchstat)
-				{
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						nSector = sectorofwall(searchwall);
-						sectCstatRem(searchsector, kSectFlipMask, OBJ_CEILING);
-						sectCstatAdd(searchsector, kSectRelAlign, OBJ_CEILING);
-						setFirstWall(nSector, searchwall);
-						BeepOk();
-						break;
-					case OBJ_CEILING:
-					case OBJ_FLOOR:
-						sectCstatRem(searchsector, kSectFlipMask, searchstat);
-						sectCstatAdd(searchsector, kSectRelAlign, searchstat);
-						setFirstWall(searchsector, sector[searchsector].wallptr + 1);
-						BeepOk();
-						break;
-					default:
-						BeepFail();
-						break;
-				}
-			} else {
-				switch (searchstat) {
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						switch((i = (wall[searchwall].cstat & kWallFlipMask))) {
-							case 0: i = kWallFlipX; break;
-							case kWallFlipX: i = kWallFlipX | kWallFlipY; break;
-							case kWallFlipX | kWallFlipY: i = kWallFlipY; break;
-							case kWallFlipY: i = 0;  break;
-						}
-
-						wall[searchwall].cstat &= ~kWallFlipMask;
-						wall[searchwall].cstat |= (short)i;
-						sprintf(buffer, "wall[%i]", searchwall);
-						if (wall[searchwall].cstat & kWallFlipX)
-							strcat(buffer," x-flipped");
-
-						if (wall[searchwall].cstat & kWallFlipY) {
-							if (wall[searchwall].cstat & kWallFlipX)
-								strcat(buffer," and");
-							strcat(buffer," y-flipped");
-						}
-
-						scrSetMessage(buffer);
-						BeepOk();
-						break;
-					case OBJ_CEILING:
-					case OBJ_FLOOR:
-						if (searchstat == OBJ_CEILING) i = sector[searchsector].ceilingstat & kSectFlipMask;
-						else i = sector[searchsector].floorstat & kSectFlipMask;
-						switch (i)
-						{
-							case 0x00: i = 0x10; break;
-							case 0x10: i = 0x30; break;
-							case 0x30: i = 0x20; break;
-							case 0x20: i = 0x04; break;
-							case 0x04: i = 0x14; break;
-							case 0x14: i = 0x34; break;
-							case 0x34: i = 0x24; break;
-							case 0x24: i = 0x00; break;
-						}
-						
-						sectCstatRem(searchsector, kSectFlipMask, searchstat);
-						sectCstatAdd(searchsector, (BYTE)i, searchstat);
-						break;
-					case OBJ_SPRITE:
-					{
-						int zTopOld, zTopNew;
-						GetSpriteExtents(&sprite[searchwall], &zTopOld, &i);
-						i = sprite[searchwall].cstat;
-						
-						// two-sided floor sprite?
-						if ((i & kSprRelMask) == kSprFloor && !(i & kSprOneSided))
-						{
-							// what the hell is this supposed to be doing?
-							sprite[searchwall].cstat &= ~kSprFlipY;
-							sprite[searchwall].cstat ^= kSprFlipX;
-						}
-						else
-						{
-							i = i & 0xC;
-							switch(i) {
-								case 0x0: i = 0x4; break;
-								case 0x4: i = 0xC; break;
-								case 0xC: i = 0x8; break;
-								case 0x8: i = 0x0; break;
-							}
-							sprite[searchwall].cstat &= ~0xC;
-							sprite[searchwall].cstat |= (short)i;
-						}
-
-						sprintf(buffer, "sprite[%i]", searchwall);
-						if (sprite[searchwall].cstat & kSprFlipX)
-							strcat(buffer," x-flipped");
-
-						if (sprite[searchwall].cstat & kSprFlipY) {
-							if (sprite[searchwall].cstat & kSprFlipX) strcat(buffer," and");
-							strcat(buffer," y-flipped");
-						}
-						scrSetMessage(buffer);
-						GetSpriteExtents(&sprite[searchwall], &zTopNew, &i);
-						sprite[searchwall].z += (zTopOld-zTopNew); // compensate Z (useful for wall sprites)
-						break;
-					}
-				}
-				BeepOk();
-			}
-			break;
-		case KEY_G:
-			if (shift || (!alt && gHighSpr >= 0))
-			{
-				if (!ctrl)
-				{
-					grid = (short)ClipLow(IncRotate(grid, 7), 1);
-					scrSetMessage("Grid size: %d", grid);
-				}
-				else
-				{
-					gridlock = (gridlock) ? FALSE : TRUE;
-					scrSetMessage("Gridlock is %s", gBoolNames[gridlock]);
-				}
-				
-				BeepOk();
-			}
-			else if (alt)
-			{
-				// change global palette
-				gMisc.palette = (BYTE)IncRotate(gMisc.palette, kPalMax);
-				scrSetMessage("Screen palette #%d", gMisc.palette);
-				scrSetPalette(gMisc.palette);
-				BeepOk();
-			}
-			else
-			{
-				if (gListGrd.Exists(searchstat, searchindex))
-				{
-					if (gListGrd.Length() > 1)
-					{
-						grshShadeWalls(ctrl);
-					}
-					else
-					{
-						scrSetMessage("Must highlight at least 2 objects!");
-						BeepFail();
-					}
-				}
-				else
-				{
-					scrSetMessage("Object is not highlighted!");
-					BeepFail();
-				}
-			}
-			break;
-		case KEY_H:		// H (hitscan sensitivity)
-			switch (searchstat)
-			{
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-					// no break
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					wallCstatToggle(searchwall, kWallHitscan, !shift);
-					scrSetMessage("wall[%i] %s hitscan sensitive", searchwall, isNot(wall[searchwall].cstat & kWallHitscan));
-					BeepOk();
-					break;
-				case OBJ_SPRITE:
-					sprite[searchwall].cstat ^= kSprHitscan;
-					scrSetMessage("sprite[%i] %s hitscan sensitive", searchwall, isNot(sprite[searchwall].cstat & kSprHitscan));
-					BeepOk();
-					break;
-				default:
-					BeepFail();
-			}
-			break;
-		case KEY_L:
-			switch (searchstat) {
-				case OBJ_SPRITE: {
-					GetSpriteExtents(&sprite[searchwall], &zTop, &zBot);
-					ushort oldcstat = sprite[searchwall].cstat;
-					sprite[searchwall].cstat &= ~kSprHitscan;
-					SetupLightBomb();
-					LightBomb(sprite[searchwall].x, sprite[searchwall].y, zTop, sprite[searchwall].sectnum);
-					sprite[searchwall].cstat = oldcstat;
-					BeepOk();
-					break;
-				}
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-					Beep(Sky::ToggleFloorShade(searchsector, alt));
-					break;
-				default:
-					BeepFail();
-					break;
-			}
-			break;
-		case KEY_O:
-			switch (searchstat)
-			{
-				default:
-					BeepFail();
-					break;
-				// O (top/bottom orientation - for doors)
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					wall[searchwall].cstat ^= kWallOrgBottom;
-					if (wall[searchwall].nextwall == -1) scrSetMessage("Texture pegged at %s", (wall[searchwall].cstat & kWallOrgBottom) ? "bottom" : "top");
-					else scrSetMessage("Texture pegged at %s", (wall[searchwall].cstat & kWallOrgOutside) ? "outside" : "inside");
-					BeepOk();
-					break;
-				// O (ornament onto wall)
-				case OBJ_SPRITE:
-					if (ctrl)
-					{
-						if (sprite[searchwall].z > sector[sprite[searchwall].sectnum].floorz)
-						{
-							scrSetMessage("%s[%d].z is below floor", gSearchStatNames[searchstat], searchwall);
-							BeepFail();
-							break;
-						}
-
-						if (sprite[searchwall].z < sector[sprite[searchwall].sectnum].ceilingz)
-						{
-							scrSetMessage("%s[%d].z is above ceiling", gSearchStatNames[searchstat], searchwall);
-							BeepFail();
-							break;
-						}
-						
-						int nAng = ang;
-						if (alt)
-							nAng = sprite[searchwall].ang + kAng180;
-						
-						int nx, ny;
-						int hitType = HitScan(&sprite[searchwall], sprite[searchwall].z,Cos(nAng) >> 16, Sin(nAng) >> 16, 0, BLOCK_NONE, 0);
-						switch(hitType)
-						{
-							case OBJ_WALL:
-							case OBJ_MASKED:
-								GetWallNormal(gHitInfo.hitwall, &nx, &ny);
-								sprite[searchwall].x = gHitInfo.hitx + (nx >> 14);
-								sprite[searchwall].y = gHitInfo.hity + (ny >> 14);
-								sprite[searchwall].z = gHitInfo.hitz;
-								ChangeSpriteSect(searchwall, gHitInfo.hitsect);
-								sprite[searchwall].ang = (short)((GetWallAngle(gHitInfo.hitwall) + kAng90) & kAngMask);
-								scrSetMessage("%s ornamented onto wall %d\n", gSearchStatNames[searchstat], gHitInfo.hitwall);
-								BeepOk();
-								break;
-							default:
-								BeepFail();
-								break;
-						}
-					}
-					else if (alt)
-					{
-						sprite[searchwall].cstat ^= kSprOrigin;
-						scrSetMessage("%s[%d] origin align is %s", gSearchStatNames[searchstat], searchwall, onOff((sprite[searchwall].cstat & kSprOrigin)));
-						BeepOk();
-						break;
-					}
-					break;
-			}
-			break;
-		case KEY_P:
-			if (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING)
-			{
-				if (ctrl && shift)
-				{
-					if (isSkySector(searchsector, searchstat))
-					{
-						Sky::Disable(searchsector, searchstat, alt);
-						BeepOk();
-						break;
-					}
-					
-					BeepFail();
-					break;
-				}
-				
-				if (alt)
-				{
-					sectCstatToggle(searchsector, kSectParallax, searchstat);
-					if (isSkySector(searchsector, searchstat)) Sky::MakeSimilar(searchsector, searchstat, 0);
-					else if (searchstat == OBJ_CEILING)			sectCstatRem(searchsector, kSectShadeFloor, searchstat);
-					scrSetMessage("%s[%d] %s parallaxed", gSearchStatNames[searchstat], searchsector, isNot(isSkySector(searchsector, searchstat)));
-					BeepOk();
-					break;
-				}
-			}
-			{
-				char title[32];
-				char nPlu		= getPluOf(searchstat,		searchindex);
-				short nPic		= getPicOf(searchstat, 		searchindex);
-				short nShade	= getShadeOf(searchstat,	searchindex);
-				sprintf(title, "%s #%d palookup", gSearchStatNames[searchstat], searchindex);
-				
-				if (!shift)
-				{
-					i = nPlu;
-					if (searchstat == OBJ_SPRITE)
-						nShade = viewSpriteShade(nShade, nPic, sprite[searchindex].sectnum);
-					
-					if ((nPlu = pluPick(nPic, nShade, nPlu, title)) == i)
-						break;
-				}
-				else
-				{
-					nPlu = nextEffectivePlu(nPic, 0, nPlu, (shift & 0x01));
-				}
-				
-				if (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING)
-				{
-					if (isSkySector(searchindex, searchstat))
-					{
-						Sky::SetPal(searchindex, searchstat, nPlu, ctrl);
-						break;
-					}
-				}
-
-				
-				i = isEffectivePLU(nPic, palookup[nPlu]);
-				buffer[0] = '\0';
-				if (nPlu > 1)
-					sprintf(buffer, "(%d efficiency)", i);
-				
-				scrSetMessage("%s: #%d %s", strlwr(title), nPlu, buffer);
-				if (searchstat == OBJ_SPRITE && sprInHglt(searchindex) && !shift)
-					hgltSprCallFunc(sprPalSet, nPlu);
-				else 
-					setPluOf(nPlu, searchstat, searchindex);
-				
-				Beep(nPlu < 2 || i);
-			}
-			break;
-		case KEY_R:		// R (relative alignment, rotation)
-			switch (searchstat) {
-				case OBJ_CEILING:
-				case OBJ_FLOOR:
-					if (!isSkySector(searchsector, searchstat))
-					{
-						i = sectCstatToggle(searchsector, kSectRelAlign, searchstat);
-						scrSetMessage("%s[%d] %s relative", gSearchStatNames[searchstat], searchsector, isNot(i & kSectRelAlign));
-						BeepOk();
-						break;
-					}
-					// no break
-				default:
-					BeepFail();
-			}
-			break;
-		case KEY_S:
-			if (searchstat == OBJ_SPRITE)
-			{
-				if ((sprite[searchwall].cstat & kSprRelMask) == kSprFace)
-				{
-					BeepFail();
-					break;
-				}
-			}
-			
-			if (camHitscan(&hitsect, &hitwall, &hitsprite, &x, &y, &z, 0) < 0)
-			{
-				BeepFail();
-				break;
-			}
-			
-			i = -1;
-			if (!alt)
-			{
-				int nPic = OBJ_SPRITE;
-				if (somethingintab != OBJ_SPRITE)
-				{
-					switch(searchstat)
-					{
-						case OBJ_SPRITE:
-							switch (sprite[searchwall].cstat & kSprRelMask)
-							{
-								case kSprFloor:
-								case kSprSloped:
-								case kSprWall:
-									nPic = OBJ_FLATSPRITE;
-									break;
-							}
-							break;
-						case OBJ_WALL:
-							nPic = OBJ_FLATSPRITE;
-							break;
-					}
-					
-					if ((nPic = tilePick(-1, -1, nPic)) < 0)
-					{
-						BeepFail();
-						break;
-					}
-				}
-				
-				if ((i = InsertSprite(hitsect, kStatDecoration)) >= 0)
-				{
-					if (somethingintab == OBJ_SPRITE)
-					{
-						sprite[i].picnum	= temppicnum;
-						sprite[i].shade		= tempshade;
-						sprite[i].pal		= temppal;
-						sprite[i].xrepeat	= tempxrepeat;
-						sprite[i].yrepeat	= tempyrepeat;
-						sprite[i].xoffset	= (char)tempxoffset;
-						sprite[i].yoffset	= (char)tempyoffset;
-						sprite[i].cstat		= (short)tempcstat;
-						if ((sprite[i].cstat & kSprRelMask) == kSprSloped)
-							spriteSetSlope(i, tempslope);
-					}
-					else
-					{
-						sprite[i].picnum = (short)nPic;
-						sprite[i].shade  = -8;
-					}
-				}
-			}
-			else
-			{
-				i = InsertGameObject(searchstat, hitsect, x, y, z, ang);
-			}
-			
-			if (Beep(i >= 0))
-			{
-				sprite[i].x = x;
-				sprite[i].y = y;
-				sprite[i].z = z;
-
-				AutoAdjustSprites();
-
-				switch (searchstat)
-				{
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						doWallCorrection(searchwall2, &sprite[i].x, &sprite[i].y);
-						sprite[i].ang = (short)((GetWallAngle(searchwall2) + kAng90) & kAngMask);
-						if ((sprite[i].cstat & kSprRelMask) != kSprWall)
-						{
-							sprite[i].cstat &= ~kSprRelMask;
-							sprite[i].cstat |= kSprWall;
-						}
-						sprite[i].cstat |= kSprOneSided;
-						break;
-					case OBJ_SPRITE:
-						switch (sprite[searchwall].cstat & kSprRelMask)
-						{
-							case kSprSloped:
-							case kSprFloor:
-								sprite[i].z = sprite[searchwall].z;
-								clampSpriteZ(&sprite[i], sprite[searchwall].z,
-										(posz > sprite[searchwall].z) ? 0x01 : 0x02);
-								
-								if (((sprite[i].cstat & kSprRelMask) == kSprWall)
-									&& (sprite[i].cstat & kSprOneSided))
-											sprite[i].ang = (short)((ang + kAng180) & kAngMask);
-								break;
-							case kSprWall:
-								sprite[i].ang = sprite[searchwall].ang;
-								sprite[i].cstat |= kSprWall;
-								break;
-						}
-						break;
-					case OBJ_FLOOR:
-					case OBJ_CEILING:
-						clampSprite(&sprite[i]);
-						doGridCorrection(&sprite[i].x, &sprite[i].y, grid);
-						
-						if (((sprite[i].cstat & kSprRelMask) == kSprWall)
-							&& (sprite[i].cstat & kSprOneSided))
-								sprite[i].ang = (short)((ang + kAng180) & kAngMask);
-						break;
-				}
-
-				scrSetMessage("Sprite inserted.");
-			}
-			break;
-		case KEY_T:
-			buffer[0] = 0;
-			switch (searchstat) {
-				case OBJ_MASKED:
-					i = 0;
-					sprintf(buffer, "%d", searchwall);
-					if (wall[searchwall].cstat & kWallTransluc)  i = 2;
-					if (wall[searchwall].cstat & kWallTranslucR) i = 1;
-					switch (i = IncRotate(i, 3)) {
-						case 0:
-							wallCstatRem(searchwall, kWallTransluc2, !shift);
-							break;
-						case 1:
-							wallCstatAdd(searchwall, kWallTransluc2, !shift);
-							break;
-						case 2:
-							wallCstatRem(searchwall, kWallTransluc2, !shift);
-							wallCstatAdd(searchwall, kWallTransluc,  !shift);
-							break;
-					}
-					break;
-				case OBJ_SPRITE:
-					i = 0;
-					sprintf(buffer, "%d", searchwall);
-					if (sprite[searchwall].cstat & kSprTransluc1) i = 2;
-					if (sprite[searchwall].cstat & kSprTranslucR) i = 1;
-					switch (i = IncRotate(i, 3)) {
-						case 0:
-							sprite[searchwall].cstat &= ~kSprTransluc2;
-							break;
-						case 1:
-							sprite[searchwall].cstat |= kSprTransluc2;
-							break;
-						case 2:
-							sprite[searchwall].cstat &= ~kSprTransluc2;
-							sprite[searchwall].cstat |= kSprTransluc1;
-							break;
-					}
-					break;
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-					sprintf(buffer, "%d", searchsector);
-					j = sectCstatGet(searchsector, searchstat);
-					switch (j & kSectTranslucR) {
-						case 0: // first set it just masked
-							sectCstatAdd(searchsector, kSectMasked, searchstat);
-							scrSetMessage("%s[%s] is masked", gSearchStatNames[searchstat], buffer);
-							buffer[0] = '\0';
-							BeepOk();
-							break;
-						case kSectMasked:
-							sectCstatAdd(searchsector, kSectTransluc, searchstat); // less
-							i = 1;
-							break;
-						case kSectTranslucR:
-							sectCstatAdd(searchsector, kSectTranslucR, searchstat); // mostly
-							sectCstatRem(searchsector, kSectMasked, searchstat);
-							i = 2;
-							break;
-						case kSectTransluc:
-							sectCstatRem(searchsector, kSectTranslucR, searchstat); // none
-							scrSetMessage("%s[%s] is not masked nor translucent", gSearchStatNames[searchstat], buffer);
-							buffer[0] = '\0';
-							BeepFail();
-							break;
-					}
-					break;
-			}
-			if (buffer[0])
-			{
-				scrSetMessage("%s[%s] %s tanslucent", gSearchStatNames[searchstat], buffer, gTranslucLevNames[i]);
-				Beep(i);
-			}
-			break;
-		case KEY_U: {
-			int vis = 0;
-			switch (searchstat) {
-				case OBJ_FLOOR:
-				case OBJ_CEILING:
-					vis = sector[searchsector].visibility;
-					break;
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					vis = sector[sectorofwall(searchwall)].visibility;
-					break;
-				case OBJ_SPRITE:
-					vis = sector[sprite[searchwall].sectnum].visibility;
-					break;
-			}
-
-			if (Confirm("Set visibility for all sectors?") && (vis = GetNumberBox("Visibility", vis, -1)) > -1) {
-				vis = (char)ClipRange(vis, 0, 255);
-				for (i = 0; i < numsectors; i++) sector[i].visibility = (char)vis;
-				scrSetMessage("All sector visibility values set to %d", vis);
-				BeepOk();
+				case PROC_UNDO_CMP: asksave = 1; break;
+				case PROC_UNDO_ADD: asksave = 2; break;
 			}
 		}
-			break;
-		case KEY_V: {
-
-			vel = svel = angvel = 0;
-			short opic = -1, npic = -1;
-			if (shift && gFavTilesC <= 0)
-			{
-				Alert("There is no favorite tiles added yet.");
-				BeepFail();
-				break;
-			}
-
-			i = (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING) ? searchsector : searchwall;
-			sprintf(buffer, "%s #%d picnum", gSearchStatNames[searchstat], i);
-
-			switch (searchstat) {
-				case OBJ_SPRITE:
-					opic = sprite[searchwall].picnum;
-					if ((sprite[searchwall].cstat & kSprRelMask) != kSprFace) searchstat = OBJ_FLATSPRITE;
-					if (shift) npic = sprite[searchwall].picnum = (short)favoriteTileSelect(opic, opic, TRUE, searchstat);
-					else npic = sprite[searchwall].picnum = (short)tilePick(opic, opic, searchstat, buffer);
-					break;
-				case OBJ_WALL:
-					opic = wall[searchwall].picnum;
-					if (shift) npic = wall[searchwall].picnum = (short)favoriteTileSelect(opic, opic, TRUE, searchstat);
-					else npic = wall[searchwall].picnum = (short)tilePick(opic, opic, searchstat, buffer);
-					break;
-				case OBJ_MASKED:
-					opic = wall[searchwall].overpicnum;
-					if (shift) npic = wall[searchwall].overpicnum = (short)favoriteTileSelect(opic, opic, TRUE, searchstat);
-					else npic = wall[searchwall].overpicnum = (short)tilePick(opic, opic, searchstat, buffer);
-
-					if (wall[searchwall].nextwall >= 0) wall[wall[searchwall].nextwall].overpicnum = npic;
-					break;
-				case OBJ_CEILING:
-				case OBJ_FLOOR:
-					if (searchstat == OBJ_FLOOR)
-					{
-						opic = sector[searchsector].floorpicnum;
-						if (shift) npic = (short)favoriteTileSelect(opic, opic, TRUE, searchstat);
-						else npic = (short)tilePick(opic, opic, searchstat, buffer);
-					}
-					else
-					{
-						opic = sector[searchsector].ceilingpicnum;
-						if (shift) npic = (short)favoriteTileSelect(opic, opic, TRUE, searchstat);
-						else npic = (short)tilePick(opic, opic, searchstat, buffer);
-					}
-					
-					if (isSkySector(searchsector, searchstat))
-						Sky::SetPic(searchsector, searchstat, npic, !gMisc.diffSky);
-					else if (searchstat == OBJ_FLOOR)
-						sector[searchsector].floorpicnum = npic;
-					else
-					{
-						sector[searchsector].ceilingpicnum = npic;
-						sector[searchsector].floorstat &= ~kSectShadeFloor;	// clear forced floor shading bit
-					}
-					break;
-			}
-			if (opic != npic) BeepOk();
-			break;
-		}
-		case KEY_W: {
-			// change lighting waveform
-			nXSector = GetXSector(searchsector);
-			int nWave = xsector[nXSector].shadeWave;
-			do {
-				nWave = IncRotate(nWave, 12);
-			} while ( gWaveNames[nWave] == NULL );
-			ProcessHighlightSectors(SetWave, nWave);
-			scrSetMessage(gWaveNames[nWave]);
-			break;
-		}
-		case KEY_PADMINUS:
-			gStep = (ctrl) ? 128 : 1;
-			if (gListGrd.Exists(searchstat, searchindex))
-			{
-				OBJECT* pFirst = gListGrd.Ptr();
-				OBJECT* pDb = pFirst;
-				
-				// check if at least one of highlighted objects gets reached min shade
-				while(pDb->type != OBJ_NONE)
-				{
-					if (getShadeOf(pDb->type, pDb->index) >= NUMPALOOKUPS(1))
-						break;
-					
-					pDb++;
-				}
-				
-				if (pDb->type == OBJ_NONE)
-				{
-					pDb = pFirst;
-					
-					// set shade relatively
-					while(pDb->type != OBJ_NONE)
-					{
-						iterShadeOf(gStep, pDb->type, pDb->index);
-						pDb++;
-					}
-					
-					scrSetMessage("Relative shading (shade: +%d) for %d objects", gStep, gListGrd.Length());
-				}
-				else
-				{
-					scrSetMessage("One of objects reached max shade!");
-					BeepFail();
-					break;
-				}
-			}
-			else if (sectInHglt(searchsector))
-			{
-				for (i = 0; i < highlightsectorcnt; i++)
-				{
-					nSector = highlightsector[i];
-					iterShadeOf(gStep, OBJ_CEILING, nSector);
-					iterShadeOf(gStep, OBJ_FLOOR, nSector);
-					
-					getSectorWalls(nSector, &startwall, &endwall);
-					for (j = startwall; j <= endwall; j++)
-						iterShadeOf(gStep, OBJ_WALL, j);
-				}
-			}
-			else
-			{
-				switch (searchstat)
-				{
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						iterShadeOf(gStep, searchstat, searchwall);
-						scrSetMessage("Shade: %i", wall[searchwall].shade);
-						break;
-					case OBJ_CEILING:
-						iterShadeOf(gStep, searchstat, searchsector);
-						scrSetMessage("Shade: %i", sector[searchsector].ceilingshade);
-						if (isSkySector(searchsector, searchstat))
-							Sky::SetShade(searchsector, searchstat, sector[searchsector].ceilingshade, alt);
-						break;
-					case OBJ_FLOOR:
-						iterShadeOf(gStep, searchstat, searchsector);
-						scrSetMessage("Shade: %i", sector[searchsector].floorshade);
-						if (isSkySector(searchsector, searchstat))
-							Sky::SetShade(searchsector, searchstat, sector[searchsector].floorshade, alt);
-						break;
-					case OBJ_SPRITE:
-						if (!shift && sprInHglt(searchwall))
-						{
-							scrSetMessage("%d sprites darker by %d", hgltSprCallFunc(sprShadeIterate, gStep), gStep);
-						}
-						else
-						{
-							sprShadeIterate(&sprite[searchwall], gStep);
-							scrSetMessage("Shade: %i", sprite[searchwall].shade);
-						}
-						break;
-				}
-			}
-			BeepOk();
-			break;
-		case KEY_PADPLUS:
-			gStep = (ctrl) ? -128 : -1;
-			if (gListGrd.Exists(searchstat, searchindex))
-			{
-				OBJECT* pFirst = gListGrd.Ptr();
-				OBJECT* pDb = pFirst;
-				
-				// check if at least one of highlighted objects gets reached max shade
-				while(pDb->type != OBJ_NONE)
-				{
-					if (getShadeOf(pDb->type, pDb->index) <= -128)
-						break;
-					
-					pDb++;
-				}
-				
-				if (pDb->type == OBJ_NONE)
-				{
-					pDb = pFirst;
-					
-					// set shade relatively
-					while(pDb->type != OBJ_NONE)
-					{
-						iterShadeOf(gStep, pDb->type, pDb->index);
-						pDb++;
-					}
-					
-					scrSetMessage("Relative brighting (shade: -%d) for %d objects", gStep, gListGrd.Length());
-				}
-				else
-				{
-					scrSetMessage("One of objects reached min shade!");
-					BeepFail();
-					break;
-				}
-			}
-			else if (sectInHglt(searchsector))
-			{
-				for( i = 0; i < highlightsectorcnt; i++)
-				{
-					nSector = highlightsector[i];
-					iterShadeOf(gStep, OBJ_CEILING, nSector);
-					iterShadeOf(gStep, OBJ_FLOOR, nSector);
-					
-					getSectorWalls(nSector, &startwall, &endwall);
-					for (j = startwall; j <= endwall; j++)
-						iterShadeOf(gStep, OBJ_WALL, j);
-				}
-			}
-			else
-			{
-				switch (searchstat) {
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						iterShadeOf(gStep, searchstat, searchwall);
-						scrSetMessage("Shade: %i", wall[searchwall].shade);
-						break;
-					case OBJ_CEILING:
-						iterShadeOf(gStep, searchstat, searchsector);
-						scrSetMessage("Shade: %i", sector[searchsector].ceilingshade);
-						if (isSkySector(searchsector, searchstat))
-							Sky::SetShade(searchsector, searchstat, sector[searchsector].ceilingshade, alt);
-						break;
-					case OBJ_FLOOR:
-						iterShadeOf(gStep, searchstat, searchsector);
-						scrSetMessage("Shade: %i", sector[searchsector].floorshade);
-						if (isSkySector(searchsector, searchstat))
-							Sky::SetShade(searchsector, searchstat, sector[searchsector].floorshade, alt);
-						break;
-					case OBJ_SPRITE:
-						if (!shift && sprInHglt(searchwall))
-						{
-							scrSetMessage("%d sprites brighter by %d", hgltSprCallFunc(sprShadeIterate, gStep), gStep);
-						}
-						else
-						{
-							sprShadeIterate(&sprite[searchwall], gStep);
-							scrSetMessage("Shade: %i", sprite[searchwall].shade);
-						}
-						break;
-				}
-			}
-			BeepOk();
-			break;
-
-		case KEY_PAD0:
-			// set the shade of something to 0 brightness
-			if ( sectInHglt(searchsector) )
-			{
-				for( i = 0; i < highlightsectorcnt; i++)
-				{
-					nSector = highlightsector[i];
-
-					sector[nSector].ceilingshade = 0;
-					sector[nSector].floorshade = 0;
-					getSectorWalls(nSector, &startwall, &endwall);
-					for(j=startwall;j<=endwall;j++)
-						wall[j].shade = 0;
-				}
-			}
-			else
-			{
-				switch (searchstat) {
-					case OBJ_WALL:
-					case OBJ_MASKED: 
-						wall[searchwall].shade = 0; 
-						break;
-					case OBJ_FLOOR:
-					case OBJ_CEILING:
-						if (searchstat == OBJ_CEILING)
-							sector[searchsector].ceilingshade = 0;
-						else
-							sector[searchsector].floorshade = 0;
-						if (isSkySector(searchsector, searchstat))
-							Sky::SetShade(searchsector, searchstat, 0, alt);
-						break;
-					case OBJ_SPRITE:
-						if (!shift) hgltSprCallFunc(sprShadeSet, 0);
-						else sprite[searchwall].shade = 0;
-						break;
-				}
-			}
-			scrSetMessage("Shade reset.");
-			BeepOk();
-			break;
-	 	case KEY_F2:
-			if (alt)
-			{
-				// reverse door position
-				switch(searchstat)
-				{
-					case OBJ_SPRITE:
-						BeepFail();
-						break;
-					case OBJ_WALL:
-					case OBJ_MASKED:
-						TranslateWallToSector();
-						// no break
-					case OBJ_FLOOR:
-					case OBJ_CEILING:
-						if ((i = reverseSectorPosition(searchsector)) < 0)
-						{
-							char* errMsg = retnCodeCheck(i, gReverseSectorErrors);
-							if (errMsg)
-								Alert(errMsg);
-							
-							BeepFail();
-						}
-						BeepOk();
-						break;
-					
-				}
-				break;
-			}
-			
-			// toggle xstructure state
-			switch (searchstat)
-			{
-				case OBJ_WALL:
-				case OBJ_MASKED:
-					nXWall = wall[searchwall].extra;
-					if (Beep(nXWall > 0))
-					{
-						xwall[nXWall].state ^= 1;
-						xwall[nXWall].busy = xwall[nXWall].state << 16;
-						scrSetMessage(gBoolNames[xwall[nXWall].state]);
-					}
-					break;
-				case OBJ_CEILING:
-				case OBJ_FLOOR:
-					nXSector = sector[searchsector].extra;
-					if (Beep(nXSector > 0))
-					{
-						xsector[nXSector].state ^= 1;
-						xsector[nXSector].busy = xsector[nXSector].state << 16;
-						scrSetMessage(gBoolNames[xsector[nXSector].state]);
-					}
-					break;
-				case OBJ_SPRITE:
-					nXSprite = sprite[searchwall].extra;
-					if (Beep(nXSprite > 0))
-					{
-						xsprite[nXSprite].state ^= 1;
-						xsprite[nXSprite].busy = xsprite[nXSprite].state << 16;
-						scrSetMessage(gBoolNames[xsprite[nXSprite].state]);
-					}
-					break;
-			}
-			break;
-	 	case KEY_F3:
-		case KEY_F4:
-			switch (searchstat) {
-				case OBJ_WALL:
-					TranslateWallToSector();
-					// no break
-				case OBJ_CEILING:
-				case OBJ_FLOOR:
-					nSector = searchsector;
-					switch (sector[nSector].type) {
-						default:
-							scrSetMessage("Sector type #%d does not support z-motion!", sector[nSector].type);
-							BeepFail();
-							break;
-						case kSectorZMotionSprite:
-							if (!alt)
-							{
-								scrSetMessage("Preview unavailable for %s!", gSectorNames[sector[nSector].type]);
-								BeepFail();
-								break; // you can't preview because of sprites...
-							}
-						case kSectorZMotion:
-						case kSectorRotate:
-						case kSectorRotateMarked:
-						case kSectorSlide:
-						case kSectorSlideMarked:
-							nXSector = GetXSector(nSector);
-							i = sprintf(buffer, (alt) ? "Capture" : "Show");
-							if (key == KEY_F3)
-							{
-								if (alt)
-								{
-									xsector[nXSector].offFloorZ = sector[nSector].floorz;
-									xsector[nXSector].offCeilZ  = sector[nSector].ceilingz;
-								}
-								
-								sector[nSector].floorz   = xsector[nXSector].offFloorZ;
-								sector[nSector].ceilingz = xsector[nXSector].offCeilZ;
-							}
-							else
-							{
-								if (alt)
-								{
-									xsector[nXSector].onFloorZ = sector[nSector].floorz;
-									xsector[nXSector].onCeilZ  = sector[nSector].ceilingz;
-								}
-								
-								sector[nSector].floorz   = xsector[nXSector].onFloorZ;
-								sector[nSector].ceilingz = xsector[nXSector].onCeilZ;
-							}
-							
-							i += sprintf(&buffer[i], " %s", onOff(key == KEY_F4));
-							scrSetMessage("%s floorZ=%d, ceilingZ=%d", strupr(buffer), sector[nSector].floorz, sector[nSector].ceilingz);
-							BeepOk();
-							break;
-					}
-					break;
-				default:
-					BeepFail();
-			}
-			break;
-		case KEY_F9:
-			F9Menu();
-			break;
-		case KEY_F11:
-			scrSetMessage("Global panning and slope auto-align is %s", gBoolNames[gMisc.pan^=1]);
-			BeepOk();
-			break;
-		case KEY_2:		// 2 (bottom wall swapping)
-			if (Beep((searchstat == OBJ_WALL || searchstat == OBJ_MASKED) && wall[searchwall].nextwall >= 0))
-			{
-				walltype* pWall  = &wall[searchwall];
-				walltype* pWall2 = getCorrectWall(searchwall);
-				if (pWall2->nextwall == searchwall)
-					pWall = pWall2;
-				
-				pWall->cstat ^= kWallSwap;
-				scrSetMessage("wall[%d] bottom swap flag is %s", searchwall, onOff(pWall->cstat & kWallSwap));
-			}
-			break;
+		
+		if (r & PROC_BEEP)
+			Beep(r & PROC_OK);
+        
+        keyClear();
 	}
 }

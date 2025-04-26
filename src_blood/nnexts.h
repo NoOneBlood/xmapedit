@@ -26,10 +26,7 @@
 #include "common_game.h"
 #include "eventq.h"
 #include "db.h"
-
 #include "nnextslaser.h"
-
-
 #define kSlopeDist 0x20
 #define kPercFull 100
 
@@ -126,6 +123,13 @@ kModernVelocityChanger              = 506,
 kGenModernMissileUniversal          = 704,
 kGenModernSound                     = 708,
 };
+
+// modern sector types
+enum
+{
+kModernSectorPathSprite             = 611,  // unlike kSectorPath it moves only sprites and allows intersection
+};
+
 
 // type of object
 enum {
@@ -270,11 +274,22 @@ int getSpriteMassBySize(spritetype* pSprite);
 
 int nnExtResAddExternalFiles(Resource* pIn, const char* pPath, EXTERNAL_FILES_LIST* pList, int nLen);
 DICTNODE* nnExtResFileSearch(Resource* pIn, const char* pName, const char* pExt, char external = true);
-
+char IsPhysicsSprite(spritetype* pSpr);
 
 void lasersInit();
+void lasersClear();
 void lasersProcess();
-LASER* laserGet(spritetype* pSpr);
 void lasersProcessView3D(int camx, int camy, int camz, int cama, int cams, int camh);
+LASER* laserGet(spritetype* pSpr);
+
+void pathSpriteInit();
+void pathSpriteClear();
+void pathSpriteOperate(unsigned int nSect, XSECTOR* pXSect, EVENT event);
+void pathSpriteFixSector(spritetype* pSpr);
+char pathSpriteStaysOnSprite(IDLIST* pList, spritetype* pSpr);
+inline IDLIST* pathSpriteGetList(int nSect);
+void pathSpriteTranslate(int nSect, int nBusyA, int nBusyB, int fX, int fY, int cX, int cY, int cZ, int cA, int nX, int nY, int nZ, int nA);
+int pathSpriteBusy(unsigned int nSect, unsigned int a2);
+XSPRITE* pathSectFindNextMarker(XSECTOR* pXSect, XSPRITE* pXMark = NULL, char dir = 1);
 
 int userItemsInit();

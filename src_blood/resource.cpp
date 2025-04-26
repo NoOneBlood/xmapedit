@@ -342,6 +342,18 @@ void Resource::Grow(void)
     void *p = Alloc(buffSize * sizeof(DICTNODE));
     memset(p, 0, buffSize * sizeof(DICTNODE));
     memcpy(p, dict, count * sizeof(DICTNODE));
+
+    DICTNODE* newDict = (DICTNODE*)p;
+    intptr_t fixup = (intptr_t)p - (intptr_t)dict;
+    for (int i = 0; i < count; i++)
+    {
+        if (dict[i].ptr && dict[i].lockCount == 0)
+        {
+            RemoveMRU(&dict[i]);
+            AddMRU(&newDict[i]);
+        }
+    }
+
     Free(dict);
     dict = (DICTNODE*)p;
     Reindex();
@@ -791,22 +803,14 @@ void *Resource::Load(DICTNODE *h)
         if (!h->lockCount)
         {
             RemoveMRU(h);
-
-            h->prev = purgeHead.prev;
-            purgeHead.prev->next = h;
-            h->next = &purgeHead;
-            purgeHead.prev = h;
+            AddMRU(h);
         }
     }
     else
     {
         h->ptr = Alloc(h->size);
         Read(h);
-
-        h->prev = purgeHead.prev;
-        purgeHead.prev->next = h;
-        h->next = &purgeHead;
-        purgeHead.prev = h;
+        AddMRU(h);
     }
     return h->ptr;
 }
@@ -852,10 +856,7 @@ void Resource::Unlock(DICTNODE *h)
         h->lockCount--;
         if (h->lockCount == 0)
         {
-            h->prev = purgeHead.prev;
-            purgeHead.prev->next = h;
-            h->next = &purgeHead;
-            purgeHead.prev = h;
+            AddMRU(h);
         }
     }
 }

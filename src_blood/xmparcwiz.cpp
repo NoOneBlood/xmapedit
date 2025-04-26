@@ -758,9 +758,9 @@ void SECTAUTOARC::Draw(SCREEN2D* pScr)
 		{
 			if (pScr->prefs.useTransluc)
 			{
-				pScr->LayerOpen();
+				gfxTranslucency(1);
 				pScr->FillSector(destSector, fillCol, 1);
-				pScr->LayerShowAndClose(kRSTransluc);
+				gfxTranslucency(0);
 			}
 			else
 			{

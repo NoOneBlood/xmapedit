@@ -28,7 +28,7 @@ NAMED_TYPE gLoopShapeErrors[] =
 {
 	{-1, "Incorrect shape size"},
 	{-2, "Shape is invalid"},
-	{-3, "Shape is obstacled"},
+	{-3, "Intersection"},
 	{-4, "Sectors limit exceeded"},
 	{-5, "Walls limit exceeded"},
 	{-999, NULL},
@@ -56,11 +56,12 @@ void LOOPSHAPE::Start(int nType, int nSect, int x, int y)
 	int i = LENGTH(point);
 	model.type	= OBJ_NONE;
 	
-	shapeType	= nType;
-	destSect	= nSect;
-	status		= 0;
-	width		= 0;
-	height		= 0;
+	shapeType	    = nType;
+	destSect	    = nSect;
+    initDestSect	= nSect;
+	status		    = 0;
+	width		    = 0;
+	height		    = 0;
 	
 	if (!active)
 	{
@@ -170,7 +171,7 @@ void LOOPSHAPE::SetupCircle(int x2, int y2)
 
 void LOOPSHAPE::UpdateShape(int x, int y)
 {
-	int i;
+	int i, s;
 	
 	ex = x, ey = y;
 	switch(shapeType)
@@ -189,26 +190,95 @@ void LOOPSHAPE::UpdateShape(int x, int y)
 			break;
 	}
 	
-	if (rotateAng != kAng360)
-	{
-		i = numPoints;
-		while(--i >= 0)
-			RotatePoint(&point[i].x, &point[i].y, rotateAng, cx, cy);
-	}
-	
+    i = numPoints;
+    while(--i >= 0)
+    {
+        if (rotateAng != kAng360)
+            RotatePoint(&point[i].x, &point[i].y, rotateAng, cx, cy);
+        
+        doGridCorrection(&point[i].x, &point[i].y, 10);
+    }
+    
 	if (!width && !height)															status	=  0;
 	else if (!width || !height)														status	= -2;
 	else if (width < minWidth || height < minHeight)								status	= -1;
-	else if (destSect >= 0 && sectWallsInsidePoints(destSect, point, numPoints))	status  = -3;
+	else if (destSect >= 0 && CheckIntersection())                                  status  = -3;
 	else if (destSect >= 0 && numsectors >= kMaxSectors - 1)						status	= -4;
 	else if (numwalls >= kMaxWalls - numPoints - 1)									status  = -5;
 	else if (status != 2)															status	=  1;
+    
+    if (status == 1)
+    {
+        // Try to update destination sector for
+        // potential wall loop transfer and
+        // auto red sector
+        // creation.
+        
+        i = numPoints;
+        if (destSect >= 0)
+            while(--i >= 0 && inside(point[i].x, point[i].y, destSect));
+        
+        if (i >= 0)
+        {
+            s = numsectors;
+            while(i >= 0 && --s >= 0)
+            {
+                if (s == destSect)
+                    continue;
+                    
+                i = numPoints;
+                while(--i >= 0 && inside(point[i].x, point[i].y, s));
+            }
+            
+            if (initDestSect >= 0 && destSect >= 0)
+            {
+                (s >= 0) ? destSect = s : status = -3;
+            }
+            else
+            {
+                destSect = s;
+            }
+        }
+    }
+}
+
+char LOOPSHAPE::CheckIntersection(void)
+{
+    
+    int x1, y1, x2, y2, x3, y3, x4, y4;
+    int i, j, s, e;
+    
+    if (destSect >= 0)
+    {
+        // Cannot cross sector walls and
+        // can COVER loops
+        // inside.
+
+        getSectorWalls(destSect, &s, &e);
+        while(s <= e)
+        {
+            getWallCoords(s, &x3, &y3, &x4, &y4);
+            for (i = j = 0; i < numPoints; i++)
+            {
+                j = IncRotate(j, numPoints);
+                x1 = point[i].x;    x2 = point[j].x;
+                y1 = point[i].y;    y2 = point[j].y;
+                
+                if (kintersection(x1, y1, x2, y2, x3, y3, x4, y4, NULL, NULL))
+                    return 1;
+            }
+            
+            s++;
+        }
+    }
+    
+    return 0;
 }
 
 char LOOPSHAPE::Setup(int x2, int y2, OBJECT* pModel)
 {
 	UpdateShape(x2, y2);
-	
+    
 	if (status > 0)
 	{
 		if (pModel)
@@ -225,13 +295,18 @@ void LOOPSHAPE::Draw(SCREEN2D* pScr)
 	if (status == 0)
 		return;
 	
-	char const fillCol = pScr->ColorGet((status > 0) ? kColorLightBlue : kColorLightRed);
+	char fillCol;
 	char const vtxCol1 = pScr->ColorGet(kColorBlack);
 	char const vtxCol2 = pScr->ColorGet(kColorYellow);
 	char const lineCol = pScr->ColorGet(kColorGrey18);
 	int n = numPoints, i, x1, y1, x2, y2;
 	LINE2D fill[LENGTH(point)], *p;
 	
+    if (status > 0)
+        fillCol = pScr->ColorGet((destSect >= 0) ? kColorLightBlue : kColorBlue);
+    else
+        fillCol = pScr->ColorGet(kColorLightRed);
+    
 	for (i = 0, p = fill; i < n; i++, p++)
 	{
 		if (i < n - 1)
@@ -249,11 +324,17 @@ void LOOPSHAPE::Draw(SCREEN2D* pScr)
 		p->y1 = y1,	p->y2 = y2;
 	}
 	
+
+    
 	if (pScr->prefs.useTransluc)
 	{
-		pScr->LayerOpen();
+		gfxTranslucency(1);
+        
+        if (destSect >= 0)
+            pScr->FillSector(destSect, pScr->ColorGet(kColorGrey28), 2);
+    
 		pScr->FillPolygon(fill, numPoints, fillCol, 1);
-		pScr->LayerShowAndClose(kRSTransluc);
+        gfxTranslucency(0);
 	}
 	else
 	{
@@ -284,7 +365,7 @@ int LOOPSHAPE::Insert()
 {
 	walltype wmodel; sectortype smodel;
 	int nSect = numsectors, nWall = -1;
-	int t, s, e;
+	int t, ls, le, s, e;
 	
 	memset(&wmodel, 0, sizeof(wmodel));
 	wmodel.extra		= -1;
@@ -322,18 +403,43 @@ int LOOPSHAPE::Insert()
 			break;
 	}
 	
-	nWall = insertLoop(destSect, point, numPoints, &wmodel, &smodel);
-	loopGetWalls(nWall, &s, &e);
-	
-	for (t = s; t <= e; t++)
+	if ((nWall = insertLoop(destSect, point, numPoints, &wmodel, &smodel)) >= 0)
 	{
-		if (numsectors > nSect) checksectorpointer(t, nSect);
-		fixrepeats(t);
-	}
-	
-	AutoAlignWalls(s);
-	CleanUp();
-	
+        loopGetWalls(nWall, &s, &e);
+        
+        for (t = s; t <= e; t++)
+        {
+            if (numsectors > nSect) checksectorpointer(t, nSect);
+            fixrepeats(t);
+        }
+        
+        AutoAlignWalls(s);
+        
+        if (destSect >= 0)
+        {
+            // Check if loop has been made around wall loop(s)
+            // of the destination sector. In this case
+            // auto create red sector and transfer
+            // loops.
+            
+            getSectorWalls(destSect, &s, &e);
+            while(s <= e)
+            {
+                loopGetWalls(s, &ls, &le);
+                while(ls <= le && insidePoints(wall[ls].x, wall[ls].y, point, numPoints)) ls++;
+                if (ls > le)
+                {
+                    redSectorMake(nWall);
+                    break;
+                }
+                
+                s++;
+            }
+        }
+
+        CleanUp();
+    }
+    
 	return nWall;
 }
 

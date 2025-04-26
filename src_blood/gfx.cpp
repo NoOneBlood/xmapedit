@@ -24,6 +24,8 @@
 #include "screen.h"
 #include "tile.h"
 
+extern "C" unsigned char *transluc;
+
 int clip[4][4];
 int clipCnt = 0;
 Rect clipRect(0, 0, 0, 0);
@@ -31,6 +33,12 @@ ROMFONT vFonts[kMaxVFonts];
 QFONT* qFonts[kMaxQFonts];
 QBITMAP* pBitmaps[kMaxBitmaps];
 char gColor = 0, gStdColor[32];
+
+void u_gfxPixel_NORMAL(int x, int y);
+void u_gfxPixel_TRANS(int x, int y);
+
+PUGFXPIXEL u_gfxPixel = u_gfxPixel_NORMAL;
+static char transmode = 0;
 
 static const char* gStdColorNames[] =
 {
@@ -198,14 +206,26 @@ void gfxPixel(int x, int y)
 		if (getrendermode() >= 3)
 			return;
 	#endif
-	
-	if (clipRect.inside(x, y))
-	{
-		begindrawing();
-		char* dest = (char*)frameplace+ylookup[y]+x;
-		*dest = (char)gColor;
-		enddrawing();
-	}
+    
+    if (clipRect.inside(x, y))
+    {
+        begindrawing();
+        u_gfxPixel(x, y);
+        enddrawing();
+    }
+}
+
+void u_gfxPixel_NORMAL(int x, int y)
+{
+    char* dest = (char*)frameplace+ylookup[y]+x;
+    *dest = (char)gColor;
+}
+
+void u_gfxPixel_TRANS(int x, int y)
+{
+    unsigned char* plu = palookup[0];
+    char* d = (char*)frameplace+ylookup[y]+x;
+    *d = transluc[(transmode == 1) ? ((*d<<8)+plu[gColor]) : *d+(plu[gColor]<<8)];
 }
 
 void gfxHLine(int y, int x0, int x1)
@@ -215,13 +235,13 @@ void gfxHLine(int y, int x0, int x1)
 			return;
 	#endif
 	
-	if (!irngok(y, clipRect.y0, clipRect.y1))
+	if (!rngok(y, clipRect.y0, clipRect.y1))
 		return;
 	
 	x0 = ClipLow(x0, clipRect.x0);
-	x1 = ClipHigh(x1, clipRect.x1);
+	x1 = ClipHigh(x1, clipRect.x1-1);
 	while(x0 <= x1)
-		gfxPixel(x0++, y);
+		u_gfxPixel(x0++, y);
 }
 
 void gfxVLine(int x, int y0, int y1)
@@ -231,13 +251,13 @@ void gfxVLine(int x, int y0, int y1)
 			return;
 	#endif
 
-	if (!irngok(x, clipRect.x0, clipRect.x1))
+	if (!rngok(x, clipRect.x0, clipRect.x1))
 		return;
 	
 	y0 = ClipLow(y0, clipRect.y0);
-	y1 = ClipHigh(y1, clipRect.y1);
+	y1 = ClipHigh(y1, clipRect.y1-1);
 	while(y0 <= y1)
-		gfxPixel(x, y0++);
+		u_gfxPixel(x, y0++);
 	
 }
 
@@ -252,54 +272,52 @@ void gfxLine(int x1, int y1, int x2, int y2)
 			return;
 	#endif
 	
-	unsigned int drawpat = (drawlinepat != kPatNormal) ? drawlinepat : 0;
+	Rect* r = &clipRect;
+    unsigned int drawpat = (drawlinepat != kPatNormal) ? drawlinepat : 0;
 	int i = 0, t, dx, dy;
 	unsigned int c = 0;
 	
 	dx = x2-x1; dy = y2-y1;
-
+    
 	if (dx >= 0)
 	{
-		if ((x1 >= xres) || (x2 < 0)) return;
-		if (x1 < 0) { if (dy) y1 += scale(0-x1,dy,dx); x1 = 0; }
-		if (x2 >= xres) { if (dy) y2 += scale(xres-1-x2,dy,dx); x2 = xres-1; }
+		if ((x1 >= r->x1) || (x2 < r->x0)) return;
+		if (x1 < r->x0) { if (dy) y1 += scale(r->x0-x1,dy,dx); x1 = r->x0; }
+		if (x2 >= r->x1) { if (dy) y2 += scale(r->x1-1-x2,dy,dx); x2 = r->x1-1; }
 	}
 	else
 	{
-		if ((x2 >= xres) || (x1 < 0)) return;
-		if (x2 < 0) { if (dy) y2 += scale(0-x2,dy,dx); x2 = 0; }
-		if (x1 >= xres) { if (dy) y1 += scale(xres-1-x1,dy,dx); x1 = xres-1; }
+		if ((x2 >= r->x1) || (x1 < r->x0)) return;
+		if (x2 < r->x0) { if (dy) y2 += scale(r->x0-x2,dy,dx); x2 = r->x0; }
+		if (x1 >= r->x1) { if (dy) y1 += scale(r->x1-1-x1,dy,dx); x1 = r->x1-1; }
 	}
+    
 	if (dy >= 0)
 	{
-		if ((y1 >= yres) || (y2 < 0)) return;
-		if (y1 < 0) { if (dx) x1 += scale(0-y1,dx,dy); y1 = 0; if (x1 < 0) x1 = 0; }
-		if (y2 >= yres) { if (dx) x2 += scale(yres-1-y2,dx,dy); y2 = yres-1; if (x2 < 0) x2 = 0; }
+		if ((y1 >= r->y1) || (y2 < r->y0)) return;
+		if (y1 < r->y0) { if (dx) x1 += scale(r->y0-y1,dx,dy); y1 = r->y0; if (x1 < r->x0) x1 = r->x0; }
+		if (y2 >= r->y1) { if (dx) x2 += scale(r->y1-1-y2,dx,dy); y2 = r->y1-1; if (x2 < r->x0) x2 = r->x0; }
 	}
 	else
 	{
-		if ((y2 >= yres) || (y1 < 0)) return;
-		if (y2 < 0) { if (dx) x2 += scale(0-y2,dx,dy); y2 = 0; if (x2 < 0) x2 = 0; }
-		if (y1 >= yres) { if (dx) x1 += scale(yres-1-y1,dx,dy); y1 = yres-1; if (x1 < 0) x1 = 0; }
+		if ((y2 >= r->y1) || (y1 < r->y0)) return;
+		if (y2 < r->y0) { if (dx) x2 += scale(r->y0-y2,dx,dy); y2 = r->y0; if (x2 < r->x0) x2 = r->x0; }
+		if (y1 >= r->y1) { if (dx) x1 += scale(r->y1-1-y1,dx,dy); y1 = r->y1-1; if (x1 < r->x0) x1 = r->x0; }
 	}
 	
 	if (!drawpat)
 	{
 		if (x1 == x2)
 		{
-			if (y2 < y1)
-				swapValues(&y1, &y2);
-			
-			gfxVLine(x1, y1, y2);
+			if (y2 < y1) swapValues(&y1, &y2);
+			while(y1 < y2) u_gfxPixel(x1, y1++);
 			return;
 		}
 		
 		if (y1 == y2)
 		{
-			if (x2 < x1)
-				swapValues(&x1, &x2);
-			
-			gfxHLine(y1, x1, x2);
+			if (x2 < x1) swapValues(&x1, &x2);
+			while(x1 < x2) u_gfxPixel(x1++, y1);
 			return;
 		}
 	}
@@ -320,7 +338,7 @@ void gfxLine(int x1, int y1, int x2, int y2)
 		while(x1 <= x2)
 		{
 			if (!drawpat || (drawpat & pow2long[(c++) & 31]))
-				gfxPixel(x1, y1);
+				u_gfxPixel(x1, y1);
 
 			i += dy;
 			if (i >= dx)
@@ -345,7 +363,7 @@ void gfxLine(int x1, int y1, int x2, int y2)
 	while(y1 <= y2)
 	{
 		if (!drawpat || (drawpat & pow2long[(c++) & 31]))
-			gfxPixel(x1, y1);
+			u_gfxPixel(x1, y1);
 
 		i += dx;
 		if (i >= dy)
@@ -381,45 +399,40 @@ void gfxFillBox(int x0, int y0, int x1, int y1)
 	y1 = ClipRange(y1, clipRect.y0, clipRect.y1);
 	
 	begindrawing();
-	char* dest = (char*)frameplace+ylookup[y0]+x0;
-	int hg = y1 - y0, wh = x1 - x0;
-	while(--hg >= 0)
-	{
-		memset(dest, gColor, wh);
-		dest+=ylookup[1];
-	}
+    
+    if (transmode)
+    {
+        int y;
+        while(x0 != x1)
+        {
+            y = y0;
+            while(y != y1)
+                u_gfxPixel(x0, y++);
+            
+            x0++;
+        }
+    }
+    else
+    {
+        char* dest = (char*)frameplace+ylookup[y0]+x0;
+        int hg = y1 - y0, wh = x1 - x0;
+        while(--hg >= 0)
+        {
+            memset(dest, gColor, wh);
+            dest+=ylookup[1];
+        }
+    }
+    
 	enddrawing();
 	
 }
 
 void gfxFillBoxTrans(int x1, int y1, int x2, int y2, char color, char transLev)
 {
-	char flags = kRSCorner | kRSNoMask | kRSNoClip;
-	static int nTile = -1; int t, wh, hg;
-	BYTE* pTile;
-	
-	if (nTile >= 0 || (nTile = tileGetBlank()) >= 0)
-	{
-		if (x1 > x2) swapValues(&x1, &x2);
-		if (y1 > y2) swapValues(&y1, &y2);
-
-		wh = x2-x1, hg = y2-y1;
-		if (tilesizx[nTile] == wh && tilesizy[nTile] == hg)
-		{
-			if ((pTile = tileLoadTile(nTile)) == NULL)
-				return;
-		}
-		else
-		{
-			tileFreeTile(nTile);
-			if ((pTile = tileAllocTile(nTile, wh, hg, 0, 0)) == NULL)
-				return;
-		}
-		
-		memset(pTile, color, wh*hg);
-		flags |= ((transLev >= 2) ? kRSTransluc : kRSTransluc2);
-		rotatesprite(x1 << 16, y1 << 16, 0x10000, 0, nTile, 0, 0, flags, x1, y1, x2, y2);
-	}
+	gfxTranslucency((transLev >= 2) ? 1 : 2);
+    gfxSetColor(color);
+    gfxFillBox(x1, y1, x2, y2);
+    gfxTranslucency(0);
 }
 
 void gfxSetClip(int x0, int y0, int x1, int y1)
@@ -746,6 +759,20 @@ void gfxPrinTextShadow(int x, int y, int col, char* text, QFONT *pFont, int shof
 void gfxDrawLabel(int x, int y, int color, char* pzLabel, QFONT* pFont)
 {
 	gfxDrawText(x, y, color, pzLabel, pFont, true);
+}
+
+void gfxTranslucency(char nLevel)
+{
+    transmode = nLevel;
+    
+    if (transmode)
+    {
+        u_gfxPixel = u_gfxPixel_TRANS;
+    }
+    else
+    {
+        u_gfxPixel = u_gfxPixel_NORMAL;
+    }
 }
 
 void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup )

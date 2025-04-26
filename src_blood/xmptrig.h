@@ -27,6 +27,8 @@
 #define __XMPTRIG
 #include "common_game.h"
 
+extern int basePath[kMaxSectors];
+
 enum BUSYID {
     BUSYID_0 = 0,
     BUSYID_1,
@@ -36,7 +38,7 @@ enum BUSYID {
     BUSYID_5,
     BUSYID_6,
     BUSYID_7,
-	BUSYID_8,
+	BUSY_PATHSPRITE,
 };
 
 #define kMaxBusyCountVanilla 128
@@ -74,4 +76,8 @@ void ZTranslateSector(int nSector, XSECTOR *pXSector, int a3, int a4);
 
 void setBaseWallSect(int nSect);
 void setBaseSpriteSect(int nSect);
+
+void AddBusy(int a1, BUSYID a2, int nDelta);
+void PathSound(int nSector, int nSound);
+unsigned int GetWaveValue(unsigned int nPhase, int nType);
 #endif

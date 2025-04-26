@@ -164,11 +164,6 @@ class SCREEN2D
 		void GetPoint(int scrX, int scrY, int* posX, int* posY);
 		void GetPoint(int* x, int* y);
 		// ---------------------------------------------------------------------
-		void LayerOpen(void);
-		void LayerShow(char flags = 0);
-		void LayerShowAndClose(char flags = 0);
-		void LayerClose(void);
-		// ---------------------------------------------------------------------
 		char InHighlight(int x, int y);
 		void ScaleAngLine(int scale, int ang, int* x, int* y);
 		void ScalePoints(int* x1 = NULL, int* y1 = NULL, int* x2 = NULL, int* y2 = NULL);

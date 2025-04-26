@@ -179,7 +179,7 @@ void MAPEDIT_HUD::SetView(int x1, int y1, int x2, int y2)
 	}
 	else
 	{
-		tileInfo.draw = (tilebox.Inside(&content, 1) == 0);
+		tileInfo.draw = (tilebox.Inside(&content, 0) == 0);
 	}
 
 	if (wide)

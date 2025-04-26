@@ -32,14 +32,20 @@ extern NAMED_TYPE gLoopBuildErrors[];
 class LOOPBUILD
 {
 	private:
-		POINT2D *point, *first, *last;
+		POINT2D *point;
 		walltype* pModelW; sectortype* pModelS;
+		WALLPOINT_INFO cross;
+		
 		unsigned int numPoints			: 32;
+        unsigned int numAutoPoints  	: 32;
+        unsigned int autoTimer          : 32;
+        unsigned int autoState          : 2;
 		signed   int destSect			: 32;
 		signed   int status				: 16;
-		signed   int splitA				: 32;
-		signed   int splitB				: 32;
-		int Process(int x, int y);
+		int SetupPrivate(int x, int y);
+		char DoAutoCompletion(IDLIST* pList, int wS, int wE, char d);
+        char SetupAutoCompletion();
+		
 	public:
 		LOOPBUILD()		{ point = NULL;  Start(); }
 		~LOOPBUILD()	{ Stop(); }
@@ -47,12 +53,16 @@ class LOOPBUILD
 		void Stop();
 		int  Make();
 		char Setup(int x, int y);
-		//void PrintCaption(SCREEN2D* pScr, int x1, int y1, int x2, int y2, char fc, char bc);
 		void Draw(SCREEN2D* pScr);
 		void AddPoint(int x, int y, int nPoint = -1);
 		void RemPoint(int nPoint = -1);
+        void RemPointsTail(int nCount);
+        void RemAutoPoints(void);
 		inline void UpdPoint(int x, int y, int nPoint)	{ point[nPoint].x = x, point[nPoint].y = y; }
-		inline int StatusGet()							{ return status; };
-		inline int NumPoints()							{ return numPoints; };
+		inline int StatusGet(void)					    { return status; };
+		inline int NumPoints(void)						{ return numPoints; };
+        inline POINT2D* First(void)                     { return &point[0]; };
+        inline POINT2D* Last(void)                      { return &point[numPoints - 1]; };
+        inline POINT2D* LastReal(void)                  { return &point[numPoints + numAutoPoints - 1]; };
 };
 #endif

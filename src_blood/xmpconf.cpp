@@ -338,7 +338,8 @@ void MISC_PREFS::Init(IniFile* pIni, char* section)
 	this->editMode			= pIni->GetKeyInt(section, "EditMode", 0);
 	this->circlePoints		= 6;
 	this->forceEditorPos	= pIni->GetKeyBool(section, "ForceEditorStartPos", FALSE);
-	
+	this->undoCamRestore    = pIni->GetKeyBool(section, "MapUndoRestoreCamPos", TRUE);
+    
 	gSplitMode.size			= pIni->GetKeyInt(section, "SplitPanelSize", 0);
 	gSplitMode.swapSize		= pIni->GetKeyBool(section, "SplitAutoSwapSize", 1);
 	gSplitMode.vertical		= pIni->GetKeyBool(section, "SplitVertical", 1);

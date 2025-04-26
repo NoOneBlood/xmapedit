@@ -854,7 +854,7 @@ void viewProcessSprites(int x, int y, int z, int a) {
 			pTSpr->cstat &= ~(kSprFlipX|kSprFlipY);
 		}
 		
-		if (nXSpr && seqGetStatus(OBJ_SPRITE, nXSpr) > 0)
+		//if (nXSpr && seqGetStatus(OBJ_SPRITE, nXSpr) > 0)
 		{
 			if (sprite[nSpr].flags & 1024) pTSpr->cstat |= kSprFlipX;
 			if (sprite[nSpr].flags & 2048) pTSpr->cstat |= kSprFlipY;

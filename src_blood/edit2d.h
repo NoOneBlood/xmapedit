@@ -28,7 +28,7 @@
 extern short sectorhighlight;
 extern short pointdrag;
 
-void ProcessKeys2D();
+void ProcessInput2D();
 int findUnusedPath(DIALOG_ITEM* dialog = NULL, DIALOG_ITEM *control = NULL);
 int findUnusedChannel(DIALOG_ITEM* dialog = NULL);
 int findUnusedStack();
@@ -71,5 +71,6 @@ extern DOOR_SLIDEMARKED* pGDoorSM;
 extern CIRCLEWALL* pGCircleW;
 extern LOOPSHAPE* pGLShape;
 extern LOOPBUILD* pGLBuild;
+extern LOOPSPLIT* pGLoopSplit;
 extern SECTAUTOARC* pGArc;
 #endif

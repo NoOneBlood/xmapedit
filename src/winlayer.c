@@ -179,14 +179,14 @@ char joynumaxes=0, joynumbuttons=0;
 
 static char taskswitching=1;
 
-char keystatus[256];
-int keyfifo[KEYFIFOSIZ];
-unsigned char keyasciififo[KEYFIFOSIZ];
-int keyfifoplc, keyfifoend;
-int keyasciififoplc, keyasciififoend;
+char keystatus[256], keyholdtime[256];
+unsigned char keyfifo[KEYFIFOSIZ], keyhitfifo[KEYFIFOSIZ], keyasciififo[KEYFIFOSIZ];
+unsigned char keyfifoplc, keyfifoend, keyhitfifoplc, keyhitfifoend;
+unsigned char keyasciififoplc, keyasciififoend;
 static char keynames[256][24];
 static const char wscantable[256], wxscantable[256];
 char scanremap[256];
+int keyholdtimer = 0;
 
 static unsigned int mouseclock = 0;
 static char moustat = 0, mousegrab = 0;
@@ -901,7 +901,6 @@ int gettimerfreq(void)
 
 // I don't see any pressing need to store the key-up events yet
 #define SetKey(key,state) { \
-	keystatus[key] = state; \
 		if (state) { \
 	keyfifo[keyfifoend] = key; \
 	keyfifo[(keyfifoend+1)&(KEYFIFOSIZ-1)] = state; \
@@ -909,6 +908,13 @@ int gettimerfreq(void)
 		} \
 }
 
+#define SetKeyHit(key, state) { \
+		if (state) { \
+    keyhitfifo[keyhitfifoend] = key; \
+	keyhitfifo[(keyhitfifoend+1)&(KEYFIFOSIZ-1)] = state; \
+	keyhitfifoend = ((keyhitfifoend+2)&(KEYFIFOSIZ-1)); \
+		} \
+}
 
 //
 // initinput() -- init input system
@@ -2926,18 +2932,31 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 		case WM_MBUTTONDOWN:
 		case WM_MBUTTONUP:
 		case WM_MOUSEMOVE:
-			if (appactive && mousegrab)
-			{
-				POINT c;
-				GetCursorPos(&c);
-				if (wParam & MK_LBUTTON) mouseb |= 0x01; else mouseb &= ~0x01;
-				if (wParam & MK_RBUTTON) mouseb |= 0x02; else mouseb &= ~0x02;
-				if (wParam & MK_MBUTTON) mouseb |= 0x04; else mouseb &= ~0x04;
-				
-				mousex += (c.x - windowcen.x);
-				mousey += (c.y - windowcen.y);
-
-			}
+            if (appactive)
+            {
+                if (!mousegrab)
+                {
+                    switch(uMsg)
+                    {
+                        case WM_LBUTTONDOWN:
+                        case WM_RBUTTONDOWN:
+                        case WM_MBUTTONDOWN:
+                            if (mouseInsideWindow()) grabmouse(1);
+                            break;
+                    }
+                }
+                else
+                {
+                    POINT c;
+                    GetCursorPos(&c);
+                    if (wParam & MK_LBUTTON) mouseb |= 0x01; else mouseb &= ~0x01;
+                    if (wParam & MK_RBUTTON) mouseb |= 0x02; else mouseb &= ~0x02;
+                    if (wParam & MK_MBUTTON) mouseb |= 0x04; else mouseb &= ~0x04;
+                    
+                    mousex += (c.x - windowcen.x);
+                    mousey += (c.y - windowcen.y);
+                }
+            }
 			return 0;
 			#if SUBSYS > 400
 				case WM_MOUSEWHEEL:
@@ -3065,13 +3084,27 @@ static LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 				}
 				else if (OSD_HandleKey(scan, press) != 0)
 				{
-					if (!keystatus[scan] || !press)
+					if (!press)
 					{
 						if (keypresscallback)
 							keypresscallback(scan, press);
+						
+						SetKeyHit(scan, 1);
+                        keyholdtime[scan] = keystatus[scan];
+                        keystatus[scan] = 0;
+					}
+					else
+					{
+                        keyholdtime[scan] = 0;
+						if (!keystatus[scan] || totalclock > keyholdtimer)
+						{
+							keyholdtimer = totalclock+1;
+							if (keystatus[scan] < 255)
+								keystatus[scan]++;
+						}
 					}
 					
-					SetKey(scan, press);
+					SetKey(scan, keystatus[scan]);
 				}
 			}
 			return 0;

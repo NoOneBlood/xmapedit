@@ -29,6 +29,7 @@
 #include "tile.h"
 #include "preview.h"
 #include "xmpview.h"
+#include "nnextslaser.h"
 
 #define kFlagLaserTrOnceHit			0x001
 #define kFlagLaserTrOnceLast		0x002
@@ -36,8 +37,10 @@
 #define kFlagLaserNoPlayer			0x008
 #define kFlagLaserNoThings			0x010
 #define kFlagLaserNoMasks			0x040
-#define kFlagLaserStrictCmd			0x080
-#define kFlagLaserDynamicSets		0x400
+#define kFlagLaserNoDead			0x080
+#define kFlagLaserStrictCmd			0x200
+#define kFlagLaserUseHitscan		0x400
+#define kFlagLaserDynamicSets		0x800
 
 #define DIST2PIX(a) (a << 8)
 
@@ -58,15 +61,6 @@
 //#ifndef LASER_SHD_USE_TILEANIM
 //#define LASER_SHD_COMPENSATE
 //#endif
-
-
-/**-----------------------------------------
-// Uncomment to do an extra inside() check
-// for already created ray pieces while
-// in view processing (may lead to
-// desync in multiplayer).
-**/
-//#define LASER_PIECE_EXTRA_CHECK
 
 LASER::LASER(spritetype* pLaser)
 {
@@ -506,11 +500,13 @@ char LASER::UpdateProperties()
 	/** The following changes will require ray rebuilding **/
 	/*******************************************************/
 	
-	if ((t = CheckFlags(kFlagLaserNoDudes)) != nodudes)		nodudes		= t,	r = 1;
-	if ((t = CheckFlags(kFlagLaserNoPlayer)) != noplayers)	noplayers	= t,	r = 1;
-	if ((t = CheckFlags(kFlagLaserNoThings)) != nothings)	nothings	= t,	r = 1;
-	if ((t = CheckFlags(kFlagLaserNoMasks)) != nomasks)		nomasks		= t,	r = 1;
-	hasignoreflags = (nodudes | noplayers | nothings | nomasks);
+	if ((t = CheckFlags(kFlagLaserNoDudes)) != nodudes)			nodudes		= t,	r = 1;
+	if ((t = CheckFlags(kFlagLaserNoPlayer)) != noplayers)		noplayers	= t,	r = 1;
+	if ((t = CheckFlags(kFlagLaserNoThings)) != nothings)		nothings	= t,	r = 1;
+	if ((t = CheckFlags(kFlagLaserNoMasks)) != nomasks)			nomasks		= t,	r = 1;
+	if ((t = CheckFlags(kFlagLaserNoDead)) != nodead)			nodead		= t,	r = 1;
+	if ((t = CheckFlags(kFlagLaserUseHitscan)) != usehitscan)	usehitscan	= t,	r = 1;
+	hasignoreflags = (nodudes | noplayers | nothings | nomasks | nodead);
 	
 	t = ((pOwn->cstat & kSprRelMask) == kSprFloor);
 	if (t != vertical)
@@ -627,7 +623,15 @@ void LASER::ScanH(LASERSCAN* l)
 			by = pSpr->y,		pSpr->y			= y;
 			
 			offsetPos(0, 4, 0, l->srca, &pSpr->x, &pSpr->y, NULL);
-			nCode = VectorScan(pSpr, 0, 0, Cos(l->srca)>>16, Sin(l->srca)>>16, 0, 0, 0x01);
+            
+			if (usehitscan)
+			{
+				nCode = HitScan(pSpr, pSpr->z, Cos(l->srca) >> 16, Sin(l->srca) >> 16, 0, CLIPMASK1, 0);
+			}
+			else
+			{
+				nCode = VectorScan(pSpr, 0, 0, Cos(l->srca) >> 16, Sin(l->srca) >> 16, 0, 0, 0x01);
+			}
 			
 			pSpr->sectnum	= bs;
 			pSpr->ang		= ba;
@@ -676,7 +680,16 @@ void LASER::ScanH(LASERSCAN* l)
 	else
 	{
 		offsetPos(0, 4, 0, l->srca, &pOwn->x, &pOwn->y, NULL);
-		VectorScan(pOwn, 0, 0, Cos(l->srca)>>16, Sin(l->srca)>>16, 0, DIST2PIX(maxdist)>>4, 0x01);
+		
+        if (usehitscan)
+		{
+			HitScan(pOwn, pOwn->z, Cos(l->srca) >> 16, Sin(l->srca) >> 16, 0, CLIPMASK1, DIST2PIX(maxdist) >> 4);
+		}
+		else
+		{
+			VectorScan(pOwn, 0, 0, Cos(l->srca) >> 16, Sin(l->srca) >> 16, 0, DIST2PIX(maxdist) >> 4, 0x01);
+		}
+        
 		pOwn->x = l->srcx; pOwn->y = l->srcy;
 	}
 	
@@ -842,17 +855,6 @@ char LASER::RayShow(int nSect)
 		pPiece = &pieces[i];
 		if (pPiece->s == nSect)
 		{
-			#ifdef LASER_PIECE_EXTRA_CHECK
-			if (!inside(pPiece->x, pPiece->y, pPiece->s))
-			{
-				int nSect = pPiece->s;
-				if (!FindSector(pPiece->x, pPiece->y, pPiece->z, &nSect))
-					return kRetnSKIP;
-				
-				pPiece->s = nSect;
-			}
-			#endif
-			
 			nAng = getangle(pPiece->x-cam.x, pPiece->y-cam.y);
 			yAng = DANGLE(nAng, pOwn->ang + kAng90);
 			xAng = DANGLE(nAng, pOwn->ang);
@@ -876,10 +878,19 @@ char LASER::RayShow(int nSect)
 
 char LASER::SpriteAllowed(spritetype* pSpr)
 {
-	if (nodudes && pSpr->statnum == kStatDude && !IsPlayerSprite(pSpr))		return 0;
-	else if (noplayers && IsPlayerSprite(pSpr))								return 0;
-	else if (nothings && pSpr->statnum == kStatThing)						return 0;
-	else return 1;
+	const int n = pSpr->inittype;
+
+	if (nodead)
+	{
+		if ((pSpr->extra <= 0 || !xsprite[pSpr->extra].health)
+			|| (rngok(n, kDudeBase, kDudeMax) && pSpr->statnum == kStatThing))
+				return 0; // could be dude turned in gib
+	}
+
+	if (nodudes && rngok(n, kDudeBase, kDudeMax) && !irngok(n, kDudePlayer1, kDudePlayer8))		return 0;
+	else if (noplayers && irngok(n, kDudePlayer1, kDudePlayer8))								return 0;
+	else if (nothings && pSpr->statnum == kStatThing)											return 0;
+	else																						return 1;
 }
 
 int LASER::LookupRepeat(unsigned int* pSiz, int nDist, unsigned char nRep)

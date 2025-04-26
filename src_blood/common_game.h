@@ -42,32 +42,46 @@ extern "C" {
 #include "a.h"
 }
 
-#ifdef _MSC_VER
-# include "msinttypes/stdint.h"
-# include "msinttypes/inttypes.h"
+#if defined (_MSC_VER) || defined(__WATCOMC__)
+	#if defined (_MSC_VER)
+		# include "msinttypes/stdint.h"
+		# include "msinttypes/inttypes.h"
+	#endif
+	#if _MSC_VER >= 1400 || defined(__WATCOMC__)
+		#include "lzav.h"
+		#define HAVE_COMPRESSION 1
+		#define compressGetBound(a)							lzav_compress_bound(a)
+		#define compressDoDefault(pSrc, pDst, nSrc, nDst)	lzav_compress_default(pSrc, pDst, nSrc, nDst)
+		#define compressUndoDefault(pSrc, pDst, nSrc, nDst)	lzav_decompress(pSrc, pDst, nSrc, nDst)
+	#else
+		#define compressGetBound(a)
+		#define compressDoDefault(pSrc, pDst, nSrc, nDst)
+		#define compressUndoDefault(pSrc, pDst, nSrc, nDst)
+	#endif
 #else
-# include <stdint.h>
-# include <inttypes.h>
-# include <limits.h>
+	# include <stdint.h>
+	# include <inttypes.h>
+	# include <limits.h>
 #endif
 
 void _SetErrorLoc(const char* pzFile, int nLine);
 void _ThrowError(const char* pzFormat, ...);
-void __dassert(const char* pzExpr, const char* pzFile, int nLine);
-
-
-
-#if _MSC_VER <= 1310
 #define ThrowError _SetErrorLoc(__FILE__, __LINE__), _ThrowError
+
+#if !defined (_MSC_VER) || !defined (_WIN32)
+void __dassert(const char * pzExpr, const char * pzFile, int nLine)
+{
+	buildprintf("Assertion failed: %s in file %s at line %i\n", pzExpr, pzFile, nLine);
+	wm_msgbox("Assertion failed", "Assertion failed: %s in file %s at line %i\n", pzExpr, pzFile, nLine);
+	fflush(NULL);
+	exit(1);
+}	
+#define dassert(x) if (!(x)) __dassert(#x,__FILE__,__LINE__)
 #else
-#define ThrowError(...) \
-	{ \
-		_SetErrorLoc(__FILE__,__LINE__); \
-		_ThrowError(__VA_ARGS__); \
-	}
+#include "assert.h"
+#define dassert(x) assert(x)
 #endif
 
-#define dassert(x) if (!(x)) __dassert(#x,__FILE__,__LINE__)
 
 #ifndef fallthrough__
 # if defined _MSC_VER
@@ -151,6 +165,7 @@ typedef uint8_t BITSPRITE[(kMaxSprites+7)>>3];
 #define QSETMODE(x, y)			qsetmode = ((x<<16)|(y&0xffff))
 #define NUMPALOOKUPS(x)			(numpalookups-x)
 #define ALIGNTO(s)				(sector[s].wallptr + sector[s].alignto)
+#define BLINKTIME(a)			(gFrameClock & a)				
 
 
 #define TRUE			1
@@ -843,6 +858,12 @@ struct DONEOFTOTAL
 	unsigned int done				: 32;
 	unsigned int total				: 32;
 };
+
+struct CAMERA
+{
+	int32_t x, y, z;
+	int16_t s, a, h;
+};
 #pragma pack(pop)
 
 unsigned int qrand(void);
@@ -856,6 +877,9 @@ void RotatePoint(int *x, int *y, int nAngle, int ox, int oy);
 void trigInit(Resource &Res);
 void GetSpriteExtents(spritetype* pSprite, int *top, int *bottom);
 void offsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z);
+char kintersection(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, int* ix, int* iy);
+char kintersection(LINE2D* a, LINE2D* b, int* ix = NULL, int* iy = NULL);
+char dintersection(double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4, int* iX = NULL, int* iY = NULL);
 unsigned char mostUsedByte(unsigned char* bytes, int l, short nExcept);
 void BeepOk(void);
 void BeepFail(void);
@@ -884,6 +908,8 @@ char makeBackup(char* filename);
 
 void doGridCorrection(int* x, int* y, int nGrid);
 void doGridCorrection(int* x, int nGrid);
+inline void doGridCorrection(int* x, int nGrid)			{ doGridCorrection(x, NULL, nGrid); }
+inline void helperDoGridCorrection(int* x, int* y)		{ doGridCorrection(x, y, (!grid || !gridlock) ? 10 : grid); }
 void doWallCorrection(int nWall, int* x, int* y, int shift = 14);
 void dozCorrection(int* z, int zStep = 0x3FF);
 
@@ -931,13 +957,13 @@ inline int DecRotate(int n, int mod)
 		n += mod;
 	return n;
 }
-
-inline int IncNext(int n, int mod)								{ return (n + mod) & ~(mod - 1); }
-inline int DecNext(int n, int mod)								{ return (n - 1) & ~(mod - 1); }
-inline int ItrNext(char neg, int n, int mod)					{ return (neg) ? DecNext(n, mod) : IncNext(n, mod); }
 inline int ClipLow(int a, int b)								{ return (a < b) ? b : a; }
 inline int ClipHigh(int a, int b)								{ return (a > b) ? b : a; }
 inline int ClipRange(int a, int b, int c)						{ return (a < b) ? b : (a > c) ? c : a;	}
+inline int IncNext(int n, int mod, int max)						{ return ClipHigh((n + mod) & ~(mod - 1), max); }
+inline int DecNext(int n, int mod, int min)						{ return ClipLow((n - 1) & ~(mod - 1), min); }
+inline int IncNext(int n, int mod)								{ return (n + mod) & ~(mod - 1); }
+inline int DecNext(int n, int mod)								{ return (n - 1) & ~(mod - 1); }
 inline int interpolate(int a, int b, int c)						{ return a+mulscale16(b-a,c); }
 inline void SetBitString(unsigned char *pArray, int nIndex)		{ pArray[nIndex>>3] |= 1<<(nIndex&7); }
 inline void ClearBitString(unsigned char *pArray, int nIndex)	{ pArray[nIndex >> 3] &= ~(1 << (nIndex & 7)); }
@@ -1103,11 +1129,13 @@ class VOIDLIST
 		{
 			int s, n, r = -1;
 			
-			while((n = Find(pData)) >= 0)
-			{
-				s = totalsiz + (2 * entrysiz);
+			//while((n = Find(pData)) >= 0)
+			if ((n = Find(pData)) >= 0)
+            {
+				s = totalsiz + entrysiz;
 				memcpy(&db[n], &db[n + entrysiz], s - n);
-				db = (uint8_t*)realloc(db, s - entrysiz);
+				db = (uint8_t*)realloc(db, s);
+				dassert(db != NULL);
 				totalsiz-=entrysiz;
 				r = n;
 			}
@@ -1117,10 +1145,18 @@ class VOIDLIST
 		
 		int Find(void* pData)
 		{
-			for (int i = entrysiz; i <= totalsiz; i+=entrysiz)
+			if (pData)
 			{
-				if (memcmp(&db[i], pData, entrysiz) == 0)
-					return i;
+				if (Valid(pData))
+				{
+					return ((uint8_t*)pData - (uint8_t*)First()) + entrysiz;
+				}
+				
+				for (int i = entrysiz; i <= totalsiz; i+=entrysiz)
+				{
+					if (memcmp(&db[i], pData, entrysiz) == 0)
+						return i;
+				}
 			}
 			
 			return -1;
@@ -1226,6 +1262,208 @@ class OBJECT_LIST : public VOIDLIST
 		inline OBJECT* Last(void)						{ return (OBJECT*)VOIDLIST::Last();		}
 		inline OBJECT* Ptr(int nID)						{ return (OBJECT*)VOIDLIST::Ptr(nID);	}
 		inline OBJECT* Ptr(void)						{ return First();						}
+};
+
+struct SNAPSHOT
+{
+	uint8_t	flags;
+	uint32_t normalsiz;
+	uint32_t packedsiz;
+	uint32_t crcsiz;
+	uint32_t crc;
+	BYTE* data;
+};
+
+enum
+{
+	kSnapActive		= 0x01,
+	kSnapPacked		= 0x02,
+};
+typedef int (*SNAPMAKEFUNC)(BYTE** pData, int* crcSiz);
+typedef int (*SNAPLOADFUNC)(BYTE* pData, int nLen, char isRedo);
+
+class SNAPSHOT_MANAGER
+{
+	protected:
+		VOIDLIST*	 db;
+		SNAPLOADFUNC pFuncLoad;
+		SNAPMAKEFUNC pFuncMake;
+		uint32_t	 maxLength;
+		uint8_t		 compress;
+	public:
+		SNAPSHOT_MANAGER(SNAPMAKEFUNC _pFuncMake, SNAPLOADFUNC _pFuncLoad, int nMax = 128, char flags = 0x01)
+		{
+			db = new VOIDLIST(sizeof(SNAPSHOT));
+			compress  = ((flags & 0x01) != 0);
+			pFuncLoad = _pFuncLoad;
+			pFuncMake = _pFuncMake;
+			maxLength = nMax;
+		}
+		
+		~SNAPSHOT_MANAGER()
+		{
+			Remove();
+			delete(db);
+		}
+		
+		int Make(char compare)
+		{
+			int32_t uSiz = 0, cSiz = 0, tSiz = 0;
+			SNAPSHOT snap, *p;
+			BYTE *data = NULL;
+			
+			if ((uSiz = pFuncMake(&data, &tSiz)) <= 0)
+				return -4;
+			
+			memset(&snap, 0, sizeof(snap));
+			snap.normalsiz = uSiz;
+			snap.crcsiz = tSiz;
+			snap.data = data;
+			
+			if (snap.crcsiz)
+			{
+				snap.crc = crc32once(data, tSiz);
+				if (compare && Length())
+				{
+					if ((p = GetActive()) == NULL)
+                        p = (SNAPSHOT*)db->Last();
+                    
+                    if (p->crc == snap.crc)
+					{
+						free(data);
+						return 0;
+					}
+				}
+			}
+
+#ifdef HAVE_COMPRESSION
+			if (compress)
+			{
+				tSiz = compressGetBound(uSiz);
+				if ((snap.data = (BYTE*)malloc(tSiz)) != NULL)
+				{
+					if ((cSiz = compressDoDefault(data, snap.data, uSiz, tSiz)) <= 0)
+					{
+						FREE_AND_NULL(snap.data);
+						free(data);
+						return -2;
+					}
+					
+					if (cSiz < tSiz)
+						snap.data = (BYTE*)realloc(snap.data, cSiz);
+					
+					snap.flags |= kSnapPacked;
+					snap.packedsiz = cSiz;
+				}
+				
+				free(data);	
+				if (snap.data == NULL)
+					return -1;
+			}
+#endif
+
+			if (maxLength && Length() >= maxLength)
+			{
+				p = (SNAPSHOT*)db->First();
+				if (p->flags & kSnapActive)
+					(p+1)->flags |= kSnapActive;
+				
+				Remove(p);
+			}
+			
+			// Remove all snapshots
+			// after active
+			// one
+			
+			while(Length())
+			{
+				p = (SNAPSHOT*)db->Last();
+				if (p->flags & kSnapActive)
+				{
+					p->flags &= ~kSnapActive;
+					break;
+				}
+				
+				Remove(p);
+			}
+			
+			snap.flags |= kSnapActive;
+			db->Add(&snap);
+			return uSiz;
+		}
+		
+		int Switch(char dir)
+		{
+			SNAPSHOT *cur, *old, *p; BYTE *data;
+			int uSiz, r = 1;
+			
+			if (Length() < 2)
+				return 0;
+			
+			if ((cur = GetActive()) == NULL)
+				cur = (SNAPSHOT*)db->Last();
+			
+			old = cur;
+			if (dir) cur++; else cur--;
+			if (!db->Valid(cur))
+				return 0;
+			
+			data = cur->data;
+			uSiz = cur->normalsiz;
+			if (cur->flags & kSnapPacked)
+			{
+#ifdef HAVE_COMPRESSION
+				if ((data = (BYTE*)malloc(uSiz)) == NULL)
+					return -1;
+				
+				if (compressUndoDefault(cur->data, data, cur->packedsiz, uSiz) <= 0)
+					return -2; // data corrupted
+#else
+				return -3; // trying to load compressed snapshot
+#endif
+			}
+			
+			if (pFuncLoad(data, uSiz, dir) <= 0)
+				r = -4;
+			
+			if (cur->data != data)
+				free(data);
+			
+			if (r > 0)
+			{
+				old->flags &= ~kSnapActive;
+				cur->flags |= kSnapActive;
+				
+				p = (SNAPSHOT*)db->Last();
+				while(db->First() != p && (p->flags & kSnapActive) == 0) r++, p--;
+				r = Length() - r + 1;
+			}
+			
+			return r;
+		}
+		
+		SNAPSHOT* GetActive()
+		{
+			for (SNAPSHOT *p = (SNAPSHOT*)db->Last(); db->Valid(p); p--)
+			{
+				if (p->flags & kSnapActive)
+					return p;
+			}
+			
+			return NULL;
+		}
+		
+		
+		void Remove()
+		{
+			for (SNAPSHOT *p = (SNAPSHOT*)db->First(); db->Valid(p); p++)
+				Clear(p);
+			
+			db->Clear();
+		}
+		inline void Clear(SNAPSHOT* pSnap)  { if (pSnap->data) FREE_AND_NULL(pSnap->data); }
+		inline void Remove(SNAPSHOT* pSnap) { Clear(pSnap); db->Remove(pSnap); }
+		inline int Length()					{ return db->Length(); }
 };
 
 

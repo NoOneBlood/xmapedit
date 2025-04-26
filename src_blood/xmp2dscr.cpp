@@ -810,7 +810,7 @@ void SCREEN2D::CaptionPrint(const char* text, int cx, int cy, char pd, char fc, 
 	
 	if (OnScreen(x1, y1, x2, y2))
 	{
-		if (bc >= 0)
+        if (bc >= 0)
 		{
 			gfxSetColor((unsigned char)bc);
 			gfxFillBox(x1, y1+1, x2, y2-1);
@@ -982,18 +982,17 @@ void SCREEN2D::ScreenDraw(void)
 	////////////////////////////
 	if (prefs.useTransluc)
 	{
-		// flood current sector
+		gfxTranslucency(1);
+        
+        // flood current sector
 		if (sectorhighlight >= 0)
 		{
-			LayerOpen();
 			color = ColorGet(kColorGrey28);
 			FillSector(sectorhighlight, color, 1);
-			LayerShowAndClose(kRSTransluc);
 		}
 		
 		if (highlightsectorcnt > 0 || joinsector[0] >= 0)
 		{
-			LayerOpen();
 			color = ColorGet(kColorLightGreen);
 			
 			// flood sectors in a highlight
@@ -1010,9 +1009,9 @@ void SCREEN2D::ScreenDraw(void)
 				color = ColorGet(kColorYellow);
 				FillSector(joinsector[0], color, 1);
 			}
-			
-			LayerShowAndClose(kRSTransluc);
 		}
+        
+        gfxTranslucency(0);
 	}
 	else
 	{
@@ -1083,7 +1082,7 @@ void SCREEN2D::ScreenDraw(void)
 
 	/* draw walls */
 	////////////////////////////
-	fc = ColorGet(kColorGrey28);
+	fc = ColorGet(kColorBlack);
 	bc = ColorGet(kColorBrown);
 	for (i = 0; i < numwalls; i++)
 	{
@@ -1366,9 +1365,9 @@ void SCREEN2D::ScreenDraw(void)
 		if (prefs.useTransluc)
 		{
 			gfxSetColor(bc);
-			LayerOpen();
+			gfxTranslucency(1);
 			gfxFillBox(x1, y1, x2, y2);
-			LayerShowAndClose(kRSTransluc);
+            gfxTranslucency(0);
 		}
 	}
 		
@@ -1416,6 +1415,7 @@ void SCREEN2D::ScreenDraw(void)
 		else if (pGDoorR && pGDoorR->StatusGet() > 0)	pGDoorR->Draw(this);
 		else if (pGLShape)								pGLShape->Draw(this);
 		else if (pGArc)									pGArc->Draw(this);
+		else if (pGLoopSplit)							pGLoopSplit->Draw(this);
 			
 		
 		/* draw RX/TX tracker */
@@ -1785,39 +1785,6 @@ void SCREEN2D::DrawGrid()
 	gfxSetColor(ColorGet(kColorGrey29));
 	gfxFillBox(x1, y1, x2, y2);
 	return;
-}
-
-void SCREEN2D::LayerOpen()
-{
-	int wh = xdim;
-	int hg = ydim;
-	int nTile = gSysTiles.drawBuf;
-	if (waloff[nTile])
-	{
-		memset((void*)waloff[nTile], 255, wh*hg);
-		setviewtotile(nTile, hg, wh);
-	}
-}
-
-void SCREEN2D::LayerShowAndClose(char flags)
-{
-	LayerClose();
-	LayerShow(flags);
-}
-
-void SCREEN2D::LayerClose()
-{
-	setviewback();
-}
-
-void SCREEN2D::LayerShow(char flags)
-{
-	rotatesprite
-	(
-		0<<16, 0<<16, 0x10000, kAng90, gSysTiles.drawBuf, 0, 0,
-		kRSCorner | kRSNoMask | kRSNoClip | kRSYFlip | flags,
-		view.wx1, view.wy1, view.wx2, view.wy2
-	);
 }
 
 void SCREEN2D::ShowMap(char flags)
