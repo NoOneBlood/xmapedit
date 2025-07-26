@@ -185,7 +185,7 @@ class LIGHT_BOMB {
 	int attenuation;
 	int reflections;
 	int rampDist;
-	char maxBright;
+	signed char maxBright;
 	void Init(IniFile* pIni, char* section);
 };
 

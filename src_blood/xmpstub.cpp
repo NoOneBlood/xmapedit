@@ -187,17 +187,6 @@ char* gDepthNames[8] =
 	"Swim",					// 7
 };
 
-char* gDamageNames[6] =
-{
-	"None/Fall",			// 0
-	"Burn",					// 1
-	"Vector",				// 2
-	"Explode",				// 3
-	"Choke",				// 4
-	"Electric",				// 5
-};
-
-
 char *gKeyItemNames[] =
 {
 	"None",					// 0

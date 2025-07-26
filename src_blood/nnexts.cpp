@@ -1065,6 +1065,7 @@ kCdudePosture                   = 0,
 kCdudePostureL                  = kCdudePosture,
 kCdudePostureC,
 kCdudePostureW,
+kCdudePostureF,
 kCdudePostureMax,
 };
 
@@ -1082,6 +1083,7 @@ PARAM gParamPosture[] =
     {kCdudePostureL,        "Stand"  },
     {kCdudePostureC,        "Crouch" },
     {kCdudePostureW,        "Swim"   },
+    {kCdudePostureF,        "Fly"    },
     {kParamMax, NULL},
 };
 
@@ -1202,6 +1204,7 @@ void cdGetSeq(spritetype* pSpr) {
 			if (isUnderwaterSector(pSpr->sectnum) && anim[kCdudePostureW])				nSeq = anim[kCdudePostureW];
 			else if ((pXSpr->data2 & kCdudeStatusForceCrouch) && anim[kCdudePostureC])	nSeq = anim[kCdudePostureC];
 			else if (anim[kCdudePostureL])												nSeq = anim[kCdudePostureL];
+            else if (anim[kCdudePostureF])                                              nSeq = anim[kCdudePostureF];
 		}
 		
 		int range[2] = {0, 1024};

@@ -133,14 +133,6 @@ typedef uint8_t			BOOL;
 typedef int8_t	 		schar;
 typedef uint16_t		ushort;
 
-
-typedef signed char		int8;
-typedef signed short	int16;
-typedef signed int		int32;
-typedef unsigned char	uint8;
-typedef unsigned short	uint16;
-typedef unsigned int	uint32;
-
 typedef uint8_t BITARRAY32[(32768+7)>>3];
 typedef uint8_t BITARRAY16[(16384+7)>>3];
 typedef uint8_t BITARRAY08[(8192+7)>>3];

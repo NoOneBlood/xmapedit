@@ -71,7 +71,7 @@ void extVoxInit()
 					voxid--, j = 0;
 			}
 			
-			voxelIndex[i] = voxid;  // overrides RFF voxels
+			//voxelIndex[i] = voxid;  // overrides RFF voxels
 			tiletovox[i]  = voxid;
 		}
 		

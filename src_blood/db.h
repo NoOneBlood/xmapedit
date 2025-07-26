@@ -333,7 +333,13 @@ struct SPRITE3 {
 	int16_t picnum, ang, vel, zvel, owner;
 	int16_t sectnum, statnum;
 	int32_t tag;
-	uint8_t *extra;
+	#if 0
+    // ptr size may differ for different platforms
+    uint8_t *extra;
+    #else
+    // 4 bytes always to correct read the whole struct from the disk
+    int32_t extra;
+    #endif
 };
 #endif
 
@@ -370,7 +376,13 @@ struct SPRITE4 {
 	int16_t picnum, ang, xvel, yvel, zvel, owner;
 	int16_t sectnum, statnum;
 	int32_t tag;
-	int8_t *extra;
+	#if 0
+    // ptr size may differ for different platforms
+    uint8_t *extra;
+    #else
+    // 4 bytes always to correct read the whole struct from the disk
+    int32_t extra;
+    #endif
 };
 
 struct SECTOR5 {

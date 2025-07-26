@@ -501,31 +501,20 @@ int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
 			if ((k = loopnumofsector(nSect, j)) != i && k != nLoopNumA)
 			{
 				i = k;
-				loopGetWalls(j, &ls, &le);
-				if (ls != s || le != e)
-				{
-					// copy the loop if at least one of walls is inside?
-					while(ls <= le)
-					{
-						if (insideLoop(wall[ls].x, wall[ls].y, numwalls))
-						{
-							k = nWall;
-							f = j;
-							do
-							{
-								memcpy(&wall[nWall], &wall[f], sizeof(walltype));
-								wall[nWall].point2 = nWall+1;
-								f = wall[f].point2;
-								nWall++;
-							}
-							while(f != j);
-							wall[nWall-1].point2 = k;
-							break;
-						}
-						
-						ls++;
-					}
-				}
+                if (insideLoop(wall[j].x, wall[j].y, numwalls))
+                {
+                    k = nWall;
+                    f = j;
+                    do
+                    {
+                        memcpy(&wall[nWall], &wall[f], sizeof(walltype));
+                        wall[nWall].point2 = nWall+1;
+                        f = wall[f].point2;
+                        nWall++;
+                    }
+                    while(f != j);
+                    wall[nWall-1].point2 = k;
+                }
 			}
 		}
 		
@@ -558,31 +547,20 @@ int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
 			if ((k = loopnumofsector(nSect, j)) != i && k != nLoopNumA)
 			{
 				i = k;
-				loopGetWalls(j, &ls, &le);
-				if (ls != s || le != e)
-				{
-					// copy the loop if at least one of walls is inside?
-					while(ls <= le)
-					{
-						if (insideLoop(wall[ls].x, wall[ls].y, nWallOther))
-						{
-							f = j;
-							k = nWall;
-							do
-							{
-								memcpy(&wall[nWall], &wall[f], sizeof(walltype));
-								wall[nWall].point2 = nWall+1;
-								f = wall[f].point2;
-								nWall++;
-							}
-							while(f != j);
-							wall[nWall-1].point2 = k;
-							break;
-						}
-						
-						ls++;
-					}
-				}
+                if (insideLoop(wall[j].x, wall[j].y, nWallOther))
+                {
+                    f = j;
+                    k = nWall;
+                    do
+                    {
+                        memcpy(&wall[nWall], &wall[f], sizeof(walltype));
+                        wall[nWall].point2 = nWall+1;
+                        f = wall[f].point2;
+                        nWall++;
+                    }
+                    while(f != j);
+                    wall[nWall-1].point2 = k;
+                }
 			}
 		}
 		

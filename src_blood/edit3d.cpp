@@ -323,89 +323,92 @@ static void ShootRay(int x, int y, int z, short nSector, int dx, int dy, int dz,
 	else if (hitsprite >= 0)
 	{
 	}
-	else if (dz > 0)	// hit floor
-	{
-		E = divscale16(nIntensity, ClipLow(dist + gLightBomb.rampDist, 1));
-		if (E <= 0)
-			return;		// too small to deal with
+	else if (hitsect >= 0)
+    {
+        if (dz > 0)	// hit floor
+        {
+            E = divscale16(nIntensity, ClipLow(dist + gLightBomb.rampDist, 1));
+            if (E <= 0)
+                return;		// too small to deal with
 
-		// distribute over area of floor
-		E = divscale16(E, ClipLow(SectorArea[hitsect], 1));
+            // distribute over area of floor
+            E = divscale16(E, ClipLow(SectorArea[hitsect], 1));
 
-		int n = (sector[hitsect].floorshade << 16) | FloorShadeFrac[hitsect];
-		n -= E;
-		sector[hitsect].floorshade = (schar)ClipLow(n >> 16, gLightBomb.maxBright);
-		FloorShadeFrac[hitsect] = (ushort)(n & 0xFFFF);
+            int n = (sector[hitsect].floorshade << 16) | FloorShadeFrac[hitsect];
+            n -= E;
+            sector[hitsect].floorshade = (schar)ClipLow(n >> 16, gLightBomb.maxBright);
+            FloorShadeFrac[hitsect] = (ushort)(n & 0xFFFF);
 
-		if ( nReflect < gLightBomb.reflections )
-		{
-			if ( sector[hitsect].floorstat & kSectSloped )
-			{
-				int Nx = FloorNx[hitsect];
-				int Ny = FloorNy[hitsect];
-				int Nz = FloorNz[hitsect];
+            if ( nReflect < gLightBomb.reflections )
+            {
+                if ( sector[hitsect].floorstat & kSectSloped )
+                {
+                    int Nx = FloorNx[hitsect];
+                    int Ny = FloorNy[hitsect];
+                    int Nz = FloorNz[hitsect];
 
-				// dotProduct is cos of angle of intersection
-				dotProduct = tmulscale16(dx, Nx, dy, Ny, dz, Nz);
-				if (dotProduct < 0)
-					return;		// bogus intersection
+                    // dotProduct is cos of angle of intersection
+                    dotProduct = tmulscale16(dx, Nx, dy, Ny, dz, Nz);
+                    if (dotProduct < 0)
+                        return;		// bogus intersection
 
-				dx -= mulscale16(2 * dotProduct, Nx);
-				dy -= mulscale16(2 * dotProduct, Ny);
-				dz -= mulscale16(2 * dotProduct, Nz);
-			}
-			else
-				dz = -dz;
+                    dx -= mulscale16(2 * dotProduct, Nx);
+                    dy -= mulscale16(2 * dotProduct, Ny);
+                    dz -= mulscale16(2 * dotProduct, Nz);
+                }
+                else
+                    dz = -dz;
 
-			nIntensity -= mulscale16(nIntensity, gLightBomb.attenuation);
-			hitx += dx >> 12;
-			hity += dy >> 12;
-			hitz += dz >> 8;
-			ShootRay(hitx, hity, hitz, hitsect, dx, dy, dz, nIntensity, nReflect + 1, dist);
-		}
-	}
-	else				// hit ceiling
-	{
-		E = divscale16(nIntensity, ClipLow(dist + gLightBomb.rampDist, 1));
-		if (E <= 0)
-			return;		// too small to deal with
+                nIntensity -= mulscale16(nIntensity, gLightBomb.attenuation);
+                hitx += dx >> 12;
+                hity += dy >> 12;
+                hitz += dz >> 8;
+                ShootRay(hitx, hity, hitz, hitsect, dx, dy, dz, nIntensity, nReflect + 1, dist);
+            }
+        }
+        else				// hit ceiling
+        {
+            E = divscale16(nIntensity, ClipLow(dist + gLightBomb.rampDist, 1));
+            if (E <= 0)
+                return;		// too small to deal with
 
-		// distribute over area of ceiling
-		E = divscale16(E, ClipLow(SectorArea[hitsect], 1));
+            // distribute over area of ceiling
+            E = divscale16(E, ClipLow(SectorArea[hitsect], 1));
 
-		int n = (sector[hitsect].ceilingshade << 16) | CeilShadeFrac[hitsect];
-		n -= E;
-		sector[hitsect].ceilingshade = (schar)ClipLow(n >> 16, gLightBomb.maxBright);
-		CeilShadeFrac[hitsect] = (ushort)(n & 0xFFFF);
+            int n = (sector[hitsect].ceilingshade << 16) | CeilShadeFrac[hitsect];
+            n -= E;
+            sector[hitsect].ceilingshade = (schar)ClipLow(n >> 16, gLightBomb.maxBright);
+            CeilShadeFrac[hitsect] = (ushort)(n & 0xFFFF);
 
-		if ( nReflect < gLightBomb.reflections )
-		{
-			// reflect vector
-			if ( sector[hitsect].ceilingstat & kSectSloped )
-			{
-				int Nx = CeilNx[hitsect];
-				int Ny = CeilNy[hitsect];
-				int Nz = CeilNz[hitsect];
+            if ( nReflect < gLightBomb.reflections )
+            {
+                // reflect vector
+                if ( sector[hitsect].ceilingstat & kSectSloped )
+                {
+                    int Nx = CeilNx[hitsect];
+                    int Ny = CeilNy[hitsect];
+                    int Nz = CeilNz[hitsect];
 
-				// dotProduct is cos of angle of intersection
-				dotProduct = tmulscale16(dx, Nx, dy, Ny, dz, Nz);
-				if (dotProduct < 0)
-					return;		// bogus intersection
+                    // dotProduct is cos of angle of intersection
+                    dotProduct = tmulscale16(dx, Nx, dy, Ny, dz, Nz);
+                    if (dotProduct < 0)
+                        return;		// bogus intersection
 
-				dx -= mulscale16(2 * dotProduct, Nx);
-				dy -= mulscale16(2 * dotProduct, Ny);
-				dz -= mulscale16(2 * dotProduct, Nz);
-			}
-			else
-				dz = -dz;
+                    dx -= mulscale16(2 * dotProduct, Nx);
+                    dy -= mulscale16(2 * dotProduct, Ny);
+                    dz -= mulscale16(2 * dotProduct, Nz);
+                }
+                else
+                    dz = -dz;
 
-			nIntensity -= mulscale16(nIntensity, gLightBomb.attenuation);
-			hitx += dx >> 12;
-			hity += dy >> 12;
-			hitz += dz >> 8;
-			ShootRay(hitx, hity, hitz, hitsect, dx, dy, dz, nIntensity, nReflect + 1, dist);
-		}
-	}
+                nIntensity -= mulscale16(nIntensity, gLightBomb.attenuation);
+                hitx += dx >> 12;
+                hity += dy >> 12;
+                hitz += dz >> 8;
+                ShootRay(hitx, hity, hitz, hitsect, dx, dy, dz, nIntensity, nReflect + 1, dist);
+            }
+        }
+    }
 }
 
 void SetupLightBomb( void )
@@ -432,7 +435,7 @@ void SetupLightBomb( void )
 			Nx = (wall[pWall->point2].y - pWall->y) >> 4;
 			Ny = -(wall[pWall->point2].x - pWall->x) >> 4;
 
-			int length = ksqrt(Nx * Nx + Ny * Ny);
+			int length = ClipLow(ksqrt(Nx * Nx + Ny * Ny), 1);
 
 			WallNx[nWall] = divscale16(Nx, length);
 			WallNy[nWall] = divscale16(Ny, length);

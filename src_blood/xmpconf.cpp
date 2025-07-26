@@ -282,7 +282,7 @@ void LIGHT_BOMB::Init(IniFile* pIni, char* section)
 	intensity 			= pIni->GetKeyInt(section, "Intensity", 16);
 	attenuation 		= pIni->GetKeyInt(section, "Attenuation", 0x1000);
 	reflections 		= pIni->GetKeyInt(section, "Reflections", 2);
-	maxBright 			= (char)pIni->GetKeyInt(section, "MaxBright", -4);
+	maxBright 			= (signed char)pIni->GetKeyInt(section, "MaxBright", -4);
 	rampDist 			= pIni->GetKeyInt(section, "RampDist", 0x10000);
 }
 

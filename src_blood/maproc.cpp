@@ -854,7 +854,7 @@ static char edKeyProcShared_KEY_COMMA(char key, char ctrl, char shift, char alt)
 	int j = 0, s, e, cx, cy, flags = 0;
 	char dir = (key == KEY_PERIOD);
 
-	if (dir)
+	if (!dir)
 		i = -i;
 
 	if (ED2D && (highlightsectorcnt > 0 || IsHoverSector()))

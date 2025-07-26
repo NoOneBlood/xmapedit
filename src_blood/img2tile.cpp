@@ -182,11 +182,11 @@ int tile2tga(char* img, int nTile) {
 	
 	header.idLength 	= (char)ClipHigh(strlen(buffer), 255);
 	header.imageType 	= 2;
-	header.imageWidth 	= (uint16)wh;
-	header.imageHeight 	= (uint16)hg;
+	header.imageWidth 	= (uint16_t)wh;
+	header.imageHeight 	= (uint16_t)hg;
 	header.pixelDepth 	= 32;
-	header.xOrigin		= (uint16)pnm->xcenter;
-	header.yOrigin		= (uint16)pnm->ycenter;
+	header.xOrigin		= (uint16_t)pnm->xcenter;
+	header.yOrigin		= (uint16_t)pnm->ycenter;
 	header.imageDesc	|= 8;
 	
 	write(hFile, &header, sizeof(header));

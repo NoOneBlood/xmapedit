@@ -795,16 +795,7 @@ void ProcessInput2D( void )
 		}
 		else if (gMouse.press & 4)
 		{
-            if ((pointhighlight & 0xc000) == 0)
-            {
-                searchstat = OBJ_WALL;
-                searchwall = pointhighlight;
-            }
-            else
-            {
-                searchstat = OBJ_SPRITE;
-                searchwall = pointhighlight & 16383;
-            }
+            getHighlightedObject();
             
             switch (searchstat)
             {
