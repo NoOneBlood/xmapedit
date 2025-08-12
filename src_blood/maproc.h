@@ -29,21 +29,21 @@ typedef char (*INPUTPROC_FUNC)(char key, char ctrl, char shift, char alt);
 
 struct INPUTPROC
 {
-	char key;
-	INPUTPROC_FUNC pFunc;
+    char key;
+    INPUTPROC_FUNC pFunc;
 };
 
-#define PROC_FAIL		0x00
-#define PROC_OK			0x01
-#define PROC_UNDO_CMP	0x02
-#define PROC_UNDO_ADD	0x04
-#define PROC_UNDO_MASK	0x06
-#define PROC_BEEP		0x08
+#define PROC_FAIL       0x00
+#define PROC_OK         0x01
+#define PROC_UNDO_CMP   0x02
+#define PROC_UNDO_ADD   0x04
+#define PROC_UNDO_MASK  0x06
+#define PROC_BEEP       0x08
 
-#define PROC_OKUB		(PROC_OK | PROC_UNDO_CMP | PROC_BEEP)
+#define PROC_OKUB       (PROC_OK | PROC_UNDO_CMP | PROC_BEEP)
 #define PROC_OKU        (PROC_OK | PROC_UNDO_CMP)
-#define PROC_FAILB		(PROC_FAIL | PROC_BEEP)
-#define PROC_OKB		(PROC_OK | PROC_BEEP)
+#define PROC_FAILB      (PROC_FAIL | PROC_BEEP)
+#define PROC_OKB        (PROC_OK | PROC_BEEP)
 
 
 extern INPUTPROC gEditInputShared[256];

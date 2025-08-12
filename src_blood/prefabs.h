@@ -21,12 +21,14 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
+#ifndef __PREFABS_H
+#define __PREFABS_H
 #include "common_game.h"
 
 
-#define kPrefabVersion		3
-#define kPrefabFileExt		".pfb"
-#define kPrefabIniSection 	"PrefabInfo"
+#define kPrefabVersion      3
+#define kPrefabFileExt      ".pfb"
+#define kPrefabIniSection   "PrefabInfo"
 #define kMinPrefabSprites    1
 
 
@@ -36,3 +38,4 @@ int pfbAttachThumbnail(IniFile* pfbFile, int nThumbTile);
 int pfbInsert(IniFile* pfbFile, int nStat, int nID, int nSect, int x, int y, int z, int camZ);
 int pfbInsert(char* file, int nStat, int nID, int nSect, int x, int y, int z, int camZ);
 int pfbDlgOptions(int* nFaceAngle, int* nThumbTile);
+#endif

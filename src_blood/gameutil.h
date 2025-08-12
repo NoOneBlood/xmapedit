@@ -20,7 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef __GAMEUTIL_H
+#define __GAMEUTIL_H
 #include "common_game.h"
 
 struct HITINFO
@@ -71,4 +72,4 @@ int getWallLength(short nWall);
 walltype* getCorrectWall(int nWall);
 // int picWidth(short nPic, short repeat);
 // int picHeight(short nPic, short repeat);
-
+#endif

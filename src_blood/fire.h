@@ -22,7 +22,9 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef __FIRE_H
+#define __FIRE_H
 
 void FireInit(void);
 void FireProcess(void);
+#endif

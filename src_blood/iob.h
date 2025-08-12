@@ -20,19 +20,21 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef _IOB_H
+#define _IOB_H
 #include <stdio.h>
 
 class IOBuffer
 {
 public:
-	IOBuffer(int _nRemain, unsigned char *pBuffer);
+    IOBuffer(int _nRemain, unsigned char *pBuffer);
     unsigned char *pBuffer;
-	int nTotal, nRemain;
+    int nTotal, nRemain;
     void read(void *, int);
     void write(void *, int);
     void skip(int);
-	int  seek(int nOffs, int seekType = SEEK_SET);
-	int  tell();
-	void rewind();
+    int  seek(int nOffs, int seekType = SEEK_SET);
+    int  tell();
+    void rewind();
 };
+#endif

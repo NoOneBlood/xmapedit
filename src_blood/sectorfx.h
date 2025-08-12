@@ -20,7 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef SECTORFX_H
+#define SECTORFX_H
 
 
 extern int shadeCount;
@@ -32,3 +33,4 @@ void DoSectorLighting(void);
 void UndoSectorLighting(void);
 void DoSectorPanning(void);
 void InitSectorFX(void);
+#endif

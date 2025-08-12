@@ -22,7 +22,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef __NNEXTS_H
+#define __NNEXTS_H
 #include "common_game.h"
 #include "eventq.h"
 #include "db.h"
@@ -62,8 +63,8 @@
 #define kCdudeFileNamePrefixWild    "CDUD*"
 #define kCdudeFileExt               "CDU"
 
-#define kCitemFileName				"ITEMS"
-#define kCitemFileExt				"ITM"
+#define kCitemFileName              "ITEMS"
+#define kCitemFileExt               "ITM"
 
 extern BOOL gEventRedirectsUsed;
 
@@ -118,7 +119,7 @@ kModernPlayerControl                = 500, /// WIP
 kModernCondition                    = 501, /// WIP, sends command only if specified conditions == true
 kModernConditionFalse               = 502, /// WIP, sends command only if specified conditions != true
 kModernSlopeChanger                 = 504,
-kModernLaserGen						= 505,
+kModernLaserGen                     = 505,
 kModernVelocityChanger              = 506,
 kGenModernMissileUniversal          = 704,
 kGenModernSound                     = 708,
@@ -293,3 +294,4 @@ int pathSpriteBusy(unsigned int nSect, unsigned int a2);
 XSPRITE* pathSectFindNextMarker(XSECTOR* pXSect, XSPRITE* pXMark = NULL, char dir = 1);
 
 int userItemsInit();
+#endif

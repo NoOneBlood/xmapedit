@@ -71,58 +71,58 @@ void DoFireFrame(void)
 
     CellularFrame(FrameBuffer, 128, 132);
     BYTE *pData = tileLoadTile(2342);
-	if (pData)
-	{
-		BYTE *pSource = (BYTE*)FrameBuffer;
-		int x = fireSize;
-		do
-		{
-			int y = fireSize;
-			BYTE *pDataBak = pData;
-			do
-			{
-				*pData = gCLU[*pSource];
-				pSource++;
-				pData += fireSize;
-			} while (--y);
-			pData = pDataBak + 1;
-		} while (--x);
-	}
+    if (pData)
+    {
+        BYTE *pSource = (BYTE*)FrameBuffer;
+        int x = fireSize;
+        do
+        {
+            int y = fireSize;
+            BYTE *pDataBak = pData;
+            do
+            {
+                *pData = gCLU[*pSource];
+                pSource++;
+                pData += fireSize;
+            } while (--y);
+            pData = pDataBak + 1;
+        } while (--x);
+    }
 }
 
 void FireInit(void)
 {
-	// fire processing may ruin everything if there is no tile with proper size
-	if (tilesizx[2342] != fireSize || tilesizy[2342] != fireSize)
-	{
-		if (tileLoadTile(2342)) tilePurgeTile(2342); 		// erase tile if it exists
-		if (!tileAllocTile(2342, fireSize, fireSize, 0, 0)) // allocate new tile
-		{
-			fireInited = false;
-			return;
-		}
-	}
-	
-	memset(FrameBuffer, 0, sizeof(FrameBuffer));
+    // fire processing may ruin everything if there is no tile with proper size
+    if (tilesizx[2342] != fireSize || tilesizy[2342] != fireSize)
+    {
+        if (tileLoadTile(2342)) tilePurgeTile(2342);        // erase tile if it exists
+        if (!tileAllocTile(2342, fireSize, fireSize, 0, 0)) // allocate new tile
+        {
+            fireInited = false;
+            return;
+        }
+    }
+
+    memset(FrameBuffer, 0, sizeof(FrameBuffer));
     BuildCoolTable();
-	InitSeedBuffers();
-   
+    InitSeedBuffers();
+
     DICTNODE *pNode = gSysRes.Lookup("RFIRE", "CLU");
     if (!pNode)
         ThrowError("RFIRE.CLU not found");
-    
-	gCLU = (char*)gSysRes.Lock(pNode);
+
+    gCLU = (char*)gSysRes.Lock(pNode);
     for (int i = 0; i < 100; i++)
         DoFireFrame();
 }
 
 void FireProcess(void)
 {
-	if (!fireInited)
-		return;
+    if (!fireInited)
+        return;
 
-	static int32_t lastUpdate = 0;
-	if (totalclock < lastUpdate || lastUpdate + 2 < totalclock)
+    static int32_t lastUpdate = 0;
+    if (totalclock < lastUpdate || lastUpdate + 2 < totalclock)
     {
         DoFireFrame();
         lastUpdate = totalclock;

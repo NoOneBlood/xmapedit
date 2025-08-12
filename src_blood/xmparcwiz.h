@@ -30,58 +30,58 @@ extern NAMED_TYPE gAutoArcErrors[];
 
 class SECTAUTOARC
 {
-	private:
-		LINE2D* lines;
-		signed   int status			: 32;
-		unsigned int numpieces		: 16;
-		signed   int sideStep		: 16;
-		unsigned int midStep		: 16;
-		signed   int destSector		: 32;
-		signed   int srcWall		: 32;
-		unsigned int fullDist		: 32;
-		unsigned int stepDist		: 32;
-		unsigned int midDist		: 32;
-		//----------------------------------------------------------------------------
-		void Start();
-		void Stop();
-		int SetupPrivate(int nWall, int nGrid);
-		int WallSearch(int nSect, int nRadius, int x1, int y1, int x2 = 0, int y2 = 0);
-		void WallClean(int nWall, char which);
-		char LoopIsRect(int s, int e);
-		int BuildArc();
-		//----------------------------------------------------------------------------
-	public:
-		signed   int heightPerc		: 8;
-		unsigned int arcFlags		: 8;
-		unsigned int insertNew		: 1;
-		//----------------------------------------------------------------------------
-		IDLIST* slist;
-		SECTAUTOARC()	{ Start(); }
-		~SECTAUTOARC()  { Stop(); }
-		char Setup(int nWall, int nGrid);
-		int Insert();
-		char IterateMidStep(int dir, int nGrid);
-		char IterateSideStep(int dir, int nGrid);
-		void Draw(SCREEN2D* pScr);
-		inline int NumPieces()
-		{
-			return numpieces;
-		}
-		
-		inline int StatusGet()
-		{
-			return status;
-		}
-		
-		inline void ClearList()
-		{
-			if (slist)
-				delete(slist);
-			
-			slist = new IDLIST(true);
-		}
-		//----------------------------------------------------------------------------
-		
+    private:
+        LINE2D* lines;
+        signed   int status         : 32;
+        unsigned int numpieces      : 16;
+        signed   int sideStep       : 16;
+        unsigned int midStep        : 16;
+        signed   int destSector     : 32;
+        signed   int srcWall        : 32;
+        unsigned int fullDist       : 32;
+        unsigned int stepDist       : 32;
+        unsigned int midDist        : 32;
+        //----------------------------------------------------------------------------
+        void Start();
+        void Stop();
+        int SetupPrivate(int nWall, int nGrid);
+        int WallSearch(int nSect, int nRadius, int x1, int y1, int x2 = 0, int y2 = 0);
+        void WallClean(int nWall, char which);
+        char LoopIsRect(int s, int e);
+        int BuildArc();
+        //----------------------------------------------------------------------------
+    public:
+        signed   int heightPerc     : 8;
+        unsigned int arcFlags       : 8;
+        unsigned int insertNew      : 1;
+        //----------------------------------------------------------------------------
+        IDLIST* slist;
+        SECTAUTOARC()   { Start(); }
+        ~SECTAUTOARC()  { Stop(); }
+        char Setup(int nWall, int nGrid);
+        int Insert();
+        char IterateMidStep(int dir, int nGrid);
+        char IterateSideStep(int dir, int nGrid);
+        void Draw(SCREEN2D* pScr);
+        inline int NumPieces()
+        {
+            return numpieces;
+        }
+
+        inline int StatusGet()
+        {
+            return status;
+        }
+
+        inline void ClearList()
+        {
+            if (slist)
+                delete(slist);
+
+            slist = new IDLIST(true);
+        }
+        //----------------------------------------------------------------------------
+
 };
 
 char dlgArcWizard(SECTAUTOARC* pArc);

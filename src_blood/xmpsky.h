@@ -26,31 +26,31 @@
 
 class Sky
 {
-	typedef BOOL (*MATCHFUNC)(int, int);
-	
-	private:
-	static int CollectSectors(IDLIST* pList, MATCHFUNC CheckFunc, int nSect, int nFor, int globcnt);
-	static char* GlobalOrLocal(BOOL global) { return (global) ? "Global" : "Local"; }
-	static char* RightOrLeft(BOOL right) { return (right) ? "Right" : "Left"; }
-	//------------------------------------------------------------------------------------
-	public:
-	static int pieces;
-	static unsigned char customBitsFlag;
-	static unsigned char tileRepeatCount;
-	static int Setup(int nSect, int nFor, int nShade, int nPal, int nNewPic, int panX, int panY, BOOL global);
-	static BOOL RotateRecursive(int dir);
-	static BOOL Rotate(BOOL right);
-	static int SetPan(int nSect, int nFor, int panX, int panY, BOOL global);
-	static int SetPal(int nSect, int nFor, int nPal, BOOL global);
-	static int SetPic(int nSect, int nFor, int nPic, BOOL global);
-	static int SetShade(int nSect, int nFor, int nShade, BOOL global);
-	static int ToggleFloorShade(int nSect, BOOL global);
-	static int FixPan(int nSect, int nFor, BOOL global);
-	static int MakeSimilar(int nSect, int nFor, BOOL global);
-	static int Disable(int nSect, int nFor, BOOL global);
-	//------------------------------------------------------------------------------------
-	static int GetMostUsed(int nSect, int nFor, BOOL global, int* nPic = NULL, int* nPal = NULL, int* nShade = NULL, int* nPy = NULL);
-	static void SetBits(int nPic, int* nUnique = NULL);
+    typedef BOOL (*MATCHFUNC)(int, int);
+
+    private:
+    static int CollectSectors(IDLIST* pList, MATCHFUNC CheckFunc, int nSect, int nFor, int globcnt);
+    static char* GlobalOrLocal(BOOL global) { return (global) ? "Global" : "Local"; }
+    static char* RightOrLeft(BOOL right) { return (right) ? "Right" : "Left"; }
+    //------------------------------------------------------------------------------------
+    public:
+    static int pieces;
+    static unsigned char customBitsFlag;
+    static unsigned char tileRepeatCount;
+    static int Setup(int nSect, int nFor, int nShade, int nPal, int nNewPic, int panX, int panY, BOOL global);
+    static BOOL RotateRecursive(int dir);
+    static BOOL Rotate(BOOL right);
+    static int SetPan(int nSect, int nFor, int panX, int panY, BOOL global);
+    static int SetPal(int nSect, int nFor, int nPal, BOOL global);
+    static int SetPic(int nSect, int nFor, int nPic, BOOL global);
+    static int SetShade(int nSect, int nFor, int nShade, BOOL global);
+    static int ToggleFloorShade(int nSect, BOOL global);
+    static int FixPan(int nSect, int nFor, BOOL global);
+    static int MakeSimilar(int nSect, int nFor, BOOL global);
+    static int Disable(int nSect, int nFor, BOOL global);
+    //------------------------------------------------------------------------------------
+    static int GetMostUsed(int nSect, int nFor, BOOL global, int* nPic = NULL, int* nPal = NULL, int* nShade = NULL, int* nPy = NULL);
+    static void SetBits(int nPic, int* nUnique = NULL);
 };
 
 #endif

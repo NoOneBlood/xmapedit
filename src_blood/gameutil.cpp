@@ -64,26 +64,26 @@ bool AreSectorsNeighbors(int sect1, int sect2)
 char FindSector(int nX, int nY, int nZ, int *nSector)
 {
     short nSect = (short)(*nSector);
-	updatesectorz(nX, nY, nZ, &nSect);
-	if (nSect >= 0)
-	{
-		*nSector = nSect;
-		return 1;
-	}
-	
+    updatesectorz(nX, nY, nZ, &nSect);
+    if (nSect >= 0)
+    {
+        *nSector = nSect;
+        return 1;
+    }
+
     return 0;
 }
 
 char FindSector(int nX, int nY, int *nSector)
 {
     short nSect = (short)(*nSector);
-	updatesector(nX, nY, &nSect);
-	if (nSect >= 0)
-	{
-		*nSector = nSect;
-		return 1;
-	}
-	
+    updatesector(nX, nY, &nSect);
+    if (nSect >= 0)
+    {
+        *nSector = nSect;
+        return 1;
+    }
+
     return 0;
 }
 
@@ -866,39 +866,39 @@ int GetClosestSpriteSectors(int nSector, int x, int y, int nDist, short *pSector
 
 int AreaOfSector( sectortype *pSector )
 {
-	int area = 0;
-	int startwall = pSector->wallptr;
-	int endwall = startwall + pSector->wallnum;
-	for (int i = startwall; i < endwall; i++)
-	{
-		int x1 = wall[i].x >> 4;
-		int y1 = wall[i].y >> 4;
-		int x2 = wall[wall[i].point2].x >> 4;
-		int y2 = wall[wall[i].point2].y >> 4;
-		area += (x1+x2) * (y2-y1);
-	}
-	area >>= 1;
+    int area = 0;
+    int startwall = pSector->wallptr;
+    int endwall = startwall + pSector->wallnum;
+    for (int i = startwall; i < endwall; i++)
+    {
+        int x1 = wall[i].x >> 4;
+        int y1 = wall[i].y >> 4;
+        int x2 = wall[wall[i].point2].x >> 4;
+        int y2 = wall[wall[i].point2].y >> 4;
+        area += (x1+x2) * (y2-y1);
+    }
+    area >>= 1;
 
-	return area;
+    return area;
 }
 
 walltype* getCorrectWall(int nWall) {
-	
-	dassert(nWall >= 0 && nWall < kMaxWalls);
-	
-	walltype* pWall = &wall[nWall];
-	if (pWall->nextwall >= 0) {
-		walltype* nextWall = &wall[pWall->nextwall];
-		if (nextWall->cstat & kWallSwap)
-			return nextWall;
-	}
-	
-	return pWall;
+
+    dassert(nWall >= 0 && nWall < kMaxWalls);
+
+    walltype* pWall = &wall[nWall];
+    if (pWall->nextwall >= 0) {
+        walltype* nextWall = &wall[pWall->nextwall];
+        if (nextWall->cstat & kWallSwap)
+            return nextWall;
+    }
+
+    return pWall;
 }
 
 int getWallLength(short nWall) {
-	
-	int nWall2 = wall[nWall].point2;
-	return approxDist(wall[nWall2].x - wall[nWall].x, wall[nWall2].y - wall[nWall].y);
-	
+
+    int nWall2 = wall[nWall].point2;
+    return approxDist(wall[nWall2].x - wall[nWall].x, wall[nWall2].y - wall[nWall].y);
+
 }

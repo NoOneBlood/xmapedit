@@ -20,8 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#ifndef _HGLT_H_
-#define _HGLT_H_
+#ifndef _HGLT_H
+#define _HGLT_H
 #include "common_game.h"
 
 
@@ -31,9 +31,9 @@ typedef void HSPRITEFUNC(spritetype *pSprite, int nData);
 
 
 enum {
-kHgltSector			= 0x0001,
-kHgltPoint			= 0x0002,
-kHgltGradient		= 0x0004,
+kHgltSector         = 0x0001,
+kHgltPoint          = 0x0002,
+kHgltGradient       = 0x0004,
 };
 
 
@@ -94,22 +94,22 @@ void hgltSprClamp(int ofsAboveCeil = 0, int ofsBelowFloor = 0, int which = 0x000
 void hgltSprRotate(int step);
 inline char hgltSprIsFine(int nSprite)
 {
-	return (nSprite >= 0 && nSprite < kMaxSprites && sprite[nSprite].statnum < kStatFree);
+    return (nSprite >= 0 && nSprite < kMaxSprites && sprite[nSprite].statnum < kStatFree);
 }
 
 inline char sprInHglt(int idx)
 {
-	return (hgltCheck(OBJ_SPRITE, idx) >= 0);
+    return (hgltCheck(OBJ_SPRITE, idx) >= 0);
 }
 
 inline char sectInHglt(int idx)
 {
-	return (hgltCheck(OBJ_SECTOR, idx) >= 0);
+    return (hgltCheck(OBJ_SECTOR, idx) >= 0);
 }
 
 inline char wallInHglt(int idx)
 {
-	return (hgltCheck(OBJ_WALL, idx) >= 0);
+    return (hgltCheck(OBJ_WALL, idx) >= 0);
 }
 
 int hgltWallCount(int* whicnt = NULL, int* redcnt = NULL);

@@ -16,12 +16,12 @@
 
 enum
 {
-kSectToolShape			= 0	,
-kSectToolLoopSplit			,
-kSectToolDoorWiz			,
-kSectToolArcWiz				,
-kSectToolCurveWall			,
-kSectToolUnk				,
+kSectToolShape          = 0 ,
+kSectToolLoopSplit          ,
+kSectToolDoorWiz            ,
+kSectToolArcWiz             ,
+kSectToolCurveWall          ,
+kSectToolUnk                ,
 };
 
 extern char* const gSectToolNames[];
@@ -129,13 +129,13 @@ char sectorToolDlgLauncher();
 
 inline uint32_t getlenbyrep(int32_t len, int32_t repeat)
 {
-	return (uint32_t)((repeat > 0) ? divscale12(len, repeat) : len<<12);
+    return (uint32_t)((repeat > 0) ? divscale12(len, repeat) : len<<12);
 }
 
 inline void fixxrepeat(int nWall, int lenrepquot)
 {
-	if (lenrepquot)
-		wall[nWall].xrepeat = ClipRange(((getWallLength(nWall)<<12) + (1<<11)) / lenrepquot, 1, 255);
+    if (lenrepquot)
+        wall[nWall].xrepeat = ClipRange(((getWallLength(nWall)<<12) + (1<<11)) / lenrepquot, 1, 255);
 }
 
 int GetWallZPeg(int nWall);

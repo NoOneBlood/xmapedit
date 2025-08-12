@@ -28,7 +28,7 @@
 #include "edit2d.h"
 #include "edit3d.h"
 
-#define kPlayerRadius		32
+#define kPlayerRadius       32
 #define kTabWall  kMaxWalls
 #define kTabXWall kMaxXWalls
 #define kTabSpr  kMaxSprites
@@ -45,10 +45,10 @@
 extern OBJECT_LIST gModernTypes;
 
 enum {
-kDetailSpriteNoVoxel1 		= 0x0008,
+kDetailSpriteNoVoxel1       = 0x0008,
 };
 
-#define kBufferSize 		256
+#define kBufferSize         256
 extern char buffer[kBufferSize];
 extern char buffer2[kBufferSize];
 extern char buffer3[kBufferSize];
@@ -58,8 +58,8 @@ extern SNAPSHOT_MANAGER gMapSnapshot;
 
 struct SPECIAL_DATA_NAMES
 {
-	int var1;
-	char *dataOvr[4];
+    int var1;
+    char *dataOvr[4];
 };
 
 extern SPECIAL_DATA_NAMES pCtrlDataNames[32];
@@ -108,30 +108,30 @@ extern NAMED_TYPE gGameNames[5];
 extern NAMED_TYPE gGameObjectGroupNames[10];
 
 enum {
-kCaptionStyleNone			= 0,
-kCaptionStyleMapedit		= 1,
-kCaptionStyleBuild			= 2,
-kCaptionStyleMax			   ,
+kCaptionStyleNone           = 0,
+kCaptionStyleMapedit        = 1,
+kCaptionStyleBuild          = 2,
+kCaptionStyleMax               ,
 };
 
 extern char *gCaptionStyleNames[kCaptionStyleMax];
 extern char* gShowMapNames[];
 
 enum {
-kToolDialog			= -1,
-kToolMapEdit		=  0,
-kToolSeqEdit		=  1,
-kToolArtEdit		=  2,
-kToolQavEdit		=  3,
-kToolMax				,
+kToolDialog         = -1,
+kToolMapEdit        =  0,
+kToolSeqEdit        =  1,
+kToolArtEdit        =  2,
+kToolQavEdit        =  3,
+kToolMax                ,
 };
 
 enum {
-kMap				= 0,
-kSeq				= 1,
-kArt				= 2,
-kQav				= 3,
-kExtMax				   ,
+kMap                = 0,
+kSeq                = 1,
+kArt                = 2,
+kQav                = 3,
+kExtMax                ,
 };
 
 extern char* gExtNames[kExtMax];
@@ -139,68 +139,68 @@ extern NAMED_TYPE gToolNames[kToolMax];
 
 
 enum {
-kIniDefault 					= 0,
-kIniEditDialogHints				= 1,
+kIniDefault                     = 0,
+kIniEditDialogHints             = 1,
 };
 
 // modal results for 3d esc menu
 enum {
-mrSave 							= 100,
-mrSaveAs 						= 101,
-mrLoad 							= 102,
-mrReload						= 103,
-mrNew 							= 104,
-mrQuit 							= 105,
-mrMenu 							= 106,
-mrAsave 						= 107,
-mrAsaveMax 						= 113,
-mrLoadAsave 					= mrAsaveMax,
-mrTest							,
-mrOptions						,
-mrAbout							,
-mrBoardOptions					,
-mrToolPreviewMode				,
-mrToolSpriteText				,
-mrToolExpSeq					,
-mrToolCleanChannel				,
-mrToolImportWizard				,
-mrToolArtGrabber				,
-mrToolSeqEdit					,
-mrToolArtEdit					,
-mrToolQavEdit					,
+mrSave                          = 100,
+mrSaveAs                        = 101,
+mrLoad                          = 102,
+mrReload                        = 103,
+mrNew                           = 104,
+mrQuit                          = 105,
+mrMenu                          = 106,
+mrAsave                         = 107,
+mrAsaveMax                      = 113,
+mrLoadAsave                     = mrAsaveMax,
+mrTest                          ,
+mrOptions                       ,
+mrAbout                         ,
+mrBoardOptions                  ,
+mrToolPreviewMode               ,
+mrToolSpriteText                ,
+mrToolExpSeq                    ,
+mrToolCleanChannel              ,
+mrToolImportWizard              ,
+mrToolArtGrabber                ,
+mrToolSeqEdit                   ,
+mrToolArtEdit                   ,
+mrToolQavEdit                   ,
 };
 
 enum {
-kOGrpNone 						= 0x0000,
-kOGrpModern     				= 0x0001,
-kOGrpWeapon						= 0x0002,
-kOGrpAmmo						= 0x0004,
-kOGrpAmmoMix 					= 0x0008,
-kOGrpItem						= 0x0010,
-kOGrpDude						= 0x0020,
-kOGrpHazard						= 0x0040,
-kOGrpMisc						= 0x0080,
-kOGrpMarker						= 0x0100,
-kOGrpItemUser					= 0x0200,
+kOGrpNone                       = 0x0000,
+kOGrpModern                     = 0x0001,
+kOGrpWeapon                     = 0x0002,
+kOGrpAmmo                       = 0x0004,
+kOGrpAmmoMix                    = 0x0008,
+kOGrpItem                       = 0x0010,
+kOGrpDude                       = 0x0020,
+kOGrpHazard                     = 0x0040,
+kOGrpMisc                       = 0x0080,
+kOGrpMarker                     = 0x0100,
+kOGrpItemUser                   = 0x0200,
 };
 
 /// !!!
 /* enum {
-VCLS							= 0, // show NON plasma types (the difference in enemies)
-VPLS							= 1, // show plasma types as well
-VHID							= 2, // show hidden vanilla types
-MDRN							= 4, // show modern types
+VCLS                            = 0, // show NON plasma types (the difference in enemies)
+VPLS                            = 1, // show plasma types as well
+VHID                            = 2, // show hidden vanilla types
+MDRN                            = 4, // show modern types
 }; */
 
 enum {
-VC 								= 0,
-VA 								= 1, // additional types that compatible with vanilla and could be useful for mappers
-MO 								= 2,
+VC                              = 0,
+VA                              = 1, // additional types that compatible with vanilla and could be useful for mappers
+MO                              = 2,
 };
 
 enum {
-kPrefixModernOnly 				= '*',
-kPrefixSpecial					= '~',
+kPrefixModernOnly               = '*',
+kPrefixSpecial                  = '~',
 };
 
 

@@ -20,7 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef __RESOURCE_H
+#define __RESOURCE_H
 
 #pragma pack(push, 1)
 
@@ -94,7 +95,7 @@ public:
     DICTNODE **Probe(unsigned int id, const char *type);
     void Reindex(void);
     void Grow(void);
-	void AddExternalResource(const char* pzPath, int id = 0, int flags = 0);
+    void AddExternalResource(const char* pzPath, int id = 0, int flags = 0);
     void AddExternalResource(const char *name, const char *type, int id = 0, int flags = 0, const char* pzDirectory = NULL);
     void AddFromBuffer(const char* name, const char* type, char *data, int size, int id = 0, int flags = 0);
     static void *Alloc(int nSize);
@@ -109,7 +110,7 @@ public:
     void Unlock(DICTNODE *h);
     void Crypt(void *p, int length, unsigned short key);
     static void AddMRU(CACHENODE *h);
-	static void RemoveMRU(CACHENODE *h);
+    static void RemoveMRU(CACHENODE *h);
     int Size(DICTNODE*h) { return h->size; }
 #if 0
     void FNAddFiles(fnlist_t *fnlist, const char *pattern);
@@ -133,3 +134,4 @@ public:
 };
 
 typedef DICTNODE *RESHANDLE;
+#endif

@@ -29,69 +29,69 @@ char* extVoxelPath[kMaxTiles]; // these are dynamically allocated!
 
 void extVoxInit()
 {
-	int i, j; short voxid = kMaxVoxels - 1;
-	int nView, nPrevNode = -1;
-	char* key, *value;
-	
-	extVoxUninit();
-	
-	// read external voxels info
-	if (gMisc.externalModels && fileExists(gPaths.voxelEXT))
-	{
-		IniFile* pExtVox = new IniFile(gPaths.voxelEXT, INI_SKIPCM|INI_SKIPZR);		
-		while (pExtVox->GetNextString(NULL, &key, &value, &nPrevNode))
-		{
-			if (!isIdKeyword(key, "Tile", &i) || !rngok(i, 0, kMaxTiles)) continue;
-			else if (!tilesizx[i] || !tilesizy[i]) continue;
-			else
-			{
-				if (value[0] == '*')
-				{
-					// force kSprViewVoxSpin flag
-					nView = kSprViewVoxSpin;
-					value = &value[1];
-				}
-				else
-				{
-					nView = kSprViewVox;
-				}
+    int i, j; short voxid = kMaxVoxels - 1;
+    int nView, nPrevNode = -1;
+    char* key, *value;
 
-				if (!fileExists(value)) continue;
-				if ((extVoxelPath[i] = (char*)malloc(strlen(value)+1)) == NULL)
-					break;
-				
-				sprintf(extVoxelPath[i], "%s", value);
-				panm[i].view	= nView;
-			}
-			
-			for (j = 0; j < kMaxTiles; j++)
-			{
-				if (voxid < 0) { ThrowError("Max(%d) models reached!", kMaxVoxels); }
-				else if (tiletovox[j] == voxid)
-					voxid--, j = 0;
-			}
-			
-			//voxelIndex[i] = voxid;  // overrides RFF voxels
-			tiletovox[i]  = voxid;
-		}
-		
-		delete(pExtVox);
-	}
+    extVoxUninit();
+
+    // read external voxels info
+    if (gMisc.externalModels && fileExists(gPaths.voxelEXT))
+    {
+        IniFile* pExtVox = new IniFile(gPaths.voxelEXT, INI_SKIPCM|INI_SKIPZR);
+        while (pExtVox->GetNextString(NULL, &key, &value, &nPrevNode))
+        {
+            if (!isIdKeyword(key, "Tile", &i) || !rngok(i, 0, kMaxTiles)) continue;
+            else if (!tilesizx[i] || !tilesizy[i]) continue;
+            else
+            {
+                if (value[0] == '*')
+                {
+                    // force kSprViewVoxSpin flag
+                    nView = kSprViewVoxSpin;
+                    value = &value[1];
+                }
+                else
+                {
+                    nView = kSprViewVox;
+                }
+
+                if (!fileExists(value)) continue;
+                if ((extVoxelPath[i] = (char*)malloc(strlen(value)+1)) == NULL)
+                    break;
+
+                sprintf(extVoxelPath[i], "%s", value);
+                panm[i].view    = nView;
+            }
+
+            for (j = 0; j < kMaxTiles; j++)
+            {
+                if (voxid < 0) { ThrowError("Max(%d) models reached!", kMaxVoxels); }
+                else if (tiletovox[j] == voxid)
+                    voxid--, j = 0;
+            }
+
+            //voxelIndex[i] = voxid;  // overrides RFF voxels
+            tiletovox[i]  = voxid;
+        }
+
+        delete(pExtVox);
+    }
 }
-	
+
 
 
 void extVoxUninit()
 {
-	for (int i = 0; i < kMaxTiles; i++)
-	{
-		panm[i].view = viewType[i];
-		tiletovox[i] = -1;
-		
-		if (extVoxelPath[i])
-		{		
-			free(extVoxelPath[i]);
-			extVoxelPath[i] = NULL;
-		}
-	}
+    for (int i = 0; i < kMaxTiles; i++)
+    {
+        panm[i].view = viewType[i];
+        tiletovox[i] = -1;
+
+        if (extVoxelPath[i])
+        {
+            free(extVoxelPath[i]);
+            extVoxelPath[i] = NULL;
+        }
+    }
 }

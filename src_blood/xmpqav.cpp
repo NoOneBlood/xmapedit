@@ -50,7 +50,7 @@ void DrawFrame(int x, int y, TILE_FRAME *pTile, int stat, int shade, int palnum)
     rotatesprite(x + (pTile->x << 16), y + (pTile->y << 16), pTile->z, angle,
                  pTile->picnum, ClipRange(pTile->shade + shade, -128, 127), palnum, stat,
                  windowx1, windowy1, windowx2, windowy2);
-   
+
 }
 
 void QAV::Preload(void)

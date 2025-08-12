@@ -31,10 +31,10 @@
 
 struct MIRROR
 {
-	unsigned int type		: 3;
-	unsigned int id			: 16;
-	unsigned int basePic	: 16;
-	POINT3D point;
+    unsigned int type       : 3;
+    unsigned int id         : 16;
+    unsigned int basePic    : 16;
+    POINT3D point;
 };
 extern MIRROR mirror[kMaxROR];
 extern short mirrorcnt;

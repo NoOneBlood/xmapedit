@@ -27,7 +27,7 @@
 #include "preview.h"
 #include "xmpmaped.h"
 
-#define kMaxEffectSprites	512
+#define kMaxEffectSprites   512
 
 CFX gFX;
 
@@ -89,32 +89,32 @@ FXDATA gFXData[] = {
     { kCallbackNone, 2, 0, 3, 27962, 4096, 480, 4028, 32, 32, 0, -16, 0 },
     { kCallbackNone, 2, 0, 0, 0, 0, 480, 926, 32, 32, 610, -12, 0 },
     { kCallbackNone, 1, 70, 1, -13981, 5120, 0, 0, 0, 0, 0, 0, 0 },
-	
-	{ kCallbackNone, 1, 0, 3, 58254, 3328, 480, 2185, 48, 48, 0, 0, 0 },
-	{ kCallbackNone, 2, 0, 1, 27962*2, 0, 600, 1147, 64, 64, kSprOrigin, 0, 0 },
-	{ kCallbackNone, 2, 0, 1, 27962*2, 0, 600, 1160, 64, 64, kSprOrigin, 0, 0 },
+
+    { kCallbackNone, 1, 0, 3, 58254, 3328, 480, 2185, 48, 48, 0, 0, 0 },
+    { kCallbackNone, 2, 0, 1, 27962*2, 0, 600, 1147, 64, 64, kSprOrigin, 0, 0 },
+    { kCallbackNone, 2, 0, 1, 27962*2, 0, 600, 1160, 64, 64, kSprOrigin, 0, 0 },
 };
 
 void CFX::sub_73FB0(int nSprite) {
     if (nSprite < 0 || nSprite >= kMaxSprites)
         return;
-    
-	previewDelSprite(nSprite);
+
+    previewDelSprite(nSprite);
 }
 
 void CFX::sub_73FFC(int nSprite) {
-    if (nSprite < 0 || nSprite >= kMaxSprites) 
-		return;
+    if (nSprite < 0 || nSprite >= kMaxSprites)
+        return;
     spritetype *pSprite = &sprite[nSprite];
-	if (pSprite->extra > 0)
-		seqKill(3, pSprite->extra);
-		actPostSprite((short)nSprite, kStatFree);
-	
+    if (pSprite->extra > 0)
+        seqKill(3, pSprite->extra);
+        actPostSprite((short)nSprite, kStatFree);
+
 }
 
 spritetype * CFX::fxSpawn(FX_ID nFx, int nSector, int x, int y, int z, unsigned int a6)
 {
-	if (nSector < 0 || nSector >= numsectors)
+    if (nSector < 0 || nSector >= numsectors)
         return NULL;
     //int nSector2 = nSector;
     //if (!FindSector(x, y, z, &nSector2))
@@ -124,48 +124,48 @@ spritetype * CFX::fxSpawn(FX_ID nFx, int nSector, int x, int y, int z, unsigned 
         return NULL;
     FXDATA *pFX = &gFXData[nFx];
     if (gStatCount[1] >= kMaxEffectSprites) {
-		for (int nSprite = headspritestat[kStatFX]; nSprite != -1; nSprite = nextspritestat[nSprite]) {
-			if ((sprite[nSprite].flags & 32))
-				sub_73FB0(nSprite);
-		}
-		return NULL;
+        for (int nSprite = headspritestat[kStatFX]; nSprite != -1; nSprite = nextspritestat[nSprite]) {
+            if ((sprite[nSprite].flags & 32))
+                sub_73FB0(nSprite);
+        }
+        return NULL;
     }
     spritetype *pSprite = actSpawnSprite(nSector, x, y, z, 1, 0);
-	if (!pSprite)
-		return NULL;
-	
+    if (!pSprite)
+        return NULL;
+
     pSprite->type = nFx;
     pSprite->picnum = pFX->at12;
     pSprite->cstat |= pFX->at16;
     pSprite->shade = pFX->at18;
     pSprite->pal = pFX->at19;
-	
-	pSprite->yvel = kDeleteReally;
-	
-	//pSprite->detail = pFX->at1;
+
+    pSprite->yvel = kDeleteReally;
+
+    //pSprite->detail = pFX->at1;
     if (pFX->at14 > 0) pSprite->xrepeat = pFX->at14;
     if (pFX->at15 > 0) pSprite->yrepeat = pFX->at15;
-	if ((pFX->at4 & 1) && Chance(0x8000)) pSprite->cstat |= 4;
-	if ((pFX->at4 & 2) && Chance(0x8000)) pSprite->cstat |= 8;
-	if (pFX->at2)
-		seqSpawn(pFX->at2, 3, GetXSprite(pSprite->index), -1);
-    
+    if ((pFX->at4 & 1) && Chance(0x8000)) pSprite->cstat |= 4;
+    if ((pFX->at4 & 2) && Chance(0x8000)) pSprite->cstat |= 8;
+    if (pFX->at2)
+        seqSpawn(pFX->at2, 3, GetXSprite(pSprite->index), -1);
+
     if (a6 == 0) a6 = pFX->ate;
     if (a6) evPost(pSprite->index, 3, ClipLow(a6+BiRandom(a6>>1), 0), kCallbackRemoveSpecial);
-	return pSprite;
+    return pSprite;
 }
 
 void CFX::fxProcess(void)
 {
-	
-	for (int nSprite = headspritestat[kStatFX]; nSprite >= 0; nSprite = nextspritestat[nSprite]) {
 
-		spritetype *pSprite = &sprite[nSprite];
-		if (pSprite->statnum != kStatFX)
-			continue;
+    for (int nSprite = headspritestat[kStatFX]; nSprite >= 0; nSprite = nextspritestat[nSprite]) {
+
+        spritetype *pSprite = &sprite[nSprite];
+        if (pSprite->statnum != kStatFX)
+            continue;
 
         short nSector = pSprite->sectnum;
-		FXDATA *pFXData = &gFXData[pSprite->type];
+        FXDATA *pFXData = &gFXData[pSprite->type];
         actAirDrag(pSprite, pFXData->ata);
         if (xvel[nSprite])
             pSprite->x += xvel[nSprite]>>12;
@@ -173,8 +173,8 @@ void CFX::fxProcess(void)
             pSprite->y += yvel[nSprite]>>12;
         if (zvel[nSprite])
             pSprite->z += zvel[nSprite]>>8;
-		
-		
+
+
         // Weird...
         if (xvel[nSprite] || (yvel[nSprite] && pSprite->z >= sector[pSprite->sectnum].floorz))
         {

@@ -28,29 +28,29 @@
 #include "tilefav.h"
 
 struct SYSTEM_TILES{
-	unsigned int tileViewBg			: 17;
-	unsigned int gameMirrorStart	: 17;
-	unsigned int gameMirrorEnd		: 17;
-	unsigned int angArrow			: 17;
-	unsigned int wallHglt			: 17;
-	unsigned int drawBuf			: 17;
-	unsigned int icoNoTile			: 17;
-	unsigned int icoXmp				: 17;
-	unsigned int icoVer1			: 17;
-	unsigned int icoVer2			: 17;
-	unsigned int icoFolder1			: 17;
-	unsigned int icoFile1			: 17;
-	unsigned int icoDrive1			: 17;
-	unsigned int icoDiskette		: 17;
-	unsigned int icoPreview			: 17;
-	unsigned int hudMask			: 17;
-	STATUS_BIT1 busy[kMaxTiles];
-	BOOL isBusy(int nTile) 	{ return (BOOL)busy[nTile].ok; }
-	void add(int nTile) 	{ busy[nTile].ok = 1; }
-	void addAll() 			{ memset(busy, 1, sizeof(busy)); }
-	void rem(int nTile) 	{ busy[nTile].ok = 0; }
-	void remAll() 			{ memset(busy, 0, sizeof(busy)); }
-	void toggle(int nTile) 	{ busy[nTile].ok ^= 1; }
+    unsigned int tileViewBg         : 17;
+    unsigned int gameMirrorStart    : 17;
+    unsigned int gameMirrorEnd      : 17;
+    unsigned int angArrow           : 17;
+    unsigned int wallHglt           : 17;
+    unsigned int drawBuf            : 17;
+    unsigned int icoNoTile          : 17;
+    unsigned int icoXmp             : 17;
+    unsigned int icoVer1            : 17;
+    unsigned int icoVer2            : 17;
+    unsigned int icoFolder1         : 17;
+    unsigned int icoFile1           : 17;
+    unsigned int icoDrive1          : 17;
+    unsigned int icoDiskette        : 17;
+    unsigned int icoPreview         : 17;
+    unsigned int hudMask            : 17;
+    STATUS_BIT1 busy[kMaxTiles];
+    BOOL isBusy(int nTile)  { return (BOOL)busy[nTile].ok; }
+    void add(int nTile)     { busy[nTile].ok = 1; }
+    void addAll()           { memset(busy, 1, sizeof(busy)); }
+    void rem(int nTile)     { busy[nTile].ok = 0; }
+    void remAll()           { memset(busy, 0, sizeof(busy)); }
+    void toggle(int nTile)  { busy[nTile].ok ^= 1; }
 };
 
 
@@ -87,7 +87,7 @@ int tileBuildHistogram( int type );
 
 
 enum {
-kTilePickFlgAllowEmpty		= 0x01,
+kTilePickFlgAllowEmpty      = 0x01,
 };
 
 int tilePick(int nTile, int nDefault, int type, char* titleArg = NULL, char flagsArg = 0x0);

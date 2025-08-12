@@ -19,10 +19,12 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef __REPLACE_H
+#define __REPLACE_H
 
 int qanimateoffs(short a1, short a2);
 void qloadpalette();
 int32_t qgetpalookup(int32_t a1, int32_t a2);
 void qsetbrightness(unsigned char *dapal, unsigned char *dapalgamma);
 void HookReplaceFunctions();
+#endif

@@ -26,12 +26,12 @@
 #include "preview.h"
 
 static void Remove( int nSprite ) {
-	previewDelSprite(nSprite);
+    previewDelSprite(nSprite);
 }
 
 static void RemoveSpecial( int nSprite ) {
-	if (sprite[nSprite].yvel == kDeleteReally)
-		previewDelSprite(nSprite);
+    if (sprite[nSprite].yvel == kDeleteReally)
+        previewDelSprite(nSprite);
 }
 
 void FlareBurst(int nSprite)
@@ -48,9 +48,9 @@ void FlareBurst(int nSprite)
         pSpawn->type = kMissileFlareAlt;
         pSpawn->clipdist = 2;
         pSpawn->owner = pSprite->owner;
-		
-		 pSpawn->yvel = kDeleteReally;
-		
+
+         pSpawn->yvel = kDeleteReally;
+
         int nAngle2 = (i<<11)/8;
         int dx = 0;
         int dy = mulscale30r(nRadius, Sin(nAngle2));
@@ -73,15 +73,15 @@ void CounterCheck(int nSector) // 12
 {
     if (sector[nSector].type != kSectorCounter) return;
     if (sector[nSector].extra <= 0) return;
-    
+
     XSECTOR *pXSector = &xsector[sector[nSector].extra];
     int nReq = pXSector->waitTimeA; int nType = pXSector->data; int nCount = 0;
     if (!nType || !nReq) return;
-    
+
     for (int nSprite = headspritesect[nSector]; nSprite >= 0; nSprite = nextspritesect[nSprite]) {
         if (sprite[nSprite].type == nType) nCount++;
     }
-        
+
     if (nCount < nReq) {
         evPost(nSector, 6, 5, kCallbackCounterCheck);
         return;
@@ -93,10 +93,10 @@ void CounterCheck(int nSector) // 12
 }
 
 CALLBACK_FUNC gCallback[kCallbackMax] = {
-	Remove,				// kCallbackRemove
-	RemoveSpecial,
-	callbackUniMissileBurst,
-	callbackMakeMissileBlocking,
-	FlareBurst,
-	CounterCheck,
+    Remove,             // kCallbackRemove
+    RemoveSpecial,
+    callbackUniMissileBurst,
+    callbackMakeMissileBlocking,
+    FlareBurst,
+    CounterCheck,
 };

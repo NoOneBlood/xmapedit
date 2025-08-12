@@ -23,18 +23,18 @@
 #ifndef __XMPVIEW
 #define __XMPVIEW
 enum VIEW_EFFECT {
-kViewEffectTorchHigh 			=  4,
-kViewEffectTorchLow 			=  5,
-kViewEffectSmokeHigh 			=  6,
-kViewEffectSmokeLow 			=  7,
-kViewEffectCandleHalo 			= 12,
-kViewEffectHighlight				,
-kViewEffectAngle					,
-kViewEffectMiniDude					,
-kViewEffectMiniCustomDude			,
-kViewEffectGameMode					,
-kViewEffectCdudeVersion				,
-kViewEffectMax						,
+kViewEffectTorchHigh            =  4,
+kViewEffectTorchLow             =  5,
+kViewEffectSmokeHigh            =  6,
+kViewEffectSmokeLow             =  7,
+kViewEffectCandleHalo           = 12,
+kViewEffectHighlight                ,
+kViewEffectAngle                    ,
+kViewEffectMiniDude                 ,
+kViewEffectMiniCustomDude           ,
+kViewEffectGameMode                 ,
+kViewEffectCdudeVersion             ,
+kViewEffectMax                      ,
 };
 
 void viewDoQuake(int strength, int* x, int* y, int* z, short* a, int* h);

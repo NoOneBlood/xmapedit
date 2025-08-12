@@ -28,23 +28,23 @@
 #define kChannelCleanerLog "RXTXCLN.LOG"
 
 enum {
-kFlgMapTypeBlood	= 0x0001,
-kFlgCompareTiles	= 0x0002,
-kFlgImportAnim		= 0x0004,
-kFlgImportView		= 0x0008,
-kFlgKeepOffset		= 0x0020,
-kFlgOverwrite		= 0x0040,
-kFlgNoTileMap		= 0x0080,
-kFlgReplace			= 0x0100,
+kFlgMapTypeBlood    = 0x0001,
+kFlgCompareTiles    = 0x0002,
+kFlgImportAnim      = 0x0004,
+kFlgImportView      = 0x0008,
+kFlgKeepOffset      = 0x0020,
+kFlgOverwrite       = 0x0040,
+kFlgNoTileMap       = 0x0080,
+kFlgReplace         = 0x0100,
 };
 
 enum {
-kGrabFloor			= 0x01,
-kGrabCeil			= 0x02,
-kGrabWall			= 0x04,
-kGrabOWall			= 0x08,
-kGrabSprite			= 0x20,
-kGrabAll			= kGrabFloor|kGrabCeil|kGrabWall|kGrabOWall|kGrabSprite,
+kGrabFloor          = 0x01,
+kGrabCeil           = 0x02,
+kGrabWall           = 0x04,
+kGrabOWall          = 0x08,
+kGrabSprite         = 0x20,
+kGrabAll            = kGrabFloor|kGrabCeil|kGrabWall|kGrabOWall|kGrabSprite,
 };
 
 
@@ -57,70 +57,70 @@ struct ARTFILE;
 
 #pragma pack(push, 1)
 struct XMPTOOL {
-	
-	spritetype* pSprite;
-	char   objType;
-	short  objIndex;
-	schar  shade;
-	BYTE  surface;
-	BOOL   cantest;
-	QFONT* pFont;
-	ushort hudPixels;
-	ushort centerPixels;
-	int nOctant;
-	int tileZoom;
-	int zTop;
-	int zBot;
-	
+
+    spritetype* pSprite;
+    char   objType;
+    short  objIndex;
+    schar  shade;
+    BYTE  surface;
+    BOOL   cantest;
+    QFONT* pFont;
+    ushort hudPixels;
+    ushort centerPixels;
+    int nOctant;
+    int tileZoom;
+    int zTop;
+    int zBot;
+
 };
 
 struct IMPORT_WIZARD_MAP_ARG
 {
-	char* filepath;
-	IOBuffer* pIo;
-	unsigned int blood		: 1;
-	unsigned int allowSel	: 1;
-	int version;
+    char* filepath;
+    IOBuffer* pIo;
+    unsigned int blood      : 1;
+    unsigned int allowSel   : 1;
+    int version;
 };
 #pragma pack(pop)
 
 class IMPORT_WIZARD
-{	
-	#define kWizardVerMajor 1
-	#define kWizardVerMinor 0
-	
-	private:
-	unsigned int nStartTile	: 17;
-	unsigned int nArtFiles	: 16;
-	unsigned int selpal		: 1;
-	unsigned int selmap		: 1;
-	ARTFILE* pArtFiles;
-	PALETTE pal;
-	BYTE* pMapData;
-	BOOL bloodMap;
-	int mapVersion;
-	
-	public:
-	IMPORT_WIZARD()  { Init(); };
-	~IMPORT_WIZARD() { Free(); };
-	void Init();
-	void Free();
-	// ---------------------------------------------------------------------
-	int  ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg = NULL);
-	void DlgDisableButton(TextButton* pButton);
-	void DlgEnableButton(TextButton* pButton, char fontColor = kColorBlack);
-	void DlgDisableCheckbox(Checkbox* pCheck, int checked = -1);
-	void DlgEnableCheckbox(Checkbox* pCheck, int checked = -1, char fontColor = kColorBlack);
-	// ---------------------------------------------------------------------
-	void MapEraseSprites();
-	void MapErasePalookups(char nPalookup = 0);
-	void MapEraseInfo();
-	void MapClipPicnums();
-	void MapAdjustShade(int nPalookus);
-	int  MapCheckFile(IOBuffer* pIo, int* pSuppVerDB, int DBLen, BOOL* bloodMap);
-	// ---------------------------------------------------------------------
-	void ArtSetStartTile();
-	
+{
+    #define kWizardVerMajor 1
+    #define kWizardVerMinor 0
+
+    private:
+    unsigned int nStartTile : 17;
+    unsigned int nArtFiles  : 16;
+    unsigned int selpal     : 1;
+    unsigned int selmap     : 1;
+    ARTFILE* pArtFiles;
+    PALETTE pal;
+    BYTE* pMapData;
+    BOOL bloodMap;
+    int mapVersion;
+
+    public:
+    IMPORT_WIZARD()  { Init(); };
+    ~IMPORT_WIZARD() { Free(); };
+    void Init();
+    void Free();
+    // ---------------------------------------------------------------------
+    int  ShowDialog(IMPORT_WIZARD_MAP_ARG* pMapArg = NULL);
+    void DlgDisableButton(TextButton* pButton);
+    void DlgEnableButton(TextButton* pButton, char fontColor = kColorBlack);
+    void DlgDisableCheckbox(Checkbox* pCheck, int checked = -1);
+    void DlgEnableCheckbox(Checkbox* pCheck, int checked = -1, char fontColor = kColorBlack);
+    // ---------------------------------------------------------------------
+    void MapEraseSprites();
+    void MapErasePalookups(char nPalookup = 0);
+    void MapEraseInfo();
+    void MapClipPicnums();
+    void MapAdjustShade(int nPalookus);
+    int  MapCheckFile(IOBuffer* pIo, int* pSuppVerDB, int DBLen, BOOL* bloodMap);
+    // ---------------------------------------------------------------------
+    void ArtSetStartTile();
+
 };
 
 extern XMPTOOL gTool;

@@ -21,35 +21,36 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef SEQ_H
+#define SEQ_H
 
 enum {
-kSeqLoop		= 0x01,
-kSeqRemove		= 0x02,
+kSeqLoop        = 0x01,
+kSeqRemove      = 0x02,
 };
 
 struct SEQFRAME {
-    unsigned int tile 				: 12;
-    unsigned int transparent  		: 1; // transparent
-    unsigned int transparent2 		: 1; // transparent
-    unsigned int blockable 			: 1; // blockable
-    unsigned int hittable 			: 1; // hittable
-    unsigned int xrepeat 			: 8; // xrepeat
-    unsigned int yrepeat 			: 8; // yrepeat
-    signed int shade 				: 8; // shade
-    unsigned int pal 				: 5; // palette
-    unsigned int trigger 			: 1; //
-    unsigned int smoke 				: 1; //
-    unsigned int autoaim 			: 1; //
-    unsigned int pushable 			: 1; //
-    unsigned int playSound 			: 1; //
-    unsigned int invisible 			: 1; // invisible
-    unsigned int xflip 				: 1; //
-    unsigned int yflip 				: 1; //
-    unsigned int tile2 				: 4;
-    unsigned soundRange 			: 4; // (by NoOne) random sound range relative to global SEQ sound
-    unsigned surfaceSound 			: 1; // (by NoOne) trigger surface sound when moving / touching
-    unsigned reserved 				: 2;
+    unsigned int tile               : 12;
+    unsigned int transparent        : 1; // transparent
+    unsigned int transparent2       : 1; // transparent
+    unsigned int blockable          : 1; // blockable
+    unsigned int hittable           : 1; // hittable
+    unsigned int xrepeat            : 8; // xrepeat
+    unsigned int yrepeat            : 8; // yrepeat
+    signed int shade                : 8; // shade
+    unsigned int pal                : 5; // palette
+    unsigned int trigger            : 1; //
+    unsigned int smoke              : 1; //
+    unsigned int autoaim            : 1; //
+    unsigned int pushable           : 1; //
+    unsigned int playSound          : 1; //
+    unsigned int invisible          : 1; // invisible
+    unsigned int xflip              : 1; //
+    unsigned int yflip              : 1; //
+    unsigned int tile2              : 4;
+    unsigned soundRange             : 4; // (by NoOne) random sound range relative to global SEQ sound
+    unsigned surfaceSound           : 1; // (by NoOne) trigger surface sound when moving / touching
+    unsigned reserved               : 2;
 };
 
 struct Seq {
@@ -99,3 +100,4 @@ void UpdateCeiling(int nXSector, SEQFRAME *pFrame);
 void UpdateMasked(int nXWall, SEQFRAME *pFrame);
 void UpdateWall(int nXWall, SEQFRAME *pFrame);
 void UpdateSprite(int nXSprite, SEQFRAME *pFrame);
+#endif

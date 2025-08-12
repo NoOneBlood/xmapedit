@@ -38,81 +38,81 @@ typedef int (*IMG2TILEFUNC)(unsigned char* pBuf, int bufLen, int nTile);
 #pragma pack(push, 1)
 struct PCX_HEADER {
 
-	int8_t manufacturer;
-	int8_t version;
-	int8_t encoding;
-	uint8_t bitsPerPixel;
-	int16_t x0, y0, x1, y1;
-	int16_t xDPI, yDPI;
-	RGB pal16[16];
-	int8_t reserved;
-	int8_t planes;
-	int16_t bytesPerLine;
-	int16_t paletteInfo;
-	int16_t xScreenSize, yScreenSize;
-	int8_t filler[54];
+    int8_t manufacturer;
+    int8_t version;
+    int8_t encoding;
+    uint8_t bitsPerPixel;
+    int16_t x0, y0, x1, y1;
+    int16_t xDPI, yDPI;
+    RGB pal16[16];
+    int8_t reserved;
+    int8_t planes;
+    int16_t bytesPerLine;
+    int16_t paletteInfo;
+    int16_t xScreenSize, yScreenSize;
+    int8_t filler[54];
 };
 
 struct TGA_HEADER {
-	
-	uint8_t		idLength;		/* length of ID string */
-	uint8_t		mapType;		/* color map type */
-	uint8_t		imageType;		/* image type code */
-	uint16_t	mapOrigin;		/* starting index of map */
-	uint16_t	mapLength;		/* length of map */
-	uint8_t		mapWidth;		/* width of map in bits */
-	uint16_t	xOrigin;		/* x-origin of image */
-	uint16_t	yOrigin;		/* y-origin of image */
-	uint16_t	imageWidth;		/* width of image */
-	uint16_t	imageHeight;	/* height of image */
-	uint8_t		pixelDepth;		/* bits per pixel */
-	uint8_t		imageDesc;		/* image descriptor */
-	
+
+    uint8_t     idLength;       /* length of ID string */
+    uint8_t     mapType;        /* color map type */
+    uint8_t     imageType;      /* image type code */
+    uint16_t    mapOrigin;      /* starting index of map */
+    uint16_t    mapLength;      /* length of map */
+    uint8_t     mapWidth;       /* width of map in bits */
+    uint16_t    xOrigin;        /* x-origin of image */
+    uint16_t    yOrigin;        /* y-origin of image */
+    uint16_t    imageWidth;     /* width of image */
+    uint16_t    imageHeight;    /* height of image */
+    uint8_t     pixelDepth;     /* bits per pixel */
+    uint8_t     imageDesc;      /* image descriptor */
+
 };
 
 struct QBM_HEADER {
-	
+
     uint8_t type, tcolor;
     uint16_t width, height, bpl;
     uint16_t xofs, yofs;
-	
+
 };
 
 struct CEL_HEADER {
-	
-	uint16_t magic;
-	uint16_t width, height;
-	uint16_t xoffs, yoffs;
-	uint8_t  bpp, compression;
-	uint32_t bytes;
-	uint8_t reserved[16];
+
+    uint16_t magic;
+    uint16_t width, height;
+    uint16_t xoffs, yoffs;
+    uint8_t  bpp, compression;
+    uint32_t bytes;
+    uint8_t reserved[16];
 };
 
 #pragma pack(pop)
 
 
 enum {
-kImageQBM		= 0,
-kImagePCX		= 1,
-kImagePCC		= 2,
-kImageTGA		= 3,
-kImageCEL		= 4,
+kImageQBM       = 0,
+kImagePCX       = 1,
+kImagePCC       = 2,
+kImageTGA       = 3,
+kImageCEL       = 4,
 #ifdef USE_KPLIB
-kImageBMP		= 5,
-kImageDDS		= 6,
-kImagePNG		= 7,
-kImageJPG		= 8,
+kImageBMP       = 5,
+kImageDDS       = 6,
+kImagePNG       = 7,
+kImageJPG       = 8,
 #endif
-kImageMax		   ,
+kImageMax          ,
 };
 
 enum {
-kPaletteDAT			= 0,
-kPalettePAL			= 1,
-kPaletteMicrosoft	= 2,
-kPalettePaintShop	= 3,
-kPalettePLU			= 4,
-kPaletteMax		   	   ,	
+kPaletteDAT         = 0,
+kPalettePAL         = 1,
+kPaletteMicrosoft   = 2,
+kPalettePaintShop   = 3,
+kPalettePLU         = 4,
+kPaletteMax            ,
 };
 
 extern NAMED_TYPE gSuppImages[kImageMax];

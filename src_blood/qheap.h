@@ -20,7 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef __QHEAP_H
+#define __QHEAP_H
 
 #ifdef USE_QHEAP
 
@@ -51,4 +52,5 @@ public:
     int size;
 };
 
+#endif
 #endif

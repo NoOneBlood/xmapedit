@@ -15,7 +15,7 @@ USE_OPENGL=1
 # 0 = Debugging
 # 1 = Release with /O2
 # 2 = Release with /O1 /GA /GL /GF and /LTCG
-RELEASE=0
+RELEASE=2
 
 
 # Attempt to auto-detect target platform
@@ -23,7 +23,7 @@ RELEASE=0
 !if "$(PLATFORM)" == ""
 !if "$(PROCESSOR_ARCHITECTURE)" == "x86"
 PLATFORM=x86
-!elseif "$(PROCESSOR_ARCHITECTURE)" == "AMD64" || "$(PROCESSOR_ARCHITECTURE)" == "x64" || "$(PROCESSOR_ARCHITECTURE)" == "X64" 
+!elseif "$(PROCESSOR_ARCHITECTURE)" == "AMD64" || "$(PROCESSOR_ARCHITECTURE)" == "x64" || "$(PROCESSOR_ARCHITECTURE)" == "X64"
 PLATFORM=x64
 !endif
 !else if "$(PLATFORM)" == "AMD64" || "$(PLATFORM)" == "amd64" || "$(PLATFORM)" == "X64"
@@ -153,114 +153,114 @@ USE_POLYMOST=0
 
 !include $(AUDIOLIBROOT)/Makefile.msvcshared
 ENGINEOBJS=$(BUILDSRC)\a-c.$o \
-	$(BUILDSRC)\asmprot.$o \
-	$(BUILDSRC)\baselayer.$o \
-	$(BUILDSRC)\cache1d.$o \
-	$(BUILDSRC)\compat.$o \
-	$(BUILDSRC)\crc32.$o \
-	$(BUILDSRC)\defs.$o \
-	$(BUILDSRC)\engine.$o \
+    $(BUILDSRC)\asmprot.$o \
+    $(BUILDSRC)\baselayer.$o \
+    $(BUILDSRC)\cache1d.$o \
+    $(BUILDSRC)\compat.$o \
+    $(BUILDSRC)\crc32.$o \
+    $(BUILDSRC)\defs.$o \
+    $(BUILDSRC)\engine.$o \
 !if $(USE_POLYMOST)
-	$(BUILDSRC)\polymost.$o \
-	$(BUILDSRC)\polymost_fs.$o \
-	$(BUILDSRC)\polymost_vs.$o \
-	$(BUILDSRC)\polymostaux_fs.$o \
-	$(BUILDSRC)\polymostaux_vs.$o \
-	$(BUILDSRC)\polymosttex.$o \
-	$(BUILDSRC)\polymosttexcache.$o \
-	$(BUILDSRC)\polymosttexcompress.$o \
-	$(BUILDSRC)\hightile.$o \
-	$(BUILDSRC)\mdsprite.$o \
-	$(BUILDSRC)\scriptfile.$o \
+    $(BUILDSRC)\polymost.$o \
+    $(BUILDSRC)\polymost_fs.$o \
+    $(BUILDSRC)\polymost_vs.$o \
+    $(BUILDSRC)\polymostaux_fs.$o \
+    $(BUILDSRC)\polymostaux_vs.$o \
+    $(BUILDSRC)\polymosttex.$o \
+    $(BUILDSRC)\polymosttexcache.$o \
+    $(BUILDSRC)\polymosttexcompress.$o \
+    $(BUILDSRC)\hightile.$o \
+    $(BUILDSRC)\mdsprite.$o \
+    $(BUILDSRC)\scriptfile.$o \
 !endif
 !if $(USE_OPENGL)
-	$(BUILDSRC)\glbuild.$o \
-	$(BUILDSRC)\glbuild_fs.$o \
-	$(BUILDSRC)\glbuild_vs.$o \
+    $(BUILDSRC)\glbuild.$o \
+    $(BUILDSRC)\glbuild_fs.$o \
+    $(BUILDSRC)\glbuild_vs.$o \
 !endif
-	$(BUILDSRC)\kplib.$o \
-	$(BUILDSRC)\osd.$o \
-	$(BUILDSRC)\pragmas.$o \
-	$(BUILDSRC)\winlayer.$o
+    $(BUILDSRC)\kplib.$o \
+    $(BUILDSRC)\osd.$o \
+    $(BUILDSRC)\pragmas.$o \
+    $(BUILDSRC)\winlayer.$o
 
 !if $(USE_POLYMOST)
 LIBSQUISHOBJS=$(LIBSQUISH)\alpha.$o $(LIBSQUISH)\clusterfit.$o \
-	      $(LIBSQUISH)\colourblock.$o $(LIBSQUISH)\colourfit.$o \
-	      $(LIBSQUISH)\colourset.$o $(LIBSQUISH)\maths.$o \
-	      $(LIBSQUISH)\rangefit.$o $(LIBSQUISH)\singlecolourfit.$o \
-	      $(LIBSQUISH)\squish.$o $(BUILDSRC)\rg_etc1.$o
+          $(LIBSQUISH)\colourblock.$o $(LIBSQUISH)\colourfit.$o \
+          $(LIBSQUISH)\colourset.$o $(LIBSQUISH)\maths.$o \
+          $(LIBSQUISH)\rangefit.$o $(LIBSQUISH)\singlecolourfit.$o \
+          $(LIBSQUISH)\squish.$o $(BUILDSRC)\rg_etc1.$o
 !endif
 
 EDITOROBJS=$(BUILDSRC)\build.$o \
 !if $(HAVE_START_WINDOW)
-	$(BUILDSRC)\startwin_editor.$o \
+    $(BUILDSRC)\startwin_editor.$o \
 !endif
-	#$(BUILDSRC)\config.$o
+    #$(BUILDSRC)\config.$o
 
 EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
-	$(XMAPEDSRC)\xmpstub.$o \
-	$(XMAPEDSRC)\screen.$o \
-	$(XMAPEDSRC)\iob.$o \
-	$(XMAPEDSRC)\replace.$o \
-	$(XMAPEDSRC)\db.$o \
-	$(XMAPEDSRC)\sectorfx.$o \
-	$(XMAPEDSRC)\qheap.$o \
-	$(XMAPEDSRC)\resource.$o \
-	$(XMAPEDSRC)\inifile.$o \
-	$(XMAPEDSRC)\tracker.$o \
-	$(XMAPEDSRC)\tile.$o \
-	$(XMAPEDSRC)\gameutil.$o \
-	$(XMAPEDSRC)\gfx.$o \
-	$(XMAPEDSRC)\gui.$o \
-	$(XMAPEDSRC)\edit2d.$o \
-	$(XMAPEDSRC)\edit3d.$o \
-	$(XMAPEDSRC)\maproc.$o \
-	$(XMAPEDSRC)\fire.$o \
-	$(XMAPEDSRC)\callback.$o \
-	$(XMAPEDSRC)\eventq.$o \
-	$(XMAPEDSRC)\nnexts.$o \
-	$(XMAPEDSRC)\nnextsif.$o \
-	$(XMAPEDSRC)\nnextslaser.$o \
-	$(XMAPEDSRC)\grdshd.$o \
-	$(XMAPEDSRC)\hglt.$o \
-	$(XMAPEDSRC)\prefabs.$o \
-	$(XMAPEDSRC)\tilefav.$o \
-	$(XMAPEDSRC)\aadjust.$o \
-	$(XMAPEDSRC)\preview.$o \
-	$(XMAPEDSRC)\img2tile.$o \
-	$(XMAPEDSRC)\mapcmt.$o \
-	$(XMAPEDSRC)\xmpstr.$o \
-	$(XMAPEDSRC)\xmp2dscr.$o \
-	$(XMAPEDSRC)\xmphud.$o \
-	$(XMAPEDSRC)\xmphudlg.$o \
-	$(XMAPEDSRC)\xmpror.$o \
-	$(XMAPEDSRC)\xmpact.$o \
-	$(XMAPEDSRC)\xmptrig.$o \
-	$(XMAPEDSRC)\xmpgib.$o \
-	$(XMAPEDSRC)\xmpfx.$o \
-	$(XMAPEDSRC)\xmpconf.$o \
-	$(XMAPEDSRC)\xmpmisc.$o \
-	$(XMAPEDSRC)\xmpexplo.$o \
-	$(XMAPEDSRC)\xmpevox.$o \
-	$(XMAPEDSRC)\xmpseq.$o \
-	$(XMAPEDSRC)\xmpview.$o \
-	$(XMAPEDSRC)\xmpsnd.$o \
-	$(XMAPEDSRC)\xmpseqed.$o \
-	$(XMAPEDSRC)\xmparted.$o \
-	$(XMAPEDSRC)\xmptools.$o \
-	$(XMAPEDSRC)\xmpqav.$o \
-	$(XMAPEDSRC)\xmpqaved.$o \
-	$(XMAPEDSRC)\xmpsky.$o \
-	$(XMAPEDSRC)\xmpdoorwiz.$o \
-	$(XMAPEDSRC)\xmpmaped.$o \
-	$(XMAPEDSRC)\xmploop.$o \
-	$(XMAPEDSRC)\xmpshape.$o \
-	$(XMAPEDSRC)\xmparcwiz.$o \
-	$(XMAPEDSRC)\xmplsplt.$o \
-	$(XMAPEDSRC)\xmpinput.$o \
-	$(XMAPEDSRC)\buildres.$(res) \
-	$(BUILDSRC)\$(EDITORLIB) \
-	$(BUILDSRC)\$(ENGINELIB) \
+    $(XMAPEDSRC)\xmpstub.$o \
+    $(XMAPEDSRC)\screen.$o \
+    $(XMAPEDSRC)\iob.$o \
+    $(XMAPEDSRC)\replace.$o \
+    $(XMAPEDSRC)\db.$o \
+    $(XMAPEDSRC)\sectorfx.$o \
+    $(XMAPEDSRC)\qheap.$o \
+    $(XMAPEDSRC)\resource.$o \
+    $(XMAPEDSRC)\inifile.$o \
+    $(XMAPEDSRC)\tracker.$o \
+    $(XMAPEDSRC)\tile.$o \
+    $(XMAPEDSRC)\gameutil.$o \
+    $(XMAPEDSRC)\gfx.$o \
+    $(XMAPEDSRC)\gui.$o \
+    $(XMAPEDSRC)\edit2d.$o \
+    $(XMAPEDSRC)\edit3d.$o \
+    $(XMAPEDSRC)\maproc.$o \
+    $(XMAPEDSRC)\fire.$o \
+    $(XMAPEDSRC)\callback.$o \
+    $(XMAPEDSRC)\eventq.$o \
+    $(XMAPEDSRC)\nnexts.$o \
+    $(XMAPEDSRC)\nnextsif.$o \
+    $(XMAPEDSRC)\nnextslaser.$o \
+    $(XMAPEDSRC)\grdshd.$o \
+    $(XMAPEDSRC)\hglt.$o \
+    $(XMAPEDSRC)\prefabs.$o \
+    $(XMAPEDSRC)\tilefav.$o \
+    $(XMAPEDSRC)\aadjust.$o \
+    $(XMAPEDSRC)\preview.$o \
+    $(XMAPEDSRC)\img2tile.$o \
+    $(XMAPEDSRC)\mapcmt.$o \
+    $(XMAPEDSRC)\xmpstr.$o \
+    $(XMAPEDSRC)\xmp2dscr.$o \
+    $(XMAPEDSRC)\xmphud.$o \
+    $(XMAPEDSRC)\xmphudlg.$o \
+    $(XMAPEDSRC)\xmpror.$o \
+    $(XMAPEDSRC)\xmpact.$o \
+    $(XMAPEDSRC)\xmptrig.$o \
+    $(XMAPEDSRC)\xmpgib.$o \
+    $(XMAPEDSRC)\xmpfx.$o \
+    $(XMAPEDSRC)\xmpconf.$o \
+    $(XMAPEDSRC)\xmpmisc.$o \
+    $(XMAPEDSRC)\xmpexplo.$o \
+    $(XMAPEDSRC)\xmpevox.$o \
+    $(XMAPEDSRC)\xmpseq.$o \
+    $(XMAPEDSRC)\xmpview.$o \
+    $(XMAPEDSRC)\xmpsnd.$o \
+    $(XMAPEDSRC)\xmpseqed.$o \
+    $(XMAPEDSRC)\xmparted.$o \
+    $(XMAPEDSRC)\xmptools.$o \
+    $(XMAPEDSRC)\xmpqav.$o \
+    $(XMAPEDSRC)\xmpqaved.$o \
+    $(XMAPEDSRC)\xmpsky.$o \
+    $(XMAPEDSRC)\xmpdoorwiz.$o \
+    $(XMAPEDSRC)\xmpmaped.$o \
+    $(XMAPEDSRC)\xmploop.$o \
+    $(XMAPEDSRC)\xmpshape.$o \
+    $(XMAPEDSRC)\xmparcwiz.$o \
+    $(XMAPEDSRC)\xmplsplt.$o \
+    $(XMAPEDSRC)\xmpinput.$o \
+    $(XMAPEDSRC)\buildres.$(res) \
+    $(BUILDSRC)\$(EDITORLIB) \
+    $(BUILDSRC)\$(ENGINELIB) \
 
 !if $(USE_ASM)
 ENGINEOBJS=$(ENGINEOBJS) $(BUILDSRC)\a.$o
@@ -289,68 +289,68 @@ ENGINEOBJS=$(ENGINEOBJS) $(BUILDSRC)\version.$o
 .SUFFIXES: .masm .cc .glsl
 
 {$(BUILDSRC)}.masm{$(BUILDSRC)}.$o:
-	$(A_COMPILER) /c $(AF) /Fo$@ $<
+    $(A_COMPILER) /c $(AF) /Fo$@ $<
 
 {$(BUILDSRC)}.c{$(BUILDSRC)}.$o:
-	$(C_COMPILER) /c $(CF) /Fo$@ $<
+    $(C_COMPILER) /c $(CF) /Fo$@ $<
 
 {$(BUILDSRC)}.cc{$(BUILDSRC)}.$o:
-	$(C_COMPILER) /TP /c $(CF) /Fo$@ $<
+    $(C_COMPILER) /TP /c $(CF) /Fo$@ $<
 
 {$(BUILDSRC)}.cpp{$(BUILDSRC)}.$o:
-	$(C_COMPILER) /c $(CF) /Fo$@ $<
+    $(C_COMPILER) /c $(CF) /Fo$@ $<
 
 {$(LIBSQUISH)}.cpp{$(LIBSQUISH)}.$o:
-	$(C_COMPILER) /TP /c $(CF) /Fo$@ $<
+    $(C_COMPILER) /TP /c $(CF) /Fo$@ $<
 
 {$(XMAPEDSRC)}.c{$(XMAPEDSRC)}.$o:
-	$(C_COMPILER) /c $(CF) /Fo$@ $<
+    $(C_COMPILER) /c $(CF) /Fo$@ $<
 
 {$(XMAPEDSRC)}.cpp{$(XMAPEDSRC)}.$o:
-	$(C_COMPILER) /c $(CF) /Fo$@ $<
+    $(C_COMPILER) /c $(CF) /Fo$@ $<
 
 {$(XMAPEDSRC)}.rc{$(XMAPEDSRC)}.$(res):
-	$(R_COMPILER) $(RF) /fo$@ /r $<
+    $(R_COMPILER) $(RF) /fo$@ /r $<
 
 {$(BUILDSRC)}.glsl{$(BUILDSRC)}.c:
-	if not exist bin2c.exe $(MAKE) /f Makefile.msvc /nologo bin2c.exe
-	bin2c.exe -text $< default_$(@B)_glsl > $@
+    if not exist bin2c.exe $(MAKE) /f Makefile.msvc /nologo bin2c.exe
+    bin2c.exe -text $< default_$(@B)_glsl > $@
 
 # TARGETS
 all: enginelib editorlib $(XMAPEDOUT)\xmapedit.exe ;
 
 enginelib: $(BUILDSRC)\$(ENGINELIB) ;
 $(BUILDSRC)\$(ENGINELIB): $(ENGINEOBJS) $(LIBSQUISHOBJS)
-	lib $(SUBSYSTEM) /out:$@ /nologo $**
+    lib $(SUBSYSTEM) /out:$@ /nologo $**
 
 editorlib: $(BUILDSRC)\$(EDITORLIB) ;
 $(BUILDSRC)\$(EDITORLIB): $(EDITOROBJS)
-	lib $(SUBSYSTEM) /out:$@ /nologo $**
+    lib $(SUBSYSTEM) /out:$@ /nologo $**
 
 $(XMAPEDOUT)\xmapedit.exe: $(EDITOREXEOBJS) $(AUDIOLIBROOT)\$(JFAUDIOLIB)
-	$(LINKER) /OUT:$@ $(SUBSYSTEM) $(LF) /MAP $** $(REQLIBS) $(JFAUDIOLIB_LINKFLAGS)
+    $(LINKER) /OUT:$@ $(SUBSYSTEM) $(LF) /MAP $** $(REQLIBS) $(JFAUDIOLIB_LINKFLAGS)
 
 bin2c.exe: $(BUILDSRC)\bin2c.$o
-	$(LINKER) /OUT:$@ /SUBSYSTEM:CONSOLE $(LF) /MAP $**
-	
+    $(LINKER) /OUT:$@ /SUBSYSTEM:CONSOLE $(LF) /MAP $**
+
 jfaudiolib: AlwaysBuild
-	cd "$(AUDIOLIBROOT)"
-	$(MAKE) /f Makefile.msvc /$(MAKEFLAGS) RELEASE=$(RELEASE)
-	cd "$(MAKEDIR)"
+    cd "$(AUDIOLIBROOT)"
+    $(MAKE) /f Makefile.msvc /$(MAKEFLAGS) RELEASE=$(RELEASE)
+    cd "$(MAKEDIR)"
 
 
 $(BUILDSRC)\version-auto.c: AlwaysBuild
-	cmd /c generateversion.cmd > $@
+    cmd /c generateversion.cmd > $@
 
 AlwaysBuild: ;
 $(AUDIOLIBROOT)\$(JFAUDIOLIB): jfaudiolib ;
 
 # PHONIES
 clean:
-	-del /q $(ENGINEOBJS) $(LIBSQUISHOBJS) $(EDITOROBJS) $(EDITOREXEOBJS) $(XMAPEDOUT)\xmapedit.pdb
-	cd "$(AUDIOLIBROOT)"
-	$(MAKE) /f Makefile.msvc $@
-	cd "$(MAKEDIR)"
+    -del /q $(ENGINEOBJS) $(LIBSQUISHOBJS) $(EDITOROBJS) $(EDITOREXEOBJS) $(XMAPEDOUT)\xmapedit.pdb
+    cd "$(AUDIOLIBROOT)"
+    $(MAKE) /f Makefile.msvc $@
+    cd "$(MAKEDIR)"
 veryclean: clean
-	-del /q $(BUILDSRC)\$(ENGINELIB) $(BUILDSRC)\$(EDITORLIB) $(XMAPEDOUT)\xmapedit.exe
+    -del /q $(BUILDSRC)\$(ENGINELIB) $(BUILDSRC)\$(EDITORLIB) $(XMAPEDOUT)\xmapedit.exe
 

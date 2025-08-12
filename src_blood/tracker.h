@@ -27,15 +27,15 @@
 #include "xmp2dscr.h"
 class CXTracker
 {
-	private:
-		static unsigned char tx;
-		static OBJECT_LIST *pList;
-		static OBJECT src;
-	public:
-		static int Track(int nType, int nID, char send);
-		static char HaveObjects();
-		static void Draw(SCREEN2D* pScreen);
-		static void Cleanup();
-		static void Clear();
+    private:
+        static unsigned char tx;
+        static OBJECT_LIST *pList;
+        static OBJECT src;
+    public:
+        static int Track(int nType, int nID, char send);
+        static char HaveObjects();
+        static void Draw(SCREEN2D* pScreen);
+        static void Cleanup();
+        static void Clear();
 };
 #endif

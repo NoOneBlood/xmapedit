@@ -46,62 +46,62 @@ BYTE OctantTable[8] = { 5, 6, 2, 1, 4, 7, 3, 0 };
 // test for glSwapInterval extension
 char GL_swapIntervalTest()
 {
-	char tmp[16]; const char* tp = tmp;
-	osdfuncparm_t arg;
-	
-	if (nogl)
-		return 0;
-	
-	memset(&arg, 0, sizeof(arg));
-	sprintf(tmp, "%d", glswapinterval);
-	arg.numparms = 1;
-	arg.parms = &tp;
-	
-	return (set_glswapinterval(&arg) == OSDCMD_OK);
+    char tmp[16]; const char* tp = tmp;
+    osdfuncparm_t arg;
+
+    if (nogl)
+        return 0;
+
+    memset(&arg, 0, sizeof(arg));
+    sprintf(tmp, "%d", glswapinterval);
+    arg.numparms = 1;
+    arg.parms = &tp;
+
+    return (set_glswapinterval(&arg) == OSDCMD_OK);
 }
 
 int GL_swapInterval2Fps(int interval)
 {
-	int f = desktopfreq;
-	if (f & 2)
-		f++;
-	
-	dassert(interval > 0);
-	return f / interval;
+    int f = desktopfreq;
+    if (f & 2)
+        f++;
+
+    dassert(interval > 0);
+    return f / interval;
 }
 
 int GL_fps2SwapInterval(int fps)
 {
-	char tmp[16]; const char* tp = tmp;
-	int val = 0, f = desktopfreq;
-	osdfuncparm_t arg;
-	
-	if (f & 2)
-		f++;
+    char tmp[16]; const char* tp = tmp;
+    int val = 0, f = desktopfreq;
+    osdfuncparm_t arg;
 
-	switch(fps)
-	{
-		// no limit
-		case -1:
-			val = 0;
-			break;	
-		// display freq (v-sync)
-		case -2:
-			val = 1;
-			break;
-		// clip glswapinterval
-		default:
-			val = ClipLow(f / ClipLow(fps, 1), 1);
-			break;
-	}
-	
-	memset(&arg, 0, sizeof(arg));
-	sprintf(tmp, "%d", val);
-	arg.numparms = 1;
-	arg.parms = &tp;
+    if (f & 2)
+        f++;
 
-	set_glswapinterval(&arg);
-	return glswapinterval;
+    switch(fps)
+    {
+        // no limit
+        case -1:
+            val = 0;
+            break;
+        // display freq (v-sync)
+        case -2:
+            val = 1;
+            break;
+        // clip glswapinterval
+        default:
+            val = ClipLow(f / ClipLow(fps, 1), 1);
+            break;
+    }
+
+    memset(&arg, 0, sizeof(arg));
+    sprintf(tmp, "%d", val);
+    arg.numparms = 1;
+    arg.parms = &tp;
+
+    set_glswapinterval(&arg);
+    return glswapinterval;
 }
 #endif
 
@@ -110,24 +110,24 @@ void GetSpriteExtents(spritetype* pSpr, int *top, int *bot)
    int nTile, nSizeY, nYoff;
 
     *top = *bot = pSpr->z;
-	if ((pSpr->cstat & kSprRelMask) == kSprFloor)
-		return;
-	
-	nTile = pSpr->picnum; nSizeY = tilesizy[nTile];
-	
-	nYoff = panm[nTile].ycenter;
-	if ((pSpr->cstat & kSprFlipY) && (pSpr->cstat & kSprRelMask) == kSprWall)
-		nYoff = -nYoff;
-	
-	*bot = pSpr->z - ((nYoff * pSpr->yrepeat) << 2);
-	if (pSpr->cstat & kSprOrigin)
-	{
-		*bot += ((nSizeY * pSpr->yrepeat) << 1);
-		if (nSizeY & 1)
-			*bot += (pSpr->yrepeat << 1);        //Odd yspans
-	}
+    if ((pSpr->cstat & kSprRelMask) == kSprFloor)
+        return;
 
-	*top = *bot - ((nSizeY * pSpr->yrepeat) << 2);
+    nTile = pSpr->picnum; nSizeY = tilesizy[nTile];
+
+    nYoff = panm[nTile].ycenter;
+    if ((pSpr->cstat & kSprFlipY) && (pSpr->cstat & kSprRelMask) == kSprWall)
+        nYoff = -nYoff;
+
+    *bot = pSpr->z - ((nYoff * pSpr->yrepeat) << 2);
+    if (pSpr->cstat & kSprOrigin)
+    {
+        *bot += ((nSizeY * pSpr->yrepeat) << 1);
+        if (nSizeY & 1)
+            *bot += (pSpr->yrepeat << 1);        //Odd yspans
+    }
+
+    *top = *bot - ((nSizeY * pSpr->yrepeat) << 2);
 }
 
 unsigned int qrand(void)
@@ -164,29 +164,29 @@ void RotatePoint(int *x, int *y, int nAngle, int ox, int oy)
 void trigInit(Resource &Res)
 {
     int i;
-	DICTNODE *pTable = Res.Lookup("cosine","dat");
-	if (!pTable)				ThrowError("Cosine table not found");
-	if (pTable->size != 2048)	ThrowError("Cosine table incorrect size");	
+    DICTNODE *pTable = Res.Lookup("cosine","dat");
+    if (!pTable)                ThrowError("Cosine table not found");
+    if (pTable->size != 2048)   ThrowError("Cosine table incorrect size");
     memcpy(costable, Res.Load(pTable), pTable->size);
 #if B_BIG_ENDIAN == 1
-    for (i = 0; i < 512; i++)			costable[i] = B_LITTLE32(costable[i]);
+    for (i = 0; i < 512; i++)           costable[i] = B_LITTLE32(costable[i]);
 #endif
     costable[512] = 0;
-    for (i = 513; i <= 1024; i++)		costable[i] = -costable[1024-i];
-    for (i = 1025; i < 2048; i++)		costable[i] = costable[2048 - i];
+    for (i = 513; i <= 1024; i++)       costable[i] = -costable[1024-i];
+    for (i = 1025; i < 2048; i++)       costable[i] = costable[2048 - i];
 }
 
 void ChangeExtension(char *pzFile, const char *pzExt)
 {
-	char ext[_MAX_PATH];
-	int const nLength = strlen(pzFile);
+    char ext[_MAX_PATH];
+    int const nLength = strlen(pzFile);
     char *pDot = pzFile+nLength;
-	int i = 0;
+    int i = 0;
 
-	if (pzExt[0] != '.')
-		ext[0] = '.', i++;
-	
-	sprintf(&ext[i], pzExt);
+    if (pzExt[0] != '.')
+        ext[0] = '.', i++;
+
+    sprintf(&ext[i], pzExt);
     for (i = nLength-1; i >= 0; i--)
     {
         if (pzFile[i] == '/' || pzFile[i] == '\\') break;
@@ -202,306 +202,306 @@ void ChangeExtension(char *pzFile, const char *pzExt)
 
 bool FileLoad(char *fname, void *buffer, unsigned int size)
 {
-	int hFile, n;
-	if ((hFile = open(fname, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) < 0)
-		return FALSE;
-	
-	n = read(hFile, buffer, size);
-	close(hFile);
+    int hFile, n;
+    if ((hFile = open(fname, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) < 0)
+        return FALSE;
 
-	return (n == size);
+    n = read(hFile, buffer, size);
+    close(hFile);
+
+    return (n == size);
 }
 
 bool FileSave(char *fname, void *buffer, unsigned int size)
 {
-	int hFile, n;
-	if ((hFile = open(fname, O_CREAT|O_WRONLY|O_BINARY|O_TRUNC, S_IREAD|S_IWRITE)) < 0)
-		return FALSE;
+    int hFile, n;
+    if ((hFile = open(fname, O_CREAT|O_WRONLY|O_BINARY|O_TRUNC, S_IREAD|S_IWRITE)) < 0)
+        return FALSE;
 
-	n = write(hFile, buffer, size);
-	close(hFile);
+    n = write(hFile, buffer, size);
+    close(hFile);
 
-	return (n == size);
+    return (n == size);
 }
 
 char fileExists(char* filename, RESHANDLE* rffItem)
 {
-	char retn = 0;
-	if (!filename) return retn;
-	else if (access(filename, F_OK) >= 0) // filename on the disk?
-		retn |= 0x0001;
-	
-	if (rffItem)
-	{
-		int len, i;
-		char tmp[BMAX_PATH]; char *fname = NULL, *fext = NULL;
-		pathSplit2(filename, tmp, NULL, NULL, &fname, &fext);
-		
-		if (!fname || !fext) return retn;
-		else if ((len = strlen(fext)) > 0)
-		{
-			if (fext[0] == '.')
-				fext =& fext[1];
-			
-			if ((*rffItem = gSysRes.Lookup(fname, fext)) != NULL) // filename in RFF?
-			{
-				retn |= 0x0002;
-			}
-			else
-			{
-				// fileID in RFF?
-				len = strlen(fname);
-				for (i = 0; i < len; i++) {
-					if (fname[i] < 48 || fname[i] > 57)
-						break;
-				}
-				
-				if (i == len && (*rffItem = gSysRes.Lookup(atoi(fname), fext)) != NULL)
-					retn |= 0x0004;
-			}
-		}
-	}
-	
-	return retn;
+    char retn = 0;
+    if (!filename) return retn;
+    else if (access(filename, F_OK) >= 0) // filename on the disk?
+        retn |= 0x0001;
+
+    if (rffItem)
+    {
+        int len, i;
+        char tmp[BMAX_PATH]; char *fname = NULL, *fext = NULL;
+        pathSplit2(filename, tmp, NULL, NULL, &fname, &fext);
+
+        if (!fname || !fext) return retn;
+        else if ((len = strlen(fext)) > 0)
+        {
+            if (fext[0] == '.')
+                fext =& fext[1];
+
+            if ((*rffItem = gSysRes.Lookup(fname, fext)) != NULL) // filename in RFF?
+            {
+                retn |= 0x0002;
+            }
+            else
+            {
+                // fileID in RFF?
+                len = strlen(fname);
+                for (i = 0; i < len; i++) {
+                    if (fname[i] < 48 || fname[i] > 57)
+                        break;
+                }
+
+                if (i == len && (*rffItem = gSysRes.Lookup(atoi(fname), fext)) != NULL)
+                    retn |= 0x0004;
+            }
+        }
+    }
+
+    return retn;
 }
 
 char isDir(char* pPath)
 {
-	struct stat s;
-	return (stat(pPath, &s) == 0 && (s.st_mode & _S_IFDIR) != 0);
+    struct stat s;
+    return (stat(pPath, &s) == 0 && (s.st_mode & _S_IFDIR) != 0);
 }
 
 char isFile(char* pPath)
 {
-	struct stat s;
-	return (stat(pPath, &s) == 0 && (s.st_mode & _S_IFDIR) == 0);
+    struct stat s;
+    return (stat(pPath, &s) == 0 && (s.st_mode & _S_IFDIR) == 0);
 }
 
 int fileLoadHelper(char* filepath, BYTE** out, int* loadFrom)
 {
-	RESHANDLE pFile;
-	int i, hFile, nSize = 0;
-	dassert(out != NULL && *out == NULL);
-	if (loadFrom)
-		*loadFrom = -1;
-	
-	
-	if ((i = fileExists(filepath, &pFile)) == 0)
-		return -1;
-	
-	// file on the disk is the priority
-	if ((i & 0x01) && (hFile = open(filepath, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
-	{
-		if ((nSize = filelength(hFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
-		{
-			read(hFile, *out, nSize);
-			if (loadFrom)
-				*loadFrom = 0x01;
-		}
-		
-		close(hFile);
-	}
-	// load file from the RFF then
-	else if (pFile)
-	{
-		if ((nSize = gSysRes.Size(pFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
-		{
-			memcpy(*out, (BYTE*)gSysRes.Load(pFile), nSize);
-			if (loadFrom)
-				*loadFrom = 0x02;
-		}
-	}
-	
-	return (*out) ? nSize : -2;
+    RESHANDLE pFile;
+    int i, hFile, nSize = 0;
+    dassert(out != NULL && *out == NULL);
+    if (loadFrom)
+        *loadFrom = -1;
+
+
+    if ((i = fileExists(filepath, &pFile)) == 0)
+        return -1;
+
+    // file on the disk is the priority
+    if ((i & 0x01) && (hFile = open(filepath, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
+    {
+        if ((nSize = filelength(hFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
+        {
+            read(hFile, *out, nSize);
+            if (loadFrom)
+                *loadFrom = 0x01;
+        }
+
+        close(hFile);
+    }
+    // load file from the RFF then
+    else if (pFile)
+    {
+        if ((nSize = gSysRes.Size(pFile)) > 0 && (*out = (BYTE*)malloc(nSize)) != NULL)
+        {
+            memcpy(*out, (BYTE*)gSysRes.Load(pFile), nSize);
+            if (loadFrom)
+                *loadFrom = 0x02;
+        }
+    }
+
+    return (*out) ? nSize : -2;
 }
 
 SCANDIRENT* dirScan(char* path, char* filter, int* numfiles, int* numdirs, char flags)
 {
-	BDIR* pDir; Bdirent* pFile;
-	SCANDIRENT* db = NULL, tmp;
-	char *ext, *p, buf[BMAX_PATH];
-	char newpath[BMAX_PATH];
-	
-	int i, t;
-	
-	if (numdirs)	*numdirs = 0;
-	if (numfiles)	*numfiles = 0;
-	
-	if (!isempty(filter))
-	{
-		if (filter[0] == '.')
-			filter = &filter[1];
-		
-		enumStrGetChar(0, buf, (char*)filter, '.', NULL);
-	}
+    BDIR* pDir; Bdirent* pFile;
+    SCANDIRENT* db = NULL, tmp;
+    char *ext, *p, buf[BMAX_PATH];
+    char newpath[BMAX_PATH];
 
-	if (isempty(path))
-		path = ".";
-	
-	if (flags & 0x01)
-	{
-		strcpy(newpath, path); pathCatSlash(newpath);
-		_fullpath(newpath, newpath, BMAX_PATH);
-		path = newpath;
-	}
-	
-	t = 0;
-	if ((pDir = Bopendir(path)) != NULL)
-	{
-		while ((pFile = Breaddir(pDir)) != NULL)
-		{
-			memset(&tmp, 0, sizeof(tmp));
-			
-			if (pFile->mode & BS_IFDIR)
-			{
-				if (!numdirs) continue;
-				if (strcmp(pFile->name, "..") == 0)	continue;
-				if (strcmp(pFile->name, ".")  == 0)	continue;
-				*numdirs = *numdirs + 1;
-			}
-			else if (numfiles)
-			{
-				i = 0; ext = NULL;
-				pathSplit2(pFile->name, tmp.name, NULL, NULL, NULL, &ext);
-				if (!isempty(filter))
-				{
-					while((p = enumStrGetChar(i++, buf, NULL, '.')) != NULL)
-					{
-						if (ext[0] == '.') ext = &ext[1];
-						if (stricmp(ext, buf) == 0) break;
-					}
-					
-					if (!p)
-						continue;
-				}
-				
-				if (!isempty(ext))
-					strcpy(tmp.type, ext);
+    int i, t;
 
-				*numfiles = *numfiles + 1;
-			}
-			else
-			{
-				continue;
-			}
-			
-			if (flags & 0x01)
-			{
-				strcpy(tmp.full, path);
-				strcat(tmp.full, pFile->name);
-			}
-			
-			strcpy(tmp.name, pFile->name);
-			tmp.flags = pFile->mode;
-			tmp.mtime = pFile->mtime;
-			
-			db = (SCANDIRENT*)realloc(db, sizeof(SCANDIRENT) * (t + 1));
-			dassert(db != NULL);
-			
-			memcpy(&db[t++], &tmp, sizeof(SCANDIRENT));
-		}
-		
-		Bclosedir(pDir);
-	}
-	
-	return db;
+    if (numdirs)    *numdirs = 0;
+    if (numfiles)   *numfiles = 0;
+
+    if (!isempty(filter))
+    {
+        if (filter[0] == '.')
+            filter = &filter[1];
+
+        enumStrGetChar(0, buf, (char*)filter, '.', NULL);
+    }
+
+    if (isempty(path))
+        path = ".";
+
+    if (flags & 0x01)
+    {
+        strcpy(newpath, path); pathCatSlash(newpath);
+        _fullpath(newpath, newpath, BMAX_PATH);
+        path = newpath;
+    }
+
+    t = 0;
+    if ((pDir = Bopendir(path)) != NULL)
+    {
+        while ((pFile = Breaddir(pDir)) != NULL)
+        {
+            memset(&tmp, 0, sizeof(tmp));
+
+            if (pFile->mode & BS_IFDIR)
+            {
+                if (!numdirs) continue;
+                if (strcmp(pFile->name, "..") == 0) continue;
+                if (strcmp(pFile->name, ".")  == 0) continue;
+                *numdirs = *numdirs + 1;
+            }
+            else if (numfiles)
+            {
+                i = 0; ext = NULL;
+                pathSplit2(pFile->name, tmp.name, NULL, NULL, NULL, &ext);
+                if (!isempty(filter))
+                {
+                    while((p = enumStrGetChar(i++, buf, NULL, '.')) != NULL)
+                    {
+                        if (ext[0] == '.') ext = &ext[1];
+                        if (stricmp(ext, buf) == 0) break;
+                    }
+
+                    if (!p)
+                        continue;
+                }
+
+                if (!isempty(ext))
+                    strcpy(tmp.type, ext);
+
+                *numfiles = *numfiles + 1;
+            }
+            else
+            {
+                continue;
+            }
+
+            if (flags & 0x01)
+            {
+                strcpy(tmp.full, path);
+                strcat(tmp.full, pFile->name);
+            }
+
+            strcpy(tmp.name, pFile->name);
+            tmp.flags = pFile->mode;
+            tmp.mtime = pFile->mtime;
+
+            db = (SCANDIRENT*)realloc(db, sizeof(SCANDIRENT) * (t + 1));
+            dassert(db != NULL);
+
+            memcpy(&db[t++], &tmp, sizeof(SCANDIRENT));
+        }
+
+        Bclosedir(pDir);
+    }
+
+    return db;
 }
 
 SCANDIRENT* driveScan(int* numdrives)
 {
-	SCANDIRENT *drives = NULL, *pDrv;
-	char *drv, *drp;
-	int i = 0;
-	
-	drv = drp = Bgetsystemdrives();
-	*numdrives = 0;
-	
-	if (drv)
-	{
-		while(*drp)
-		{
-			drives = (SCANDIRENT*)realloc(drives, sizeof(SCANDIRENT)*(i+1));
-			dassert(drives != NULL);
-			
-			pDrv = &drives[i];
-			memset(pDrv, 0, sizeof(SCANDIRENT));
-			strcpy(pDrv->full, drp); strcpy(pDrv->name, drp);
-			drp+=strlen(drp)+1;
-			i++;
-		}
-		
-		*numdrives = i;
-		free(drv);
-	}
-	
-	return drives;
+    SCANDIRENT *drives = NULL, *pDrv;
+    char *drv, *drp;
+    int i = 0;
+
+    drv = drp = Bgetsystemdrives();
+    *numdrives = 0;
+
+    if (drv)
+    {
+        while(*drp)
+        {
+            drives = (SCANDIRENT*)realloc(drives, sizeof(SCANDIRENT)*(i+1));
+            dassert(drives != NULL);
+
+            pDrv = &drives[i];
+            memset(pDrv, 0, sizeof(SCANDIRENT));
+            strcpy(pDrv->full, drp); strcpy(pDrv->name, drp);
+            drp+=strlen(drp)+1;
+            i++;
+        }
+
+        *numdrives = i;
+        free(drv);
+    }
+
+    return drives;
 }
 
 char dirRemoveRecursive(char* path)
 {
-	BDIR* pDir; Bdirent* pFile;
-	static char cwd[BMAX_PATH];
-	
-	if (chdir(path) == 0)
-	{
-		if ((pDir = Bopendir(".")) != NULL)
-		{
-			while ((pFile = Breaddir(pDir)) != NULL && chmod(pFile->name, S_IWRITE) == 0)
-			{
-				if (pFile->mode & BS_IFDIR)
-				{
-					if (strcmp(pFile->name, "..") == 0)	continue;
-					if (strcmp(pFile->name, ".")  == 0)	continue;
-					if (!dirRemoveRecursive(pFile->name))
-						break;
-				}
-				else if (unlink(pFile->name) != 0)
-					break;
-			}
-			
-			Bclosedir(pDir);
-		}
-		
-		return (getcwd(cwd, sizeof(cwd)) && chdir("../") == 0 && rmdir(cwd) == 0);
-	}
-	
-	return 0;
+    BDIR* pDir; Bdirent* pFile;
+    static char cwd[BMAX_PATH];
+
+    if (chdir(path) == 0)
+    {
+        if ((pDir = Bopendir(".")) != NULL)
+        {
+            while ((pFile = Breaddir(pDir)) != NULL && chmod(pFile->name, S_IWRITE) == 0)
+            {
+                if (pFile->mode & BS_IFDIR)
+                {
+                    if (strcmp(pFile->name, "..") == 0) continue;
+                    if (strcmp(pFile->name, ".")  == 0) continue;
+                    if (!dirRemoveRecursive(pFile->name))
+                        break;
+                }
+                else if (unlink(pFile->name) != 0)
+                    break;
+            }
+
+            Bclosedir(pDir);
+        }
+
+        return (getcwd(cwd, sizeof(cwd)) && chdir("../") == 0 && rmdir(cwd) == 0);
+    }
+
+    return 0;
 }
 
 char makeBackup(char* filename)
 {
-	if (!fileExists(filename))
-		return TRUE;
-	
-	char temp[_MAX_PATH];
-	sprintf(temp, filename);
-	ChangeExtension(temp, ".bak");
-	if (fileExists(temp))
-		unlink(temp);
-	
-	return (rename(filename, temp) == 0);
+    if (!fileExists(filename))
+        return TRUE;
+
+    char temp[_MAX_PATH];
+    sprintf(temp, filename);
+    ChangeExtension(temp, ".bak");
+    if (fileExists(temp))
+        unlink(temp);
+
+    return (rename(filename, temp) == 0);
 }
 
 char fileDelete(char* file)
 {
-	if (!fileExists(file)) return TRUE;
-	fileAttrSetWrite(file);
-	unlink(file);
-	
-	return (!fileExists(file));
+    if (!fileExists(file)) return TRUE;
+    fileAttrSetWrite(file);
+    unlink(file);
+
+    return (!fileExists(file));
 }
 
 void swapValues(int *nSrc, int *nDest)
 {
-	int nTmp;
-	nTmp = *nSrc, *nSrc = *nDest, *nDest = nTmp;
+    int nTmp;
+    nTmp = *nSrc, *nSrc = *nDest, *nDest = nTmp;
 }
 
 int revertValue(int nVal)
 {
-	if (nVal < 0) return klabs(nVal);
-	else if (nVal > 0) return -nVal;
-	else return nVal;
+    if (nVal < 0) return klabs(nVal);
+    else if (nVal > 0) return -nVal;
+    else return nVal;
 }
 
 void offsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z)
@@ -529,183 +529,183 @@ void offsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z)
 // Ken's intersection detection (lintersect)
 char kintersection(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, int* ix, int* iy)
 {
-	int64_t x21, y21, x34, y34, x31, y31;
-	int64_t bot, topt, topu;
-	int64_t t;
+    int64_t x21, y21, x34, y34, x31, y31;
+    int64_t bot, topt, topu;
+    int64_t t;
 
-	x21 = x2-x1; x34 = x3-x4;
-	y21 = y2-y1; y34 = y3-y4;
-	bot = x21*y34 - y21*x34;
-	
-	if (bot >= 0)
-	{
-		if (bot == 0)
-			return 0;
-		
-		x31 = x3-x1; y31 = y3-y1;
-		topt = x31*y34 - y31*x34;	if (topt < 0 || topt >= bot) return 0;
-		topu = x21*y31 - y21*x31;	if (topu < 0 || topu >= bot) return 0;
-	}
-	else
-	{
-		x31 = x3-x1; y31 = y3-y1;
-		topt = x31*y34 - y31*x34;	if (topt > 0 || topt <= bot) return 0;
-		topu = x21*y31 - y21*x31;	if (topu > 0 || topu <= bot) return 0;
-	}
-	
-	if (ix || iy)
-	{
-		t = divscale24(topt, bot);
-		if (ix) *ix = (int)(x1 + mulscale24(x21, t));
-		if (iy) *iy = (int)(y1 + mulscale24(y21, t));
-	}
-	
-	return 1;
+    x21 = x2-x1; x34 = x3-x4;
+    y21 = y2-y1; y34 = y3-y4;
+    bot = x21*y34 - y21*x34;
+
+    if (bot >= 0)
+    {
+        if (bot == 0)
+            return 0;
+
+        x31 = x3-x1; y31 = y3-y1;
+        topt = x31*y34 - y31*x34;   if (topt < 0 || topt >= bot) return 0;
+        topu = x21*y31 - y21*x31;   if (topu < 0 || topu >= bot) return 0;
+    }
+    else
+    {
+        x31 = x3-x1; y31 = y3-y1;
+        topt = x31*y34 - y31*x34;   if (topt > 0 || topt <= bot) return 0;
+        topu = x21*y31 - y21*x31;   if (topu > 0 || topu <= bot) return 0;
+    }
+
+    if (ix || iy)
+    {
+        t = divscale24(topt, bot);
+        if (ix) *ix = (int)(x1 + mulscale24(x21, t));
+        if (iy) *iy = (int)(y1 + mulscale24(y21, t));
+    }
+
+    return 1;
 }
 
 char kintersection(LINE2D* a, LINE2D* b, int* ix, int* iy)
 {
-	return kintersection(a->x1, a->y1, a->x2, a->y2, b->x1, b->y1, b->x2, b->y2, ix, iy);
+    return kintersection(a->x1, a->y1, a->x2, a->y2, b->x1, b->y1, b->x2, b->y2, ix, iy);
 }
 
 char dintersection(double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4, int* iX, int* iY)
 {
-	double v1 = ((x4 - x3) * (y1 - y3)) - ((x1 - x3) * (y4 - y3));
-	double v2 = ((x4 - x3) * (y2 - y3)) - ((x2 - x3) * (y4 - y3));
-	double v3 = ((x2 - x1) * (y3 - y1)) - ((x3 - x1) * (y2 - y1));
-	double v4 = ((x2 - x1) * (y4 - y1)) - ((x4 - x1) * (y2 - y1));
+    double v1 = ((x4 - x3) * (y1 - y3)) - ((x1 - x3) * (y4 - y3));
+    double v2 = ((x4 - x3) * (y2 - y3)) - ((x2 - x3) * (y4 - y3));
+    double v3 = ((x2 - x1) * (y3 - y1)) - ((x3 - x1) * (y2 - y1));
+    double v4 = ((x2 - x1) * (y4 - y1)) - ((x4 - x1) * (y2 - y1));
 
-	if(v1 * v2 < 0 && v3 * v4 < 0)
-	{
-		if (iX || iY)
-		{
-			double a1, b1, c1;
-			double a2, b2, c2;
-			double d;
-			
-			// line1 equation
-			c1 = (-x1 * (y2 - y1)) + (y1 * (x2 - x1));
-			a1 = y2 - y1;
-			b1 = x1 - x2;
-			
-			// line2 equation
-			c2 = (-x3 * (y4 - y3)) + (y3 * (x4 - x3));
-			a2 = y4 - y3;
-			b2 = x3 - x4;
-			
-			d = (a1 * b2) - (b1 * a2);
-			if (iX) *iX = (int)(((-c1 * b2) + (b1 * c2)) / d);
-			if (iY) *iY = (int)(((-a1 * c2) + (c1 * a2)) / d);
-		}
-		
-		return 1;
-	}
-	
-	return 0;
+    if(v1 * v2 < 0 && v3 * v4 < 0)
+    {
+        if (iX || iY)
+        {
+            double a1, b1, c1;
+            double a2, b2, c2;
+            double d;
+
+            // line1 equation
+            c1 = (-x1 * (y2 - y1)) + (y1 * (x2 - x1));
+            a1 = y2 - y1;
+            b1 = x1 - x2;
+
+            // line2 equation
+            c2 = (-x3 * (y4 - y3)) + (y3 * (x4 - x3));
+            a2 = y4 - y3;
+            b2 = x3 - x4;
+
+            d = (a1 * b2) - (b1 * a2);
+            if (iX) *iX = (int)(((-c1 * b2) + (b1 * c2)) / d);
+            if (iY) *iY = (int)(((-a1 * c2) + (c1 * a2)) / d);
+        }
+
+        return 1;
+    }
+
+    return 0;
 }
 
 
 unsigned char mostUsedByte(unsigned char* bytes, int l, short nExcept)
 {
-	if (bytes == NULL || *bytes == NULL)
-		return 0;
-	
-	int count[256], i, j = 0, m = 0;
-	memset(count, 0, sizeof(count));
-	
-	while(--l >= 0)
-	{
-		if (nExcept < 0 || bytes[l] != nExcept)
-			count[bytes[l]]++;
-	}
-	
-	for (i = 0; i < 256; i++)
-	{
-		if (count[i] >= m)
-		{
-			m = count[i];
-			j = i;
-		}
-	}
-	
-	return (unsigned char)j;
-	
+    if (bytes == NULL || *bytes == NULL)
+        return 0;
+
+    int count[256], i, j = 0, m = 0;
+    memset(count, 0, sizeof(count));
+
+    while(--l >= 0)
+    {
+        if (nExcept < 0 || bytes[l] != nExcept)
+            count[bytes[l]]++;
+    }
+
+    for (i = 0; i < 256; i++)
+    {
+        if (count[i] >= m)
+        {
+            m = count[i];
+            j = i;
+        }
+    }
+
+    return (unsigned char)j;
+
 }
 
 void BeepOk(void)
 {
-	if (!gMisc.beep) return;
-	gBeep.Play(kBeepOk);
+    if (!gMisc.beep) return;
+    gBeep.Play(kBeepOk);
 }
 
 
 void BeepFail(void)
 {
-	if (!gMisc.beep) return;
-	gBeep.Play(kBeepFail);
+    if (!gMisc.beep) return;
+    gBeep.Play(kBeepFail);
 }
 
 char Beep(char cond)
 {
-	if (cond) BeepOk();
-	else BeepFail();
-	return cond;
+    if (cond) BeepOk();
+    else BeepFail();
+    return cond;
 }
 
 void doGridCorrection(int* x, int* y, int nGrid)
 {
-	if (!irngok(nGrid, 1, 11))
-		return;
-	
-	if (x) *x = (*x+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
-	if (y) *y = (*y+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
+    if (!irngok(nGrid, 1, 11))
+        return;
+
+    if (x) *x = (*x+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
+    if (y) *y = (*y+(1024 >> nGrid)) & (0xffffffff<<(11-nGrid));
 }
 
 void doWallCorrection(int nWall, int* x, int* y, int shift)
 {
-	int nx, ny;
-	GetWallNormal(nWall, &nx, &ny);
-	*x = *x + (nx >> shift);
-	*y = *y + (ny >> shift);
+    int nx, ny;
+    GetWallNormal(nWall, &nx, &ny);
+    *x = *x + (nx >> shift);
+    *y = *y + (ny >> shift);
 }
 
 BYTE countBestColor(PALETTE in, int r, int g, int b, int wR, int wG, int wB)
 {
-	int i, dr, dg, db;
-	int dist, matchDist = 0x7FFFFFFF, match;
-	
-	for (i = 0; i < 256; i++)
-	{
-		dist = 0;
-		dg = (int)in[i].g - g;
-		dist += wG * dg * dg;
-		if (dist >= matchDist)
-			continue;
+    int i, dr, dg, db;
+    int dist, matchDist = 0x7FFFFFFF, match;
 
-		dr = (int)in[i].r - r;
-		dist += wR * dr * dr;
-		if (dist >= matchDist)
-			continue;
+    for (i = 0; i < 256; i++)
+    {
+        dist = 0;
+        dg = (int)in[i].g - g;
+        dist += wG * dg * dg;
+        if (dist >= matchDist)
+            continue;
 
-		db = (int)in[i].b - b;
-		dist += wB * db * db;
-		if (dist >= matchDist)
-			continue;
+        dr = (int)in[i].r - r;
+        dist += wR * dr * dr;
+        if (dist >= matchDist)
+            continue;
 
-		matchDist = dist;
-		match = i;
+        db = (int)in[i].b - b;
+        dist += wB * db * db;
+        if (dist >= matchDist)
+            continue;
 
-		if (dist == 0)
-			break;
-	}
+        matchDist = dist;
+        match = i;
 
-	return (BYTE)match;
+        if (dist == 0)
+            break;
+    }
+
+    return (BYTE)match;
 }
 
 
 void dozCorrection(int* z, int zStep)
 {
-	*z = *z & ~zStep;
+    *z = *z & ~zStep;
 }
 
 void _SetErrorLoc(const char *pzFile, int nLine)

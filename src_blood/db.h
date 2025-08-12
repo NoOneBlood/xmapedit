@@ -20,25 +20,26 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef DB_H
+#define DB_H
 #include "common_game.h"
 
-#define kMaxXSprites 			kMaxSprites
-#define kMaxXWalls 				kMaxWalls
-#define kMaxXSectors 			kMaxSectors
+#define kMaxXSprites            kMaxSprites
+#define kMaxXWalls              kMaxWalls
+#define kMaxXSectors            kMaxSectors
 
-#define kXSectorDiskSize 		60
-#define kXSpriteDiskSize 		56
-#define kXWallDiskSize   		24
+#define kXSectorDiskSize        60
+#define kXSpriteDiskSize        56
+#define kXWallDiskSize          24
 
-#define kMattID1    			0x4d617474  // Matt
-#define kMattID2    			0x7474614d  // ttaM
-#define kXMPHeadSig    			"XmP"
-#define kXMPHeadVer1     		1
-#define kXMPHeadVer2     		2
+#define kMattID1                0x4d617474  // Matt
+#define kMattID2                0x7474614d  // ttaM
+#define kXMPHeadSig             "XmP"
+#define kXMPHeadVer1            1
+#define kXMPHeadVer2            2
 
-#define kMonoCopyriteCRC 		0x77443AF8
-#define kMonoCopyriteLength 	57
+#define kMonoCopyriteCRC        0x77443AF8
+#define kMonoCopyriteLength     57
 
 
 #pragma pack(push, 1)
@@ -46,17 +47,17 @@ struct AISTATE;
 
 enum
 {
-	kMapTypeUNK					= 0,
-	kMapTypeBLOOD                  ,
-	kMapTypeBUILD                  ,
-	kMapTypeSAVEGAME_NBLOOD        ,
-	kMapTypeMax					   ,
+    kMapTypeUNK                 = 0,
+    kMapTypeBLOOD                  ,
+    kMapTypeBUILD                  ,
+    kMapTypeSAVEGAME_NBLOOD        ,
+    kMapTypeMax                    ,
 };
 
 struct CHECKMAPINFO
 {
-	unsigned int type			: 8;
-	unsigned int version		: 32;
+    unsigned int type           : 8;
+    unsigned int version        : 32;
 };
 
 
@@ -68,45 +69,45 @@ struct BLMMAGIC
 
 struct BLMHEADER_MAIN
 {
-	int32_t startX;
-	int32_t startY;
-	int32_t startZ;
-	int16_t startA;
-	int16_t startS;
-	int16_t skyBits;
-	int32_t visibility;
-	int32_t mattID;
-	int8_t  skyType;
-	int32_t revision;
-	int16_t numsectors;
-	int16_t numwalls;
-	int16_t numsprites;
+    int32_t startX;
+    int32_t startY;
+    int32_t startZ;
+    int16_t startA;
+    int16_t startS;
+    int16_t skyBits;
+    int32_t visibility;
+    int32_t mattID;
+    int8_t  skyType;
+    int32_t revision;
+    int16_t numsectors;
+    int16_t numwalls;
+    int16_t numsprites;
 };
 
 enum
 {
-kXmpFlagNone			= 0x00,
-kXmpFlagCustomSkyBits	= 0x01,
-kXmpFlagFog				= 0x02,
+kXmpFlagNone            = 0x00,
+kXmpFlagCustomSkyBits   = 0x01,
+kXmpFlagFog             = 0x02,
 };
 
 struct BLMHEADER_EXTRA
 {
-	char  pad[64]; 		// vanilla MAPEDIT writes a copyright here
-	int32_t xsprSiz;
-	int32_t xwalSiz;
-	int32_t xsecSiz;
-	// XMAPEDIT specific
-	// ------------------
-	char  	xmpsign[3];			// xmp signature
-	int8_t  xmpheadver;			// xmp header version
-	int8_t	xmpMapFlags;		// various global map flags
-	int16_t xmpBoardWidth;		// 2D board size
-	int16_t xmpBoardHeight; 	// 2D board size
-	int8_t  xmpPalette;			// global screen palette
-	int8_t	xmpSkyRepeatCnt;	// how many times to repeat sky tiles (0 = auto)
-	// ------------------
-	char  pad2[41];
+    char  pad[64];      // vanilla MAPEDIT writes a copyright here
+    int32_t xsprSiz;
+    int32_t xwalSiz;
+    int32_t xsecSiz;
+    // XMAPEDIT specific
+    // ------------------
+    char    xmpsign[3];         // xmp signature
+    int8_t  xmpheadver;         // xmp header version
+    int8_t  xmpMapFlags;        // various global map flags
+    int16_t xmpBoardWidth;      // 2D board size
+    int16_t xmpBoardHeight;     // 2D board size
+    int8_t  xmpPalette;         // global screen palette
+    int8_t  xmpSkyRepeatCnt;    // how many times to repeat sky tiles (0 = auto)
+    // ------------------
+    char  pad2[41];
 };
 
 struct XSPRITE {
@@ -176,8 +177,8 @@ struct XSPRITE {
     AISTATE* aiState;                   // ai
     signed int sysData1: 32;            // used to keep here various system data, so user can't change it in map editor
     signed int sysData2: 32;            //
-	signed int sysData3: 32;            //
-	signed int sysData4: 32;            //
+    signed int sysData3: 32;            //
+    signed int sysData4: 32;            //
     unsigned int physAttr : 32;         // currently used by additional physics sprites to keep it's attributes.
     signed int scale;                   // used for scaling SEQ size on sprites
 
@@ -286,7 +287,7 @@ struct XWALL {
     unsigned int decoupled : 1;         // decoupled
     unsigned int triggerOnce : 1;       // 1-shot
     unsigned int isTriggered : 1;
-    unsigned int key : 3;               // key 
+    unsigned int key : 3;               // key
     unsigned int triggerPush : 1;       // Push
     unsigned int triggerVector : 1;     // Vector
     unsigned int triggerTouch : 1;      // by NoOne: renamed from Reserved to Touch as it works with Touch now.
@@ -301,39 +302,39 @@ struct XWALL {
 
 #ifdef SUPPORT_MAPV3
 struct SECTOR3 {
-	uint16_t wallptr, wallnum;
-	uint8_t  ceilingstat, ceilingpanning;
-	int8_t   ceilingshade;
-	int32_t  ceilingz;
-	int16_t  ceilingpicnum, ceilingheinum;
-	uint8_t  floorstat, floorpanning;
-	int8_t   floorshade;
-	int32_t  floorz;
-	int16_t  floorpicnum, floorheinum;
-	int32_t  tag;
+    uint16_t wallptr, wallnum;
+    uint8_t  ceilingstat, ceilingpanning;
+    int8_t   ceilingshade;
+    int32_t  ceilingz;
+    int16_t  ceilingpicnum, ceilingheinum;
+    uint8_t  floorstat, floorpanning;
+    int8_t   floorshade;
+    int32_t  floorz;
+    int16_t  floorpicnum, floorheinum;
+    int32_t  tag;
 };
 
 struct WALL3 {
-	int32_t x, y;
-	int16_t point2;
-	uint8_t cstat;
-	int8_t  shade;
-	uint8_t xrepeat, yrepeat, panning;
-	int16_t picnum, overpicnum;
-	int16_t nextsector1, nextwall1;
-	int16_t nextsector2, nextwall2;
-	int32_t tag;
+    int32_t x, y;
+    int16_t point2;
+    uint8_t cstat;
+    int8_t  shade;
+    uint8_t xrepeat, yrepeat, panning;
+    int16_t picnum, overpicnum;
+    int16_t nextsector1, nextwall1;
+    int16_t nextsector2, nextwall2;
+    int32_t tag;
 };
 
 struct SPRITE3 {
-	int32_t x, y, z;
-	uint8_t cstat;
-	int8_t  shade;
-	uint8_t xrepeat, yrepeat;
-	int16_t picnum, ang, vel, zvel, owner;
-	int16_t sectnum, statnum;
-	int32_t tag;
-	#if 0
+    int32_t x, y, z;
+    uint8_t cstat;
+    int8_t  shade;
+    uint8_t xrepeat, yrepeat;
+    int16_t picnum, ang, vel, zvel, owner;
+    int16_t sectnum, statnum;
+    int32_t tag;
+    #if 0
     // ptr size may differ for different platforms
     uint8_t *extra;
     #else
@@ -345,38 +346,38 @@ struct SPRITE3 {
 
 
 struct SECTOR4 {
-	uint16_t wallptr, wallnum;
-	int8_t   ceilingstat, ceilingxpanning, ceilingypanning;
-	int8_t   ceilingshade;
-	int32_t  ceilingz;
-	int16_t  ceilingpicnum, ceilingheinum;
-	int8_t   floorstat, floorxpanning, floorypanning;
-	int8_t   floorshade;
-	int32_t  floorz;
-	int16_t  floorpicnum, floorheinum;
-	int32_t  tag;
+    uint16_t wallptr, wallnum;
+    int8_t   ceilingstat, ceilingxpanning, ceilingypanning;
+    int8_t   ceilingshade;
+    int32_t  ceilingz;
+    int16_t  ceilingpicnum, ceilingheinum;
+    int8_t   floorstat, floorxpanning, floorypanning;
+    int8_t   floorshade;
+    int32_t  floorz;
+    int16_t  floorpicnum, floorheinum;
+    int32_t  tag;
 };
 
 struct WALL4 {
-	int32_t x, y;
-	int16_t point2;
-	int8_t cstat;
-	int8_t shade;
-	uint8_t xrepeat, yrepeat, xpanning, ypanning;
-	int16_t picnum, overpicnum;
-	int16_t nextsector1, nextwall1;
-	int16_t nextsector2, nextwall2;
-	int32_t tag;
+    int32_t x, y;
+    int16_t point2;
+    int8_t cstat;
+    int8_t shade;
+    uint8_t xrepeat, yrepeat, xpanning, ypanning;
+    int16_t picnum, overpicnum;
+    int16_t nextsector1, nextwall1;
+    int16_t nextsector2, nextwall2;
+    int32_t tag;
 };
 
 struct SPRITE4 {
-	int32_t x, y, z;
-	int8_t cstat, shade;
-	uint8_t xrepeat, yrepeat;
-	int16_t picnum, ang, xvel, yvel, zvel, owner;
-	int16_t sectnum, statnum;
-	int32_t tag;
-	#if 0
+    int32_t x, y, z;
+    int8_t cstat, shade;
+    uint8_t xrepeat, yrepeat;
+    int16_t picnum, ang, xvel, yvel, zvel, owner;
+    int16_t sectnum, statnum;
+    int32_t tag;
+    #if 0
     // ptr size may differ for different platforms
     uint8_t *extra;
     #else
@@ -386,82 +387,82 @@ struct SPRITE4 {
 };
 
 struct SECTOR5 {
-	uint16_t wallptr, wallnum;
-	int16_t  ceilingpicnum, floorpicnum;
-	int16_t  ceilingheinum, floorheinum;
-	int32_t  ceilingz, floorz;
-	int8_t   ceilingshade, floorshade;
-	uint8_t  ceilingxpanning, floorxpanning;
-	uint8_t  ceilingypanning, floorypanning;
-	uint8_t  ceilingstat, floorstat;
-	uint8_t  ceilingpal, floorpal;
-	uint8_t  visibility;
-	int16_t  lotag, hitag;
-	int16_t  extra;
+    uint16_t wallptr, wallnum;
+    int16_t  ceilingpicnum, floorpicnum;
+    int16_t  ceilingheinum, floorheinum;
+    int32_t  ceilingz, floorz;
+    int8_t   ceilingshade, floorshade;
+    uint8_t  ceilingxpanning, floorxpanning;
+    uint8_t  ceilingypanning, floorypanning;
+    uint8_t  ceilingstat, floorstat;
+    uint8_t  ceilingpal, floorpal;
+    uint8_t  visibility;
+    int16_t  lotag, hitag;
+    int16_t  extra;
 };
 
 
 
 struct WALL5 {
-	int32_t x, y;
-	int16_t point2;
-	int16_t picnum, overpicnum;
-	int8_t shade;
-	int16_t cstat;
-	uint8_t xrepeat, yrepeat, xpanning, ypanning;
-	int16_t nextsector1, nextwall1;
-	int16_t nextsector2, nextwall2;
-	int16_t lotag, hitag;
-	int16_t extra;
+    int32_t x, y;
+    int16_t point2;
+    int16_t picnum, overpicnum;
+    int8_t shade;
+    int16_t cstat;
+    uint8_t xrepeat, yrepeat, xpanning, ypanning;
+    int16_t nextsector1, nextwall1;
+    int16_t nextsector2, nextwall2;
+    int16_t lotag, hitag;
+    int16_t extra;
 };
 
 struct SPRITE5 {
-	int32_t x, y, z;
-	uint8_t cstat;
-	int8_t shade;
-	uint8_t xrepeat, yrepeat;
-	int16_t picnum, ang, xvel, yvel, zvel, owner;
-	int16_t sectnum, statnum;
-	int16_t lotag, hitag;
-	int16_t extra;
+    int32_t x, y, z;
+    uint8_t cstat;
+    int8_t shade;
+    uint8_t xrepeat, yrepeat;
+    int16_t picnum, ang, xvel, yvel, zvel, owner;
+    int16_t sectnum, statnum;
+    int16_t lotag, hitag;
+    int16_t extra;
 };
 
 struct SECTOR6 {
-	uint16_t wallptr, wallnum;
-	int16_t ceilingpicnum, floorpicnum;
-	int16_t ceilingheinum, floorheinum;
-	int32_t ceilingz, floorz;
-	int8_t ceilingshade, floorshade;
-	uint8_t ceilingxpanning, floorxpanning;
-	uint8_t ceilingypanning, floorypanning;
-	uint8_t ceilingstat, floorstat;
-	uint8_t ceilingpal, floorpal;
-	uint8_t visibility;
-	int16_t lotag, hitag;
-	int16_t extra;
+    uint16_t wallptr, wallnum;
+    int16_t ceilingpicnum, floorpicnum;
+    int16_t ceilingheinum, floorheinum;
+    int32_t ceilingz, floorz;
+    int8_t ceilingshade, floorshade;
+    uint8_t ceilingxpanning, floorxpanning;
+    uint8_t ceilingypanning, floorypanning;
+    uint8_t ceilingstat, floorstat;
+    uint8_t ceilingpal, floorpal;
+    uint8_t visibility;
+    int16_t lotag, hitag;
+    int16_t extra;
 };
 
 struct WALL6 {
-	int32_t x, y;
-	int16_t point2, nextsector, nextwall;
-	int16_t picnum, overpicnum;
-	int8_t  shade;
-	int8_t  pal;
-	int16_t cstat;
-	int8_t xrepeat, yrepeat, xpanning, ypanning;
-	int16_t lotag, hitag, extra;
+    int32_t x, y;
+    int16_t point2, nextsector, nextwall;
+    int16_t picnum, overpicnum;
+    int8_t  shade;
+    int8_t  pal;
+    int16_t cstat;
+    int8_t xrepeat, yrepeat, xpanning, ypanning;
+    int16_t lotag, hitag, extra;
 };
 
 struct SPRITE6 {
-	int32_t x, y, z;
-	int16_t cstat;
-	int8_t  shade;
-	uint8_t pal, clipdist;
-	uint8_t xrepeat, yrepeat;
-	int8_t  xoffset, yoffset;
-	int16_t picnum, ang, xvel, yvel, zvel, owner;
-	int16_t sectnum, statnum;
-	int16_t lotag, hitag, extra;
+    int32_t x, y, z;
+    int16_t cstat;
+    int8_t  shade;
+    uint8_t pal, clipdist;
+    uint8_t xrepeat, yrepeat;
+    int8_t  xoffset, yoffset;
+    int16_t picnum, ang, xvel, yvel, zvel, owner;
+    int16_t sectnum, statnum;
+    int16_t lotag, hitag, extra;
 };
 #pragma pack(pop)
 
@@ -511,3 +512,4 @@ int dbLoadBuildMap(IOBuffer* pIo);
 int dbLoadSaveGame(IOBuffer* pIo);
 int dbSaveMap(char *filename, BOOL ver7);
 void dbCrypt(char *pPtr, int nLength, int nKey);
+#endif

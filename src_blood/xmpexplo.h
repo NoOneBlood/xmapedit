@@ -25,22 +25,22 @@
 
 enum
 {
-	kDirExpSave 		= 0x0001,	// select for save
-	kDirExpMulti 		= 0x0002,	// select for multi-load
-	kDirExpRff			= 0x0004,	// search in game rff when selecting for load and file not found on disk
-	kDirExpNoModPtr		= 0x0008,	// do not modify path argument
-	kDirExpNoKeepPath	= 0x0010,	// do not keep current path when aborting selection
-	kDirExpNoFree		= 0x0020,	// do not realloc to selected files count
+    kDirExpSave         = 0x0001,   // select for save
+    kDirExpMulti        = 0x0002,   // select for multi-load
+    kDirExpRff          = 0x0004,   // search in game rff when selecting for load and file not found on disk
+    kDirExpNoModPtr     = 0x0008,   // do not modify path argument
+    kDirExpNoKeepPath   = 0x0010,   // do not keep current path when aborting selection
+    kDirExpNoFree       = 0x0020,   // do not realloc to selected files count
 };
 
 enum
 {
-	kDirExpFile			= 0x0001,	// normal file
-	kDirExpDir			= 0x0002,	// directory
-	kDirExpDisk			= 0x0004,	// disk
-	kDirExpDirMask		= 0x0006,	// disk or directory
-	kDirExpSelected		= 0x0008,	// selected
-	kDirExpNoThumb		= 0x0010,	// has no thumbnail
+    kDirExpFile         = 0x0001,   // normal file
+    kDirExpDir          = 0x0002,   // directory
+    kDirExpDisk         = 0x0004,   // disk
+    kDirExpDirMask      = 0x0006,   // disk or directory
+    kDirExpSelected     = 0x0008,   // selected
+    kDirExpNoThumb      = 0x0010,   // has no thumbnail
 };
 
 char* dirBrowse(char* pAPath, char* pFilter, char* pTitle = NULL, int flags = 0);

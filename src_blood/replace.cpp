@@ -27,7 +27,7 @@
 int qanimateoffs(short a1, short a2)
 {
     int offset = 0;
-	if (a1 >= 0 && a1 < kMaxTiles)
+    if (a1 >= 0 && a1 < kMaxTiles)
     {
         int frames = panm[a1].frames;
         if (frames > 0)
@@ -71,36 +71,36 @@ int qgetpalookup(int a1, int a2)
 
 void qsetbrightness(unsigned char *dapal, unsigned char *dapalgamma)
 {
-	scrSetGamma(gGamma);
+    scrSetGamma(gGamma);
     scrSetDac(dapal, dapalgamma);
 }
 
 void qprintext(int x, int y, short col, short backcol, const char *name, char nFont)
 {
-	ROMFONT* pFont = &vFonts[nFont];
-	
-	if (backcol >= 0)
-	{
-		int l = strlen(name)*pFont->ls;
-		gfxSetColor(backcol);
-		gfxFillBox(x, y, x+l, y+pFont->lh);
-	}
-	
-	printext2(x, y, col, (char*)name, pFont);
+    ROMFONT* pFont = &vFonts[nFont];
+
+    if (backcol >= 0)
+    {
+        int l = strlen(name)*pFont->ls;
+        gfxSetColor(backcol);
+        gfxFillBox(x, y, x+l, y+pFont->lh);
+    }
+
+    printext2(x, y, col, (char*)name, pFont);
 }
 
 void HookReplaceFunctions(void)
 {
-    animateoffs_replace			= qanimateoffs;
-    loadpalette_replace			= qloadpalette;
-    getpalookup_replace			= qgetpalookup;
-    initspritelists_replace		= qinitspritelists;
-    insertsprite_replace		= qinsertsprite;
-    deletesprite_replace		= qdeletesprite;
-    changespritesect_replace	= qchangespritesect;
-    changespritestat_replace	= qchangespritestat;
-    loadvoxel_replace			= qloadvoxel;
-	setbrightness_replace 		= qsetbrightness;
-	loadtile_replace 			= qloadtile;
-	printext_replace			= qprintext;
+    animateoffs_replace         = qanimateoffs;
+    loadpalette_replace         = qloadpalette;
+    getpalookup_replace         = qgetpalookup;
+    initspritelists_replace     = qinitspritelists;
+    insertsprite_replace        = qinsertsprite;
+    deletesprite_replace        = qdeletesprite;
+    changespritesect_replace    = qchangespritesect;
+    changespritestat_replace    = qchangespritestat;
+    loadvoxel_replace           = qloadvoxel;
+    setbrightness_replace       = qsetbrightness;
+    loadtile_replace            = qloadtile;
+    printext_replace            = qprintext;
 }

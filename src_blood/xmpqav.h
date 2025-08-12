@@ -28,7 +28,7 @@
 
 #define kQavOrientationLeft 16384
 #define kQavOrientationQ16 32768
-#define kQavVersion	0x0200
+#define kQavVersion 0x0200
 #define kQavExt ".QAV"
 
 
@@ -70,9 +70,9 @@ struct FRAMEINFO
 
 struct QAV
 {
-	char 	sign[4];
-	short 	version;
-	char	dummy[2];
+    char    sign[4];
+    short   version;
+    char    dummy[2];
     int nFrames;
     int ticksPerFrame;
     int duration;

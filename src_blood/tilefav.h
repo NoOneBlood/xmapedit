@@ -26,11 +26,11 @@
 #define kFavTilesFileName "xmapedit/xmapedit.ftl"
 
 struct GAME_OBJECT_TILE {
-	short pic;
-	short type;
+    short pic;
+    short type;
 };
 extern GAME_OBJECT_TILE gFavTiles[kMaxFavoriteTiles];
-extern short gFavTilesC; 
+extern short gFavTilesC;
 
 void favoriteTileInit();
 int favoriteTileAddSimple(short type, short picnum);

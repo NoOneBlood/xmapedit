@@ -24,11 +24,11 @@
 
 IOBuffer::IOBuffer(int _nRemain, unsigned char *_pBuffer)
 {
-	dassert(_pBuffer != NULL);
-	dassert(_nRemain >= 0);
-	nRemain = nTotal = _nRemain;
-	pBuffer =_pBuffer;
-	
+    dassert(_pBuffer != NULL);
+    dassert(_nRemain >= 0);
+    nRemain = nTotal = _nRemain;
+    pBuffer =_pBuffer;
+
 }
 
 
@@ -36,19 +36,19 @@ IOBuffer::IOBuffer(int _nRemain, unsigned char *_pBuffer)
 //  TO-DO: add more error control to this functions
 void IOBuffer::read(void *pData, int nSize)
 {
-	if (nSize > nRemain)
-		ThrowError("Read buffer overflow (nSize = %d, nRemain = %d)", nSize, nRemain);
+    if (nSize > nRemain)
+        ThrowError("Read buffer overflow (nSize = %d, nRemain = %d)", nSize, nRemain);
 
-	memcpy(pData, pBuffer, nSize);
-	nRemain -= nSize;
-	pBuffer += nSize;
+    memcpy(pData, pBuffer, nSize);
+    nRemain -= nSize;
+    pBuffer += nSize;
 
 }
 
 void IOBuffer::write(void *pData, int nSize)
 {
    if (nSize > nRemain)
-	   ThrowError("Write buffer overflow");
+       ThrowError("Write buffer overflow");
 
    memcpy(pBuffer, pData, nSize);
    nRemain -= nSize;
@@ -58,44 +58,44 @@ void IOBuffer::write(void *pData, int nSize)
 
 void IOBuffer::skip(int nSize)
 {
-	dassert(nSize >= 0);
-	if (nSize > nRemain)
-		ThrowError("Skip overflow");
-		
-	nRemain -= nSize;
-	pBuffer += nSize;
-	
+    dassert(nSize >= 0);
+    if (nSize > nRemain)
+        ThrowError("Skip overflow");
+
+    nRemain -= nSize;
+    pBuffer += nSize;
+
 }
 
 int IOBuffer::seek(int nOffs, int seekType)
 {
-	int nTest;
-	switch (seekType) {
-		case SEEK_SET:
-			nTest = ClipRange(nTotal - nRemain, 0, nTotal);
-			nRemain = nTotal;
-			pBuffer -= nTest;
-			// no break
-		case SEEK_CUR:
-			skip(nOffs);
-			break;
-		case SEEK_END:
-			skip(nRemain);
-			nOffs = abs(nOffs);
-			pBuffer -= nOffs;
-			nRemain  = nOffs;
-			break;
-	}
-	
-	return tell();
+    int nTest;
+    switch (seekType) {
+        case SEEK_SET:
+            nTest = ClipRange(nTotal - nRemain, 0, nTotal);
+            nRemain = nTotal;
+            pBuffer -= nTest;
+            // no break
+        case SEEK_CUR:
+            skip(nOffs);
+            break;
+        case SEEK_END:
+            skip(nRemain);
+            nOffs = abs(nOffs);
+            pBuffer -= nOffs;
+            nRemain  = nOffs;
+            break;
+    }
+
+    return tell();
 }
 
 int IOBuffer::tell()
 {
-	return abs(nRemain - nTotal);
+    return abs(nRemain - nTotal);
 }
 
 void IOBuffer::rewind()
 {
-	seek(0, SEEK_SET);
+    seek(0, SEEK_SET);
 }

@@ -341,9 +341,9 @@ void GibThing(spritetype *pSprite, GIBTHING *pGThing, CGibPosition *pPos, CGibVe
         getzsofslope(nSector, x, y, &ceilZ, &floorZ);
         int dz1 = floorZ-z;
         int dz2 = z-ceilZ;
-		spritetype *pGib = NULL;
-		pGib = actSpawnSprite(nSector, x, y, z, kStatFX, FALSE);
-		pGib->type = pGThing->at0;
+        spritetype *pGib = NULL;
+        pGib = actSpawnSprite(nSector, x, y, z, kStatFX, FALSE);
+        pGib->type = pGThing->at0;
         if (pGThing->at4 > -1)
             pGib->picnum = pGThing->at4;
         if (pVel)
@@ -385,16 +385,16 @@ void GibSprite(spritetype *pSprite, GIBTYPE nGibType, CGibPosition *pPos, CGibVe
     if (pSprite->sectnum < 0 || pSprite->sectnum >= numsectors)
         return;
     GIBLIST *pGib = &gibList[nGibType];
-    
-	int i;
-	for (i = 0; i < pGib->at4; i++)
+
+    int i;
+    for (i = 0; i < pGib->at4; i++)
     {
         GIBFX *pGibFX = &pGib->at0[i];
         GibFX(pSprite, pGibFX, pPos, pVel);
     }
 
-	
-	for (i = 0; i < pGib->atc; i++)
+
+    for (i = 0; i < pGib->atc; i++)
     {
         GIBTHING *pGibThing = &pGib->at8[i];
         GibThing(pSprite, pGibThing, pPos, pVel);

@@ -21,7 +21,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef __GFX_H
+#define __GFX_H
 #include "common_game.h"
 #pragma pack(push, 1)
 
@@ -35,32 +36,32 @@ extern Rect clipRect;
 // font types
 enum
 {
-kFontTypeMono					= 0,
-kFontTypeRasterHoriz			= 1,
-kFontTypeRasterVert				= 2,
+kFontTypeMono                   = 0,
+kFontTypeRasterHoriz            = 1,
+kFontTypeRasterVert             = 2,
 };
 
 // qbm types
 enum
 {
-kQBitmapRAW 					= 0,
-kQBitmapTRAW 					= 1,
-kQBitmapRLE 					= 2,
+kQBitmapRAW                     = 0,
+kQBitmapTRAW                    = 1,
+kQBitmapRLE                     = 2,
 };
 
 
 
 enum {
-kBitmapLookUp 					= 0,
-kBitmapLookDown 				= 1,
-kBitmapTurnLeft 				= 2,
-kBitmapTurnRight				= 3,
-kBitmapDisk1 					= 4,
-kBitmapMouseCursor  			= 5,
-kBitmapScrollUp					= 6,
-kBitmapScrollDn					= 7,
-kBitmapSeqeditBg				= 8,
-kMaxBitmaps						= 16,
+kBitmapLookUp                   = 0,
+kBitmapLookDown                 = 1,
+kBitmapTurnLeft                 = 2,
+kBitmapTurnRight                = 3,
+kBitmapDisk1                    = 4,
+kBitmapMouseCursor              = 5,
+kBitmapScrollUp                 = 6,
+kBitmapScrollDn                 = 7,
+kBitmapSeqeditBg                = 8,
+kMaxBitmaps                     = 16,
 };
 
 struct QBITMAP
@@ -90,9 +91,9 @@ struct QFONT
     unsigned short ver;
     unsigned short type;
     unsigned int size;
-	unsigned char charFirst;
-	unsigned char charLast;
-	unsigned char charLead;
+    unsigned char charFirst;
+    unsigned char charLast;
+    unsigned char charLead;
     unsigned char baseline;
     unsigned char tcolor;
     signed char charSpace;
@@ -105,13 +106,13 @@ struct QFONT
 
 struct ROMFONT
 {
-	unsigned char* data;
-	unsigned int size		: 16;	// sizeof
-	unsigned int uc			: 1;	// uppercase only
-	unsigned int wh			: 8;	// width
-	unsigned int hg			: 8;	// height
-	unsigned int ls			: 8;	// letter spacing
-	unsigned int lh			: 8;	// line height
+    unsigned char* data;
+    unsigned int size       : 16;   // sizeof
+    unsigned int uc         : 1;    // uppercase only
+    unsigned int wh         : 8;    // width
+    unsigned int hg         : 8;    // height
+    unsigned int ls         : 8;    // letter spacing
+    unsigned int lh         : 8;    // line height
 };
 
 #pragma pack(pop)
@@ -152,11 +153,12 @@ void gfxTranslucency(char nMode);
 void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup );
 void printext2(int x, int y, char fr, char* text, ROMFONT* pFont, char flags = 0x0);
 
-inline void gfxRect(Rect* pRect)		{ gfxRect(pRect->x0, pRect->y0, pRect->x1, pRect->y1);		}
-inline void gfxFillBox(Rect* pRect)		{ gfxFillBox(pRect->x0, pRect->y0, pRect->x1, pRect->y1);	}
-inline void gfxSetClip(Rect* pRect)		{ gfxSetClip(pRect->x0, pRect->y0, pRect->x1, pRect->y1);	}
+inline void gfxRect(Rect* pRect)        { gfxRect(pRect->x0, pRect->y0, pRect->x1, pRect->y1);      }
+inline void gfxFillBox(Rect* pRect)     { gfxFillBox(pRect->x0, pRect->y0, pRect->x1, pRect->y1);   }
+inline void gfxSetClip(Rect* pRect)     { gfxSetClip(pRect->x0, pRect->y0, pRect->x1, pRect->y1);   }
 
-inline void printextShadow(int xpos, int ypos, short col, char* text, ROMFONT* pFont)	{ printext2(xpos, ypos, col, text, pFont, 0x01); }
-inline void printextShadow(int xpos, int ypos, short col, char* text, int font)			{ printext2(xpos, ypos, col, text, &vFonts[font], 0x01); }
-inline void printextShadowL(int xpos, int ypos, short col, char* text)					{ printextShadow(xpos, ypos, col, text, 0); }
-inline void printextShadowS(int xpos, int ypos, short col, char* text)					{ printextShadow(xpos, ypos, col, text, 1); }
+inline void printextShadow(int xpos, int ypos, short col, char* text, ROMFONT* pFont)   { printext2(xpos, ypos, col, text, pFont, 0x01); }
+inline void printextShadow(int xpos, int ypos, short col, char* text, int font)         { printext2(xpos, ypos, col, text, &vFonts[font], 0x01); }
+inline void printextShadowL(int xpos, int ypos, short col, char* text)                  { printextShadow(xpos, ypos, col, text, 0); }
+inline void printextShadowS(int xpos, int ypos, short col, char* text)                  { printextShadow(xpos, ypos, col, text, 1); }
+#endif

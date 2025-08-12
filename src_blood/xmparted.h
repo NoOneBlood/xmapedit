@@ -36,89 +36,89 @@
 #define kArtedVer 1
 
 enum {
-kDirtyNone 				= 0x00,
-kDirtyArt 				= 0x01,
-kDirtyDat 				= 0x02,
-kDirtyPicanm			= 0x04,
-kDirtyAll				= 0xFF,
+kDirtyNone              = 0x00,
+kDirtyArt               = 0x01,
+kDirtyDat               = 0x02,
+kDirtyPicanm            = 0x04,
+kDirtyAll               = 0xFF,
 };
 
 enum {
-kArtEdModeNone			= 0,
-kArtEdModeBatch			= 1,
-kArtEdModeTile2D		= 2,
-kArtEdModeMax			   ,
+kArtEdModeNone          = 0,
+kArtEdModeBatch         = 1,
+kArtEdModeTile2D        = 2,
+kArtEdModeMax              ,
 };
 
 enum {
-kArtSaveFlagNone		= 0x00,
-kArtSaveFlagTileInfo	= 0x01,
+kArtSaveFlagNone        = 0x00,
+kArtSaveFlagTileInfo    = 0x01,
 };
 
 enum {
-kArtXBlockTileMixed		= 64,
-kArtXBlockGlobalPalette	= 128,
+kArtXBlockTileMixed     = 64,
+kArtXBlockGlobalPalette = 128,
 };
 
 enum {
-kImage					= 0x01,
-kAnimation				= 0x02,
-kShade					= 0x04,
-kSurface				= 0x08,
-kVoxelID				= 0x10,
-kView					= 0x20,
-kOffsets				= 0x40,		
-kAll					= 0x80,
+kImage                  = 0x01,
+kAnimation              = 0x02,
+kShade                  = 0x04,
+kSurface                = 0x08,
+kVoxelID                = 0x10,
+kView                   = 0x20,
+kOffsets                = 0x40,
+kAll                    = 0x80,
 };
 
 enum {
-kArtSignBAFED 			= 0,	// replaces artversion and 1 byte of numtiles
-kArtSignBUILDART 		= 1,	// offsets standard header to sign len bytes
+kArtSignBAFED           = 0,    // replaces artversion and 1 byte of numtiles
+kArtSignBUILDART        = 1,    // offsets standard header to sign len bytes
 };
 
 #pragma pack(push,1)
 struct XRTBLK_HEAD {
 
-	BYTE	 blktype;
-	BYTE    headsiz;
-	ushort   datasiz;
+    BYTE     blktype;
+    BYTE    headsiz;
+    ushort   datasiz;
 
 };
 
 struct XRTBLKa_DATA {
-	
-	ushort number;
-	schar  shade;
-	BYTE  surface;
-	short voxelID;
-	
+
+    ushort number;
+    schar  shade;
+    BYTE  surface;
+    short voxelID;
+
 };
 
 struct XRTBLKb_DATA {
-	
-	PALETTE artPal;
-	
+
+    PALETTE artPal;
+
 };
 
 struct ARTFILE {
 
-	unsigned int start   	: 16;
-	unsigned int end     	: 16;
-	unsigned int dirty		: 1;
-	char path[_MAX_PATH];
-	
+    unsigned int start      : 16;
+    unsigned int end        : 16;
+    unsigned int dirty      : 1;
+    char path[_MAX_PATH];
+
 };
 
 struct ARTEDIT {
-	
-	POINT2D origin;
-	BYTE asksave;
-	unsigned int nTile		: 16;
-	unsigned int nVTile		: 16;
-	unsigned int mode 		: 4;
-	unsigned int modeMin	: 4;
-	unsigned int modeMax	: 4;
-	unsigned int standalone	: 1;
+
+    POINT2D origin;
+    BYTE asksave;
+    unsigned int nTile      : 16;
+    unsigned int nVTile     : 16;
+    unsigned int mode       : 4;
+    unsigned int modeMin    : 4;
+    unsigned int modeMax    : 4;
+    unsigned int standalone : 1;
 };
 #pragma pack(pop)
 

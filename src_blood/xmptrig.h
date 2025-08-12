@@ -38,7 +38,7 @@ enum BUSYID {
     BUSYID_5,
     BUSYID_6,
     BUSYID_7,
-	BUSY_PATHSPRITE,
+    BUSY_PATHSPRITE,
 };
 
 #define kMaxBusyCountVanilla 128

@@ -108,19 +108,19 @@ static char didSectorLighting = 0;
 
 void DoSectorLighting(void)
 {
-	if (didSectorLighting)
-		return;
-	
-	didSectorLighting = 1;
-	
-	for (int i = 0; i < shadeCount; i++)
+    if (didSectorLighting)
+        return;
+
+    didSectorLighting = 1;
+
+    for (int i = 0; i < shadeCount; i++)
     {
         int nXSector = shadeList[i];
         XSECTOR *pXSector = &xsector[nXSector];
         int nSector = pXSector->reference;
         if (sector[nSector].extra != nXSector)
-			continue;
-		
+            continue;
+
         if (pXSector->shade)
         {
             int v4 = pXSector->shade;
@@ -209,11 +209,11 @@ void DoSectorLighting(void)
 void UndoSectorLighting(void)
 {
     if (!didSectorLighting)
-		return;
-	
-	didSectorLighting = 0;
-	
-	for (int i = 0; i < numsectors; i++)
+        return;
+
+    didSectorLighting = 0;
+
+    for (int i = 0; i < numsectors; i++)
     {
         int nXSector = sector[i].extra;
         if (nXSector > 0)
@@ -272,9 +272,9 @@ void DoSectorPanning(void)
         XSECTOR *pXSector = &xsector[nXSector];
         int nSector = pXSector->reference;
         sectortype *pSector = &sector[nSector];
-		if (pSector->extra != nXSector)
-			continue;
-		
+        if (pSector->extra != nXSector)
+            continue;
+
         if (pXSector->panAlways || pXSector->busy)
         {
             int angle = pXSector->panAngle+1024;
@@ -322,8 +322,8 @@ void DoSectorPanning(void)
         XWALL *pXWall = &xwall[nXWall];
         int nWall = pXWall->reference;
         if (wall[nWall].extra != nXWall)
-			continue;
-		
+            continue;
+
         if (pXWall->panAlways || pXWall->busy)
         {
             int psx = pXWall->panXVel<<10;

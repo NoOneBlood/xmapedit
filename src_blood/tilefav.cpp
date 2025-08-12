@@ -31,212 +31,212 @@ IniFile FavoriteTilesIni(kFavTilesFileName);
 
 void favoriteTileInit() {
 
-	char tmp[255];
-	int j, nType, nPic, nPrevNode = -1;
-	char* key = NULL; char* value;
-	memset(gFavTiles, -1, sizeof(gFavTiles)); gFavTilesC = 0;
-	while (FavoriteTilesIni.GetNextString(tmp, &key, &value, &nPrevNode, "Favorites"))
-	{
-		if ((nPic = enumStrGetInt(0, value)) <= 0 || nPic >= kMaxTiles) continue;
-		else if ((nType = enumStrGetInt(1, NULL)) < 0 || nType >= 1024) continue;
-		else if ((j = tileInFaves(nPic)) >= 0) // already in faves? replace it
-		{
-			gFavTiles[j].pic  = (short) nPic;
-			gFavTiles[j].type = (short) nType;
-		}
-		else
-		{
-			gFavTiles[gFavTilesC].pic  = (short) nPic;
-			gFavTiles[gFavTilesC].type = (short) nType;
-			gFavTilesC++;
-		}
-	}
+    char tmp[255];
+    int j, nType, nPic, nPrevNode = -1;
+    char* key = NULL; char* value;
+    memset(gFavTiles, -1, sizeof(gFavTiles)); gFavTilesC = 0;
+    while (FavoriteTilesIni.GetNextString(tmp, &key, &value, &nPrevNode, "Favorites"))
+    {
+        if ((nPic = enumStrGetInt(0, value)) <= 0 || nPic >= kMaxTiles) continue;
+        else if ((nType = enumStrGetInt(1, NULL)) < 0 || nType >= 1024) continue;
+        else if ((j = tileInFaves(nPic)) >= 0) // already in faves? replace it
+        {
+            gFavTiles[j].pic  = (short) nPic;
+            gFavTiles[j].type = (short) nType;
+        }
+        else
+        {
+            gFavTiles[gFavTilesC].pic  = (short) nPic;
+            gFavTiles[gFavTilesC].type = (short) nType;
+            gFavTilesC++;
+        }
+    }
 }
 void favoriteTileSave() {
 
-	if (FavoriteTilesIni.SectionExists("Favorites"))
-		FavoriteTilesIni.SectionRemove("Favorites");
-	
-	char key[4]; char value[32];
-	if (gFavTilesC > 0) {
-		for (int i = 0, j = 0; i < gFavTilesC; i++) {
-			if (gFavTiles[i].pic == -1 || gFavTiles[i].type == -1)
-				continue;
+    if (FavoriteTilesIni.SectionExists("Favorites"))
+        FavoriteTilesIni.SectionRemove("Favorites");
 
-			sprintf(key, "%d", j++);
-			sprintf(value, "%d,%d", gFavTiles[i].pic, gFavTiles[i].type);
-			FavoriteTilesIni.PutKeyString("Favorites", key, value);
+    char key[4]; char value[32];
+    if (gFavTilesC > 0) {
+        for (int i = 0, j = 0; i < gFavTilesC; i++) {
+            if (gFavTiles[i].pic == -1 || gFavTiles[i].type == -1)
+                continue;
 
-		}
-	}
-	
-	FavoriteTilesIni.Save();
-	return;
+            sprintf(key, "%d", j++);
+            sprintf(value, "%d,%d", gFavTiles[i].pic, gFavTiles[i].type);
+            FavoriteTilesIni.PutKeyString("Favorites", key, value);
+
+        }
+    }
+
+    FavoriteTilesIni.Save();
+    return;
 
 }
 
 int favoriteTileAddSimple(short type, short picnum) {
-	
-	short nType = 0; int i = 0;
-	
-	// try to offer type from autoData (search by pic)
-	for (i = 0; i < autoDataLength; i++) {
-		if (autoData[i].picnum != picnum) continue;
-		nType = (short) ClipLow(autoData[i].type, 0);
-		break;
 
-	}
-	
-	memset(buffer, 0, LENGTH(buffer));
-	nType = (short)ClipRange((nType <= 0) ? type : nType, 0, 1023);
-	if (gSpriteNames[nType])
-		sprintf(buffer, gSpriteNames[nType]);
+    short nType = 0; int i = 0;
 
-	if ((nType = name2TypeId(buffer)) >= 0) {
-		
-		picnum = (short) picnum;
-		nType  = (short) nType;
+    // try to offer type from autoData (search by pic)
+    for (i = 0; i < autoDataLength; i++) {
+        if (autoData[i].picnum != picnum) continue;
+        nType = (short) ClipLow(autoData[i].type, 0);
+        break;
 
-		// check if this pic already in faves
-		if ((i = tileInFaves(picnum)) >= 0) {
-			
-			if (gFavTiles[i].type != nType) {
-				if (!Confirm("Change type from %d to %d?", gFavTiles[i].type, nType))
-					return -1;
-			}
-			
-			gFavTiles[i].type = nType;
-			return i;
-			
-		}
-		
-		gFavTiles[gFavTilesC].pic  = (short) picnum;
-		gFavTiles[gFavTilesC].type = nType;
-		return gFavTilesC++;
-		
-	}
+    }
 
-	return -1;
-	
+    memset(buffer, 0, LENGTH(buffer));
+    nType = (short)ClipRange((nType <= 0) ? type : nType, 0, 1023);
+    if (gSpriteNames[nType])
+        sprintf(buffer, gSpriteNames[nType]);
+
+    if ((nType = name2TypeId(buffer)) >= 0) {
+
+        picnum = (short) picnum;
+        nType  = (short) nType;
+
+        // check if this pic already in faves
+        if ((i = tileInFaves(picnum)) >= 0) {
+
+            if (gFavTiles[i].type != nType) {
+                if (!Confirm("Change type from %d to %d?", gFavTiles[i].type, nType))
+                    return -1;
+            }
+
+            gFavTiles[i].type = nType;
+            return i;
+
+        }
+
+        gFavTiles[gFavTilesC].pic  = (short) picnum;
+        gFavTiles[gFavTilesC].type = nType;
+        return gFavTilesC++;
+
+    }
+
+    return -1;
+
 }
 
 BOOL favoriteTileRemove(int nTile) {
 
-	int i = 0, j = 0;
-	for (i = 0; i < gFavTilesC; i++) {
-		if (gFavTiles[i].pic != nTile) continue;
-		gFavTiles[i].pic = gFavTiles[i].type = -1;
-		break;
-	}
-	
-	if (i == gFavTilesC)
-		return FALSE;
-	
-	// adjust array
-	if (gFavTilesC - 1 > 0) {
-		
-		for (j = i + 1; j < gFavTilesC; j++, i++) {
-			gFavTiles[i].pic  = gFavTiles[j].pic;
-			gFavTiles[i].type = gFavTiles[j].type;
+    int i = 0, j = 0;
+    for (i = 0; i < gFavTilesC; i++) {
+        if (gFavTiles[i].pic != nTile) continue;
+        gFavTiles[i].pic = gFavTiles[i].type = -1;
+        break;
+    }
 
-			gFavTiles[j].pic = gFavTiles[j].type = -1;
-		}
-		
-	} else {
-		
-		gFavTiles[0].pic = gFavTiles[0].type = -1;
-		
-	}
-	
-	gFavTilesC--;
-	return TRUE;
-	
+    if (i == gFavTilesC)
+        return FALSE;
+
+    // adjust array
+    if (gFavTilesC - 1 > 0) {
+
+        for (j = i + 1; j < gFavTilesC; j++, i++) {
+            gFavTiles[i].pic  = gFavTiles[j].pic;
+            gFavTiles[i].type = gFavTiles[j].type;
+
+            gFavTiles[j].pic = gFavTiles[j].type = -1;
+        }
+
+    } else {
+
+        gFavTiles[0].pic = gFavTiles[0].type = -1;
+
+    }
+
+    gFavTilesC--;
+    return TRUE;
+
 }
 
 int favoriteTileSelect(int startPic, int nDefault, BOOL returnTile, int objType) {
 
-	BOOL startPicFound = FALSE;
-	int i = 0, j = 0; int picnum = -1, idx = -1;
-	
-	if (gFavTilesC > 0) {
-		
-		// fill tile index array
-		for (i = 0, tileIndexCount = 0; i < gFavTilesC; i++) {
-			if (gFavTiles[i].pic == -1 || gFavTiles[i].type == -1)
-				continue;
-			
-			tileIndex[tileIndexCount] = gFavTiles[i].pic;
+    BOOL startPicFound = FALSE;
+    int i = 0, j = 0; int picnum = -1, idx = -1;
 
-			// get predefined PLU from autoData 
-			switch (objType) {
-				case OBJ_SPRITE:
-				case OBJ_FLATSPRITE:
-					for (int j = 0; j < autoDataLength; j++) {
-						if (autoData[j].type != gFavTiles[i].type || autoData[j].picnum != gFavTiles[i].pic) continue;
-						tilePluIndex[tileIndexCount] = (char) ClipRange(autoData[j].plu, 0, kPluMax);
-						break;
-					}
-					break;
-			}
-			
-			if (gFavTiles[i].pic == startPic)
-				startPicFound = TRUE;
-			
-			tileIndexCount++;
+    if (gFavTilesC > 0) {
 
-		}
+        // fill tile index array
+        for (i = 0, tileIndexCount = 0; i < gFavTilesC; i++) {
+            if (gFavTiles[i].pic == -1 || gFavTiles[i].type == -1)
+                continue;
 
-		if ((picnum = tilePick((startPicFound) ? startPic : -1, -1, OBJ_CUSTOM, "Favorite tiles")) >= 0) {
+            tileIndex[tileIndexCount] = gFavTiles[i].pic;
 
-			for (i = 0; i < gFavTilesC; i++) {
-				if (gFavTiles[i].pic != picnum) continue;
-				else idx = i;
-				break;
-			}
-			
-		}
-		
-	}
-	
-	return (idx < 0) ? nDefault : (returnTile) ? picnum : idx;
+            // get predefined PLU from autoData
+            switch (objType) {
+                case OBJ_SPRITE:
+                case OBJ_FLATSPRITE:
+                    for (int j = 0; j < autoDataLength; j++) {
+                        if (autoData[j].type != gFavTiles[i].type || autoData[j].picnum != gFavTiles[i].pic) continue;
+                        tilePluIndex[tileIndexCount] = (char) ClipRange(autoData[j].plu, 0, kPluMax);
+                        break;
+                    }
+                    break;
+            }
+
+            if (gFavTiles[i].pic == startPic)
+                startPicFound = TRUE;
+
+            tileIndexCount++;
+
+        }
+
+        if ((picnum = tilePick((startPicFound) ? startPic : -1, -1, OBJ_CUSTOM, "Favorite tiles")) >= 0) {
+
+            for (i = 0; i < gFavTilesC; i++) {
+                if (gFavTiles[i].pic != picnum) continue;
+                else idx = i;
+                break;
+            }
+
+        }
+
+    }
+
+    return (idx < 0) ? nDefault : (returnTile) ? picnum : idx;
 }
 
 spritetype* favTileInsert(int where, int nSector, int x, int y, int z, int nAngle) {
 
-	spritetype* pSprite = NULL; int idx = favoriteTileSelect(-1, -1, FALSE, OBJ_SPRITE);
-	if (idx < 0) return pSprite; 
+    spritetype* pSprite = NULL; int idx = favoriteTileSelect(-1, -1, FALSE, OBJ_SPRITE);
+    if (idx < 0) return pSprite;
 
-	int nSprite = InsertSprite(nSector, kStatDecoration);
-	updatenumsprites();
-	
-	pSprite = &sprite[nSprite];
-	
-	// set type according selected picnum
-	pSprite->picnum = gFavTiles[idx].pic;
-	pSprite->type = gFavTiles[idx].type;
-	
-	AutoAdjustSprites();
-	
-	pSprite->x = x; pSprite->y = y; pSprite->z = z;
-	pSprite->ang = (short)nAngle;
+    int nSprite = InsertSprite(nSector, kStatDecoration);
+    updatenumsprites();
 
-	int zTop, zBot;
-	GetSpriteExtents(pSprite, &zTop, &zBot);
+    pSprite = &sprite[nSprite];
 
-	if ( where == OBJ_FLOOR) pSprite->z += getflorzofslope(nSector, pSprite->x, pSprite->y) - zBot;
-	else pSprite->z += getceilzofslope(nSector, pSprite->x, pSprite->y) - zTop;
+    // set type according selected picnum
+    pSprite->picnum = gFavTiles[idx].pic;
+    pSprite->type = gFavTiles[idx].type;
 
-	return pSprite;
-		
+    AutoAdjustSprites();
+
+    pSprite->x = x; pSprite->y = y; pSprite->z = z;
+    pSprite->ang = (short)nAngle;
+
+    int zTop, zBot;
+    GetSpriteExtents(pSprite, &zTop, &zBot);
+
+    if ( where == OBJ_FLOOR) pSprite->z += getflorzofslope(nSector, pSprite->x, pSprite->y) - zBot;
+    else pSprite->z += getceilzofslope(nSector, pSprite->x, pSprite->y) - zTop;
+
+    return pSprite;
+
 }
 
 int tileInFaves(int picnum) {
-	
-	for (int i = 0; i < gFavTilesC; i++) {
-		if (gFavTiles[i].pic == picnum)
-			return i;
-	}
-	
-	return -1;
-	
+
+    for (int i = 0; i < gFavTilesC; i++) {
+        if (gFavTiles[i].pic == picnum)
+            return i;
+    }
+
+    return -1;
+
 }

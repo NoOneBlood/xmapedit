@@ -70,26 +70,26 @@ struct MissileType
 
 struct THINGINFO
 {
-    unsigned int startHealth				: 16;
-    unsigned int mass						: 16;
-    unsigned int clipdist					: 8;
-    unsigned int flags						: 16;
-    signed   int elastic					: 32;
-	signed   int dmgResist					: 32;
-    unsigned int cstat						: 16;
-    signed 	 int picnum						: 16;
-    signed   int shade						: 8;
-    unsigned int pal						: 8;
-    unsigned int xrepeat					: 8;
-    unsigned int yrepeat					: 8;
+    unsigned int startHealth                : 16;
+    unsigned int mass                       : 16;
+    unsigned int clipdist                   : 8;
+    unsigned int flags                      : 16;
+    signed   int elastic                    : 32;
+    signed   int dmgResist                  : 32;
+    unsigned int cstat                      : 16;
+    signed   int picnum                     : 16;
+    signed   int shade                      : 8;
+    unsigned int pal                        : 8;
+    unsigned int xrepeat                    : 8;
+    unsigned int yrepeat                    : 8;
     unsigned short dmgControl[kDamageMax];
 };
 
 struct SPRITEHIT
 {
-    unsigned int hit		: 32;
-	unsigned int ceilhit	: 32;
-	unsigned int florhit	: 32;
+    unsigned int hit        : 32;
+    unsigned int ceilhit    : 32;
+    unsigned int florhit    : 32;
 };
 
 
@@ -102,17 +102,17 @@ extern int gPostCount;
 
 inline BOOL IsThingSprite( spritetype *pSprite )
 {
-	return (pSprite->type >= kThingBase && pSprite->type < kThingMax);
+    return (pSprite->type >= kThingBase && pSprite->type < kThingMax);
 }
 
 inline BOOL IsDudeSprite( spritetype *pSprite )
 {
-	return (pSprite->type >= kDudeBase && pSprite->type < kDudeMax);
+    return (pSprite->type >= kDudeBase && pSprite->type < kDudeMax);
 }
 
 inline BOOL IsPlayerSprite( spritetype *pSprite )
 {
-	return (pSprite->type >= kDudePlayer1 && pSprite->type <= kDudePlayer8);
+    return (pSprite->type >= kDudePlayer1 && pSprite->type <= kDudePlayer8);
 }
 
 void actProcessSprites();

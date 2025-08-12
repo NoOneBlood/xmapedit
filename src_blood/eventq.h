@@ -22,7 +22,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#pragma once
+#ifndef __EVENTQ_H
+#define __EVENTQ_H
 #include "callback.h"
 
 #define kCauserGame (kMaxSprites - 1)
@@ -148,3 +149,4 @@ void evPost(int nIndex, int nType, unsigned int nDelta, CALLBACK_ID callback);
 void evProcess(unsigned int nTime);
 void evKill(int a1, int a2);
 void evKill(int a1, int a2, CALLBACK_ID a3);
+#endif

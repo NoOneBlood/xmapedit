@@ -31,36 +31,36 @@ extern NAMED_TYPE gLoopBuildErrors[];
 
 class LOOPBUILD
 {
-	private:
-		POINT2D *point;
-		walltype* pModelW; sectortype* pModelS;
-		WALLPOINT_INFO cross;
-		
-		unsigned int numPoints			: 32;
-        unsigned int numAutoPoints  	: 32;
+    private:
+        POINT2D *point;
+        walltype* pModelW; sectortype* pModelS;
+        WALLPOINT_INFO cross;
+
+        unsigned int numPoints          : 32;
+        unsigned int numAutoPoints      : 32;
         unsigned int autoTimer          : 32;
         unsigned int autoState          : 2;
-		signed   int destSect			: 32;
-		signed   int status				: 16;
-		int SetupPrivate(int x, int y);
-		char DoAutoCompletion(IDLIST* pList, int wS, int wE, char d);
+        signed   int destSect           : 32;
+        signed   int status             : 16;
+        int SetupPrivate(int x, int y);
+        char DoAutoCompletion(IDLIST* pList, int wS, int wE, char d);
         char SetupAutoCompletion();
-		
-	public:
-		LOOPBUILD()		{ point = NULL;  Start(); }
-		~LOOPBUILD()	{ Stop(); }
-		void Start();
-		void Stop();
-		int  Make();
-		char Setup(int x, int y);
-		void Draw(SCREEN2D* pScr);
-		void AddPoint(int x, int y, int nPoint = -1);
-		void RemPoint(int nPoint = -1);
+
+    public:
+        LOOPBUILD()     { point = NULL;  Start(); }
+        ~LOOPBUILD()    { Stop(); }
+        void Start();
+        void Stop();
+        int  Make();
+        char Setup(int x, int y);
+        void Draw(SCREEN2D* pScr);
+        void AddPoint(int x, int y, int nPoint = -1);
+        void RemPoint(int nPoint = -1);
         void RemPointsTail(int nCount);
         void RemAutoPoints(void);
-		inline void UpdPoint(int x, int y, int nPoint)	{ point[nPoint].x = x, point[nPoint].y = y; }
-		inline int StatusGet(void)					    { return status; };
-		inline int NumPoints(void)						{ return numPoints; };
+        inline void UpdPoint(int x, int y, int nPoint)  { point[nPoint].x = x, point[nPoint].y = y; }
+        inline int StatusGet(void)                      { return status; };
+        inline int NumPoints(void)                      { return numPoints; };
         inline POINT2D* First(void)                     { return &point[0]; };
         inline POINT2D* Last(void)                      { return &point[numPoints - 1]; };
         inline POINT2D* LastReal(void)                  { return &point[numPoints + numAutoPoints - 1]; };

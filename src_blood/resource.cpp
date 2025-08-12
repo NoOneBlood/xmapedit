@@ -65,8 +65,8 @@ Resource::~Resource(void)
 
 void Resource::Init(const char *filename, const char* external)
 {
-	int i = 0;
-	RFFHeader header;
+    int i = 0;
+    RFFHeader header;
 #ifdef USE_QHEAP
     dassert(heap != NULL);
 #endif
@@ -153,48 +153,48 @@ void Resource::Init(const char *filename, const char* external)
 #if 0
     if (external)
     {
-		char drv[BMAX_PATH], dir[BMAX_PATH];
-		char fil[BMAX_PATH], ext[BMAX_PATH];
-		char msk[BMAX_PATH], pth[BMAX_PATH];
-		char tmp[BMAX_PATH];
-		Bdirent *dirent;
-		BDIR *dirr;
-				
-		_splitpath(external, drv, dir, NULL, NULL);
-		i += strlen(drv) + strlen(dir);
-		sprintf(msk, &external[i]);
-		
-		_makepath(pth, drv, dir, NULL, NULL);
-		if (!pth[0])
-			sprintf(pth, "./");
-		
+        char drv[BMAX_PATH], dir[BMAX_PATH];
+        char fil[BMAX_PATH], ext[BMAX_PATH];
+        char msk[BMAX_PATH], pth[BMAX_PATH];
+        char tmp[BMAX_PATH];
+        Bdirent *dirent;
+        BDIR *dirr;
+
+        _splitpath(external, drv, dir, NULL, NULL);
+        i += strlen(drv) + strlen(dir);
+        sprintf(msk, &external[i]);
+
+        _makepath(pth, drv, dir, NULL, NULL);
+        if (!pth[0])
+            sprintf(pth, "./");
+
         if ((dirr = Bopendir(pth)) != NULL)
         {
-			while (dirent = Breaddir(dirr))
+            while (dirent = Breaddir(dirr))
             {
-				i = 0;
-				while(msk[0])
-				{
-					if (enumStrGetChar(i, tmp, msk, ' '))
-					{
-						i++;
-						if (Bwildmatch(dirent->name, tmp))
-							break;
-					}
-					else
-					{
-						i = -1;
-						break;
-					}
-				}
-				
-				if (i >= 0)
-				{
-					_splitpath(dirent->name, NULL, NULL, fil, ext);
-					AddExternalResource(fil, (ext[0] == '.') ? &ext[1] : &ext[0], 0, 0, pth);
-				}
+                i = 0;
+                while(msk[0])
+                {
+                    if (enumStrGetChar(i, tmp, msk, ' '))
+                    {
+                        i++;
+                        if (Bwildmatch(dirent->name, tmp))
+                            break;
+                    }
+                    else
+                    {
+                        i = -1;
+                        break;
+                    }
+                }
+
+                if (i >= 0)
+                {
+                    _splitpath(dirent->name, NULL, NULL, fil, ext);
+                    AddExternalResource(fil, (ext[0] == '.') ? &ext[1] : &ext[0], 0, 0, pth);
+                }
             }
-			
+
             Bclosedir(dirr);
         }
     }
@@ -221,7 +221,7 @@ void Resource::Flush(CACHENODE *h)
 #else
         delete[] (char*)h->ptr;
 #endif
-        
+
         h->ptr = NULL;
         if (h->lockCount == 0)
         {
@@ -361,13 +361,13 @@ void Resource::Grow(void)
 
 void Resource::AddExternalResource(const char* pzPath, int id, int flags)
 {
-	char buf[BMAX_PATH];
-	char *dir = NULL, *name = NULL, *ext = NULL;
-	pathSplit2((char*)pzPath, buf, NULL, &dir, &name, &ext);
-	if (ext[0] == '.')
-		ext =& ext[1];
-	
-	AddExternalResource(name, ext, id, flags, dir);
+    char buf[BMAX_PATH];
+    char *dir = NULL, *name = NULL, *ext = NULL;
+    pathSplit2((char*)pzPath, buf, NULL, &dir, &name, &ext);
+    if (ext[0] == '.')
+        ext =& ext[1];
+
+    AddExternalResource(name, ext, id, flags, dir);
 }
 
 void Resource::AddExternalResource(const char *name, const char *type, int id, int flags, const char *pzDirectory)
@@ -387,7 +387,7 @@ void Resource::AddExternalResource(const char *name, const char *type, int id, i
     int fhandle = open(path, O_RDONLY|O_BINARY, S_IREAD|S_IWRITE);
     if (fhandle == -1)
         return;
-	
+
     int size = filelength(fhandle);
     close(fhandle);
     strcpy(name2, name);
@@ -872,10 +872,10 @@ void Resource::Crypt(void *p, int length, unsigned short key)
 
 void Resource::AddMRU( CACHENODE *h )
 {
-	h->prev = purgeHead.prev;
-	h->prev->next = h;
-	h->next = &purgeHead;
-	h->next->prev = h;
+    h->prev = purgeHead.prev;
+    h->prev->next = h;
+    h->next = &purgeHead;
+    h->next->prev = h;
 }
 
 

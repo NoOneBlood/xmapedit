@@ -20,7 +20,8 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-
+#ifndef __PREVIEW_H
+#define __PREVIEW_H
 #include "eventq.h"
 #include "xmpsnd.h"
 #include "xmpact.h"
@@ -35,47 +36,47 @@
 #define kDeleteReally 333
 
 enum {
-kScrEffectQuake1			= 0,
-kScrEffectQuake2			= 1, // for explosions
-kScrEffectMax			   	   ,
+kScrEffectQuake1            = 0,
+kScrEffectQuake2            = 1, // for explosions
+kScrEffectMax                  ,
 };
 
 
 struct PREVIEW_MODE_KEYS {
-	unsigned int key			: 8;
-	unsigned int reqShift		: 1;
-	unsigned int reqCtrl		: 1;
-	unsigned int reqAlt			: 1;
-	unsigned int mode			: 3;	// 2d, 3d, both
+    unsigned int key            : 8;
+    unsigned int reqShift       : 1;
+    unsigned int reqCtrl        : 1;
+    unsigned int reqAlt         : 1;
+    unsigned int mode           : 3;    // 2d, 3d, both
 };
 
 class PREVIEW_MODE {
-	public:
-	unsigned int triggerFlags		: 1;
-	unsigned int translateObjects	: 1;
-	unsigned int triggerStart		: 1;
-	unsigned int forceStartPos		: 1;
-	unsigned int enableSound		: 1;
-	unsigned int modernMap			: 1;
-	unsigned int enableMusic		: 1;
-	unsigned int difficulty			: 3;
-	unsigned int mode				: 3;
-	unsigned int palette			: 8;
-	unsigned int speed				: 8;
-	unsigned int m1cmd				: 8;
-	unsigned int m2cmd				: 8;
-	unsigned int m3cmd				: 8;
-	unsigned int missileType		: 8;
-	unsigned int explosionType		: 8;
-	unsigned int sectnum			: 14;
-	unsigned int oVisibility		: 32;
-	unsigned int levelTime			: 32;
-	DONEOFTOTAL kills, secrets;
-	int scrEffects[kScrEffectMax];
-	uint32_t ticks;
-	IniFile* pEpisode;
-	void Init(IniFile* pIni, char* section);
-	void Save(IniFile* pIni, char* section);
+    public:
+    unsigned int triggerFlags       : 1;
+    unsigned int translateObjects   : 1;
+    unsigned int triggerStart       : 1;
+    unsigned int forceStartPos      : 1;
+    unsigned int enableSound        : 1;
+    unsigned int modernMap          : 1;
+    unsigned int enableMusic        : 1;
+    unsigned int difficulty         : 3;
+    unsigned int mode               : 3;
+    unsigned int palette            : 8;
+    unsigned int speed              : 8;
+    unsigned int m1cmd              : 8;
+    unsigned int m2cmd              : 8;
+    unsigned int m3cmd              : 8;
+    unsigned int missileType        : 8;
+    unsigned int explosionType      : 8;
+    unsigned int sectnum            : 14;
+    unsigned int oVisibility        : 32;
+    unsigned int levelTime          : 32;
+    DONEOFTOTAL kills, secrets;
+    int scrEffects[kScrEffectMax];
+    uint32_t ticks;
+    IniFile* pEpisode;
+    void Init(IniFile* pIni, char* section);
+    void Save(IniFile* pIni, char* section);
 };
 
 
@@ -113,7 +114,8 @@ void unhideSprite(spritetype* pSprite);
 
 inline char previewSpriteRemoved(spritetype* pSpr)
 {
-	if (pSpr->statnum >= kMaxStatus)										return 1;
-	else if (pSpr->x == kHiddenSpriteLoc && pSpr->y == kHiddenSpriteLoc)	return 2;
-	else																	return 0;
+    if (pSpr->statnum >= kMaxStatus)                                        return 1;
+    else if (pSpr->x == kHiddenSpriteLoc && pSpr->y == kHiddenSpriteLoc)    return 2;
+    else                                                                    return 0;
 }
+#endif

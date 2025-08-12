@@ -28,9 +28,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 struct STRCUTSTYLE
 {
-	uint8_t cutSide;
-	uint8_t insChar;
-	uint8_t insRepeat;
+    uint8_t cutSide;
+    uint8_t insChar;
+    uint8_t insRepeat;
 };
 
 int enumStr(int nOffs, const char* str, char* key, char* val);
@@ -67,7 +67,7 @@ char* getFilename(char* pth, char* out, char addExt = 0);
 char* getPath(char* pth, char* out, char addSlash = 0);
 
 
-inline char slash(char ch)			{ return (ch == '\\' || ch == '/'); }
-inline void catslash(char* str)		{ strcat(str, "/"); }
+inline char slash(char ch)          { return (ch == '\\' || ch == '/'); }
+inline void catslash(char* str)     { strcat(str, "/"); }
 
 #endif

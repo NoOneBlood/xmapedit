@@ -25,27 +25,27 @@
 
 #pragma pack(push, 1)
 struct AUTODATA
-{	
-	int     group;
-	unsigned int exception 		: 1; 	// do not auto-set some of properties
-	unsigned int  xsprite		: 1;	// requires xsprite?
-	short	type;
-	int   	seq;		// use seq info instead of info from fields below
-	short	picnum;
-	short	xrepeat, yrepeat;
-	schar	hitBit;
-	short	plu;
+{
+    int     group;
+    unsigned int exception      : 1;    // do not auto-set some of properties
+    unsigned int  xsprite       : 1;    // requires xsprite?
+    short   type;
+    int     seq;        // use seq info instead of info from fields below
+    short   picnum;
+    short   xrepeat, yrepeat;
+    schar   hitBit;
+    short   plu;
 };
 
 struct SYS_STATNUM_GROUP
 {
-	unsigned int check				: 3;
-	unsigned int statnum 			: 11;
-	unsigned int typeMin 			: 11; // inclusive!
-	unsigned int typeMax 			: 11; // inclusive!
-	
-	unsigned short* enumArray;
-	unsigned int enumLen			: 11;
+    unsigned int check              : 3;
+    unsigned int statnum            : 11;
+    unsigned int typeMin            : 11; // inclusive!
+    unsigned int typeMax            : 11; // inclusive!
+
+    unsigned short* enumArray;
+    unsigned int enumLen            : 11;
 };
 #pragma pack(pop)
 

@@ -53,7 +53,7 @@ kSurfMax,
 
 enum
 {
-kMapStatDudes		= 0,
+kMapStatDudes       = 0,
 kMapStatSpawn,
 //kMapStatItems,
 kMapStatWeapons,
@@ -76,68 +76,68 @@ XWALL* GetXWall(walltype* pWall);
 
 class MapStats
 {
-	private:
-		static uint16_t stats[5][5][kMapStatMax];
-		static int16_t  total[5][kMapStatMax];
-		static void IncItemType(int nType, XSPRITE* pXSpr);
-		static char Inc(XSPRITE* pXSpr, int nWhat);
-	public:
-		static int Get(int nMode, int nWhat);
-		static int Get(int nMode, int nSkill, int nWhat);
-		static void Collect();
-		static void Clear(char which = 0x03);
+    private:
+        static uint16_t stats[5][5][kMapStatMax];
+        static int16_t  total[5][kMapStatMax];
+        static void IncItemType(int nType, XSPRITE* pXSpr);
+        static char Inc(XSPRITE* pXSpr, int nWhat);
+    public:
+        static int Get(int nMode, int nWhat);
+        static int Get(int nMode, int nSkill, int nWhat);
+        static void Collect();
+        static void Clear(char which = 0x03);
 };
 
 enum
 {
-	B2T_ENC_BREP	= 0x01,
-	B2T_ENC_000F	= 0x02,
-	B2T_ENC_MODS	= 0x04,
+    B2T_ENC_BREP    = 0x01,
+    B2T_ENC_000F    = 0x02,
+    B2T_ENC_MODS    = 0x04,
 };
 
 class BIN2TXT
 {
-	private:
-		static const char* kB2TSign;
-		inline int GetDigit(char* str, int nLen) { str[nLen] = '\0'; return strtol(str, NULL, 16); }
-		int EncodeByte(int c);
-		int DecodeByte(int c);
-	public:
-		struct
-		{
-			uint32_t	len;
-			uint8_t*	ptr;
-		}
-		bin;
-		struct
-		{
-			int32_t		len;
-			int32_t*	ptr;
-			uint8_t		flg;
-		}
-		inf;
-		struct
-		{
-			uint32_t	len;
-			char*		ptr;
-		}
-		txt;
-		char Encode(void);
-		char Decode(void);
-		BIN2TXT(void);
+    private:
+        static const char* kB2TSign;
+        inline int GetDigit(char* str, int nLen) { str[nLen] = '\0'; return strtol(str, NULL, 16); }
+        int EncodeByte(int c);
+        int DecodeByte(int c);
+    public:
+        struct
+        {
+            uint32_t    len;
+            uint8_t*    ptr;
+        }
+        bin;
+        struct
+        {
+            int32_t     len;
+            int32_t*    ptr;
+            uint8_t     flg;
+        }
+        inf;
+        struct
+        {
+            uint32_t    len;
+            char*       ptr;
+        }
+        txt;
+        char Encode(void);
+        char Decode(void);
+        BIN2TXT(void);
 };
 
 #pragma pack(push, 1)
 struct FUNCT_LIST
 {
-	int funcType;
-	void* pFunc;
+    int funcType;
+    void* pFunc;
 };
 
 struct SCANWALL
 {
-	POSOFFS pos;
-	short w, s;
+    POSOFFS pos;
+    short w, s;
 };
 #pragma pack(pop)
 
@@ -154,15 +154,15 @@ void Delay(int time);
 void splashScreen(char* text = NULL);
 void plsWait();
 inline BOOL wallHoriz(int nWall) {
-	
-	return (wall[nWall].x == wall[wall[nWall].point2].x);
-	
+
+    return (wall[nWall].x == wall[wall[nWall].point2].x);
+
 }
 
 inline BOOL wallVert(int nWall) {
-	
-	return (wall[nWall].y == wall[wall[nWall].point2].y);
-	
+
+    return (wall[nWall].y == wall[wall[nWall].point2].y);
+
 }
 
 BOOL isModernMap();
@@ -180,8 +180,9 @@ short name2TypeId(char defName[256]);
 void eraseExtra();
 int getHighlightedObject();
 
-void playSound(int sndId, int showMsg = 1);
-
+void auditSound(int nSnd, int nType, char showMsg = 1);
+void inline playSound(int nSnd, char showMsg)   { auditSound(nSnd, kSoundPlayer, showMsg); }
+void inline playSound(int nSnd)                 { auditSound(nSnd, kSoundPlayer, 1); }
 
 void cpyObjectClear();
 void hit2pos(int* rtx, int* rty, int* rtz = NULL, int32_t clipmask = BLOCK_MOVE | BLOCK_HITSCAN);

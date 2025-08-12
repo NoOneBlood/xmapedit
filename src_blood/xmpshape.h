@@ -29,11 +29,11 @@
 
 enum
 {
-	kLoopShapeRect			= 0,
-	kLoopShapeCircle		= 1,
-	kLoopShapeSquare		= 2,
-	kLoopShapeTriangle		= 3,
-	kLoopShapeMax
+    kLoopShapeRect          = 0,
+    kLoopShapeCircle        = 1,
+    kLoopShapeSquare        = 2,
+    kLoopShapeTriangle      = 3,
+    kLoopShapeMax
 };
 
 
@@ -43,52 +43,52 @@ extern NAMED_TYPE gLoopShapeTypes[kLoopShapeMax];
 
 class LOOPSHAPE
 {
-	private:
-		OBJECT model;
-		POINT2D point[255];
-		unsigned int active			: 1;
-		unsigned int rotateAng		: 16;
-		unsigned int shapeType		: 8;
-		unsigned int minPoints		: 8;
-		unsigned int maxPoints		: 8;
-		unsigned int numPoints		: 8;
-		unsigned int minWidth		: 32;
-		unsigned int minHeight		: 32;
-		unsigned int width			: 32;
-		unsigned int height			: 32;
-		unsigned int size			: 32;
-		signed   int destSect		: 32;
+    private:
+        OBJECT model;
+        POINT2D point[255];
+        unsigned int active         : 1;
+        unsigned int rotateAng      : 16;
+        unsigned int shapeType      : 8;
+        unsigned int minPoints      : 8;
+        unsigned int maxPoints      : 8;
+        unsigned int numPoints      : 8;
+        unsigned int minWidth       : 32;
+        unsigned int minHeight      : 32;
+        unsigned int width          : 32;
+        unsigned int height         : 32;
+        unsigned int size           : 32;
+        signed   int destSect       : 32;
         signed   int initDestSect   : 32;
-		signed   int status			: 16;
-		signed	 int sx, sy;
-		signed	 int cx, cy;
-		signed	 int ex, ey;
-	public:
-		void Start(int nType, int nSect, int x, int y);
-		void Stop();
-		char Setup(int x2, int y2, OBJECT* pModel);
-		void SetupRectangle(int x2, int y2);
-		void SetupSquare(int x2, int y2);
-		void SetupTriangle(int x2, int y2);
-		void SetupCircle(int x2, int y2);
-		void Draw(SCREEN2D* pScr);
-		int Insert();
-		void UpdateShape(int x, int y);
+        signed   int status         : 16;
+        signed   int sx, sy;
+        signed   int cx, cy;
+        signed   int ex, ey;
+    public:
+        void Start(int nType, int nSect, int x, int y);
+        void Stop();
+        char Setup(int x2, int y2, OBJECT* pModel);
+        void SetupRectangle(int x2, int y2);
+        void SetupSquare(int x2, int y2);
+        void SetupTriangle(int x2, int y2);
+        void SetupCircle(int x2, int y2);
+        void Draw(SCREEN2D* pScr);
+        int Insert();
+        void UpdateShape(int x, int y);
         char CheckIntersection(void);
-		char ChgPoints(int nNum);
-		void ChgAngle(int nAng);
-		LOOPSHAPE(int nType, int nSect, int x, int y)			{ active = 0; Start(nType, nSect, x, y);	}
-		~LOOPSHAPE()											{ Stop();	active = 0;						}
-		inline void AddAngle(int nAng = 32)						{ ChgAngle(klabs(nAng)); 					}
-		inline void RemAngle(int nAng = 32)						{ ChgAngle(-nAng); 							}
-		inline char AddPoints(int nNum = 1)						{ return ChgPoints(klabs(nNum)); 			}
-		inline char RemPoints(int nNum = 1)						{ return ChgPoints(-nNum); 					}
-		inline void Start(int nSect, int x, int y)				{ Start(shapeType, nSect, x, y);			}
-		inline int Width()										{ return width;								}
-		inline int Height()										{ return height;							}
-		inline int StatusGet()									{ return status;							}
-		inline int SectorGet()									{ return destSect;							}
-		inline int NumPoints()									{ return numPoints;							}
-		inline void StatusSet(int nStat)						{ status = nStat;							}
+        char ChgPoints(int nNum);
+        void ChgAngle(int nAng);
+        LOOPSHAPE(int nType, int nSect, int x, int y)           { active = 0; Start(nType, nSect, x, y);    }
+        ~LOOPSHAPE()                                            { Stop();   active = 0;                     }
+        inline void AddAngle(int nAng = 32)                     { ChgAngle(klabs(nAng));                    }
+        inline void RemAngle(int nAng = 32)                     { ChgAngle(-nAng);                          }
+        inline char AddPoints(int nNum = 1)                     { return ChgPoints(klabs(nNum));            }
+        inline char RemPoints(int nNum = 1)                     { return ChgPoints(-nNum);                  }
+        inline void Start(int nSect, int x, int y)              { Start(shapeType, nSect, x, y);            }
+        inline int Width()                                      { return width;                             }
+        inline int Height()                                     { return height;                            }
+        inline int StatusGet()                                  { return status;                            }
+        inline int SectorGet()                                  { return destSect;                          }
+        inline int NumPoints()                                  { return numPoints;                         }
+        inline void StatusSet(int nStat)                        { status = nStat;                           }
 };
 #endif

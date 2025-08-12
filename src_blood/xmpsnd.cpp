@@ -173,17 +173,17 @@ SAMPLE2D * FindChannel(void)
 
 char *pSongPtr = NULL;
 void sndPlaySong(char *songName, bool bLoop)
-{  
+{
    DICTNODE *hSong;
    if (MusicDevice == -1 || !songName || (hSong = gSoundRes.Lookup(songName, "MID")) == NULL) return;
    else if (pSongPtr)
-	   sndStopSong();
-	
+       sndStopSong();
+
    if ((pSongPtr = (char *)malloc(hSong->size)) != NULL)
    {
-		gSoundRes.Load(hSong, pSongPtr);
-		MUSIC_SetVolume(MusicVolume);
-		MUSIC_PlaySong(pSongPtr, hSong->size, bLoop);
+        gSoundRes.Load(hSong, pSongPtr);
+        MUSIC_SetVolume(MusicVolume);
+        MUSIC_PlaySong(pSongPtr, hSong->size, bLoop);
    }
 }
 
@@ -205,14 +205,14 @@ void sndSetFXVolume(int nVolume)
 
 void sndStopSong(void)
 {
-	if (MusicDevice >= 0)
-		MUSIC_StopSong();
+    if (MusicDevice >= 0)
+        MUSIC_StopSong();
 
-	if (pSongPtr)
-	{
-		free(pSongPtr);
-		pSongPtr = NULL;
-	}
+    if (pSongPtr)
+    {
+        free(pSongPtr);
+        pSongPtr = NULL;
+    }
 }
 
 
@@ -411,13 +411,13 @@ void sndInit(void)
 {
     pSongPtr = NULL;
     memset(Channel, 0, sizeof(Channel));
-	if (!sndActive)
-	{
-		gSoundRes.Init(gPaths.soundRFF);
-		InitSoundDevice();
-		InitMusicDevice();
+    if (!sndActive)
+    {
+        gSoundRes.Init(gPaths.soundRFF);
+        InitSoundDevice();
+        InitMusicDevice();
     }
-	sndActive = true;
+    sndActive = true;
 }
 
 /// SFX //////////////////////////////////////////////////////
@@ -471,9 +471,9 @@ void Calc3DValues(BONKLE *pBonkle)
 
 void sfxPlay3DSound(int x, int y, int z, int soundId)
 {
-	if (FXDevice == -1 || soundId < 0 || !sndActive)
-			return;
-    
+    if (FXDevice == -1 || soundId < 0 || !sndActive)
+            return;
+
     DICTNODE *hRes = gSoundRes.Lookup(soundId, "SFX");
     if (!hRes)return;
 
@@ -501,7 +501,7 @@ void sfxPlay3DSound(int x, int y, int z, int soundId)
     char *pData = (char*)gSoundRes.Lock(hRes);
     Calc3DValues(pBonkle);
     int priority = 1;
-	if (priority < lVol)  priority = lVol;
+    if (priority < lVol)  priority = lVol;
     if (priority < rVol)  priority = rVol;
     if (gStereo)
     {
@@ -519,8 +519,8 @@ void sfxPlay3DSound(int x, int y, int z, int soundId)
 
 void sfxPlay3DSound(spritetype *pSprite, int soundId, int chanId, int nFlags)
 {
-	if (FXDevice == -1 || soundId < 0 || !sndActive || !pSprite)
-			return;
+    if (FXDevice == -1 || soundId < 0 || !sndActive || !pSprite)
+            return;
 
     DICTNODE *hRes = gSoundRes.Lookup(soundId, "SFX");
     if (!hRes)
@@ -630,9 +630,9 @@ void sfxPlay3DSound(spritetype *pSprite, int soundId, int chanId, int nFlags)
 // by NoOne: same as previous, but allows to set custom pitch for sound AND volume.
 void sfxPlay3DSoundCP(spritetype* pSprite, int soundId, int chanId, int nFlags, int pitch, int volume)
 {
-	if (FXDevice == -1 || soundId < 0 || !sndActive)
-			return;
-		
+    if (FXDevice == -1 || soundId < 0 || !sndActive)
+            return;
+
     DICTNODE* hRes = gSoundRes.Lookup(soundId, "SFX");
     if (!hRes) return;
 
@@ -641,13 +641,13 @@ void sfxPlay3DSoundCP(spritetype* pSprite, int soundId, int chanId, int nFlags, 
     if (!hRes) return;
     int size = hRes->size;
     if (size <= 0) return;
-    
+
     if (pitch <= 0) pitch = pEffect->pitch;
     else pitch -= Random(pEffect->pitchRange);
 
     int v14;
     v14 = mulscale16(pitch, sndGetRate(pEffect->format));
-    
+
     BONKLE * pBonkle = NULL;
     if (chanId >= 0)
     {
@@ -848,7 +848,7 @@ void sfxUpdate3DSounds(void)
 
 void ambProcess(void)
 {
-	if (FXDevice == -1 || !sndActive) return;
+    if (FXDevice == -1 || !sndActive) return;
     for (int nSprite = headspritestat[kStatAmbience]; nSprite >= 0; nSprite = nextspritestat[nSprite])
     {
         spritetype *pSprite = &sprite[nSprite];
@@ -868,7 +868,7 @@ void ambProcess(void)
                 dz >>= 8;
                 int nDist = ksqrt(dx*dx+dy*dy+dz*dz);
                 int vs = mulscale16(pXSprite->data4, pXSprite->busy);
-				ambChannels[pSprite->owner].at4 += ClipRange(scale(nDist, pXSprite->data1, pXSprite->data2, vs, 0), 0, vs);
+                ambChannels[pSprite->owner].at4 += ClipRange(scale(nDist, pXSprite->data1, pXSprite->data2, vs, 0), 0, vs);
             }
         }
     }
@@ -912,21 +912,21 @@ void ambInit(void)
     memset(ambChannels, 0, sizeof(ambChannels));
     for (int nSprite = headspritestat[kStatAmbience]; nSprite >= 0; nSprite = nextspritestat[nSprite]) {
         if (sprite[nSprite].extra <= 0 || sprite[nSprite].extra >= kMaxXSprites) continue;
-        
+
         XSPRITE *pXSprite = &xsprite[sprite[nSprite].extra];
         if (pXSprite->data1 >= pXSprite->data2) continue;
-        
+
         int i; AMB_CHANNEL *pChannel = ambChannels;
         for (i = 0; i < nAmbChannels; i++, pChannel++)
             if (pXSprite->data3 == pChannel->at8) break;
-        
+
         if (i == nAmbChannels) {
-            
+
             if (i >= kMaxAmbChannel) {
                 sprite[nSprite].owner = -1;
                 continue;
             }
-                    
+
             int nSFX = pXSprite->data3;
             DICTNODE *pSFXNode = gSoundRes.Lookup(nSFX, "SFX");
             if (!pSFXNode) {
@@ -944,7 +944,7 @@ void ambInit(void)
                 //actPostSprite(nSprite, kStatDecoration);
                 continue;
             }
-            
+
             if (pRAWNode->size > 0) {
                 pChannel->at14 = pRAWNode->size;
                 pChannel->at8 = nSFX;

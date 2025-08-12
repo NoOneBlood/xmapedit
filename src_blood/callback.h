@@ -24,14 +24,14 @@
 #ifndef __CALLBACK_H
 #define __CALLBACK_H
 enum CALLBACK_ID {
-	kCallbackNone = -1,
-	kCallbackRemove = 0,
-	kCallbackRemoveSpecial = 1,
-	kCallbackMissileBurst,
-	kCallbackMissileSpriteBlock,
-	kCallbackFXFlareBurst,
-	kCallbackCounterCheck,
-	kCallbackMax,
+    kCallbackNone = -1,
+    kCallbackRemove = 0,
+    kCallbackRemoveSpecial = 1,
+    kCallbackMissileBurst,
+    kCallbackMissileSpriteBlock,
+    kCallbackFXFlareBurst,
+    kCallbackCounterCheck,
+    kCallbackMax,
 };
 
 typedef void (* CALLBACK_FUNC)( int nIndex );

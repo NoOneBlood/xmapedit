@@ -29,26 +29,26 @@ extern NAMED_TYPE gLoopSplitErrors[];
 
 class LOOPSPLIT
 {
-	private:
-		VOIDLIST* list;
-		signed   int status			: 32;
-		signed   int srcwall		: 32;
-		signed   int destsector		: 32;
-		signed   int angoffs		: 11;
-		unsigned int skipflag		: 1;
-		unsigned int cross			: 2;
-		int SetupPrivate(int nWall);
-		void Start();
-		void Stop();
-	public:
-		LOOPSPLIT()						{ Start(); }
-		~LOOPSPLIT()					{ Stop(); }
-		char Setup(int nWall);
-		int  Insert();
-		void Draw(SCREEN2D* pScr);
-		char IterateAngleOffset(char dir);
-		inline int StatusGet()			{ return status; }
-		inline char ToggleSkipFlag()	{ return ((skipflag = !skipflag) > 0); }
-	
+    private:
+        VOIDLIST* list;
+        signed   int status         : 32;
+        signed   int srcwall        : 32;
+        signed   int destsector     : 32;
+        signed   int angoffs        : 11;
+        unsigned int skipflag       : 1;
+        unsigned int cross          : 2;
+        int SetupPrivate(int nWall);
+        void Start();
+        void Stop();
+    public:
+        LOOPSPLIT()                     { Start(); }
+        ~LOOPSPLIT()                    { Stop(); }
+        char Setup(int nWall);
+        int  Insert();
+        void Draw(SCREEN2D* pScr);
+        char IterateAngleOffset(char dir);
+        inline int StatusGet()          { return status; }
+        inline char ToggleSkipFlag()    { return ((skipflag = !skipflag) > 0); }
+
 };
 #endif

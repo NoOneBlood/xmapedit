@@ -27,20 +27,20 @@
 
 
 #define kSeqExt ".seq"
-#define kSeqMaxFrames	1024
+#define kSeqMaxFrames   1024
 #define kSeqMemSize sizeof(Seq) + kSeqMaxFrames * sizeof(SEQFRAME)
 
 
 struct SEQEDIT {
-	
-	POINT2D origin;
-	SEQFRAME clipboard;
-	char* filename;
-	unsigned int clipboardOk	: 1;
-	unsigned int edit3d			: 1;
-	unsigned int asksave		: 1;
-	unsigned int curPal			: 8;
-	unsigned int rffID;
+
+    POINT2D origin;
+    SEQFRAME clipboard;
+    char* filename;
+    unsigned int clipboardOk    : 1;
+    unsigned int edit3d         : 1;
+    unsigned int asksave        : 1;
+    unsigned int curPal         : 8;
+    unsigned int rffID;
 
 };
 

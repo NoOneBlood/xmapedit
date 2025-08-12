@@ -22,8 +22,8 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#ifndef __FX
-#define __FX
+#ifndef __FX_H
+#define __FX_H
 
 enum FX_ID {
     FX_NONE = -1,
@@ -84,9 +84,9 @@ enum FX_ID {
     FX_54,
     FX_55,
     FX_56,
-	kFXGibThingReplace,
-	kFXWaterDripThingReplace,
-	kFXBloodDripThingReplace,
+    kFXGibThingReplace,
+    kFXWaterDripThingReplace,
+    kFXBloodDripThingReplace,
     kFXMax
 };
 

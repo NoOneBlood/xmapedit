@@ -8,57 +8,57 @@ struct MAPEDIT_HUD;
 #pragma pack(push, 1)
 struct DIALOG_ITEM
 {
-	char flags;
-	unsigned int enabled			: 1;
-	unsigned int x					: 8;
-	unsigned int y					: 8;
-	unsigned int tabGroup			: 10;
-	unsigned int type				: 8;
-	char *formatLabel;
-	int minValue;
-	int maxValue;
-	char **names;	
-	char (*pHelpFunc)(DIALOG_ITEM* pRoot, DIALOG_ITEM* pItem, BYTE key);
-	char *readyLabel;
-	int readyLabelLen;
-	int value;
-	unsigned int selected			: 1;
+    char flags;
+    unsigned int enabled            : 1;
+    unsigned int x                  : 8;
+    unsigned int y                  : 8;
+    unsigned int tabGroup           : 10;
+    unsigned int type               : 8;
+    char *formatLabel;
+    int minValue;
+    int maxValue;
+    char **names;
+    char (*pHelpFunc)(DIALOG_ITEM* pRoot, DIALOG_ITEM* pItem, BYTE key);
+    char *readyLabel;
+    int readyLabelLen;
+    int value;
+    unsigned int selected           : 1;
 };
 #pragma pack(pop)
 
 class DIALOG_HANDLER
 {
-	private:
-		static IniFile* pHints;
-		static int editStatus;
-		DIALOG_ITEM *pDlg;
-		MAPEDIT_HUD *pHud;
-		ROMFONT* pFont;
-	public:
-		DIALOG_HANDLER(MAPEDIT_HUD* pHud, DIALOG_ITEM* pItem);
-		~DIALOG_HANDLER() { };
-		void Paint(void);
-		void Paint(DIALOG_ITEM* pItem, char focus);
-		void PrintText(DIALOG_ITEM* pItem, char fc, short bc);
-		void DrawCheckbox(DIALOG_ITEM* pItem, char fc, short bc);
-		void DrawHints(DIALOG_ITEM* pItem);
-		void SetLabel(DIALOG_ITEM* pItem, char *__format, ...);
-		void SetValue(int nGroup, int nValue);
-		int  GetValue(int nGroup);
-		char GetItemCoords(DIALOG_ITEM* pItem, int* x1, int* y1, int* x2, int* y2);
-		char Edit(void);
-		
-		DIALOG_ITEM* FirstItem();
-		DIALOG_ITEM* NextItem(DIALOG_ITEM* pItem);
-		DIALOG_ITEM* PrevItem(DIALOG_ITEM* pItem);
-		DIALOG_ITEM* LastItem(DIALOG_ITEM* pItem = NULL);
-		inline char CanAccess(DIALOG_ITEM* pItem) { return (pItem->tabGroup && pItem->enabled); }
-		
+    private:
+        static IniFile* pHints;
+        static int editStatus;
+        DIALOG_ITEM *pDlg;
+        MAPEDIT_HUD *pHud;
+        ROMFONT* pFont;
+    public:
+        DIALOG_HANDLER(MAPEDIT_HUD* pHud, DIALOG_ITEM* pItem);
+        ~DIALOG_HANDLER() { };
+        void Paint(void);
+        void Paint(DIALOG_ITEM* pItem, char focus);
+        void PrintText(DIALOG_ITEM* pItem, char fc, short bc);
+        void DrawCheckbox(DIALOG_ITEM* pItem, char fc, short bc);
+        void DrawHints(DIALOG_ITEM* pItem);
+        void SetLabel(DIALOG_ITEM* pItem, char *__format, ...);
+        void SetValue(int nGroup, int nValue);
+        int  GetValue(int nGroup);
+        char GetItemCoords(DIALOG_ITEM* pItem, int* x1, int* y1, int* x2, int* y2);
+        char Edit(void);
+
+        DIALOG_ITEM* FirstItem();
+        DIALOG_ITEM* NextItem(DIALOG_ITEM* pItem);
+        DIALOG_ITEM* PrevItem(DIALOG_ITEM* pItem);
+        DIALOG_ITEM* LastItem(DIALOG_ITEM* pItem = NULL);
+        inline char CanAccess(DIALOG_ITEM* pItem) { return (pItem->tabGroup && pItem->enabled); }
+
 };
 
 enum
 {
-CONTROL_END 			= 0,
+CONTROL_END             = 0,
 HEADER,
 LABEL,
 NUMBER,
@@ -71,14 +71,14 @@ ELT_SELECTOR,
 
 
 enum {
-kSprDialogData1 		= 34,
+kSprDialogData1         = 34,
 kSprDialogData2,
 kSprDialogData3,
 kSprDialogData4,
 };
 
 enum {
-kWallType				= 1,
+kWallType               = 1,
 kWallRX,
 kWallRx = kWallRX,
 kWallTX,
@@ -102,11 +102,11 @@ kWallOnce,
 kWallLocked,
 kWallInterrupt,
 kWallLockout,
-kWallData			= 23,
+kWallData           = 23,
 };
 
 enum {
-kSectType				= 1,
+kSectType               = 1,
 kSectRX,
 kSectRx = kWallRX,
 kSectTX,
@@ -144,13 +144,13 @@ kSectKey,
 kSectDepth,
 kSectUwater,
 kSectCrush,
-kSectData				= 33,
+kSectData               = 33,
 kSectFX,
 };
 
 enum {
-NO						= 0x00,
-DISABLED				= 0x01,
+NO                      = 0x00,
+DISABLED                = 0x01,
 };
 
 extern DIALOG_ITEM dlgSprite[];

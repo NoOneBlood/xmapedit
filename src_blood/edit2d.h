@@ -42,27 +42,27 @@ int getpointhighlight(int nTresh, int x, int y, int nZoom);
 #define kMaxCirclePoints 64
 class CIRCLEWALL
 {
-	public:
-		POINT2D coords[kMaxCirclePoints + 2];
-		unsigned int count 				: 8;
-		signed   int line;
-		signed   int cenx;
-		signed   int ceny;
-		//-----------------------------------------------------------
-		void Start(int nWall, int x, int y);
-		void Stop();
-		void Setup(int x, int y);
-		void Insert();
-		void Draw(SCREEN2D* pScr);
-		inline void Reset()					{ line = -1, count = 0; }
-		inline void SetPoints(char add)
-		{
-			if (add) count++; else count--;
-			count = ClipRange(count, 2, kMaxCirclePoints);
-		}
-		//-----------------------------------------------------------
-		CIRCLEWALL(int nWall, int x, int y)		{ Start(nWall, x, y); }
-		~CIRCLEWALL() 							{ Stop(); }
+    public:
+        POINT2D coords[kMaxCirclePoints + 2];
+        unsigned int count              : 8;
+        signed   int line;
+        signed   int cenx;
+        signed   int ceny;
+        //-----------------------------------------------------------
+        void Start(int nWall, int x, int y);
+        void Stop();
+        void Setup(int x, int y);
+        void Insert();
+        void Draw(SCREEN2D* pScr);
+        inline void Reset()                 { line = -1, count = 0; }
+        inline void SetPoints(char add)
+        {
+            if (add) count++; else count--;
+            count = ClipRange(count, 2, kMaxCirclePoints);
+        }
+        //-----------------------------------------------------------
+        CIRCLEWALL(int nWall, int x, int y)     { Start(nWall, x, y); }
+        ~CIRCLEWALL()                           { Stop(); }
 };
 
 extern SCREEN2D gScreen2D;
