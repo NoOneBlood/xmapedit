@@ -1,0 +1,78 @@
+[Header]
+Version=1
+MapCRC=112018801
+
+[001]
+Position=(-3278, 657, -2164, -249)
+Text001=Z-Motion requires to set heights (Alt+F3 - Alt+F4).
+Appearance=(159, -1, 0, 0)
+
+[002]
+Position=(-3656, -14697, -2076, -15541)
+Text001=Z-Motion SPRITE to make the sprite move along with the door.
+Appearance=(159, -1, 0, 0)
+
+[003]
+Position=(8026, -10114, 5480, -9582)
+Text001=Thanks to Cmd 5 and FX settings, room lightens up.
+Appearance=(159, -1, 0, 0)
+
+[004]
+Position=(3380, -13174, 1293, -12934)
+Text001=This door can only be opened from this side.
+Appearance=(159, -1, 0, 0)
+
+[005]
+Position=(3522, -12425, 1302, -12652)
+Text001=Message from player will display if door is opened from here.
+Appearance=(159, -1, 0, 0)
+
+[006]
+Position=(-3157, -26550, -2067, -25329)
+Text001=Z-Motion SPRITE to make gibs move along with the door.
+Appearance=(159, -1, 0, 0)
+
+[007]
+Position=(-6792, -25993, -8157, -25414)
+Text001=Player has to push repeatedly to open the door.
+Appearance=(159, -1, 0, 0)
+
+[008]
+Position=(-6764, -25779, -8087, -24927)
+Text001=Beware! Door will close and may crush the player.
+Appearance=(159, -1, 0, 0)
+
+[009]
+Position=(-6484, -22915, -8081, -22243)
+Text001=Door cells as in E1L3 from Duke Nukem 3D.
+Appearance=(159, -1, 0, 0)
+
+[010]
+Position=(-3241, -26235, -2198, -25160)
+Text001=Bob effect to imitate door malfunction.
+Appearance=(159, -1, 0, 0)
+
+[011]
+Position=(-15258, -17051, -14556, -16418)
+Text001=Slope auto-alignment enabled.
+Appearance=(159, -1, 0, 0)
+
+[012]
+Position=(-15398, -20114, -14606, -18788)
+Text001=Combine red sectors to make interesting door designs.
+Appearance=(159, -1, 0, 0)
+
+[013]
+Position=(-14992, -23179, -14464, -22342)
+Text001=Door with failsafes.
+Appearance=(159, -1, 0, 0)
+
+[014]
+Position=(-15907, -26515, -14483, -24865)
+Text001=Gib object has invisible flag enabled. This way it can send cmd multiple times.
+Appearance=(159, -1, 0, 0)
+
+[015]
+Position=(-2853, -20118, -2196, -19475)
+Text001=Red sector + bottom swap flag (2) in wall to keep tiles static.
+Appearance=(159, -1, 0, 0)

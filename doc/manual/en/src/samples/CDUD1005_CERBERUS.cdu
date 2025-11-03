@@ -1,0 +1,303 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;This is a custom Cerberus with 2 heads similar
+
+;to vanilla but more dangerous since it's
+
+;projectiles follows the target
+
+;and it can stomp it
+
+;
+
+[General]
+
+Version             = 2
+
+Name                = Custom Cerberus
+
+Author              = NoOne
+
+Mass                = 65535
+
+HearDist            = 5120
+
+SeeDist             = 12800
+
+Periphery           = 682
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Morphs into Custom Cerberus with 1 dead head
+
+MorphTo             = CDUD9987
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Cannot live underwater
+
+Medium              = Land
+
+Health              = 200
+
+ClipDist            = 72
+
+
+
+
+[Velocity]
+
+Stand               = (Forward=9000, Turn=15)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Using vanilla animation with larger scale
+
+;
+
+[Animation]
+
+Scale               = 110%
+
+Idle                = 9728
+
+Move                = 9735
+
+RecoilDefault       = 9733
+
+RecoilElectric      = 9732
+
+Morphing            = 9729
+
+DeathDefault        = 9985
+
+
+
+
+[Sound]
+
+TargetSpot          = (2300, 200%)
+
+TargetChase         = (2300, 2301, 200%)
+
+GotHit              = (2302, 2303, 200%)
+
+DeathDefault        = (2304, 2305, 2306, 200%)
+
+Morphing            = (2302, 300%)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;All weapons have timer set to 60, so is not
+
+;playing full animation which makes it
+
+;similar to vanilla
+
+;
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Bite
+
+;
+
+[Weapon1]
+
+Type                = VECTOR_15
+
+Distance            = (0, 128)
+
+Dispersion          = 60%
+
+PickChance          = 100%
+
+AttackAnimation     = 9734
+
+AimAngle            = 512
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;3 bites at once
+
+AttackSetup         = (Timer=60, Interruptable=true, TurnToTarget=true, NumShots=3)
+
+ShotSound           = (1307, 1308, 200%)
+
+Cooldown            = 8
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Burning flames
+
+;
+
+[Weapon2]
+
+Type                = PROJECTILE_9
+
+Distance            = (200, 400)
+
+PickChance          = 100%
+
+Dispersion          = 0%
+
+AttackAnimation     = 9734
+
+AimAngle            = 512
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;2 flames (left/right head)
+
+AttackSetup         = (Timer=60, Interruptable=true, TurnToTarget=true, NumShots=2)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Spawn first projectile on the left side, add target track angle
+
+ShotSetup           = (Offset=(-320, 512, 0), FollowAngle=2048)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Offset for second projectile relative to first
+
+Style               = (Offset=(640, 0, 0))
+
+
+
+
+ShotSound           = (1309, 200%)
+
+Cooldown            = 8
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Fireballs
+
+;
+
+[Weapon3]
+
+Type                = PROJECTILE_14
+
+Distance            = (400, 3072)
+
+PickChance          = 100%
+
+Dispersion          = (70%, 0%)
+
+AttackAnimation     = 9734
+
+AimAngle            = 512
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;2 fireballs (left/right head)
+
+AttackSetup         = (Timer=60, Interruptable=true, TurnToTarget=true, NumShots=2, Prediction=(512, 341, 100))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Spawn first projectile on the left side, add target track angle
+
+ShotSetup           = (Offset=(-320, 1024, 0), Velocity=3072, FollowAngle=16)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Offset for second projectile relative to first
+
+Style               = (Offset=(640, 0, 0))
+
+
+
+
+ShotAppearance      = (Scale=120%)
+
+ShotSound           = (1309, 200%)
+
+Cooldown            = 8
+
+
+
+
+[Recoil]
+
+OnDamage            = (30, 80%)
+
+
+
+
+[MoveSetup]
+
+MoveDirTimer        = 128
+
+
+
+
+[Damage]
+
+Falling             = 5%
+
+Burning             = 0%
+
+Bullet              = 5%
+
+Explode             = 5%
+
+Choke               = 0%
+
+Spirit              = 50%
+
+Electric            = 25%
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Prevents suicide
+
+IgnoreDamageFrom    = Self
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Deal damage to target when standing on it
+
+StompDamage         = 64
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Effect for dying right head
+
+;
+
+[FXEffect1]
+
+Type                = (GIB8, GIB19)
+
+Offset              = (350, 1024, 256)
+
+OnState             = Morphing
+
+AnimFrame           = (1, 2)
+
+Delay               = 6

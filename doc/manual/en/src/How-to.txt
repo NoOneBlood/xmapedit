@@ -9,7 +9,7 @@ https://www.helpndoc.com/
 On presentation and guidelines.
 
 1. Every blue dot next to the table of contents means the content needs to be improved/reviewed.
-2. There's a section named "Table of contents" where the user can review each content and navigate directly to said content.
+2. There's a chapter named "Table of contents" where the user can review each content and navigate directly to said content.
 Once the content is fully improved/reviewed, you should add a direct link.
 
 On adding content.

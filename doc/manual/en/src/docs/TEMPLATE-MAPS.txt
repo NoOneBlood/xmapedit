@@ -1,38 +1,65 @@
 
 
-
                             >>>>ENGLISH<<<<
 
 
 ======================================================================
 
 THIS LEVEL IS NEITHER MADE BY OR SUPPORTED BY MONOLITH PRODUCTIONS,
-GT INTERACTIVE SOFTWARE, THE WIZARDWORKS GROUP, OR ANY OF THEIR
-AFFILIATES AND SUBSIDIARIES.
+WARNER BROS, ATARI (FORMERLY INFOGRAMES, GT INTERACTIVE SOFTWARE),
+THE WIZARDWORKS GROUP, NIGHTDIVE SOFTWARE OR ANY OF THEIR AFFILIATES
+AND SUBSIDIARIES.
+
+* Contents *
+
+-General information
+-Installation instructions
+-Play information
+-Compatibility
+-Suggested play
+-Construction
+-Walkthrough and secrets guide
+-Copyright / Permissions
+-Where to get this MAP
+
+======================================================================
+
+* General information*
 
 Game                   : Blood
 Title                  : Type the full name of your map
 Filename               : Type the full file name
 Date		       : The date you finished your map
 Author                 : Your name/nickname
-E-mail                 : Your email address
-Web page               : Your website if you have any
 Misc. author info      : Type stuff about you if you want
-Other levels I've made : Type other levels you have made
+Contact
+		         E-mail: Your email address
+		         Web page: Your website if you have any
+			 Add any other social media if you want
+
+Other levels I've made : List other levels you have made
 Description            : Write a map description
 Additional credits to  : Mention any person you want to credit
 
 ======================================================================
 
+* Installation instructions *
+
+Installation           : Tell the user how to run your map
+Additional Notes       : Mention any relevant notes here
+
+======================================================================
+
 * Play Information *
 
-Episode and Level #    : If your map replaces an original one
+Episode and Level #    : If your map replaces an original one. If not, N/A
 Single Player          : 
 BloodBath 2-8 Player   : 
 Cooperative 2-8 Player : 
 CTF (Team Play)        : 
 Difficulty Settings    : 
-Plasma Pak required    : 
+Pitchfork start        : 
+Plasma Pak required    :
 Cryptic Passage art    : 
 New Art                : 
 New Music              : 
@@ -49,7 +76,13 @@ Fresh Supply           :
 BloodGDX/Related forks : 
 nBlood/Related forks   : 
 Raze/Related forks     : 
-Additional notes       : mod compatibility issues and things like that
+Additional notes       : any other relevant notes about compatibility
+
+======================================================================
+
+* Suggested play *
+
+Settings               : Tell the user if they need to enable certaing settings (i.e., enable respawn enemies flag)
 
 ======================================================================
 
@@ -64,11 +97,9 @@ Known Bugs/Problems    :
 
 ======================================================================
 
-* Important Information *
+* Walkthrough and secrets guide *
 
-Installation           : Tell the user how to run your map
-Notes                  : Mention any relevant notes here
-Guide		       : Type a short guide if you want
+Walkthrough	       : Type a short guide if you want
 Secrets		       : Type a secrets guide if you want
 
 ======================================================================
@@ -83,8 +114,8 @@ file, with no modifications. You may (not) distribute MY MAP.map in
 any electronic format (BBS, Diskette, CD, etc.) as long as you include
 this TXT intact.
 
-If you do include my map on a CD compilation I would be very happy if 
-you would send me a copy of that CD.
+If you do include my map on a physical compilation I would be very
+happy if you would send me a copy of that compliation.
 
 ======================================================================
 

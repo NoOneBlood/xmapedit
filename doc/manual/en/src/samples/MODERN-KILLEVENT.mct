@@ -1,0 +1,58 @@
+[Header]
+Version=1
+MapCRC=-292925626
+
+[001]
+Position=(-2645, -534, -1, -253)
+Text001=Triggers trap
+Appearance=(159, -1, 0, 0)
+
+[002]
+Position=(5126, -804, 5119, -494)
+Text001=Lowers cage
+Appearance=(159, -1, 0, 0)
+
+[003]
+Position=(5113, -269, 5116, 5)
+Text001=Shows countdown on screen. Starts countdown
+Appearance=(159, -1, 0, 0)
+
+[004]
+Position=(5519, 249, 5521, 522)
+Text001=Right digit count
+Appearance=(159, -1, 0, 0)
+
+[005]
+Position=(4610, 271, 4603, 529)
+Text001=Left digit count
+Appearance=(159, -1, 0, 0)
+
+[006]
+Position=(6652, -768, 6652, -483)
+Text001=Counter for locks in TV
+Appearance=(159, -1, 0, 0)
+
+[007]
+Position=(6164, -277, 6151, 4)
+Text001=Kill event to stop countdown
+Appearance=(159, -1, 0, 0)
+
+[008]
+Position=(7179, -261, 7163, 30)
+Text001=Rises cage
+Appearance=(159, -1, 0, 0)
+
+[009]
+Position=(5097, 762, 5130, 1067)
+Text001=Enables cannon animation
+Appearance=(159, -1, 0, 0)
+
+[010]
+Position=(-2525, 516, -1543, 1198)
+Text001=Triggers explosions
+Appearance=(159, -1, 0, 0)
+
+[011]
+Position=(6655, -1343, 6651, -1007)
+Text001=Unblocks locks on TV
+Appearance=(159, -1, 0, 0)

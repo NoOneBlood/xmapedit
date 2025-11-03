@@ -1,0 +1,48 @@
+[Header]
+Version=1
+MapCRC=58945218
+
+[001]
+Position=(-1287, -309, 3, -261)
+Text001=Triggers trap
+Appearance=(159, -1, 0, 0)
+
+[002]
+Position=(4611, -898, 4607, -501)
+Text001=Lowers cage
+Appearance=(159, -1, 0, 0)
+
+[003]
+Position=(4623, -265, 4616, 0)
+Text001=Unblocks locks in TV
+Appearance=(159, -1, 0, 0)
+
+[004]
+Position=(4615, 231, 4615, 522)
+Text001=Shows countdown on screen
+Appearance=(159, -1, 0, 0)
+
+[005]
+Position=(4340, 728, 4353, 1033)
+Text001=1st digit
+Appearance=(159, -1, 0, 0)
+
+[006]
+Position=(4604, 727, 4602, 1028)
+Text001=2nd digit
+Appearance=(159, -1, 0, 0)
+
+[007]
+Position=(5654, 714, 4894, 1031)
+Text001=Blocks countdown when reaches 0
+Appearance=(159, -1, 0, 0)
+
+[008]
+Position=(5637, -265, 5641, 15)
+Text001=Deactivates trap
+Appearance=(159, -1, 0, 0)
+
+[009]
+Position=(4623, 1272, 4614, 1537)
+Text001=Triggers cannon animation
+Appearance=(159, -1, 0, 0)

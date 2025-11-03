@@ -1,0 +1,88 @@
+
+
+                            >>>>ENGLISH<<<<
+
+
+======================================================================
+
+THIS/THESE SPRITE PREFAB/S IS/ARE NEITHER MADE BY OR SUPPORTED BY
+MONOLITH PRODUCTIONS,WARNER BROS, ATARI (FORMERLY INFOGRAMES, GT
+INTERACTIVE SOFTWARE), THE WIZARDWORKS GROUP, NIGHTDIVE SOFTWARE OR ANY
+OF THEIR AFFILIATES AND SUBSIDIARIES.
+
+* Contents *
+
+-General information
+-Installation instructions
+-Compatibility
+-Construction
+-Copyright / Permissions
+-Where to get this SPRITE PREFAB
+
+
+======================================================================
+
+* General information*
+
+Game                   : Blood
+Title                  : Type the full name of your sprite prefab
+Filename               : Type the full file name
+Date		       : The date you finished your prefab
+Author                 : Your name/nickname
+Misc. author info      : Type stuff about you if you want
+Contact
+		         E-mail: Your email address
+		         Web page: Your website if you have any
+			 Add any other social media if you want
+
+Other content I've made: List other content you have made
+Description            : Write a sprite prefab description
+Additional credits to  : Mention any person you want to credit
+
+======================================================================
+
+* Installation instructions *
+
+Installation           : Unzip the content in xmapedit > prefabs >
+			 specify the folder
+Additional Notes       : Mention any relevant notes here
+
+======================================================================
+
+*Compatibility*
+
+Vanilla Blood          : 
+Modern Features        :
+Slopes                 : 
+Additional notes       : any other relevant notes about compatibility
+
+======================================================================
+
+* Construction *
+
+Level Editor(s) Used   : 
+Art Editor(s) Used     : 
+Other Programs Used    : 
+Construction Time      : The time it took to make your sprite prefab
+Known Bugs/Problems    : 
+
+======================================================================
+
+* Copyright / Permissions *
+
+Authors may (may not) use MY PREFAB as a base to make additional
+prefabs.
+
+You may (may not) distribute MY PREFAB , provided you include this
+file, with no modifications. You may (not) distribute MY PREFAB in
+any electronic format (BBS, Diskette, CD, etc.) as long as you include
+this TXT intact.
+
+If you do include MY PREFAB on a physical compilation I would be very
+happy if you would send me a copy of that compliation.
+
+======================================================================
+
+* Where to get this SPRITE PREFAB *
+
+WWW                    :

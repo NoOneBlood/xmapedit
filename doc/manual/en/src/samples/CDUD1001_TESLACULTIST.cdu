@@ -1,0 +1,447 @@
+[General]
+
+Version             = 2
+
+Name                = Custom Tesla Cultist
+
+Author              = NoOne
+
+Medium              = Any
+
+Mass                = 75
+
+Health              = 80
+
+ClipDist            = 48
+
+SeeDist             = 6400
+
+HearDist            = 1280
+
+Periphery           = 682
+
+
+
+
+
+
+
+[Velocity]
+
+Stand               = (Forward=14000, Turn=20, Dodge=10000)
+
+Crouch              = (Forward=10000, Turn=10, Dodge=5000)
+
+Swim                = (Forward=10000, Turn=10, Dodge=5000)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Uses vanilla shotgun cultist animation
+
+;with a bit larger scale
+
+;
+
+[Animation]
+
+Scale               = 107%
+
+Idle                = (Stand=11520, Crouch=11537, Swim=11533)
+
+Move                = (Stand=11529, Crouch=11534, Swim=11533)
+
+RecoilDefault       = (Stand=11525, Crouch=11525, Swim=11525)
+
+RecoilElectric      = (Stand=11524, Swim=11525)
+
+Burning             = 11523
+
+DeathDefault        = 11521
+
+DeathBurning        = (11536, 4111)
+
+DeathExplode        = 11522
+
+
+
+
+[Sound]
+
+TargetSpot          = (1003, 1004, 1006)
+
+TargetChase         = (1007, 1009, 1010)
+
+TargetDead          = (1021, 1022, 1023)
+
+GotHit              = (1013, 1014)
+
+Burning             = (1031, 1032)
+
+DeathDefault        = (1018, 1019)
+
+DeathBurning        = (1018, 1020)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Melee that could push target back so it can be
+
+;attacked with other weapons as well.
+
+;
+
+[Weapon1]
+
+Type                = VECTOR_23
+
+Posture             = Stand
+
+Distance            = (0, 110)
+
+PickChance          = 80%
+
+Dispersion          = 0%
+
+AimAngle            = 512
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Allowed only when in target body range
+
+Height              = 0
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Unused jump animation. Fire trigger sets to the last frame
+
+;
+
+AttackAnimation     = 11530
+
+
+
+
+AttackSetup         = (TurnToTarget=true, Timer=35)
+
+ShotSound           = (357, 120%)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Tesla Riffle - makes 8 shots per single trigger
+
+;Requires a good accuracy and have less dispersion, but great cooldown
+
+;Used to fire on longer distances.
+
+;
+
+[Weapon2]
+
+Type                = PROJECTILE_7
+
+Posture             = (Stand, Crouch)
+
+Distance            = (768, 2048)
+
+PickChance          = 80%
+
+Dispersion          = (20%, 0%)
+
+AimAngle            = 8
+
+AimSlope            = (-256, 256)
+
+AttackAnimation     = (Stand=11526, Crouch=11528, Swim=11528)
+
+AttackSetup         = (TurnToTarget=false, Timer=100, NumShots=8)
+
+ShotAppearance      = (Scale=70%, Tile=1856, Pal=10, Shade=-128)
+
+ShotSetup           = (Offset=(-64, 0, -32), ClipDist=8)
+
+ShotSound           = (471, 400%)
+
+TargetHealth        = (50%, 200%)
+
+Cooldown            = (256, 2)
+
+Style               = (Offset=(0, 128, 0))
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Tesla Gun - similar to vanilla. Have less fire
+
+;rate and greater dispersion.
+
+;
+
+[Weapon3]
+
+Type                = PROJECTILE_7
+
+Posture             = (Stand, Crouch)
+
+Distance            = (200, 1024)
+
+PickChance          = 100%
+
+Dispersion          = (40%, 20%)
+
+AimAngle            = 32
+
+AttackAnimation     = (Stand=11526, Crouch=11528, Swim=11528)
+
+AttackSetup         = (TurnToTarget=true, NumShots=1)
+
+ShotSound           = (478, 479, 80%)
+
+ShotAppearance      = (Scale=80%, Pal=10, Shade=-128)
+
+Cooldown            = (128, 48)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Throws 3 styled dynamite sticks at a time.
+
+;
+
+[Weapon4]
+
+Type                = THROW_19
+
+Posture             = Stand
+
+Distance            = (512, 1280)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Allowed only when in target body range
+
+Height              = 0
+
+Dispersion          = (30%, 0%)
+
+PickChance          = 50%
+
+AimAngle            = 32
+
+AttackAnimation     = 11527
+
+AttackSetup         = (TurnToTarget=false, NumShots=3, Slope=-128)
+
+ShotAppearance      = (Seq=22, Callback=6, Scale=80%, Pal=10, Sound=0)
+
+ShotSetup           = (Impact=true)
+
+ShotSound           = (4000, 200%)
+
+Cooldown            = 256
+
+Style               = (Angle=128)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;The dude can't attack underwater, so it flees.
+
+;
+
+[Weapon8]
+
+Type                = NONE
+
+Medium              = Water
+
+Distance            = (0, 32767)
+
+PickChance          = 100%
+
+AimAngle            = 2047
+
+
+
+
+[Dodge]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Dodge when aims in other sprite than target
+
+;
+
+OnAimMiss           = 80%
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Using easy syntax:
+
+;Dodge when getting any damage type
+
+;except spirit
+
+;
+
+OnDamage            = (5, 100%)
+
+OnDamageSpirit      = (0, 0%)
+
+
+
+
+[Recoil]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Using full syntax:
+
+;Recoil when getting any damage type once health
+
+;below 65%
+
+;
+
+OnDamage            = (Amount=15, Chance=100%, Health=65%)
+
+
+
+
+[Crouch]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Using full syntax:
+
+;Crouch for ranged ticks once get any
+
+;damage type and health is below 80%. Note that
+
+;since recoil group defined, crouch animation for
+
+;recoi must be defined as well!
+
+;
+
+OnDamage            = (Amount=10, Chance=85%, Health=80%, StateTime=(128, 256))
+
+
+
+
+[Damage]
+
+;prevents dying from explosions
+
+IgnoreDamageFrom    = Self
+
+
+
+
+Falling             = 90%
+
+Burning             = 130%
+
+Bullet              = 80%
+
+Explode             = 95%
+
+Choke               = 95%
+
+Spirit              = 80%
+
+Electric            = 2%
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Drop tesla ammo
+
+;
+
+[DropItem]
+
+Item1               = (73, 40%)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;An effect for Tesla Riffle
+
+;
+
+[FXEffect1]
+
+Type                = GIB25
+
+Appearance          = (Scale=120%)
+
+Offset              = (0, 0, 380)
+
+OnState             = WEAPON_2
+
+AnimFrame           = (1, 2)
+
+Delay               = 8
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Body parts for explode death
+
+;
+
+[FXEffect2]
+
+Type                = (GIB16, GIB19, GIB8)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Cstat entry allows us to remove blocking flag
+
+;from gib sprites, so no annoying gib
+
+;collision
+
+;
+
+Appearance          = (Cstat=(0, 1))
+
+
+
+
+OnState             = DeathExplode
+
+Delay               = 16
+
+AnimFrame           = 2
+
+SpawnAll            = true

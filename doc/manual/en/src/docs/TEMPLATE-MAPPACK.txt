@@ -1,0 +1,123 @@
+
+
+                            >>>>ENGLISH<<<<
+
+
+======================================================================
+
+THIS MAP PACK IS NEITHER MADE BY OR SUPPORTED BY MONOLITH PRODUCTIONS,
+WARNER BROS, ATARI (FORMERLY INFOGRAMES, GT INTERACTIVE SOFTWARE),
+THE WIZARDWORKS GROUP, NIGHTDIVE SOFTWARE OR ANY OF THEIR AFFILIATES
+AND SUBSIDIARIES.
+
+* Contents *
+
+-General information
+-Installation instructions
+-Play information
+-Compatibility
+-Suggested play
+-Construction
+-Walkthrough and secrets guide
+-Copyright / Permissions
+-Where to get this MAP PACK
+
+======================================================================
+
+* General information*
+
+Game                   : Blood
+Title                  : Type the full name of your Map Pack
+Filename               : Type the full file name
+Date		       : The date you finished your Map Pack
+Author                 : Your name/nickname
+Misc. author info      : Type stuff about you if you want
+Contact
+		         E-mail: Your email address
+		         Web page: Your website if you have any
+			 Add any other social media if you want
+
+Other levels I've made : List other levels you have made
+Description            : Write a Map Pack description
+Additional credits to  : Mention any person you want to credit
+
+======================================================================
+
+* Installation instructions *
+
+Installation           : Tell the user how to run your Map Pack
+Additional Notes       : Mention any relevant notes here
+
+======================================================================
+
+* Play Information *
+
+Episode and Level #    : If your Map Pack replaces an original one. If not, N/A
+Single Player          : 
+BloodBath 2-8 Player   : 
+Cooperative 2-8 Player : 
+CTF (Team Play)        : 
+Difficulty Settings    : 
+Pitchfork start        : 
+Plasma Pak required    : 
+Cryptic Passage art    : 
+New Art                : 
+New Music              : 
+New Sound Effects      : 
+New Files              : 
+Demos Replaced         : 
+
+======================================================================
+
+*Compatibility*
+
+Vanilla Blood          : 
+Fresh Supply           : 
+BloodGDX/Related forks : 
+nBlood/Related forks   : 
+Raze/Related forks     : 
+Additional notes       : any other relevant notes about compatibility
+
+======================================================================
+
+* Suggested play *
+
+Settings               : Tell the user if they need to enable certaing settings (i.e., enable respawn enemies flag)
+
+======================================================================
+
+* Construction *
+
+Level Editor(s) Used   : 
+Art Editor(s) Used     : 
+Other Programs Used    : 
+Construction Time      : The time it took to make your Map Pack
+Known Bugs/Problems    : 
+
+======================================================================
+
+* Walkthrough and secrets guide *
+
+Walkthrough	       : Type a short guide if you want
+Secrets		       : Type a secrets guide if you want
+
+======================================================================
+
+* Copyright / Permissions *
+
+Authors may (may not) use MY MAPPACK as a base to build additional
+levels.
+
+You may (may not) distribute MY MAPPACK, provided you include this
+file, with no modifications. You may (not) distribute MY MAPPACK in
+any electronic format (BBS, Diskette, CD, etc.) as long as you include
+this TXT intact.
+
+If you do include my MY MAPPACK on a physical compilation I would be very
+happy if you would send me a copy of that compliation.
+
+======================================================================
+
+* Where to get this MAP PACK *
+
+WWW                    :

@@ -1,0 +1,13 @@
+[Header]
+Version=1
+MapCRC=-1829833168
+
+[001]
+Position=(5971, 12931, 7285, 12991)
+Text001=Slide sector with State off.
+Appearance=(159, -1, 0, 0)
+
+[002]
+Position=(6244, 9820, 7406, 10508)
+Text001=Slide sector with State on.
+Appearance=(159, -1, 0, 0)

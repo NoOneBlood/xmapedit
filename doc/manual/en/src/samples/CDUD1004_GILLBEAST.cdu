@@ -1,0 +1,159 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;This is a custom Gill Beast similar to vanilla
+
+;have unused vanilla death and recoil
+
+;animations with some additional
+
+;fx effects
+
+;
+
+[General]
+
+Version             = 2
+
+Name                = Custom Gill Beast
+
+Author              = NoOne
+
+Mass                = 200
+
+Medium              = Any
+
+Health              = 50
+
+ClipDist            = 64
+
+
+
+
+[Velocity]
+
+Stand               = (Forward=10000, Turn=30, Dodge=8000)
+
+Swim                = (Forward=20000, Turn=50, Dodge=15000)
+
+
+
+
+[Animation]
+
+Idle                = (Stand=7168, Swim=7178)
+
+Move                = (Stand=7177, Swim=7178)
+
+RecoilDefault       = (Stand=7173, Swim=7179)
+
+RecoilElectric      = 7172
+
+DeathDefault        = (7169, 7171, 7176)
+
+DeathExplode        = 7170
+
+
+
+
+[Sound]
+
+TargetSpot          = (1700, 1701, 200%)
+
+TargetChase         = (1700, 200%)
+
+GotHit              = (1702, 200%)
+
+DeathDefault        = (1703, 1704, 200%)
+
+DeathExplode        = (1705, 200%)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Biting
+
+;
+
+[Weapon1]
+
+Type                = VECTOR_9
+
+Distance            = (0, 90)
+
+PickChance          = 100%
+
+AttackAnimation     = (Stand=7174, Swim=7175)
+
+AttackSetup         = (Timer=60, NumShots=3, Inertia=true)
+
+Dispersion          = 60%
+
+AimAngle            = 32
+
+ShotSound           = 0
+
+
+
+
+[Recoil]
+
+OnDamage            = (30, 100%)
+
+
+
+
+[Dodge]
+
+OnDamage            = (5, 60%)
+
+
+
+
+[Damage]
+
+Falling             = 15%
+
+Burning             = 20%
+
+Bullet              = 25%
+
+Explode             = 80%
+
+Choke               = 0%
+
+Spirit              = 80%
+
+Electric            = 30%
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Add bubbles while swimming
+
+;
+
+[FXEffect1]
+
+Type                = (GIB9, GIB10, GIB11)
+
+OnState             = Move
+
+Posture             = Swim
+
+SpawnChance         = 80%
+
+Velocity            = 256
+
+VelocitySlope       = 512
+
+Angle               = 1024
+
+Appearance          = (Sound=263, Scale=150%)
+
+Offset              = (0, -512, 256)
+
+Delay               = 4

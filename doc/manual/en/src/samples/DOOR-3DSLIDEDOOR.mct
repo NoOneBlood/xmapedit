@@ -1,0 +1,33 @@
+[Header]
+Version=1
+MapCRC=-148589415
+
+[001]
+Position=(-1791, -6800, -1794, -4230)
+Text001=Sector is Slide Marked. Contains red sectors marked for movement.
+Appearance=(159, -1, 0, 0)
+
+[002]
+Position=(-323, -6267, -328, -4235)
+Text001=Floor and ceiling will overlap, causing a visual glitch. That is expected.
+Appearance=(159, -1, 0, 0)
+
+[003]
+Position=(-1288, -6509, -1273, -4283)
+Text001=Door walls are not on top of the white wall. It is done to prevent visual glitches.
+Appearance=(159, -1, 0, 0)
+
+[004]
+Position=(7904, -1694, 4091, -1385)
+Text001=The switch operates the door.
+Appearance=(159, -1, 0, 0)
+
+[005]
+Position=(8136, -409, 4694, -212)
+Text001=Sector is Slide Marked. Contains red sectors marked for movement.
+Appearance=(159, -1, 0, 0)
+
+[006]
+Position=(8191, -2446, 4611, -2141)
+Text001=Door walls are not on top of the white wall. It is done to prevent visual glitches.
+Appearance=(159, -1, 0, 0)
