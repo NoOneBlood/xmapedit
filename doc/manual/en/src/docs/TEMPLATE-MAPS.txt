@@ -82,7 +82,9 @@ Additional notes       : any other relevant notes about compatibility
 
 * Suggested play *
 
-Settings               : Tell the user if they need to enable certaing settings (i.e., enable respawn enemies flag)
+Settings               : Tell the user if they need to enable certaing
+			 settings (i.e., enable respawn enemies flag)
+			 or use a controller.
 
 ======================================================================
 
