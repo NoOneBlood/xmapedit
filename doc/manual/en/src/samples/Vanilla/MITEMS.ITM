@@ -1,0 +1,174 @@
+############################################################
+# This is a file which allows to define custom items.
+# Visit http://cruo.bloodgame.ru/xxsystem/citem/
+# for full documentation on how to define your
+# own.
+#
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; A section that defines file version must always
+; exist as well as the Version
+; parameter.
+;
+[General]
+Version = 1
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; New item that does nothing, but shows
+; "Picked up Hello world item"
+; message. That's it!
+;
+[Hello world item]
+Type = (Ammo, 199)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; New item that will add 1 ammo for
+; sawed-off weapon and sets
+; custom pickup effect
+;
+[1 Shotgun Shell]
+Type                = (Ammo, 196)
+Appearance          = (Tile=2464, Size=16, Pal=2)
+AddAmmo             = (Amount=1, MaxAmount=100, Slot=3)
+AddScreenEffect     = (Amount=5, Slot=1)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Replace Doctor's Bag item with medikit version
+; that immediately heals player for 35 units
+; instead of adding it to inventory.
+;
+[Medikit]
+Type                = (Health, 107)
+Appearance          = (Tile=519, Size=40)
+AddHealth           = (Amount=35, MaxAmount=100)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; New item that will add 5 units for doctor's
+; bag inventory item on
+; pickup
+;
+[Bandage]
+Type                = (Item, 197)
+Appearance          = (Tile=2189, Size=40, Pal=1, Shade=16)
+AddInventory        = (Amount=5, MaxAmount=100, Slot=1)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; New item that will add 2 units to fire armor
+; slot if current fire armor value less
+; than 200 and sets respawn time
+; to 15 seconds.
+;
+[Fire Armor Shard]
+Type                = (Armor, 195)
+Appearance          = (Tile=2186, Size=48, Pal=2)
+RespawnTime         = 15
+AddArmor            = (Amount=2, MaxAmount=200, Slot=2)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; New item that will add 5 units to all armor slots
+; if their values less than 200 and sets respawn
+; time to 15 seconds.
+;
+[Armor Shard]
+Type                = (Armor, 194)
+Appearance          = (Tile=2628, Size=32)
+RespawnTime         = 15
+
+AddArmor            = (Amount=5, MaxAmount=200, Slot=1)
+AddArmor            = (Amount=5, MaxAmount=200, Slot=2)
+AddArmor            = (Amount=5, MaxAmount=200, Slot=3)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Replace original basic armor item to allow it
+; add more than 50 units of armor when it
+; less than 150.
+;
+[Basic Armor]
+Type                = (Armor, 140)
+Appearance          = (Tile=2628, Size=64)
+
+AddArmor            = (Amount=50, MaxAmount=150, Slot=1)
+AddArmor            = (Amount=50, MaxAmount=150, Slot=2)
+AddArmor            = (Amount=50, MaxAmount=150, Slot=3)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; New item that will damage player for 5 units on
+; pickup. It may even kill player once it's
+; health reaches zero. It also sets pain
+; screen effect.
+;
+[Acid Potion]
+Type                = (Item, 198)
+Appearance          = (Tile=517, Size=32, Pal=4)
+SubHealth           = (Amount=5, MinAmount=0)
+SetScreenEffect     = (Amount=30, Slot=2)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Replace flare pistol weapon item so that it gives weapon
+; and 4 ammo. Note that i put AddAmmo action before
+; SetWeapon. It may be important when
+; player have no any weapon, so it
+; will auto-switched.
+;
+[Flare Pistol]
+Type                = (Weapon, 43)
+Appearance          = (Tile=524, Size=48)
+AddAmmo             = (Amount=4, MaxAmount=100, Slot=2)
+SetWeapon           = (Amount=1, Slot=2)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; A very cool new item that does multiple actions:
+; 1. Add 200 health if current less than 200 (required).
+; 2. Add 200 armor for each slot if current less than 200 (required).
+;
+; If previous actions were successful, it will do also:
+; 3. Add 30 seconds for Guns Akimbo powerup and enable it.
+; 4. Set stronger pickup effect.
+;
+[Mega]
+Type                = (Powerup, 192)
+Appearance          = (Tile=1407, Size=56, Pal=7)
+
+AddHealth           = (Amount=200, MaxAmount=200, Required=1)
+AddArmor            = (Amount=200, MaxAmount=200, Slot=1, Required=1)
+AddArmor            = (Amount=200, MaxAmount=200, Slot=2, Required=1)
+AddArmor            = (Amount=200, MaxAmount=200, Slot=3, Required=1)
+AddPowerTime        = (Amount=30, Slot=18)
+SetScreenEffect     = (Amount=60, Slot=1)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; A really BAD new item that removes skull key from
+; player's inventory. I put it here for you to
+; understand that Sub and Set operations
+; must be used with caution.
+;
+[Lost Skull Key]
+Message             = Oh dear, you just %s
+Type                = (Key, 180)
+Appearance          = (Tile=2552, Size=32, Pal=5)
+SetKey              = (Amount=0, Slot=1)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Another bad item that simply sets all the armor to zero
+; and creates blindness effect. Overrides item group
+; sound.
+;
+[Broke armor]
+Type                = 181
+Message             = Oh dear, you %s haha
+Appearance          = (Tile=2594,   Size=64, Pal=5, Shade=32, Sound=314)
+SetArmor            = (Amount=0,    Slot=1, Required=Yes)
+SetArmor            = (Amount=0,    Slot=2)
+SetArmor            = (Amount=0,    Slot=3)
+SetScreenEffect     = (Amount=64,   Slot=4)

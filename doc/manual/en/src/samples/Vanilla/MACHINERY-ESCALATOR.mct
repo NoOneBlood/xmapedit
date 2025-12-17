@@ -1,0 +1,23 @@
+[Header]
+Version=1
+MapCRC=734645877
+
+[001]
+Position=(-6341, -375, -5449, 179)
+Text001=Triggers escalator when the game starts
+Appearance=(159, -1, 0, 0)
+
+[002]
+Position=(-5543, -4675, -2813, -3277)
+Text001=A thin red sector to avoid wall tiles stretching
+Appearance=(159, -1, 0, 0)
+
+[003]
+Position=(-6577, -2556, -2974, -1172)
+Text001=Panning effect to floor only
+Appearance=(159, -1, 0, 0)
+
+[004]
+Position=(-7652, -3637, -1983, -1800)
+Text001=Slide Marked + movement in Z axis
+Appearance=(159, -1, 0, 0)

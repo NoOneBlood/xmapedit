@@ -73,6 +73,7 @@ Demos Replaced         :
 
 Vanilla Blood          : 
 Fresh Supply           : 
+Refreshed Supply       : 
 BloodGDX/Related forks : 
 nBlood/Related forks   : 
 Raze/Related forks     : 
@@ -82,9 +83,7 @@ Additional notes       : any other relevant notes about compatibility
 
 * Suggested play *
 
-Settings               : Tell the user if they need to enable certaing
-			 settings (i.e., enable respawn enemies flag)
-			 or use a controller.
+Settings               : Tell the user if they need to enable certain settings (i.e., enable respawn enemies flag)
 
 ======================================================================
 
@@ -116,7 +115,7 @@ any electronic format (BBS, Diskette, CD, etc.) as long as you include
 this TXT intact.
 
 If you do include my MY MAPPACK on a physical compilation I would be very
-happy if you would send me a copy of that compliation.
+happy if you would send me a copy of that compilation.
 
 ======================================================================
 
