@@ -325,7 +325,7 @@ void MoveDude(spritetype *pSprite)
 
     if (!(pSprite->type >= kDudeBase && pSprite->type < kDudeMax))
     {
-        previewMessage("pSprite->type >= kDudeBase && pSprite->type < kDudeMax");
+        scrSetLogMessage("pSprite->type >= kDudeBase && pSprite->type < kDudeMax");
         return;
     }
 
@@ -868,8 +868,6 @@ spritetype* actFireMissile(spritetype *pSprite, int a2, int a3, int a4, int a5, 
     pMissile->picnum = pMissileInfo->picnum;
     pMissile->ang = (short) ((pSprite->ang+pMissileInfo->angleOfs)&2047);
 
-    pMissile->yvel = kDeleteReally;
-
     xvel[nMissile] = mulscale(pMissileInfo->velocity, a4, 14);
     yvel[nMissile] = mulscale(pMissileInfo->velocity, a5, 14);
     zvel[nMissile] = mulscale(pMissileInfo->velocity, a6, 14);
@@ -877,7 +875,7 @@ spritetype* actFireMissile(spritetype *pSprite, int a2, int a3, int a4, int a5, 
     pMissile->cstat |= 1;
     int nXSprite = pMissile->extra;
     xsprite[nXSprite].target = -1;
-    evPost(nMissile, 3, 600, kCallbackRemoveSpecial);
+    evPost(nMissile, 3, 600, kCallbackRemove);
 
     actBuildMissile(pMissile, nXSprite, nSprite);
 
@@ -1079,11 +1077,11 @@ void actProcessSprites() {
 
         if (CheckProximity(pDude, posx, posy, posz, cursectnum, 220))
         {
-            XSPRITE *pXDude = &xsprite[pDude->extra];
-            switch (pDude->type) {
+            switch (pDude->type)
+            {
                 case kDudeZombieAxeLaying:
                 case kDudeZombieAxeBuried:
-                    previewMorphDude(pDude, pXDude);
+                    gPreview.DudeMorph(pDude);
                     break;
             }
         }
@@ -1228,8 +1226,7 @@ void actProcessSprites() {
             if (pXSprite->data1 && CheckProximity(pDude, x, y, z, nSector, radius))
             {
                 if (pDude->extra < 0) continue;
-                XSPRITE *pXDude = &xsprite[pDude->extra];
-                previewKillDude(pDude, pXDude);
+                gPreview.DudeKill(pDude);
             }
         }
 
@@ -1444,7 +1441,6 @@ spritetype *actSpawnSprite( int nSector, int x, int y, int z, int nStatus, BOOL 
     spritetype *pSprite = &sprite[nSprite];
 
     setsprite(pSprite->index, x, y, z);
-    pSprite->yvel = kDeleteReally;
     pSprite->type    = 0;
 
     if (bAddXSprite && pSprite->extra == -1)
@@ -1474,7 +1470,7 @@ spritetype* actDropObject( spritetype *pActor, int nObject ) {
     int y = pActor->y;
     if (pActor->sectnum < 0 || pActor->sectnum >= kMaxSectors)
     {
-        previewMessage("%s (%d) have no sector!", gSpriteNames[pActor->type], pActor->index);
+        scrSetLogMessage("%s (%d) have no sector!", gSpriteNames[pActor->type], pActor->index);
         return NULL;
     }
 
@@ -1547,12 +1543,8 @@ void actActivateGibObject(spritetype *pSprite, XSPRITE *pXSprite) {
     if (pXSprite->dropItem)
         actDropObject(pSprite, pXSprite->dropItem);
 
-    //if (pXSprite->key)
-        //actDropObject(pSprite, pXSprite->key + kItemBase - 1);
-
     if (!(pSprite->cstat & kSprInvisible))
-        hideSprite(pSprite);
-        //actPostSprite(pSprite->index, kStatFree);
+        actPostSprite(pSprite->index, kStatFree);
 }
 
 void actPostSprite(int nSprite, int nStatus) {
@@ -1579,14 +1571,22 @@ void actPostSprite(int nSprite, int nStatus) {
 
 void actPostProcess(void) {
 
-    for (int i = 0; i < gPostCount; i++) {
+    for (int i = 0; i < gPostCount; i++)
+    {
         POSTPONE *pPost = &gPost[i];
         int nSprite = pPost->at0;
         spritetype *pSprite = &sprite[nSprite];
         pSprite->flags &= ~32;
         int nStatus = pPost->at2;
-        if (nStatus == kStatFree) previewDelSprite(nSprite);
-        else ChangeSpriteStat(nSprite, nStatus);
+        if (nStatus == kStatFree)
+        {
+            evKill(nSprite, 3);
+            if (sprite[nSprite].extra > 0)
+                seqKill(3, sprite[nSprite].extra);
+            DeleteSprite(nSprite);
+        }
+        else
+            ChangeSpriteStat(nSprite, nStatus);
     }
 
     gPostCount = 0;

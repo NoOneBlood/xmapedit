@@ -22,7 +22,6 @@
 ***********************************************************************************/
 #include "tracker.h"
 #include "xmpmaped.h"
-#include "preview.h"
 
 unsigned char CXTracker::tx;
 OBJECT_LIST* CXTracker::pList;
@@ -100,7 +99,7 @@ int CXTracker::Track(int nType, int nID, char send)
         
         while(*pDb != -1)
         {
-            if (rngok(*pDb, 1, kChannelUserMax))
+            if (rngok(*pDb, 1, 1024))
                 collectObjectsByChannel(*pDb, tx, pList);
             
             pDb++;
@@ -114,6 +113,25 @@ int CXTracker::Track(int nType, int nID, char send)
     return nRetn;
 }
 
+char isLocked(int nType, int nID)
+{
+    switch(nType)
+    {
+        case OBJ_SECTOR:
+        case OBJ_FLOOR:
+        case OBJ_CEILING:
+            return (sector[nID].extra > 0 && xsector[sector[nID].extra].locked);
+            break;
+        case OBJ_WALL:
+        case OBJ_MASKED:
+            return (wall[nID].extra > 0 && xwall[wall[nID].extra].locked);
+        case OBJ_SPRITE:
+            return (sprite[nID].extra > 0 && xsprite[sprite[nID].extra].locked);
+    }
+    
+    return 0;
+}
+
 void CXTracker::Draw(SCREEN2D* pScr)
 {
     if (!pList)
@@ -121,8 +139,9 @@ void CXTracker::Draw(SCREEN2D* pScr)
     
     char h = (gFrameClock & 16);
     int x1, y1, x2, y2;
-    char color, draw;
-
+    char color, lock;
+    int pat;
+    
     switch(src.type)
     {
         case OBJ_SECTOR:
@@ -132,7 +151,6 @@ void CXTracker::Draw(SCREEN2D* pScr)
             avePointWall(src.index, &x1, &y1);
             break;
         case OBJ_SPRITE:
-            if (gPreviewMode && previewSpriteRemoved(&sprite[src.index])) return;
             x1 = sprite[src.index].x;
             y1 = sprite[src.index].y;
             break;
@@ -147,7 +165,6 @@ void CXTracker::Draw(SCREEN2D* pScr)
     
     while(pDb->type != OBJ_NONE)
     {
-        draw = 1;
         if (pDb->type != src.type || pDb->index != src.index)
         {
             switch(pDb->type)
@@ -161,29 +178,22 @@ void CXTracker::Draw(SCREEN2D* pScr)
                     color = pScr->ColorGet(kColorLightRed, h);
                     break;
                 case OBJ_SPRITE:
-                    if (gPreviewMode && previewSpriteRemoved(&sprite[pDb->index]))
-                    {
-                        draw = 0;
-                    }
-                    else
-                    {
-                        color = pScr->ColorGet(kColorLightCyan, h);
-                        x2 = sprite[pDb->index].x;
-                        y2 = sprite[pDb->index].y;
-                    }
+                    color = pScr->ColorGet(kColorLightCyan, h);
+                    x2 = sprite[pDb->index].x;
+                    y2 = sprite[pDb->index].y;
                     break;
             }
             
-            if (draw)
-            {
-                x2 = pScr->cscalex(x2);
-                y2 = pScr->cscaley(y2);
-                
-                if (!tx)
-                    pScr->DrawArrow(x2, y2, x1, y1, color, pScr->data.zoom, kAng15 + kAng5, 0);
-                else
-                    pScr->DrawArrow(x1, y1, x2, y2, color, pScr->data.zoom, kAng15 + kAng5, 0);
-            }
+            x2 = pScr->cscalex(x2);
+            y2 = pScr->cscaley(y2);
+            
+            lock = isLocked(pDb->type, pDb->index);
+            pat = (lock) ? kPatDotted : kPatNormal;
+            
+            if (!tx)
+                pScr->DrawArrow(x2, y2, x1, y1, color, pScr->data.zoom, kAng15 + kAng5, 0, pat, pat);
+            else
+                pScr->DrawArrow(x1, y1, x2, y2, color, pScr->data.zoom, kAng15 + kAng5, 0, pat, pat);
         }
         
         pDb++;

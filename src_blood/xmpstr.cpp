@@ -733,7 +733,7 @@ char* getRelPath(char* relto, char* targt)
         if (s)
             targt[l] = s;
 
-        if (i >= l)
+        if (i >= l && slash(targt[l]))
             return &targt[l+1];
     }
 

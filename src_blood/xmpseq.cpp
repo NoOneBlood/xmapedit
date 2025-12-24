@@ -64,7 +64,7 @@ void UpdateSprite(int nXSprite, SEQFRAME *pFrame)
     }
     pSprite->picnum = seqGetTile(pFrame);
     if (pFrame->pal)
-        pSprite->pal = pFrame->pal;
+        pSprite->pal = seqGetPal(pFrame);
     pSprite->shade = pFrame->shade;
 
     int scale = xsprite[nXSprite].scale; // SEQ size scaling
@@ -133,7 +133,7 @@ void UpdateWall(int nXWall, SEQFRAME *pFrame)
     dassert(pWall->extra == nXWall);
     pWall->picnum = seqGetTile(pFrame);
     if (pFrame->pal)
-        pWall->pal = pFrame->pal;
+        pWall->pal = seqGetPal(pFrame);
     if (pFrame->transparent)
         pWall->cstat |= 128;
     else
@@ -163,7 +163,7 @@ void UpdateMasked(int nXWall, SEQFRAME *pFrame)
     walltype *pWallNext = &wall[pWall->nextwall];
     pWall->overpicnum = pWallNext->overpicnum = seqGetTile(pFrame);
     if (pFrame->pal)
-        pWall->pal = pWallNext->pal = pFrame->pal;
+        pWall->pal = pWallNext->pal = seqGetPal(pFrame);
     if (pFrame->transparent)
     {
         pWall->cstat |= 128;
@@ -216,7 +216,7 @@ void UpdateFloor(int nXSector, SEQFRAME *pFrame)
     pSector->floorpicnum = seqGetTile(pFrame);
     pSector->floorshade = pFrame->shade;
     if (pFrame->pal)
-        pSector->floorpal = pFrame->pal;
+        pSector->floorpal = seqGetPal(pFrame);
 }
 
 void UpdateCeiling(int nXSector, SEQFRAME *pFrame)
@@ -229,73 +229,64 @@ void UpdateCeiling(int nXSector, SEQFRAME *pFrame)
     pSector->ceilingpicnum = seqGetTile(pFrame);
     pSector->ceilingshade = pFrame->shade;
     if (pFrame->pal)
-        pSector->ceilingpal = pFrame->pal;
+        pSector->ceilingpal = seqGetPal(pFrame);
 }
 
 void SEQINST::Update(ACTIVE *pActive)
 {
     dassert(frameIndex < pSequence->nFrames);
+    SEQFRAME* pFrame = &pSequence->frames[frameIndex];
+    
     switch (pActive->type)
     {
-        case 0:
-            UpdateWall(pActive->xindex, &pSequence->frames[frameIndex]);
-            break;
-        case 1:
-            UpdateCeiling(pActive->xindex , &pSequence->frames[frameIndex]);
-            break;
-        case 2:
-            UpdateFloor(pActive->xindex, &pSequence->frames[frameIndex]);
-            break;
-        case 3:
+    case 0:
+        UpdateWall(pActive->xindex, pFrame);
+        break;
+    case 1:
+        UpdateCeiling(pActive->xindex , pFrame);
+        break;
+    case 2:
+        UpdateFloor(pActive->xindex, pFrame);
+        break;
+    case 3: 
+    {
+        UpdateSprite(pActive->xindex, pFrame);
+        spritetype* pSpr = &sprite[xsprite[pActive->xindex].reference];
+        int nSnd, nSurf;
+
+        if (pFrame->playSound)
         {
-            UpdateSprite(pActive->xindex, &pSequence->frames[frameIndex]);
-            if (pSequence->frames[frameIndex].playSound)
-            {
-                // by NoOne: add random sound range feature
-                int sound = pSequence->nSoundID;
-                if (pSequence->frames[frameIndex].soundRange > 0)
-                    sound += Random(((pSequence->frames[frameIndex].soundRange == 1) ? 2 : pSequence->frames[frameIndex].soundRange));
-
-                sfxPlay3DSound(&sprite[xsprite[pActive->xindex].reference], sound, -1, 0);
-            }
-
-            // by NoOne: add surfaceSound trigger feature
-            spritetype* pSprite = &sprite[xsprite[pActive->xindex].reference];
-            if (pSequence->frames[frameIndex].surfaceSound && zvel[pSprite->index] == 0 && xvel[pSprite->index] != 0)
-            {
-                if (gUpperLink[pSprite->sectnum] >= 0) break; // don't play surface sound for stacked sectors
-                int surf = tileGetSurfType(pSprite->sectnum + 0x4000); if (!surf) break;
-                static int surfSfxMove[15][4] = {
-                    /* {snd1, snd2, gameVolume, myVolume} */
-                    {800,801,80,25},
-                    {802,803,80,25},
-                    {804,805,80,25},
-                    {806,807,80,25},
-                    {808,809,80,25},
-                    {810,811,80,25},
-                    {812,813,80,25},
-                    {814,815,80,25},
-                    {816,817,80,25},
-                    {818,819,80,25},
-                    {820,821,80,25},
-                    {822,823,80,25},
-                    {824,825,80,25},
-                    {826,827,80,25},
-                    {828,829,80,25},
-                };
-
-                int sndId = surfSfxMove[surf][Random(2)];
-                DICTNODE * hRes = gSoundRes.Lookup(sndId, "SFX"); SFX * pEffect = (SFX*)gSoundRes.Load(hRes);
-                sfxPlay3DSoundCP(pSprite, sndId, -1, 0, 0, (surfSfxMove[surf][2] != pEffect->relVol) ? pEffect->relVol : surfSfxMove[surf][3]);
-            }
-            break;
+            nSnd = pSequence->nSoundID;
+            
+            // add random sound range feature
+            if (pFrame->soundRange > 0)
+                nSnd += Random((pFrame->soundRange == 1) ? 2 : pFrame->soundRange);
+            
+            sfxPlay3DSound(pSpr, nSnd, -1, 0);
         }
-        case 4:
-            UpdateMasked(pActive->xindex, &pSequence->frames[frameIndex]);
-            break;
+        
+        // add surfaceSound trigger feature
+        if (pFrame->surfaceSound && zvel[pSpr->index] == 0 && approxDist(xvel[pSpr->index], yvel[pSpr->index]))
+        {
+            if (pSpr->sectnum >= 0 && gUpperLink[pSpr->sectnum] < 0 && (nSurf = tileGetSurfType(pSpr->sectnum + 0x4000)) > 0)
+            {
+                DICTNODE* hRes;
+                
+                nSnd = kSurfSoundBase + ((nSurf << 1) + Random(2));
+                if ((hRes = gSoundRes.Lookup(nSnd, "SFX")) != NULL)
+                {
+                    SFX* pSFX = (SFX*)gSoundRes.Load(hRes);
+                    sfxPlay3DSoundCP(pSpr, nSnd, -1, 0, 0, (pSFX->relVol != 80) ? pSFX->relVol : 25);
+                }
+            }
+        }
+        break;
     }
-
-    if (pSequence->frames[frameIndex].trigger && nCallbackID != -1)
+    case 4:
+        UpdateMasked(pActive->xindex, pFrame);
+        break;
+    }
+    if (pFrame->trigger && nCallbackID != -1)
         clientCallback[nCallbackID](pActive->type, pActive->xindex);
 }
 
@@ -468,7 +459,7 @@ void seqProcess(int nTicks)
                             int nSprite = xsprite[nXSprite].reference;
                             dassert(nSprite >= 0 && nSprite < kMaxSprites);
                             evKill(nSprite, 3);
-                            previewDelSprite(nSprite);
+                            DeleteSprite(nSprite);
                             break;
                         }
                         case 4:
@@ -494,5 +485,22 @@ void seqProcess(int nTicks)
 
 int seqGetTile(SEQFRAME* pFrame)
 {
-    return pFrame->tile+(pFrame->tile2<<12);
+    return pFrame->tile + (pFrame->tile2 << 12);
+}
+
+int seqGetPal(SEQFRAME* pFrame)
+{
+    return pFrame->pal + (pFrame->pal2 << 5);
+}
+
+void seqSetTile(SEQFRAME* pFrame, int nTile)
+{
+    pFrame->tile  = nTile & 4095;
+    pFrame->tile2 = nTile >> 12;
+}
+
+void seqSetPal(SEQFRAME* pFrame, int nPal)
+{
+    pFrame->pal  = nPal & 31;
+    pFrame->pal2 = nPal >> 5;
 }

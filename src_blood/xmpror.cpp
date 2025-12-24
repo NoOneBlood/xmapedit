@@ -35,6 +35,15 @@ short mirrorcnt = 0, mirrorsector, mirrorwall[4];
 short mirrorPicWidth, mirrorPicHeight;
 MIRROR mirror[kMaxROR];
 
+// lower, upper
+BYTE gStackDB[4][2] =
+{
+    {kMarkerLowLink,    kMarkerUpLink},
+    {kMarkerLowWater,   kMarkerUpWater},
+    {kMarkerLowGoo,     kMarkerUpGoo},
+    {kMarkerLowStack,   kMarkerUpStack},
+};
+
 int CreateMirrorPic(int nObjTile, BOOL copy = TRUE)
 {
     PICANM* pnm = &panm[nObjTile];
@@ -124,7 +133,8 @@ void InitMirrors()
         if (IsMirrorPic(pWall->picnum))
         {
             pWall->cstat           |= kWallOneWay;
-            pWall->picnum           = CreateMirrorPic(pWall->picnum, FALSE);
+            pWall->cstat           &= ~kWallRotate90;
+            pWall->picnum           = CreateMirrorPic(kMirrorPic, FALSE);
 
             mirror[mirrorcnt].type  = OBJ_WALL;
             mirror[mirrorcnt].id    = i;
@@ -135,6 +145,7 @@ void InitMirrors()
             if (rngok(pWall->hitag, 0, numwalls))
             {
                 pWall->cstat           |= kWallOneWay;
+                pWall->cstat           &= ~kWallRotate90;
                 pWall->overpicnum       = CreateMirrorPic(pWall->overpicnum, FALSE);
                 mirror[mirrorcnt].type  = OBJ_WALL;
                 mirror[mirrorcnt].id    = pWall->hitag;
@@ -150,8 +161,8 @@ void InitMirrors()
         for (i = 0; i < 4; i++)
         {
             mirrorwall[i]                   = numwalls+i;
-            wall[mirrorwall[i]].picnum      = 504;
-            wall[mirrorwall[i]].overpicnum  = 504;
+            wall[mirrorwall[i]].picnum      = kMirrorPic;
+            wall[mirrorwall[i]].overpicnum  = kMirrorPic;
             wall[mirrorwall[i]].cstat       = 0;
             wall[mirrorwall[i]].nextsector  = -1;
             wall[mirrorwall[i]].nextwall    = -1;
@@ -159,13 +170,10 @@ void InitMirrors()
         }
 
         wall[mirrorwall[3]].point2          = mirrorwall[0];
-        sector[mirrorsector].ceilingpicnum  = 504;
-        sector[mirrorsector].floorpicnum    = 504;
+        sector[mirrorsector].ceilingpicnum  = kMirrorPic;
+        sector[mirrorsector].floorpicnum    = kMirrorPic;
         sector[mirrorsector].wallptr        = mirrorwall[0];
         sector[mirrorsector].wallnum        = 4;
-
-        if (mirrorcnt >= kMaxROR)
-            return;
     }
 
     i = numsectors; // prepare sector stacks
@@ -191,7 +199,7 @@ void InitMirrors()
             mirror[mirrorcnt].point.z   = pLink2->z - pLink1->z;
             mirrorcnt++;
 
-            if ((j = IsRorSector(nSect, OBJ_CEILING)) > 0)
+            if (mirrorcnt < kMaxROR && (j = IsRorSector(nSect, OBJ_CEILING)) > 0)
             {
                 sector[nSect].ceilingpicnum = CreateMirrorPic(sector[nSect].ceilingpicnum, (j == 2));
                 mirror[mirrorcnt].type      = OBJ_CEILING;
@@ -203,22 +211,41 @@ void InitMirrors()
             }
         }
     }
+    
+    if (gPreviewMode)
+        scrSetLogMessage("%d of %d mirrors are in use.", mirrorcnt, kMaxROR);
 }
 
 void TranslateMirrorColors(int nShade, int nPalette)
 {
-    int i, nPixels;
-
+    #if USE_POLYMOST
+        if (getrendermode() >= 3)
+            return;
+    #endif
+    
+    int x1 = windowx1, y1 = windowy1;
+    int x2 = windowx2, y2 = windowy2;
+    int y;
+    
+    nShade = ClipRange(nShade, 0, NUMPALOOKUPS(1));
+    unsigned char *pMap = (unsigned char*)(palookup[nPalette] + shgetpalookup(0, nShade));
+    unsigned char *pFrame;
+    
     begindrawing();
 
-    nShade          = ClipRange(nShade, 0, NUMPALOOKUPS(1));
-    BYTE *pMap      = (BYTE*)(palookup[nPalette] + (nShade<<8));
-    BYTE *pFrame    = (BYTE*)frameplace;
-
-    nPixels = xdim*ydim;
-    for (i = 0; i < nPixels; i++, pFrame++)
-        *pFrame = pMap[*pFrame];
-
+    while(x1 < x2)
+    {
+        y = y1;
+        while(y < y2)
+        {
+            pFrame = (unsigned char*)FRAMEPLACE(x1, y);
+            *pFrame = pMap[*pFrame];
+            y++;
+        }
+        
+        x1++;
+    }
+    
     enddrawing();
 }
 
@@ -339,7 +366,7 @@ bool DrawMirrors(int x, int y, int z, int a, int horiz)
     return false;
 }
 
-bool IsMirrorPic(int nPic) { return (nPic == 504); }
+char IsMirrorPic(int nPic) { return (nPic == kMirrorPic || gRotTile[nPic] == kMirrorPic); }
 char IsRorSector(int nSect, int stat)
 {
     if (stat == OBJ_FLOOR)
@@ -351,6 +378,18 @@ char IsRorSector(int nSect, int stat)
     else if (IsMirrorPic(sector[nSect].ceilingpicnum))              return 1;
     else if ((sector[nSect].ceilingstat & kSectTranslucR) != 0)     return 2;
     else return 0;
+}
+
+char IsRorMarker(int nType)
+{
+    int i = LENGTH(gStackDB);
+    while(--i >= 0)
+    {
+        if (nType == gStackDB[i][0])    return 1;
+        if (nType == gStackDB[i][1])    return 2;
+    }
+    
+    return 0;
 }
 
 bool IsLinkCorrect(spritetype* pSpr)
@@ -440,7 +479,7 @@ void warpInit(void)
         }
     }
 
-    //if (gModernMap)
+    if (gPreviewMode && gModernMap)
     {
         i = numwalls;
         while(--i >= 0)

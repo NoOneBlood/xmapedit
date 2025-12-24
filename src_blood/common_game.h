@@ -111,6 +111,8 @@ void __dassert(const char * pzExpr, const char * pzFile, int nLine)
 
 
 extern "C" {
+extern unsigned char *transluc;
+extern int xdimen, xdimenscale, ydimen, ydimenscale;
 extern unsigned char picsiz[MAXTILES], tilefilenum[MAXTILES];
 extern intptr_t voxoff[MAXVOXELS][MAXVOXMIPS];
 extern int vplce[4], vince[4];
@@ -137,6 +139,7 @@ typedef uint8_t BITARRAY32[(32768+7)>>3];
 typedef uint8_t BITARRAY16[(16384+7)>>3];
 typedef uint8_t BITARRAY08[(8192+7)>>3];
 typedef uint8_t BITARRAY04[(4096+7)>>3];
+typedef uint8_t BITARRAY01[(1024+7)>>3];
 typedef uint8_t BITSECTOR[(kMaxSectors+7)>>3];
 typedef uint8_t BITSPRITE[(kMaxSprites+7)>>3];
 
@@ -159,6 +162,13 @@ typedef uint8_t BITSPRITE[(kMaxSprites+7)>>3];
 #define ALIGNTO(s)              (sector[s].wallptr + sector[s].alignto)
 #define BLINKTIME(a)            (gFrameClock & a)
 
+#define FRAMEPLACE(x, y)           (frameplace+ylookup[y]+x)
+#define TRANSLUCENT1(d, p, c)      (transluc[(d<<8)+p[c]])
+#define TRANSLUCENT2(d, p, c)      (transluc[d+(p[c]<<8)])
+
+#define POWXNICE(n) (pow2long[picsiz[n] & 15] == tilesizx[n])
+#define POWYNICE(n) (pow2long[picsiz[n] >> 4] == tilesizy[n])
+#define POWNICE(n) (POWXNICE(n) &&  POWYNICE(n))
 
 #define TRUE            1
 #define FALSE           0
@@ -213,7 +223,7 @@ typedef uint8_t BITSPRITE[(kMaxSprites+7)>>3];
 #define kPal1 1
 #define kPal2 2
 #define kPal3 3
-#define kPalMax kPal3 + 1
+#define kPalMax 32
 
 #define kPatNormal      0xFFFFFFFF
 #define kPatDotted      0xCCCCCCCC
@@ -341,6 +351,7 @@ kWallFlipY                  = 0x0100,
 kWallFlipMask               = 0x0108,
 kWallTranslucR              = 0x0200,
 kWallTransluc2              = 0x0280,
+kWallRotate90               = 0x1000, // eduke32 feature 
 kWallMoveMask               = 0xC000,
 kWallMoveNone               = 0x0000,
 kWallMoveForward            = 0x4000,
@@ -868,6 +879,7 @@ void RotateVector(int *dx, int *dy, int nAngle);
 void RotatePoint(int *x, int *y, int nAngle, int ox, int oy);
 void trigInit(Resource &Res);
 void GetSpriteExtents(spritetype* pSprite, int *top, int *bottom);
+void GetRotateSpriteExtents(int sx, int sy, int nZoom, int nAng, int nTile, int flags, int wxs, int wys, int x[4], int y[4]);
 void offsetPos(int oX, int oY, int oZ, int nAng, int* x, int* y, int* z);
 char kintersection(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, int* ix, int* iy);
 char kintersection(LINE2D* a, LINE2D* b, int* ix = NULL, int* iy = NULL);
@@ -901,7 +913,7 @@ char makeBackup(char* filename);
 void doGridCorrection(int* x, int* y, int nGrid);
 void doGridCorrection(int* x, int nGrid);
 inline void doGridCorrection(int* x, int nGrid)         { doGridCorrection(x, NULL, nGrid); }
-inline void helperDoGridCorrection(int* x, int* y)      { doGridCorrection(x, y, (!grid || !gridlock) ? 10 : grid); }
+inline void helperDoGridCorrection(int* x, int* y)      { doGridCorrection(x, y, (!grid || !gridlock) ? 11 : grid); }
 void doWallCorrection(int nWall, int* x, int* y, int shift = 14);
 void dozCorrection(int* z, int zStep = 0x3FF);
 
@@ -1023,7 +1035,7 @@ class VOIDLIST
 {
     protected:
         uint8_t *db;
-        uint64_t totalsiz;
+        size_t   totalsiz;
         uint32_t entrysiz;
     public:
         VOIDLIST(void)
@@ -1386,54 +1398,75 @@ class SNAPSHOT_MANAGER
 
         int Switch(char dir)
         {
-            SNAPSHOT *cur, *old, *p; BYTE *data;
-            int uSiz, r = 1;
+            SNAPSHOT *p;
+            int r = 0;
 
-            if (Length() < 2)
+            if (Length() >= 2)
+            {
+                if ((p = GetActive()) == NULL)
+                    p = (SNAPSHOT*)db->Last();
+
+                (dir) ? p++ : p--;
+                if ((r = Load(p)) == 1)
+                {
+                    p = (SNAPSHOT*)db->Last();
+                    while(db->First() != p && (p->flags & kSnapActive) == 0) r++, p--;
+                    r = Length() - r + 1;
+                }
+            }
+            
+            return r;
+        }
+        
+        int Load(SNAPSHOT* p)
+        {
+            SNAPSHOT *pActive; BYTE *data;
+            int r = 1;
+            
+            if (!db->Valid(p))
                 return 0;
-
-            if ((cur = GetActive()) == NULL)
-                cur = (SNAPSHOT*)db->Last();
-
-            old = cur;
-            if (dir) cur++; else cur--;
-            if (!db->Valid(cur))
-                return 0;
-
-            data = cur->data;
-            uSiz = cur->normalsiz;
-            if (cur->flags & kSnapPacked)
+            
+            data = p->data;
+            if (p->flags & kSnapPacked)
             {
 #ifdef HAVE_COMPRESSION
-                if ((data = (BYTE*)malloc(uSiz)) == NULL)
+                if ((data = (BYTE*)malloc(p->normalsiz)) == NULL)
                     return -1;
 
-                if (compressUndoDefault(cur->data, data, cur->packedsiz, uSiz) <= 0)
+                if (compressUndoDefault(p->data, data, p->packedsiz, p->normalsiz) <= 0)
                     return -2; // data corrupted
 #else
                 return -3; // trying to load compressed snapshot
 #endif
             }
-
-            if (pFuncLoad(data, uSiz, dir) <= 0)
-                r = -4;
-
-            if (cur->data != data)
-                free(data);
-
-            if (r > 0)
+            
+            pActive = GetActive();
+            if (pFuncLoad(data, p->normalsiz, (pActive > p)) > 0)
             {
-                old->flags &= ~kSnapActive;
-                cur->flags |= kSnapActive;
-
-                p = (SNAPSHOT*)db->Last();
-                while(db->First() != p && (p->flags & kSnapActive) == 0) r++, p--;
-                r = Length() - r + 1;
+                if (pActive)
+                    pActive->flags &= ~kSnapActive;
+                
+                p->flags |= kSnapActive;
             }
-
+            else
+            {
+                r = -4;
+            }
+            
+            if (p->data != data)
+                free(data);
+            
             return r;
         }
-
+        
+        int Load(int nID)
+        {
+            if (nID < Length())
+                return Load((SNAPSHOT*)db->First() + (sizeof(SNAPSHOT) * nID));
+            
+            return 0;
+        }
+        
         SNAPSHOT* GetActive()
         {
             for (SNAPSHOT *p = (SNAPSHOT*)db->Last(); db->Valid(p); p--)
@@ -1555,32 +1588,27 @@ class BITSTRING
         }
 };
 
+class TIMER
+{
+    public:
+        uint32_t time;
+        inline void Clear(void)   { time = 0; }
+        inline char Exists(void)  { return (time != 0); }
+        inline int  Diff(void)    { return time - totalclock; }
+        inline char Pass(void)    { return (Diff() < 0); }
+        inline void Set(int n)    { time = totalclock + n; }
+};
+
 class Rect {
 public:
     int x0, y0, x1, y1;
-    Rect()
-    {
-        x0 = 0;
-        y0 = 0;
-        x1 = 0;
-        y1 = 0;
-    }
-    Rect(int _x0, int _y0, int _x1, int _y1)
-    {
-        x0 = _x0; y0 = _y0; x1 = _x1; y1 = _y1;
-    }
-    bool isValid(void) const
-    {
-        return x0 < x1 && y0 < y1;
-    }
-    char isEmpty(void) const
-    {
-        return !isValid();
-    }
-    bool operator!(void) const
-    {
-        return isEmpty();
-    }
+    Rect()                                              { set(0, 0, 0, 0); }
+    Rect(int _x0, int _y0, int _x1, int _y1)            { set(_x0, _y0, _x1, _y1); }
+    void set(int _x0, int _y0, int _x1, int _y1)        { x0 = _x0, y0 = _y0, x1 = _x1, y1 = _y1; }
+    
+    char isValid(void) const                            { return (x0 < x1 && y0 < y1); }
+    char isEmpty(void) const                            { return !isValid(); }
+    char operator!(void) const                          { return isEmpty(); }
 
     Rect & operator&=(Rect &pOther)
     {
@@ -1617,12 +1645,12 @@ public:
         return x1 - x0;
     }
 
-    bool inside(Rect& other)
+    char inside(Rect& other)
     {
         return (x0 <= other.x0 && x1 >= other.x1 && y0 <= other.y0 && y1 >= other.y1);
     }
 
-    bool inside(int x, int y)
+    char inside(int x, int y)
     {
         return (x0 <= x && x1 > x && y0 <= y && y1 > y);
     }

@@ -553,7 +553,7 @@ bool modernTypeOperateSprite(int nSprite, spritetype* pSprite, XSPRITE* pXSprite
     {
         if (event.type != EVOBJ_SPRITE)
         {
-            previewMessage("Only sprites could use command #%d", event.cmd);
+            scrSetLogMessage("Only sprites could use command #%d", event.cmd);
             return true;
         }
         else if (xspriRangeIsFine(sprite[event.index].extra))
@@ -1284,8 +1284,6 @@ spritetype* cdSpawn(XSPRITE* pXSource, spritetype* pSprite, int nDist) {
 
     pDude->cstat |= 0x1101;
 
-    pDude->yvel = kDeleteReally;
-
     // inherit weapon, seq and sound settings.
     pXDude->data1 = pXSource->data1;
     pXDude->data2 = pXSource->data2;
@@ -1331,9 +1329,10 @@ spritetype* cdSpawn(XSPRITE* pXSource, spritetype* pSprite, int nDist) {
     }
 
     // inherit sprite size (useful for seqs with zero repeats)
-    if (pSource->flags & kModernTypeFlag2) {
-        pDude->xrepeat = cpysprite[pSource->index].xrepeat;
-        pDude->yrepeat = cpysprite[pSource->index].yrepeat;
+    if (pSource->flags & kModernTypeFlag2)
+    {
+        pDude->xrepeat = pSource->xrepeat;
+        pDude->yrepeat = pSource->yrepeat;
     }
 
     adjSpriteByType(pDude);
@@ -2093,7 +2092,7 @@ void damageSprites(spritetype* pSource, spritetype* pSprite) {
 
     if (pSprite != NULL) {
         dassert(xspriRangeIsFine(pSprite->extra));
-        previewKillDude(pSprite, &xsprite[pSprite->extra]);
+        gPreview.DudeKill(pSprite);
     }
     return;
 }
@@ -2127,7 +2126,7 @@ void useIncDecGen(XSPRITE* pXSource, short objType, int objIndex) {
         dataIndex = (buffer[i] - 52) + 4;
         if ((data = getDataFieldOfObject(objType, objIndex, dataIndex)) == -65535)
         {
-            previewMessage("\nWrong index of data (%c) for IncDec Gen #%d! Only 1, 2, 3 and 4 indexes allowed!\n", buffer[i], objIndex);
+            scrSetLogMessage("Wrong index of data (%c) for IncDec Gen #%d! Only 1, 2, 3 and 4 indexes allowed!\n", buffer[i], objIndex);
             continue;
         }
         spritetype* pSource = &sprite[pXSource->reference];
@@ -2941,8 +2940,9 @@ void useSectorWindGen(XSPRITE* pXSource, sectortype* pSector) {
 
 void useSeqSpawnerGen(XSPRITE* pXSource, int objType, int index) {
 
-    if (pXSource->data2 > 0 && !gSysRes.Lookup(pXSource->data2, "SEQ")) {
-        previewMessage("Missing sequence #%d", pXSource->data2);
+    if (pXSource->data2 > 0 && !gSysRes.Lookup(pXSource->data2, "SEQ"))
+    {
+        scrSetLogMessage("Missing sequence #%d", pXSource->data2);
         return;
     }
 
@@ -3677,7 +3677,6 @@ void callbackUniMissileBurst(int nSprite)
         pBurst->ang = (short)((pSprite->ang + missileInfo[pSprite->type - kMissileBase].angleOfs) & 2047);
         pBurst->owner = pSprite->owner;
 
-        pBurst->yvel = kDeleteReally;
 
         actBuildMissile(pBurst, pBurst->extra, pSprite->index);
 
@@ -3694,10 +3693,10 @@ void callbackUniMissileBurst(int nSprite)
         xvel[pBurst->index] += dx;
         yvel[pBurst->index] += dy;
         zvel[pBurst->index] += dz;
-        evPost(pBurst->index, 3, 960, kCallbackRemoveSpecial);
+        evPost(pBurst->index, 3, 960, kCallbackRemove);
     }
 
-    evPost(nSprite, 3, 0, kCallbackRemoveSpecial);
+    evPost(nSprite, 3, 0, kCallbackRemove);
 }
 
 void callbackMakeMissileBlocking(int nSprite) // 23
@@ -3997,7 +3996,6 @@ spritetype* nnExtSpawnDude(XSPRITE* pXSource, spritetype* pSprite, short nType, 
 
     pDude->type         = nType;
     pDude->ang          = angle;
-    pDude->yvel         = kDeleteReally;
     pDude->cstat        |= 0x1101;
     pXDude->respawn     = 1;
     pXDude->health      = 100 << 4;
@@ -4149,7 +4147,7 @@ void sectorContinueMotion(int nSector, EVENT event) {
     if (!xsectRangeIsFine(sector[nSector].extra)) return;
     else if (gBusyCount >= kMaxBusyCount)
     {
-        previewMessage("Failed to continue motion for sector #%d. Max (%d) busy objects count reached!", nSector, kMaxBusyCount);
+        scrSetLogMessage("Failed to continue motion for sector #%d. Max (%d) busy objects count reached!", nSector, kMaxBusyCount);
         return;
     }
 
@@ -4479,7 +4477,7 @@ void pathSpriteInit()
 
         if (gPathSprCount >= kMaxPathSpriteSectors)
         {
-            previewMessage("Too many path sprite sectors!");
+            scrSetLogMessage("Too many path sprite sectors!");
             return;
         }
 
@@ -4521,7 +4519,7 @@ void pathSpriteInit()
         }
         else
         {
-            previewMessage("Unable to find path marker with id #%d for path sprite sector #%d", pXSect->data, i);
+            scrSetLogMessage("Unable to find path marker with id #%d for path sprite sector #%d", pXSect->data, i);
             DELETE_AND_NULL(gPathSprList[gPathSprCount]);
         }
     }
@@ -4558,7 +4556,7 @@ void pathSpriteOperate(unsigned int nSect, XSECTOR *pXSect, EVENT event)
 
     if ((pXNext = pathSectFindNextMarker(pXSect, pXThis, pXFirst->sysData4 == 0)) == NULL)
     {
-        previewMessage("Unable to find path marker with id #%d for path sector #%d", pXSect->data, nSect);
+        scrSetLogMessage("Unable to find path marker with id #%d for path sector #%d", pXSect->data, nSect);
         return;
     }
 
@@ -4866,17 +4864,6 @@ NAMED_TYPE gItemParAppearEntry[] =
     {kParItemAppearPal,     "Pal"},
 };
 
-enum enum_ITEM_GROUP
-{
-kItemGroupItem             = 0,
-kItemGroupWeapon,
-kItemGroupAmmo,
-kItemGroupArmor,
-kItemGroupHealth,
-kItemGroupPowerup,
-kItemGroupKey,
-kItemGroupMax,
-};
 NAMED_TYPE gItemGroup[] =
 {
     {kItemGroupItem,    "Item"},
@@ -4887,6 +4874,7 @@ NAMED_TYPE gItemGroup[] =
     {kItemGroupPowerup, "Powerup"},
     {kItemGroupKey,     "Key"},
 };
+char gItemTypeGroup[kDudeBase];
 
 char userItemGetType(char* str, int* nGroup, int* nType)
 {
@@ -4966,7 +4954,9 @@ int userItemsInit()
     char *pSect = NULL, *pKey, *pVal, **pName, **pCapt;
     RESHANDLE hIni; IniFile* pIni; AUTODATA itm;
     int nGroup, nType, i, c = 0;
-
+    
+    memset(gItemTypeGroup, 255, sizeof(gItemTypeGroup));
+    
     if ((hIni = gSysRes.Lookup(kCitemFileName, kCitemFileExt)) == NULL)
         return 0;
 
@@ -4988,7 +4978,10 @@ int userItemsInit()
 
         if (!rngok(nType, kItemWeaponBase, kDudeBase))
             continue;
-
+        
+        if (nGroup >= 0)
+            gItemTypeGroup[nType] = nGroup;
+        
         pVal = pIni->GetKeyString(pSect, "Caption");
         pCapt = &gSpriteCaptions[nType];
         pName = &gSpriteNames[nType];

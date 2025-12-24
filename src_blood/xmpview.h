@@ -42,4 +42,5 @@ void viewProcessSprites(int x, int y, int z, int a);
 int viewSpriteShade(int nShade, int nTile, int nSect);
 void viewWallHighlight(int nWall, int nSect, char how = 0x0, BOOL testPoint = TRUE);
 spritetype *viewInsertTSprite( int nSector, int nStatus, spritetype *pSource = NULL );
+void viewRotateWallTiles(char enable);
 #endif

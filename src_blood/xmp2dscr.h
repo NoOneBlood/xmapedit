@@ -39,7 +39,7 @@ class SCREEN2D
         // ---------------------------------------------------------------------
         unsigned int HOVER      : 1;
         unsigned int BLINK      : 1;
-        unsigned int THICK      : 1;
+        unsigned int THICK      : 2;
         unsigned int color      : 8;
         unsigned int vertexSize : 8;
         unsigned int gridSize   : 32;
@@ -148,7 +148,7 @@ class SCREEN2D
         void MarkWall(int nWall, int nMarkType);
         // ---------------------------------------------------------------------
         const char* CaptionGet(int nType, int nID);
-        void CaptionPrint(const char* text, int cx, int cy, char pd, char fc, short bc, char shadow, QFONT* pFont);
+        void CaptionPrint(const char* text, int cx, int cy, char pd, char fc, short bc, signed char sh, char shadow, QFONT* pFont);
         void CaptionPrintSector(int nSect, char hover, QFONT* pFont);
         void CaptionPrintSprite(int nSpr, char hover, QFONT* pFont);
         void CaptionPrintWall(int nWall, char hover, QFONT* pFont);
@@ -169,7 +169,11 @@ class SCREEN2D
         void ScalePoints(int* x1 = NULL, int* y1 = NULL, int* x2 = NULL, int* y2 = NULL);
         char OnScreen(int x1, int y1, int x2, int y2);
 
-
+        inline void CaptionPrint(const char* text, int cx, int cy, char pd, char fc, short bc, char shadow, QFONT* pFont)
+        {
+            CaptionPrint(text, cx, cy, pd, fc, bc, 0, shadow, pFont);
+        }
+        
         inline char OnScreen(int x, int y, int s)   { return OnScreen(x-s, y-s, x+s, y+s); }
         inline int cscalex(int a)                   { return view.wcx + mulscale14(a - data.camx, data.zoom); }
         inline int cscaley(int a)                   { return view.wcy + mulscale14(a - data.camy, data.zoom); }

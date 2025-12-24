@@ -889,3 +889,15 @@ void viewProcessSprites(int x, int y, int z, int a) {
 
     lasersProcessView3D(x, y, z, a, 0, 0);
 }
+
+void viewRotateWallTiles(char enable)
+{
+    static int i;
+
+    i = numwalls;
+    while(--i >= 0)
+    {
+        if (wall[i].cstat & kWallRotate90)
+            wallRotateTile(i, enable);
+    }
+}

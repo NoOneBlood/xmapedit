@@ -286,6 +286,15 @@ void LIGHT_BOMB::Init(IniFile* pIni, char* section)
     rampDist            = pIni->GetKeyInt(section, "RampDist", 0x10000);
 }
 
+void LIGHT_BOMB::Save(IniFile* pIni, char* section)
+{
+    pIni->PutKeyInt(section, "Intensity",     intensity);
+    pIni->PutKeyInt(section, "Attenuation",   attenuation);
+    pIni->PutKeyInt(section, "Reflections",   reflections);
+    pIni->PutKeyInt(section, "MaxBright",     maxBright);
+    pIni->PutKeyInt(section, "RampDist",      rampDist);
+}
+
 void MAPEDIT_HUD_SETTINGS::Init(IniFile* pIni, char* section)
 {
     layout3D                = ClipHigh(pIni->GetKeyInt(section, "Layout3D", kHudLayoutFull), kHudLayoutMax);
@@ -324,6 +333,7 @@ void MISC_PREFS::Init(IniFile* pIni, char* section)
     this->pan               = 1;
     this->palette           = 0;
     this->autoSecrets       = pIni->GetKeyBool(section, "AutoCountSecrets", 0);
+    this->autoGoalAngle     = pIni->GetKeyBool(section, "AutoSetMoveDir", 1);
     this->beep              = pIni->GetKeyBool(section, "Beep", TRUE);
     this->diffSky           = pIni->GetKeyBool(section, "MultipleSky", FALSE);
     this->useCaptions       = pIni->GetKeyBool(section, "UseCaptions", TRUE);
@@ -339,6 +349,7 @@ void MISC_PREFS::Init(IniFile* pIni, char* section)
     this->circlePoints      = 6;
     this->forceEditorPos    = pIni->GetKeyBool(section, "ForceEditorStartPos", FALSE);
     this->undoCamRestore    = pIni->GetKeyBool(section, "MapUndoRestoreCamPos", TRUE);
+    this->confirmObjEdit    = pIni->GetKeyBool(section, "PressEnterToSave", TRUE);
 
     gSplitMode.size         = pIni->GetKeyInt(section, "SplitPanelSize", 0);
     gSplitMode.swapSize     = pIni->GetKeyBool(section, "SplitAutoSwapSize", 1);
@@ -436,13 +447,14 @@ void OBJECT_LOCK::Init()
 
 void PATHS::InitBase()
 {
-    sprintf(prefabs,        kPrefabsDir);
-    sprintf(palImport,      kPalImportDir);
-    sprintf(palPaint,       kPalPaintDir);
-    memset(images,     0,   sizeof(images));
-    memset(episodeIni, 0,   sizeof(episodeIni));
-    memset(maps,       0,   sizeof(maps));
-    memset(modNblood,  0, sizeof(modNblood));
+    strcpy(prefabs,        kPrefabsDir);
+    strcpy(palImport,      kPalImportDir);
+    strcpy(palPaint,       kPalPaintDir);
+    strcpy(lbps,           kXmpLightBombDir);
+    memset(images,     0,  sizeof(images));
+    memset(episodeIni, 0,  sizeof(episodeIni));
+    memset(maps,       0,  sizeof(maps));
+    memset(modNblood,  0,  sizeof(modNblood));
 }
 
 void PATHS::InitResourceRFF(IniFile* pIni, char* section)

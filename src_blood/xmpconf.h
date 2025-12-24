@@ -30,6 +30,7 @@
 
 #define kDefaultMapName     "newboard.map"
 #define kXmpDataDir         "xmapedit"
+#define kXmpLightBombDir    "xmapedit/ltbomb"
 #define kPrefabsDir         "xmapedit/prefabs"
 #define kCoreIniName        "xmapedit/xmapedit.ini"
 #define kCoreRffName        "xmapedit/xmapedit.rff"
@@ -160,6 +161,7 @@ class MISC_PREFS {
     unsigned int pan                : 1;
     unsigned int hgltTreshold       : 6;
     unsigned int zeroTile2pal       : 8;
+    unsigned int autoGoalAngle      : 1;
     unsigned int autoSecrets        : 1;
     unsigned int showTypes          : 2;
     unsigned int diffSky            : 1;
@@ -174,6 +176,7 @@ class MISC_PREFS {
     unsigned int circlePoints       : 8;
     unsigned int forceEditorPos     : 1;
     unsigned int undoCamRestore     : 1;
+    unsigned int confirmObjEdit     : 1;
     char tilesBaseName[5];
     void Init(IniFile* pIni, char* section);
     void Save(IniFile* pIni, char* section);
@@ -187,6 +190,7 @@ class LIGHT_BOMB {
     int rampDist;
     signed char maxBright;
     void Init(IniFile* pIni, char* section);
+    void Save(IniFile* pIni, char* section);
 };
 
 class IMPORT_WIZARD_PREFS {
@@ -271,6 +275,7 @@ class PATHS {
     char shadeDAT[_MAX_PATH];
     char voxelEXT[_MAX_PATH];
     char modNblood[_MAX_PATH];
+    char lbps[_MAX_PATH];
     void InitBase();
     void InitResourceRFF(IniFile* pIni, char* section);
     void InitResourceART(IniFile* pIni, char* section);

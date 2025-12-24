@@ -336,7 +336,6 @@ EXTERN int startposx, startposy, startposz;
 EXTERN short startang, startsectnum;
 EXTERN short pointhighlight, linehighlight, highlightcnt;
 
-EXTERN short joinsector[2];
 EXTERN int mousxplc, mousyplc;
 EXTERN char gNoclip;
 EXTERN int clipmoveboxtracenum;

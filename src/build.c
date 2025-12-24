@@ -49,7 +49,6 @@ unsigned char somethingintab = 255;
 int clipmovemask2d = 0, clipmovemask3d = 0;
 char gPreviewMode = 0, gMapLoaded = 0;
 int qsetmode = 0;
-short joinsector[2];
 char gNoclip = 0;
 int clipmoveboxtracenum = 3;
 int xdim2d, ydim2d;

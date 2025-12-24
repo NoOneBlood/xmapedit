@@ -26,11 +26,9 @@
 #include "common_game.h"
 #pragma pack(push, 1)
 
-#define kMaxQFonts 13
+#define kMaxQFonts 9
 #define kMaxVFonts 16
 
-typedef void (*PUGFXPIXEL)(int x, int y);
-extern PUGFXPIXEL u_gfxPixel;
 extern Rect clipRect;
 
 // font types

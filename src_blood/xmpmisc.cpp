@@ -42,6 +42,7 @@ const char* gMapStatsNames[kMapStatMax] =
     "Health",
     "Armor",
     "Inv. Items",
+    "Misc Items",
 };
 
 NAMED_TYPE gReverseSectorErrors[] =
@@ -78,8 +79,23 @@ char MapStats::Inc(XSPRITE* pXSpr, int nWhat)
 
 void MapStats::IncItemType(int nType, XSPRITE* pXSpr)
 {
-    if (rngok(nType, kItemWeaponBase, kItemMax))
+    if (rngok(nType, kItemWeaponBase, kDudeBase))
     {
+        if (gItemTypeGroup[nType] != 255)
+        {
+            switch(gItemTypeGroup[nType])
+            {
+                case kItemGroupWeapon:      Inc(pXSpr, kMapStatWeapons);        break;
+                case kItemGroupAmmo:        Inc(pXSpr, kMapStatAmmo);           break;
+                case kItemGroupArmor:       Inc(pXSpr, kMapStatArmor);          break;
+                case kItemGroupHealth:      Inc(pXSpr, kMapStatHealth);         break;
+                case kItemGroupPowerup:     Inc(pXSpr, kMapStatPowerup);        break;
+                default:                    Inc(pXSpr, kMapStatItemOther);      break;
+            }
+            
+            return;
+        }
+        
         switch(nType)
         {
             case kItemHealthDoctorBag:
@@ -404,53 +420,39 @@ char BIN2TXT::Decode(void)
     return 1;
 }
 
-
-
-
-void plsWait() {
-
-    splashScreen("Please, wait");
-}
-
-void splashScreen(char* text) {
-
-    int i, x, y, tw = 0, th = 0;
-    gfxSetColor(gStdColor[28]);
-    gfxFillBox(0, 0, xdim, ydim);
-    QFONT* pFont = qFonts[6];
+void splashScreen(char* text)
+{
     char buff[256];
+    QFONT* pFont = qFonts[0];
+    Rect r(0, 0, xdim, ydim);
 
+    gfxSetColor(clr2std(kColorGrey28));
+    gfxFillBox(r.x0, r.y0, r.x1, r.y1);
+    
+    r.scale(-32, -32);
+    
+    gfxSetColor(clr2std(kColorRed));
+    gfxFillBox(r.x0, r.y0, r.x1, r.y0+2);
+    gfxFillBox(r.x0, r.y1-2, r.x1, r.y1);
+    
+    r.scale(0, perc2val(150, pFont->height));
+    
+    sprintf(buff, "BUILD [%s]", build_date); strupr(buff);
+    gfxDrawTextRect(&r, ALG_TOP|ALG_LEFT|kTextShadow, clr2std(kColorGrey18), buff, pFont);
+    
+    strcpy(buff, "www.cruo.bloodgame.ru/xmapedit"); strupr(buff);
+    gfxDrawTextRect(&r, ALG_BOTTOM|ALG_RIGHT|kTextShadow, clr2std(kColorGrey18), buff, pFont);
+    
     if (text)
     {
-        y = ((ydim >> 1) - (pFont->height >> 1)) + (th >> 1);
-        x = (xdim >> 1) - (gfxGetTextLen(text, pFont) >> 1);
-        gfxPrinTextShadow(x, y, gStdColor[kColorRed], text, pFont);
-
-        sprintf(buff, "...");
-        y = ((ydim >> 1) + (pFont->height >> 2)) + (th >> 1);
-        x = (xdim >> 1) - (gfxGetTextLen(buff, pFont) >> 1);
-        gfxPrinTextShadow(x, y, gStdColor[kColorRed], buff, pFont);
+        pFont = qFonts[6];
+        gfxDrawTextRect(&r, ALG_MIDDLE|ALG_CENTER|kTextShadow, clr2std(kColorRed), text, pFont);
+        
+        r.y0 = MIDPOINT(r.y0, r.y1) + pFont->height;
+        gfxDrawTextRect(&r, ALG_TOP|ALG_CENTER|kTextShadow, clr2std(kColorRed), "...", pFont);
     }
 
-    pFont = qFonts[0];
-    gfxSetColor(gStdColor[kColorRed]); y = 27;
-    gfxHLine(y, 18, xdim - 18); y--;
-    gfxHLine(y, 18, xdim - 18); y--;
-    y-=(pFont->height);
-
-    sprintf(buff, "BUILD [%s]", build_date);
-    gfxPrinTextShadow(18, y, gStdColor[18], strupr(buff), pFont);
-
-    gfxSetColor(gStdColor[kColorRed]); y = ydim - 27;
-    gfxHLine(y, 18, xdim - 18); y++;
-    gfxHLine(y, 18, xdim - 18); y++;
-    y+=(pFont->height >> 1);
-
-
-    sprintf(buff, "www.cruo.bloodgame.ru/xmapedit"); i = gfxGetTextLen(strupr(buff), pFont);
-    gfxPrinTextShadow(xdim - i - 16, y, gStdColor[18], buff, pFont);
     showframe();
-
 }
 
 void Delay(int time) {
@@ -459,14 +461,16 @@ void Delay(int time) {
 }
 
 
-
-int getClosestId(int nId, int nRange, char* nType, BOOL dir) {
-
-    int id = nId; int cnt = nRange;
-    while(cnt-- >= 0) {
-        id = ((dir) ? IncRotate(id, nRange) : DecRotate(id, nRange));
-        if (gSysRes.Lookup(id, nType)) {
-            nId = id;
+int getClosestId(Resource* pIn, int nId, int nRange, char* nType, char dir)
+{
+    int i = nId, c = nRange;
+    
+    while(c-- >= 0)
+    {
+        i = (dir) ? IncRotate(i, nRange) : DecRotate(i, nRange);
+        if (pIn->Lookup(i, nType))
+        {
+            nId = i;
             break;
         }
     }
@@ -795,59 +799,73 @@ int getHighlightedObject() {
 
 }
 
-void auditSound(int nSnd, int nType, char showMsg)
+int auditSound(int nSnd, int nType, char* msg)
 {
     RESHANDLE hSfx; SFX* pSfx;
     static char sfxActive = 0;
-    char msg[128], pitch[16];
     char* pExt = "RAW";
+    char pitch[16];
     
-    if (nSnd <= 0)                                           strcpy(msg,  "You must set sound id first!");
-    else if ((hSfx = gSoundRes.Lookup(nSnd, "SFX")) == NULL) sprintf(msg, "Sound #%d does not exist!", nSnd);
-    else
+    if (nSnd <= 0)
     {
-        pSfx = (SFX*)gSoundRes.Load(hSfx);
-        if (gSoundRes.Lookup(pSfx->rawName, pExt))
+        strcpy(msg,  "You must set sound id first!");
+        return 0;
+    }
+    
+    if ((hSfx = gSoundRes.Lookup(nSnd, "SFX")) == NULL)
+    {
+        sprintf(msg, "Sound #%d does not exist!", nSnd);
+        return -1;
+    }
+    
+    pSfx = (SFX*)gSoundRes.Load(hSfx);
+    if (gSoundRes.Lookup(pSfx->rawName, pExt))
+    {
+        if (!sndActive) sndInit();
+        if (!sfxActive) sfxInit(), sfxActive = 1;
+        
+        sndKillAllSounds();
+        sfxKillAllSounds();
+        
+        switch(nType)
         {
-            if (!sndActive) sndInit();
-            if (!sfxActive) sfxInit(), sfxActive = 1;
-            
-            sndKillAllSounds();
-            sfxKillAllSounds();
-            
-            switch(nType)
-            {
-                case kSoundPlayer:
-                case kSoundAmbient:
-                    sndStartSample(nSnd, pSfx->relVol, -1);
-                    strcpy(pitch, "ignore");
-                    nType = 2;
-                    break;
-                default:
-                    sfxPlay3DSound(posx, posy, posz, nSnd);
-                    sprintf(pitch, "0x%04X", pSfx->pitch);
-                    nType = 3;
-                    break;
-            }
-            
-            sprintf
-            (
-                msg, "%s.%s (%dD): Vol=%03d, Rate=%05dHz, Pitch=%s, Loop=%2.3s",
-                pSfx->rawName,
-                pExt,
-                nType,
-                ClipHigh(pSfx->relVol, 255),
-                sndGetRate(pSfx->format),
-                pitch,
-                onOff((pSfx->loopStart >= 0))
-            );
+            case kSoundPlayer:
+            case kSoundAmbient:
+                sndStartSample(nSnd, pSfx->relVol, -1);
+                strcpy(pitch, "ignore");
+                nType = 2;
+                break;
+            default:
+                sfxPlay3DSound(posx, posy, posz, nSnd);
+                sprintf(pitch, "0x%04X", pSfx->pitch);
+                nType = 3;
+                break;
         }
-        else
-        {
-            sprintf(msg, "There is no \"%s.%s\" file for sound #%d!", pSfx->rawName, pExt, nSnd);  
-        }
+        
+        sprintf
+        (
+            msg, "%s.%s (%dD): Vol=%03d, Rate=%05dHz, Pitch=%s, Loop=%2.3s",
+            pSfx->rawName,
+            pExt,
+            nType,
+            ClipHigh(pSfx->relVol, 255),
+            sndGetRate(pSfx->format),
+            pitch,
+            onOff((pSfx->loopStart >= 0))
+        );
+        
+        return 1;
     }
 
+    sprintf(msg, "There is no \"%s.%s\" file for sound #%d!", pSfx->rawName, pExt, nSnd);
+    return -2;
+}
+
+void auditSound(int nSnd, int nType, char showMsg)
+{
+    char msg[128];
+    auditSound(nSnd, nType, msg);
+    
     switch (showMsg)
     {
         case 1:
@@ -1039,11 +1057,9 @@ void toggleResolution(int fs, int xres, int yres, int bpp)
     if (oxres != xres || oyres != yres)
     {
         if (tileLoadTile(gSysTiles.drawBuf))
-        {
             tileFreeTile(gSysTiles.drawBuf);
-            tileAllocTile(gSysTiles.drawBuf, xdim, ydim);
-        }
-
+        
+        tileAllocTile(gSysTiles.drawBuf, xdim, ydim);
         gTileView.InitWindow();
     }
 
@@ -1199,18 +1215,6 @@ int setupSecrets() {
     }
 
     return secrets;
-}
-
-void cpyObjectClear() {
-
-    memset(cpysprite, 0, sizeof(cpysprite) - sizeof(spritetype));
-    memset(cpyxsprite, 0, sizeof(cpyxsprite) - sizeof(XSPRITE));
-    memset(cpysector, 0, sizeof(cpysector) - sizeof(sectortype));
-    memset(cpyxsector, 0, sizeof(cpyxsector) - sizeof(XSECTOR));
-    memset(cpywall, 0, sizeof(cpywall) - sizeof(walltype));
-    memset(cpyxwall, 0, sizeof(cpyxwall) - sizeof(XWALL));
-    cpyspritecnt = cpysectorcnt = cpywallcnt = 0;
-
 }
 
 char* array2str(NAMED_TYPE* in, int inLen, char* out, int outLen) {

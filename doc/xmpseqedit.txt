@@ -1,166 +1,207 @@
- //////////////////////////////////////////////	
- XMAPEDIT SEQ ANIMATION EDITOR [OCT 23 2021]
+ //////////////////////////////////////////////
+ XMAPEDIT SEQ ANIMATION EDITOR [OCT 31 2025]
  /////////////////////////////////////////////////////////////////////////////
- 
- XMP SEQEDIT is the tool for editing SEQ files which contains 3D world animation
- such as enemy postures or gib animation. This version can handle up to 1024 frames.
- 
- Loading any map and then starting seqedit allows to edit animation directly
- in 3D Mode. It gives additional advantages such as reflecting the animation
- appearance exactly same as game does.
- 
- Also note that ARTEDIT tool is fully available in SEQEDIT directly, so
- you can add new or remove images that is required for your
- animation.
- 
- HOW TO USE:
+
+ XSEQEDIT is the tool for editing SEQ files which represents animation
+ such as dude postures and various FX effects. This version can work
+ in both 2D and 3D modes and handle up to 256 frames.
+
+ Art editing is fully available as well, so you can add or remove
+ images that are required for your animation. Please, see
+ xmpartedit.txt for more details.
+
+ If you don't have map loaded, the editor creates 3D environment
+ automatically, which reflects the animation exactly same as
+ you see it in the game.
+
+
+ HOW TO START THE EDITOR
  ==================================================================
- The following ways available to start:
- 1. Select SEQ in the "Tools" section of the main menu.
- 2. Xmapedit is smart enough, so you can open SEQ files directly from Windows explorer.
- 3. Launch xmapedit using command prompt. Example: "xmapedit cult1a1" opens
-    cult1a1.seq for editing. You may also type seq file rffID, for
-	example "xmapedit 11520" will open cult1a1.seq for editing too.
- 
- KEYBOARD FUNCTIONS:
+ 1. Open SEQ files with xmapedit directly in Windows explorer.
+ 2. Or press "SEQ" button in the "Tools" section of the main xmapedit menu.
+ 3. Or launch xmapedit using command prompt. For example: "xmapedit cult1a1" opens
+    cult1a1.seq for editing. You may also type seq file resource ID,
+    for example "xmapedit 11520" opens cult1a1.seq for editing
+    as well.
 
-	GLOBAL EDITOR
-	----------------------------------------------------
-	[ESC] ........................... Exit the editor / stop playing.
-	[PAD ENTER] ..................... Toggle 3D/2D edit modes (3D only available if you load the map).
-	
-	[F1] ............................ Start new SEQ.
-	[F2] ............................ Save SEQ.
-	[CTRL] + [F2] ................... Save SEQ as.
-	[F3] ............................ Load SEQ from disk or resource archive.
-	[F4] ............................ Import frames from another SEQ file (will be added to end of current animation).
-	[F11] ........................... Load previous existing seqID from the resource archive.
-	[F12] ........................... Load next existing seqID from the resource archive.
-	
-	[SPACE] ......................... Play the sequence continuously.
-	[SHIFT] + [SPACE] ............... Play the sequence once.
-	[SHIFT] + [PAD+] or [PAD-] ...... Change global shade by 1.
-	[ALT] + [S] ..................... Set Global SEQ sound ID.
-	
-	[<] or [>] ...................... Change view angle by 45 degrees.
-	[/] ............................. Set view angle to 0.
-	[-] or [+] ...................... Change ticks per frame by 1.
-	[1] or [2] ...................... Go backward / forward one frame.
-	[G] ............................. Go to frame #.
-	[HOME] .......................... Go to first frame.
-	[END] ........................... Go to last frame.
-	
-	<MOUSE> ......................... Look around (3D edit mode only, if mouse look is enabled).
-	<ARROWS> ........................ Move camera (3D edit mode only).
-	[A] / [Z] ....................... Move camera higher / lower (3D edit mode only).
-	[CAPS-LOCK] ..................... Change z-mode (3D edit mode only).
-	
-	[PAD /] ......................... Zoom out (2d mode only).
-	[PAD *] ......................... Zoom in (2d mode only).
 
-	FRAME EDITING
-	----------------------------------------------------
-	[F9] ............................ Reverse frames order.
-	
-	[TAB] ........................... Copy current frame into clipboard.
-	[ENTER] ......................... Paste all frame properties from the clipboard to current.
-	[SHIFT] + [ENTER] ............... Paste selected frame properties from the clipboard to the specific frames.
-	
-	[INSERT] ........................ Insert a new frame after current.
-	[CTRL] + [INSERT] ............... Insert a new frame before current.
-	[DELETE] ........................ Delete the current frame.
-	[CAPS-LOCK] ..................... Draw tiles unmasked (while hold in 2D mode).
-	[ALT] + [P] ..................... Select Palette via dialog.
-	[LSHIFT] + [P] .................. Change Palette by +1.
-	[RSHIFT] + [P] .................. Change Palette by -1.
-	[V] ............................. Select tile for frame.
-	[PAGE UP] or [PAGE DN] .......... Change tile by 1.
-	[X] ............................. Toggle flipX frame flag.
-	[Y] ............................. Toggle flipY frame flag.
-	[M] ............................. Toggle Auto-aiming frame flag.
-	[B] ............................. Toggle Block frame flag.
-	[H] ............................. Toggle Hit-scan frame flag.
-	[I] ............................. Toggle Invisibility frame flag.
-	[K] ............................. Toggle Smoke flag frame flag (good for burning dudes).
-	[T] ............................. Toggle fire trigger frame flag.
-	[R] ............................. Cycle between translucency levels 0, 1, and 2.
-	[U] ............................. Toggle Surface sound trigger.
-	[P] ............................. Toggle Push flag frame flag.
-	[S] ............................. Toggle sound trigger flag.
-	[CTRL] + [S] .................... Set random sound range *relative to global sound ID*.
-	
-	[F10] ........................... Play current frame sound.
-	[CTRL] + [F10] .................. Play current frame sound without random range.
+ HUD DISPLAY
+ ==================================================================
+ The HUD display in the bottom part of the screen not only gives
+ information about the animation, but also allows to edit most
+ of it's properties. See description of the HUD items in
+ the bottom of this file.
 
-	[PAD9] or [PAD7] ................ Change x-repeat AND y-repeat by 4 (by 1 while holding SHIFT).
-	
-	[PAD4] or [PAD6] ................ Change x-repeat by 4 (by 1 while holding SHIFT).
-	[CTRL] + [PAD4] or [PAD6] ....... Set x-repeat to min (0) or max (255).
-	[ALT]  + [PAD4] or [PAD6] ....... Type x-repeat via dialog.
-	
-	[PAD8] or [PAD2] ................ Change y-repeat by 4 (by 1 while holding SHIFT).
-	[CTRL] + [PAD8] or [PAD2] ....... Set y-repeat to min (0) or max (255).
-	[ALT]  + [PAD8] or [PAD2] ....... Type y-repeat via dialog.
-	
-	[PAD+] or [PAD-] ................ Change shade by 1.
-	[ALT]  + [PAD +] or [PAD-] ...... Type shade via dialog.
-	[CTRL] + [PAD+] or [PAD-] ....... Set shade to min / max.
-	[PAD0] .......................... Set shade to 0.
 
-	ART EDITING (These key modify the art file!)
-	----------------------------------------------------
-	[F5] ............................ Change frame tile view type.
-	[F6] ............................ Change view tile surface type.
-	<ARROWS> ........................ Nudge tile origin (2D edit mode only).
-	[SHIFT] + <ARROWS> .............. Set tile origin to respective edge  (2D edit mode only).
-	[PAD5] .......................... Set tile origin to center  (2D edit mode only).
+ KEYBOARD FUNCTIONS
+ ==================================================================
 
- The status bar on the top gives information about the sequence and the display mode:
- -----------------------------------------------------------------------------
- TICKS PER FRAME - each ticks is 1/120th of a second, and lower numbers mean faster playback.
- You can calculate frame rate by dividing TPF into 120. For example 12 TPF would result in 10
- frames per second, and 5 TPF would result in 24 frames per second.
- 
- SHADE - is the global shade, an editor concept which allows you to see how the sequence
- will look when it is played for a sprite in a sector with a non-zero shade. In other words, a dark sector might
- have a floor shade of 12, for example, so by setting the global shade to 12 you can see how the sequence would
- look in that sector. Setting global shade to a dark value also gives you the ability to see the difference in
- shade for sequence frames that have shades < 0.
- 
- ANGLE - is the current angle from which the sequence is being viewed. This is only relevent if your are
- using non single view tiles.
- 
- SOUND - is the sound id that will be played once sound will be actually triggered with a SOUND frame flag.
- 
- In top right corner you can see ANIMATION flags:
- LOOP ON     - Loop the animation when finished.
- DELETE ON   - Delete the object when animation finished.
- 
- The status bar on the bottom describes the current frame:
- -----------------------------------------------------------------------------
- FRAME       - is the current index of frame.
- TILE        - is just current tile number.
- VIEW        - is the view type of the current tile. Remember, if you change the view
-               type, you are modifying the art file, since view mode is a tile attribute.
- SHADE       - is the shade of the current frame.
- PALETTE     - is the palookup for the current frame.
- X-REPEAT    - is the xrepeat of the frame.
- Y-REPEAT    - is the yrepeat of the frame.
+    GLOBAL EDITOR
+    ----------------------------------------------------
+    [ESC] ........................... Exit the editor / stop playing.
+    [PAD ENTER] ..................... Toggle 3D/2D modes.
 
- SOUND RNG   - is a modern feature that allows to set random range of sounds (up to 15) that
-               this frame could play. So it looks like this: global sound + random(sound range).
- 
- In bottom right corner you can see a FRAME flags:
- FLIP X       - frame is x-flipped.
- FLIP Y       - frame is y-flipped.
- HITSCAN      - frame is hitscan sensetive.
- BLOCKING     - frame blocks movement.
- AUTO-AIM     - the weapon auto-aim code will react on this object.
- INVISIBLE    - frame is invisible.
- TRANSLUCENT1 - frame is partially translucent.
- TRANSLUCENT2 - frame is mostly translucent.
- PLAY SOUND   - frame will play defined sound.
- SURFACE SND  - frame will play surface sound (modern only).
- TRIGGER      - do a trigger. For enemies this means trigger an attack.
- ADD SMOKE    - add smoke sprite on top of this frame (for burning dudes).
- PUSHABLE     - the sprite can be pushed with an <Open> (for enemies).
+    [F2] ............................ Save SEQ.
+    [CTRL] + [F2] ................... Save SEQ as.
+    [F3] ............................ Load SEQ from disk or resource archive.
+    [CTRL] + [F3] ................... Start new SEQ.
+    [F4] ............................ Import frames from another SEQ file (will be added to end of current animation).
+    [F5] or [F6] .................... Edit animation properties using HUD dialog.
+    [F11] ........................... Load previous existing seqID from the resource archive.
+    [F12] ........................... Load next existing seqID from the resource archive.
+    [F10] ........................... Play animation sound.
+
+    [SPACE] ......................... Play the sequence continuously.
+    [SHIFT] + [SPACE] ............... Play the sequence once.
+    [ALT] + [S] ..................... Set animation sound ID.
+
+    [-] or [+] ...................... Change delay between frames by 1.
+    [1] or [2] ...................... Go backward / forward one frame.
+    [G] ............................. Go to frame #.
+    [HOME] .......................... Go to first frame.
+    [END] ........................... Go to last frame.
+
+    [CTRL] + [F11] .................. Cycle HUD font size.
+    [<] or [>] ...................... Change view angle by 45 degrees.
+    [/] ............................. Reset view angle.
+    [PAD *] or [PAD /]............... Zoom in / out.
+    <MOUSE> ......................... 3D mode: Look around.
+    <ARROWS> ........................ 3D mode: Move camera.
+    [A] / [Z] ....................... 3D mode: Move camera up / down.
+    [CAPS-LOCK] ..................... 3D mode: Change camera z-mode.
+                                      2D mode: Toggle draw tile borders.
+
+    FRAME EDITING
+    ----------------------------------------------------
+    [INSERT] ........................ Insert a new frame after.
+    [CTRL] + [INSERT] ............... Insert a new frame before.
+    [DELETE] ........................ Delete the current frame.
+
+    [TAB] ........................... Copy current frame into clipboard.
+    [ENTER] ......................... Paste whole clipboard frame to the current.
+    [SHIFT] + [ENTER] ............... Paste selected frame properties from the clipboard to the selected frames.
+
+    [V] ............................. Select tile for frame.
+    [PAGE UP] or [PAGE DN] .......... Change tile by 1.
+
+    [ALT] + [P] ..................... Select Palette via dialog.
+    [LSHIFT] + [P] .................. Change Palette by +1.
+    [RSHIFT] + [P] .................. Change Palette by -1.
+
+    [F9] ............................ Reverse frames order.
+
+    [X] ............................. Toggle flipX flag.
+    [Y] ............................. Toggle flipY flag.
+    [M] ............................. Toggle auto-aiming flag.
+    [B] ............................. Toggle block move flag.
+    [H] ............................. Toggle hit-scan flag.
+    [I] ............................. Toggle invisibility flag.
+    [K] ............................. Toggle smoke flag (good for burning).
+    [T] ............................. Toggle fire trigger frame flag.
+    [R] ............................. Cycle between translucency levels 0, 1, and 2.
+    [U] ............................. Toggle surface sound flag.
+    [P] ............................. Toggle push flag.
+    [S] ............................. Toggle animation sound trigger flag.
+    [CTRL] + [S] .................... Set random sound range *relative to animation sound ID*.
+
+    [PAD9] or [PAD7] ................ Change x-repeat AND y-repeat by 4 (or 1 with SHIFT).
+
+    [PAD4] or [PAD6] ................ Change x-repeat by 4 (by 1 while holding SHIFT).
+    [CTRL] + [PAD4] or [PAD6] ....... Set x-repeat to min (0) or max (255).
+    [ALT]  + [PAD4] or [PAD6] ....... Type x-repeat via dialog.
+
+    [PAD8] or [PAD2] ................ Change y-repeat by 4 (by 1 while holding SHIFT).
+    [CTRL] + [PAD8] or [PAD2] ....... Set y-repeat to min (0) or max (255).
+    [ALT]  + [PAD8] or [PAD2] ....... Type y-repeat via dialog.
+
+    [PAD+] or [PAD-] ................ Change shade by 1.
+    [ALT]  + [PAD +] or [PAD-] ...... Type shade via dialog.
+    [CTRL] + [PAD+] or [PAD-] ....... Set shade to min / max.
+    [PAD0] .......................... Set shade to 0.
+
+
+    ART EDITING: These modify the art file.
+    ----------------------------------------------------
+    [ALT] + [F5] .................... Change frame tile view type.
+    [ALT] + [F6] .................... Change view tile surface type.
+    <ARROWS> ........................ Nudge tile origin (2D edit mode only).
+    [SHIFT] + <ARROWS> .............. Set tile origin to respective edge  (2D edit mode only).
+    [PAD5] .......................... Set tile origin to center  (2D edit mode only).
+
+
+    VIEW SHADE: allows you to see how animation would look
+    when object enters in dark sectors. For example, it
+    could be useful for dudes and their attack
+    states.
+    ----------------------------------------------------
+    [SHIFT] + [PAD+] or [PAD-] ...... Change view shade by 1.
+    [SHIFT] + [PAD0] ................ Reset view shade to zero.
+
+
+    VIEW SURFACE: allows you to hear footstep sounds when
+    sprite hits floor of the sector and frame have
+    surface sound flag enabled. This is modern
+    extension and doesn't work in
+    vanilla.
+    ----------------------------------------------------
+    [SHIFT] + [-] or [+] ............ Change view surface type by 1.
+
+
+    VIEW Z: allows to change Z position of the
+    sprite. By default all sprites clipped to
+    floor.
+    ----------------------------------------------------
+    [\] ............................. Cycle between view Z types.
+
+
+ HUD DIALOG DESCRIPTION
+ ==================================================================
+
+     ANIMATION
+     -----------------------------------------------------------------------------
+     Delay          = Delay between frames in ticks. 120 ticks equals to 1 second.
+     Frames         = Total number of frames (max 256).
+     Sound          = The global sound id. Press [F10] to audit the sound.
+
+     PLAYBACK DONE
+     -----------------------------------------------------------------------------
+     Delete         = Delete the sprite once animation is played to the end.
+     Loop           = Loop the animation.
+
+     FRAME PROPERTIES
+     -----------------------------------------------------------------------------
+     Picnum         = Tile number (vanilla can handle up to 4095).
+     Palookup       = Palookup id. Ignored if zero (vanilla can handle up to 32).
+     X-repeat       = Width of the sprite. Ignored if zero.
+     Y-repeat       = Height of the sprite. Ignored if zero.
+     Shade          = A shade level.
+     Sound range    = Modern feature that adds random value to the global sound id.
+
+     FRAME FLAGS
+     -----------------------------------------------------------------------------
+     Blocking       = Object blocks movement.
+     Hitscan        = Object is hitscan sensetive.
+     Auto-aim       = Weapon auto-aim reacts on this dude.
+
+     Trigger        = Callback trigger. Usually it indicates
+                      weapon shot or when dude turns into
+                      gib, however it is not limited by
+                      this functionality.
+
+     Pushable       = Dude can be pushed down via 'open' key.
+     Smoke          = Add smoke view sprite on top of this sprite.
+     Trans75%       = Object is more translucent.
+     Trans50%       = Object is less translucent.
+     X-flipped      = Object is flipped horizontally.
+     Y-flipped      = Object is flipped vertically.
+     Invisible      = Sprite is invisible.
+
+     Play sound     = Sprite playing sound previously
+                      defined in "Sound" filed on
+                      this frame.
+
+     Surf sound     = Sprite playing footstep sound when
+                      touching the floor on this frame.
+                      The footstep sound base id is
+                      800. Doesn't work in vanilla.
+

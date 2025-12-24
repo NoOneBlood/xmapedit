@@ -542,5 +542,6 @@ void GUIInit();
 int YesNoCancel(char *__format, ...);
 void Alert(char *__format, ...);
 BOOL Confirm(char *__format, ...);
+void ShowFileContents(char* pPath);
 int colorPicker(BYTE* colors, char* title, int nDefault = 0, int flags = 0);
 #endif

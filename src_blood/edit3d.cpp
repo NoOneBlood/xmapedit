@@ -52,15 +52,6 @@ static int WallNx[kMaxWalls], WallNy[kMaxWalls];
 static int FloorNx[kMaxSectors], FloorNy[kMaxSectors], FloorNz[kMaxSectors];
 static int CeilNx[kMaxSectors], CeilNy[kMaxSectors], CeilNz[kMaxSectors];
 
-// lower, upper
-BYTE gStackDB[4][2] = {
-    {kMarkerLowLink,    kMarkerUpLink},
-    {kMarkerLowWater,   kMarkerUpWater},
-    {kMarkerLowGoo,     kMarkerUpGoo},
-    {kMarkerLowStack,   kMarkerUpStack},
-};
-
-
 int NextSectorNeighborZ(int nSect, int nBaseZ, char topBot, char dir)
 {
     int nNextZ = (dir) ? 0x7fffffff : 0x80000000;
@@ -327,6 +318,9 @@ static void ShootRay(int x, int y, int z, short nSector, int dx, int dy, int dz,
     {
         if (dz > 0) // hit floor
         {
+            if (isSkySector(hitsect, OBJ_FLOOR))
+                return;
+            
             E = divscale16(nIntensity, ClipLow(dist + gLightBomb.rampDist, 1));
             if (E <= 0)
                 return;     // too small to deal with
@@ -368,6 +362,9 @@ static void ShootRay(int x, int y, int z, short nSector, int dx, int dy, int dz,
         }
         else                // hit ceiling
         {
+            if (isSkySector(hitsect, OBJ_CEILING))
+                return;
+            
             E = divscale16(nIntensity, ClipLow(dist + gLightBomb.rampDist, 1));
             if (E <= 0)
                 return;     // too small to deal with
@@ -486,7 +483,7 @@ void SetupLightBomb( void )
 void LightBomb( int x, int y, int z, short nSector )
 {
     int dx, dy, dz;
-    for (int a = kAng90 - kAng60; a <= kAng90 + kAng60; a += kAng15)
+    for (int a = kAng90 - kAng60; a <= kAng90 + kAng60; a += kAng5)
     {
         for (int i = 0; i < kAng360; i += kAng360 / 256)
         {
@@ -742,7 +739,7 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
             pSpr = InsertGameSprite(nSector, x, y, z, nAngle, kOGrpMarker);
             break;
         case mrFavesPut:
-            if (gFavTilesC <= 0) Alert("There is no favorite tiles yet.");
+            if (gFavTiles.Length() <= 0) Alert("There is no favorite tiles yet.");
             else pSpr = favTileInsert(where, nSector, x, y, z, (short) nAngle);
             break;
         case mrModern:

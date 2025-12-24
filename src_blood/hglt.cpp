@@ -347,12 +347,18 @@ short hglt2dAdd(int type, int idx) {
                     }
                     break;
                 default:
+                {
+                    IDLIST list(true);
+                    collectWallsOfNode(&list, idx);
                     x = wall[idx].x; y = wall[idx].y;
-                    for (i = 0; i < numwalls; i++) {
-                        if (wall[i].x == x && wall[i].y == y && hgltCheck(type, i) < 0)
-                            hgltAdd(type, i), cnt++;
+                    for (int32_t* p = list.First(); *p >= 0; p++)
+                    {
+                        if (wall[*p].x == x && wall[*p].y == y && hgltCheck(type, *p) < 0)
+                            hgltAdd(type, *p), cnt++;
                     }
+                
                     break;
+                }
             }
             break;
         case OBJ_FLOOR:
@@ -1242,12 +1248,12 @@ int hgltSectFlip(int flags)
 
     if (flags & 0x04)
     {
-        IDLIST done(true);
+        IDLIST slist(true), wlist(true);
         int nSect = 0;
         int s, e;
 
         // first flip outer loops of whole highlight
-        while(hgltListOuterLoops(&nSect, &s, &e, &done, kHgltSector))
+        while(hgltListOuterLoops(&s, &e, &slist, &wlist, kHgltSector))
             loopFlip(s, e, cx, cy, flags);
     }
 
@@ -1265,12 +1271,12 @@ int hgltSectRotate(int flags, int nAng)
 
     if (flags & 0x04)
     {
-        IDLIST done(true);
+        IDLIST slist(true), wlist(true);
         int nSect = 0;
         int s, e;
 
         // first rotate outer loops of whole highlight
-        while(hgltListOuterLoops(&nSect, &s, &e, &done, kHgltSector))
+        while(hgltListOuterLoops(&s, &e, &slist, &wlist, kHgltSector))
             loopRotate(s, e, cx, cy, nAng, flags);
     }
 
@@ -1285,31 +1291,48 @@ int hgltListInnerLoops(IDLIST* pLoop, BITSECTOR visited, char which)
     int i = highlightsectorcnt, c = 0;
     int nSect, nWall = -1, s, e, t;
     IDLIST* pNode; int32_t* p;
-
-    while(--i >= 0)
+    int ls, le;
+    
+    while(--i >= 0 && nWall < 0)
     {
-        t = highlightsector[i];
-        if (TestBitString(visited, t))
+        nSect = highlightsector[i];
+        if (TestBitString(visited, nSect))
             continue;
-
-        getSectorWalls(t, &s, &e);
+        
+        getSectorWalls(nSect, &s, &e);
         while(s <= e)
         {
-            // keep searching the most left one-sided wall
-            if (wall[s].nextwall < 0 && (nWall < 0 || wall[s].x < wall[nWall].x))
-                nWall = s, nSect = t;
-
-            s++;
+            loopGetWalls(s, &ls, &le);
+            if (clockdir(ls) == 0 && !pLoop->Exists(ls))
+            {
+                while(ls <= le)
+                {
+                    // keep searching the most left one-sided wall
+                    if (wall[ls].nextwall < 0 && (nWall < 0 || wall[ls].x < wall[nWall].x))
+                    {
+                        if (pLoop->Exists(ls))
+                            break; // this part of the sector already collected
+                        
+                        nWall = ls;
+                    }
+                    
+                    ls++;
+                }
+                
+                break;
+            }
+            
+            s = ++le;
         }
+        
+        if (nWall < 0)
+            SetBitString(visited, nSect);
     }
 
     if (nWall < 0)
         return -1;
 
-    //Alert("CUR SECT: %d", nSect);
-    SetBitString(visited, nSect);
     i = nWall;
-
     do
     {
         i = wall[i].point2;
@@ -1327,7 +1350,7 @@ int hgltListInnerLoops(IDLIST* pLoop, BITSECTOR visited, char which)
                     }
                 }
 
-                if ((t = sectorofwall(i)) >= 0)
+                if ((t = sectorofwall(i)) >= 0 && t != nSect)
                     SetBitString(visited, t);
             }
 
@@ -1343,27 +1366,31 @@ int hgltListInnerLoops(IDLIST* pLoop, BITSECTOR visited, char which)
     return (c < numwalls) ? nSect : -2;
 }
 
-char hgltListOuterLoops(int* nStart, int* s, int* e, IDLIST* pDone, char which)
+char hgltListOuterLoops(int* s, int* e, IDLIST* slist, IDLIST* wlist, char which)
 {
-    IDLIST loop(true); BITSECTOR ignore;
+    BITSECTOR ignore;
     int i, nSect, nParent = -1, nNext;
+    int t = wlist->Length();
     int32_t* p;
 
     memset(ignore, 0, sizeof(ignore));
-    *nStart = 0; // this is dummy
 
-    if (pDone)
+    if (slist)
     {
-        p = pDone->GetPtr();
+        p = slist->GetPtr();
         while(*p >= 0)
             SetBitString(ignore, *p), p++;
     }
 
-    if ((nSect = hgltListInnerLoops(&loop, ignore, which)) >= 0)
+    if ((nSect = hgltListInnerLoops(wlist, ignore, which)) >= 0)
     {
-        ARW_helperCollectSectors(nSect, pDone);
-
-        p = loop.GetPtr();
+        p = wlist->GetPtr() + t;
+        
+        t = (TestBitString(ignore, nSect)) ? -1 : nSect;
+        ARW_helperCollectSectors(nSect, slist);
+        if (t == nSect)
+            slist->Remove(nSect);
+        
         while(*p >= 0 && (nNext = findNextWall(*p)) >= 0) // make sure it's an island loop
         {
             if ((nSect = sectorofwall(nNext)) < 0)
@@ -1403,7 +1430,12 @@ int hgltSectAutoRedWall(int flags)
     while((nSect = hgltListInnerLoops(&loop, ignore, kHgltSector)) >= 0)
     {
         loop.Add(kMaxWalls); // add loop separator
+        
+        t = TestBitString(ignore, nSect) ? -1 : nSect;
         ARW_helperMarkVisitedInside(nSect, ignore);
+        if (t == nSect && TestBitString(ignore, nSect))
+            ClearBitString(ignore, nSect);
+        
         numloops++;
     }
 
@@ -1472,7 +1504,9 @@ int hgltSectAutoRedWall(int flags)
             pDst->hitag =  0;   pDst->type  = 0;
         }
     }
-
+    
+    IDLIST zOffsSectsDone(true);
+    
     // Construct and insert loops
     for (nLoop = numloops, p = loop.GetPtr(); *p >= 0; p++)
     {
@@ -1509,7 +1543,7 @@ int hgltSectAutoRedWall(int flags)
             {
                 if ((nSect = sectorofwall(nNext)) >= 0)
                 {
-                    if ((flags & 0x01) && !zOffsetsDone)
+                    if ((flags & 0x01) && !zOffsetsDone && !zOffsSectsDone.Exists(nSect))
                     {
                         sectortype* pSect = &pParent[nLoop];
                         if (pSect->floorz && pSect->floorz != pSect->ceilingz)
@@ -1522,6 +1556,10 @@ int hgltSectAutoRedWall(int flags)
                             ARW_helperCollectSectors(nSect, &list);
                             for (int32_t* s = list.GetPtr(); *s >= 0; s++)
                                 sectSetupZOffset(*s, &pParent[nLoop], &sector[nParent], 0x03);
+                            
+                            // Guard for multipart sectors
+                            zOffsSectsDone.Add(nSect);
+                            
                         }
 
                         // Done or skipped for this whole loop

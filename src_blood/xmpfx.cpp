@@ -98,8 +98,10 @@ FXDATA gFXData[] = {
 void CFX::sub_73FB0(int nSprite) {
     if (nSprite < 0 || nSprite >= kMaxSprites)
         return;
-
-    previewDelSprite(nSprite);
+    evKill(nSprite, 3);
+    if (sprite[nSprite].extra > 0)
+        seqKill(3, sprite[nSprite].extra);
+    DeleteSprite(nSprite);
 }
 
 void CFX::sub_73FFC(int nSprite) {
@@ -140,8 +142,6 @@ spritetype * CFX::fxSpawn(FX_ID nFx, int nSector, int x, int y, int z, unsigned 
     pSprite->shade = pFX->at18;
     pSprite->pal = pFX->at19;
 
-    pSprite->yvel = kDeleteReally;
-
     //pSprite->detail = pFX->at1;
     if (pFX->at14 > 0) pSprite->xrepeat = pFX->at14;
     if (pFX->at15 > 0) pSprite->yrepeat = pFX->at15;
@@ -151,7 +151,7 @@ spritetype * CFX::fxSpawn(FX_ID nFx, int nSector, int x, int y, int z, unsigned 
         seqSpawn(pFX->at2, 3, GetXSprite(pSprite->index), -1);
 
     if (a6 == 0) a6 = pFX->ate;
-    if (a6) evPost(pSprite->index, 3, ClipLow(a6+BiRandom(a6>>1), 0), kCallbackRemoveSpecial);
+    if (a6) evPost(pSprite->index, 3, ClipLow(a6+BiRandom(a6>>1), 0), kCallbackRemove);
     return pSprite;
 }
 

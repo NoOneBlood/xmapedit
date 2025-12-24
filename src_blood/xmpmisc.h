@@ -55,13 +55,13 @@ enum
 {
 kMapStatDudes       = 0,
 kMapStatSpawn,
-//kMapStatItems,
 kMapStatWeapons,
 kMapStatAmmo,
 kMapStatPowerup,
 kMapStatHealth,
 kMapStatArmor,
 kMapStatInventory,
+kMapStatItemOther,
 kMapStatMax,
 };
 
@@ -152,24 +152,17 @@ void Delay(int time);
 
 
 void splashScreen(char* text = NULL);
-void plsWait();
-inline BOOL wallHoriz(int nWall) {
-
-    return (wall[nWall].x == wall[wall[nWall].point2].x);
-
-}
-
-inline BOOL wallVert(int nWall) {
-
-    return (wall[nWall].y == wall[wall[nWall].point2].y);
-
-}
+inline void plsWait() { splashScreen("Please, wait"); }
 
 BOOL isModernMap();
 
 int getDataOf(int nData, int nType, int nID);
 char setDataOf(int nData, int nVal, int nType, int nID);
-int getClosestId(int nId, int nMaxId, char* nType, BOOL dir);
+int getClosestId(Resource* pIn, int nId, int nRange, char* nType, char dir);
+inline int getClosestId(int nId, int nRange, char* nType, char dir)
+{
+    return getClosestId(&gSysRes, nId, nRange, nType, dir);
+}
 void clampSprite(spritetype* pSprite, int which = 0x03);
 void clampSpriteZ(spritetype* pSprite, int z, int which);
 void clampCamera();
@@ -180,11 +173,11 @@ short name2TypeId(char defName[256]);
 void eraseExtra();
 int getHighlightedObject();
 
+int auditSound(int nSnd, int nType, char* msg);
 void auditSound(int nSnd, int nType, char showMsg = 1);
 void inline playSound(int nSnd, char showMsg)   { auditSound(nSnd, kSoundPlayer, showMsg); }
 void inline playSound(int nSnd)                 { auditSound(nSnd, kSoundPlayer, 1); }
 
-void cpyObjectClear();
 void hit2pos(int* rtx, int* rty, int* rtz = NULL, int32_t clipmask = BLOCK_MOVE | BLOCK_HITSCAN);
 void hit2sector(int *rtsect, int* rtx, int* rty, int* rtz, int gridCorrection, int32_t clipmask = BLOCK_MOVE | BLOCK_HITSCAN);
 void findSectorMarker(int nSect, int *nIdx1, int *nIdx2);

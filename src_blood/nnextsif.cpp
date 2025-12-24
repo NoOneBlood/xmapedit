@@ -162,7 +162,7 @@ static char errCondNotImplemented(void)
 {
     if (!errShown[pCond->index].ok)
     {
-        previewMessage(gErrors[kErrNotImplementedCond2], pXCond->data1);
+        scrSetLogMessage(gErrors[kErrNotImplementedCond2], pXCond->data1);
         errShown[pCond->index].ok = 1;
     }
     return false;

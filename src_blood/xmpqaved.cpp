@@ -448,9 +448,21 @@ void QAVEDIT::ProcessLoop()
                 else if (!AnimSave(gPaths.qavs)) Alert("Failed to save file \"%s\"", gPaths.qavs);
                 else
                 {
-                    if (i > 1) artedSaveChanges();
-                    scrSetMessage("Saved to \"%s\"", gPaths.qavs);
                     rffID = -1;
+                    
+                    if (key == KEY_ESC)
+                    {
+                        if (i > 1)
+                            artedSaveChanges();
+                        
+                        // quitting now
+                        return;
+                    }
+                    
+                    if (gArtEd.asksave && Confirm("Save ART changes?"))
+                        artedSaveChanges();
+                    
+                    scrSetMessage("Saved to \"%s\"", gPaths.qavs);
                 }
                 break;
             case KEY_F11: // load previous existing fileID in rff
@@ -663,7 +675,7 @@ void QAVEDIT::ProcessLoop()
                 i = pLayer->palnum;
                 if (shift & 0x01)       i = getClosestId(i, kPluMax - 1, "PLU", TRUE);
                 else if (shift & 0x02)  i = getClosestId(i, kPluMax - 1, "PLU", FALSE);
-                else if (alt)           i = GetNumberBox("Palookup", i, i);
+                else if (alt)           i = pluPickAdvanced(pLayer->picnum, pLayer->shade, pLayer->palnum, "Palookup");
                 pLayer->palnum  = ClipRange(i, 0, kPluMax - 1);
                 break;
             case KEY_T:
@@ -978,11 +990,12 @@ void QAVEDIT::FrameDraw(FRAMEINFO* pFrame)
     for (i = 0; i < kMaxLayers; i++)
     {
         TILE_FRAME* pLayer = &pFrame->tiles[i];
-        if (pLayer->picnum <= 0) continue;
-        else if (!playing && layer == i)
-            LayerHighlight(frame, i);
-
-        DrawFrame(pQav->x, pQav->y, pLayer, 0x02, viewshade, viewplu);
+        if (pLayer->picnum > 0)
+        {
+            DrawFrame(pQav->x, pQav->y, pLayer, 0x02, viewshade, viewplu);
+            if (!playing && layer == i)
+                LayerHighlight(frame, i);
+        }
     }
 }
 
@@ -1007,41 +1020,32 @@ void QAVEDIT::LayerClean(int nFrame, int nLayer)
 
 void QAVEDIT::LayerHighlight(int nFrame, int nLayer)
 {
-    // NOTE:
-    // i don't know how to scale frame size to the screen resolution
-    // so let's use rotatesprite instead
-    static int owh = 0, ohg = 0;
-
-    int x0 = 0,                     x1 = tilesizx[pLayer->picnum] + 2;
-    int y0 = 0,                     y1 = tilesizy[pLayer->picnum] + 2;
-    int wh = x1-x0,                 hg = y1-y0;
-    int nTile = gSysTiles.drawBuf;
-    int nShade, xoffs, yoffs;
-
+    int xoffs, yoffs, t, x[4], y[4];
     if (pLayer->stat & kRSCorner) xoffs = yoffs = 0;
     else
     {
         xoffs = mulscale16(panm[pLayer->picnum].xcenter, pLayer->z);
         yoffs = mulscale16(panm[pLayer->picnum].ycenter, pLayer->z);
     }
-
-    if (wh != owh || hg != ohg)
-    {
-        memset((void*)waloff[nTile], 255, tilesizx[nTile]*tilesizy[nTile]);
-
-        setviewtotile(nTile, hg, wh);
-        DrawRect(0, 0, wh, hg, gStdColor[kColorLightGray]);
-        setviewback();
-
-        owh = tilesizx[pLayer->picnum];
-        ohg = tilesizy[pLayer->picnum];
-    }
-
-    nShade = (totalclock & 32) ? 0 : 16;
-    x0 = ((pQav->x-xoffs)<<16), x1 = pLayer->x<<16;
-    y0 = ((pQav->y-yoffs)<<16), y1 = pLayer->y<<16;
-    rotatesprite(x0+x1, y0+y1, ClipLow(pLayer->z, 0x2800), (kAng90 + pLayer->angle) & kAngMask, nTile,
-        nShade, 0, kRSNoClip|kRSScale|kRSYFlip|kRSTransluc, 0, 0, xdim-1, ydim-1);
+    
+    GetRotateSpriteExtents
+    (
+        (pQav->x - xoffs) + pLayer->x,
+        (pQav->y - yoffs) + pLayer->y,
+        pLayer->z,
+        pLayer->angle,
+        pLayer->picnum,
+        pLayer->stat | kRSScale,
+        xdim-1, ydim-1,
+        x,
+        y
+    );
+    
+    gfxSetColor(fade(256));
+    t = drawlinepat, drawlinepat = kPatDotted;
+    gfxLine(x[0], y[0], x[1], y[1]); gfxLine(x[1], y[1], x[2], y[2]);
+    gfxLine(x[2], y[2], x[3], y[3]); gfxLine(x[3], y[3], x[0], y[0]);
+    drawlinepat = t;
 }
 
 void QAVEDIT::LayerClip(int nFrame, int nLayer)

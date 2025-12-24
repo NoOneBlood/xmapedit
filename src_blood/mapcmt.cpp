@@ -25,7 +25,6 @@
 #include "aadjust.h"
 #include "mapcmt.h"
 #include "xmpmaped.h"
-#include "preview.h"
 
 short cmthglt = -1;
 MAP_COMMENT_MGR gCommentMgr;
@@ -38,9 +37,7 @@ MAP_COMMENT_MGR::MAP_COMMENT_MGR()
 
     cuFonts[0] = 0;     cuFonts[1] = 2;
     cuFonts[2] = 5;     cuFonts[3] = 4;
-    cuFonts[4] = 8;     cuFonts[5] = 9;
-    cuFonts[6] = 10;    cuFonts[7] = 11;
-    cuFonts[8] = 12;    cuFonts[9] = 6;
+    cuFonts[4] = 7;
 
     commentsCount   = 0;
     comments        = NULL;
@@ -87,6 +84,10 @@ int MAP_COMMENT_MGR::LoadFromIni(IniFile* pFile)
         comment.backColor   = enumStrGetInt(1, NULL, ',', -1);
         comment.thickTail   = enumStrGetInt(2, NULL, ',', 0);
         comment.fontID      = enumStrGetInt(3, NULL, ',', kDefaultFont);
+        
+        if (!rngok(comment.fontID, 0, LENGTH(cuFonts)))
+            comment.fontID = kDefaultFont;
+        
         Format(&comments[Add(&comment)]);
     }
 
@@ -996,12 +997,6 @@ void MAP_COMMENT_MGR::UpdateTailCoords(MAP_COMMENT* cmt)
             avePointWall(xwall[cmt->objIdx].reference, &cmt->tx, &cmt->ty);
             break;
         case OBJ_SPRITE:
-            if (gPreviewMode && sprite[cmt->objIdx].x == kHiddenSpriteLoc && sprite[cmt->objIdx].y == kHiddenSpriteLoc)
-            {
-                cmt->tx = cmt->cx;
-                cmt->ty = cmt->cy;
-                break;
-            }
             cmt->tx = sprite[cmt->objIdx].x;
             cmt->ty = sprite[cmt->objIdx].y;
             break;

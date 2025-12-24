@@ -29,7 +29,7 @@
 
 
 extern PALETTE gamepal;
-extern RGB *palTable[5];
+extern RGB *palTable[kPalMax];
 extern RGB baseDAC[256];
 extern char gFogMode;
 
@@ -44,6 +44,7 @@ void scrSetGameMode(int vidMode, int XRes, int YRes, int nBits = 8);
 char scrFindClosestColor(int red, int green, int blue);
 void scrCreateStdColors(void);
 void scrSetMessage(char *__format, ...);
+void scrSetLogMessage(char *__format, ...);
 void scrDisplayMessage();
 
 

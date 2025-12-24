@@ -38,12 +38,14 @@ struct MIRROR
 };
 extern MIRROR mirror[kMaxROR];
 extern short mirrorcnt;
+extern BYTE gStackDB[4][2];
 
 void InitMirrors(void);
 bool DrawMirrors(int x, int y, int z, int a, int horiz);
 char IsRorSector(int nSect, int stat);
+char IsRorMarker(int nType);
 bool IsLinkCorrect(spritetype* pSpr);
-bool IsMirrorPic(int nPic);
+char IsMirrorPic(int nPic);
 void RestoreMirrorPic();
 void ClearMirrorPic();
 //---------------------------------------------------

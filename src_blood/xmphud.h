@@ -52,6 +52,13 @@ extern char* gHudLayoutNames[kHudLayoutMax];
 extern char* gHudFontNames[kHudFontPackMax];
 
 #pragma pack(push, 1)
+struct MAPEDIT_HUD_STATUS
+{
+    unsigned int id;
+    char  text[128];
+    char  color[2][2];
+};
+
 struct MAPEDIT_HUD_WINDOW
 {
     unsigned int x1             : 16;
@@ -157,8 +164,23 @@ struct MAPEDIT_HUD
     unsigned int tw         : 10;
     unsigned int layout     : 5;
     unsigned int fontPack   : 5;
+    VOIDLIST statlist;
+    
+    MAPEDIT_HUD()
+    {
+        MAPEDIT_HUD_STATUS temp;
+        memset(&temp, 0, sizeof(temp));
+        statlist.Init(sizeof(MAPEDIT_HUD_STATUS), &temp);
+    }
+    
+    ~MAPEDIT_HUD()
+    {
+        statlist.Clear();
+    }
+    
     ROMFONT* fonts[kHudFontMax][2];
     MAPEDIT_HUD_WINDOW main;
+    MAPEDIT_HUD_WINDOW extrastat;
     MAPEDIT_HUD_WINDOW message;
     MAPEDIT_HUD_WINDOW content;
     MAPEDIT_HUD_WINDOW coords;
@@ -186,6 +208,7 @@ struct MAPEDIT_HUD
     void DrawIt();
     void DrawMask();
     void DrawLogo();
+    void DrawStatList();
     void DrawStatus();
     void DrawStatus(MAPEDIT_HUD_WINDOW* w, short lCol, short bCol);
     void DrawTile();
@@ -197,6 +220,46 @@ struct MAPEDIT_HUD
     void PrintMessage();
     void PrintCoords();
     void PrintStats();
+    
+    MAPEDIT_HUD_STATUS* StatusFind(MAPEDIT_HUD_STATUS* pEntry)
+    {
+        MAPEDIT_HUD_STATUS* p = (MAPEDIT_HUD_STATUS*)statlist.First();
+        while(p->id)
+        {
+            if (p->id == pEntry->id)
+                return p;
+            
+            p++;
+        }
+        
+        return NULL;
+    }
+    
+    char StatusAdd(MAPEDIT_HUD_STATUS* pEntry)
+    {
+        MAPEDIT_HUD_STATUS* p;
+        if ((p = StatusFind(pEntry)) != NULL)
+        {
+            memcpy(p, pEntry, sizeof(*p));
+            return 2;
+        }
+        
+        statlist.Add(pEntry);
+        return 1;
+    }
+    
+    char StatusRem(MAPEDIT_HUD_STATUS* pEntry)
+    {
+        MAPEDIT_HUD_STATUS* p;
+        if ((p = StatusFind(pEntry)) != NULL)
+        {
+            statlist.Remove(p);
+            return 1;
+        }
+        
+        return 0;
+    }
+    
     void CenterText(int* x, int* y, int wh, int len, int hg, ROMFONT* pFont);
     inline ROMFONT* GetFont(int nWhich, int nType = 0) { return fonts[nWhich][nType]; }
     inline int Height()         { return main.hg; }

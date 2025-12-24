@@ -956,7 +956,8 @@ int artedDlgSaveSelection(int nTile) {
 
     int i, j, k, retn = -1;
     char* filename = NULL; short* hglt = NULL;
-
+    PALETTE pal;
+    
     sprintf(buffer, "Save as...");
     if ((k = showButtons(exportMenu, LENGTH(exportMenu), buffer)) < mrUser)
         return -1;
@@ -974,13 +975,28 @@ int artedDlgSaveSelection(int nTile) {
     switch (k-=mrUser) {
         case 0:
             sprintf(buffer, "Save %d tiles as...", j);
-            if ((filename = browseSave(gPaths.images, ".art", buffer)) != NULL)
+            while( 1 )
             {
+                if ((filename = browseSave(gPaths.images, ".art", buffer)) == NULL)
+                {
+                    if (Confirm("Cancel saving?"))
+                        break;
+                    
+                    continue;
+                }
+                
                 plsWait();
-                PALETTE pal;
-                memcpy(pal, gamepal, sizeof(PALETTE));
-                artedArray2Art(filename, hglt, j, 0, 0xFF, pal);
-                retn = j;
+                memcpy(pal, gamepal, sizeof(gamepal)); retn = j;
+                if (Confirm("Save extra art information as well?"))
+                {
+                    artedArray2Art(filename, hglt, j, 0, 0xFF, pal);
+                }
+                else
+                {
+                    artedArray2Art(filename, hglt, j, 0, 0x00, NULL);
+                }
+                
+                break;
             }
             break;
         case 1:

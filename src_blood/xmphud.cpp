@@ -147,6 +147,7 @@ void MAPEDIT_HUD::SetView(int x1, int y1, int x2, int y2)
         layout = kHudLayoutNone;
         editScrBox.Setup(0, 0, 0, 0);
         message.Setup(0, 0, 0, 0);
+        extrastat.Setup(0, 0, 0, 0);
         tilebox.Setup(0, 0, 0, 0);
         content.Setup(0, 0, 0, 0);
         zoom2d.Setup(0, 0, 0, 0);
@@ -163,9 +164,10 @@ void MAPEDIT_HUD::SetView(int x1, int y1, int x2, int y2)
 
     logo.Setup(x1, y1, x1+lgw, y1+tw);
     message.Setup(x1+lgw-t, y1+t, x2, y1+tw);
+    extrastat.Setup(x1+lgw-tw, y1, y1+t, x2);
 
     t = fstat->lh<<1;
-    content.Setup(x1+pd, y1+tw+pd, ClipHigh(x1+(81*fcont->ls), main.wh), y2-t-pd);
+    content.Setup(x1+pd, y1+tw+pd, ClipHigh(x1+(80*fcont->ls), main.wh), y2-t-pd);
 
     ts = hg-tw-t;
     tilebox.Setup(x2-ts+pd, y1+tw+pd, x2-pd, y2-t-pd);
@@ -179,7 +181,7 @@ void MAPEDIT_HUD::SetView(int x1, int y1, int x2, int y2)
     }
     else
     {
-        tileInfo.draw = (tilebox.Inside(&content, 0) == 0);
+        tileInfo.draw = (tilebox.Inside(&content, 1) == 0);
     }
 
     if (wide)
@@ -443,6 +445,46 @@ void MAPEDIT_HUD::DrawMask()
     DrawStatus(&grid2d, clr2std(kColorGrey25), clr2std(kColorGrey27));
 }
 
+void MAPEDIT_HUD::DrawStatList()
+{
+    int i, l, x1, y1, x2, y2, x3;
+    int htw = tw>>1;
+    
+    if (statlist.Length() <= 0)
+        return;
+    
+    extrastat.GetCoords(&x1, &y1, &x2, &y2);
+    ROMFONT* pFont = GetFont(kHudFontMsg);
+    MAPEDIT_HUD_STATUS* p = (MAPEDIT_HUD_STATUS*)statlist.First();
+    while(p->id)
+    {
+        l = strlen(p->text) * pFont->ls;
+        for (i = 0, x3 = x1 + l + htw; i < htw-1; i++)
+        {
+            gfxTranslucency(2);
+            gfxSetColor(p->color[0][0]);
+            gfxHLine(y1 + i, x1 + i, x3);
+            gfxTranslucency(0);
+            
+            
+            gfxSetColor(clr2std(kColorGrey27));
+            gfxPixel(x1 + i, y1 + i);
+            
+            gfxSetColor(clr2std(kColorGrey27));
+            gfxPixel(x3, y1 + i);
+            
+            x3++;
+        }
+        
+        gfxSetColor(clr2std(kColorGrey25));
+        gfxHLine(y1, x1, x3-htw+1);
+        
+        printextShadow(x1 + htw, y1 + (pFont->lh>>1), p->color[1][0], p->text, pFont);
+        x1 = x3-htw;
+        p++;
+    }
+}
+
 void MAPEDIT_HUD::DrawLogo()
 {
     int x1, x2, y1, y2, x3, i;
@@ -452,7 +494,7 @@ void MAPEDIT_HUD::DrawLogo()
     logo.GetCoords(&x1, &y1, &x2, &y2);
 
     gfxSetColor(clr2std(kColorDarkGray));
-    for (i = 0, x3 = x2 - tw - 1; i < tw; i++)
+    for (i = 0, x3 = x2 - tw; i < tw; i++)
         gfxHLine(y1 + i, x1, x3 + i);
 
     gfxSetColor(clr2std(kColorGrey25));
@@ -521,6 +563,7 @@ void MAPEDIT_HUD::DrawIt()
     }
 
     DrawLogo();
+    DrawStatList();
     PrintMessage();
 
     if (!slim)
@@ -614,7 +657,7 @@ void MAPEDIT_HUD::PrintMessage()
     ROMFONT* pFont = GetFont(kHudFontMsg);
     MAPEDIT_HUD_MSG* pData =& msgData;
 
-    tcol = clr2std((pData->showTicks && h) ? kColorYellow : kColorGrey17);
+    tcol = clr2std((pData->showTicks && BLINKTIME(32)) ? kColorYellow : kColorGrey17);
     message.GetCoords(&x1, &y1, &x2, &y2);
     //ClearMessageArea();
 
@@ -873,7 +916,7 @@ void MAPEDIT_HUD::SetTile(int nTile, int nPlu, int nShade)
 
     if (nTile >= 0)
     {
-        if (tilesizx[nTile])
+        if (tilesizx[nTile] && tilesizy[nTile])
         {
             tileDrawGetSize(nTile, tis, &tiw, &tih);
             tileInfo.dx = tilebox.mx-(tiw>>1);

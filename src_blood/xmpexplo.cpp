@@ -68,6 +68,7 @@ static char getThumbnail_SEQ(char* filepath, int nTile, int wh, int hg, int bg);
 static char getThumbnail_ART(char* filepath, int nTile, int wh, int hg, int bg);
 static char getThumbnail_MAP(char* filepath, int nTile, int wh, int hg, int bg);
 static char getThumbnail_PFB(char* filepath, int nTile, int twh, int thg, int bg);
+static char getThumbnail_LBP(char* filepath, int nTile, int twh, int thg, int bg);
 static void helperAllocThumb(int nTile, int sizeX, int sizeY, int bg);
 
 
@@ -84,6 +85,7 @@ REGISTERED_FILE_TYPE gRegTypes[] =
 {
     {".MAP", "BUILD Engine board",                  getThumbnail_MAP,   256,    256,    0x0F,   28,             kColorYellow,       kColorGreen         },
     {".PFB", "XMAPEDIT prefab",                     getThumbnail_PFB,   200,    180,    0x0F,   kColorMagenta,  kColorWhite,        kColorRed           },
+    {".LBP", "Light Bomb Preset",                   getThumbnail_LBP,   128,    128,    0x0F,   28,             kColorLightCyan,    kColorBrown         },
     {".PAL", "Palette",                             getThumbnail_PALS,  64,     64,     0x0F,   28,             kColorWhite,        kColorBlue          },
     {".PLU", "BLOOD palookup",                      getThumbnail_PALS,  64,     64,     0x0F,   28,             kColorYellow,       kColorBlue          },
     {".DAT", NULL,                                  getThumbnail_PALS,  64,     64,     0x0F,   28,             kColorWhite,        kColorBlue          },
@@ -692,7 +694,7 @@ void FilePick::PaintIconsLayer(int x, int y, BOOL hasFocus)
             }
             else
             {
-                pFont = qFonts[1]; gotThumbS = 0; isDir = 0;
+                pFont = qFonts[0]; gotThumbS = 0; isDir = 0;
                 if ((pReg = GetRegisteredType(pFile)) != NULL)
                 {
                     if (showThumbs && !(pFile->flags & kDirExpNoThumb) && pReg->pThumbFunc && (pReg->thumbType & kThumbSmall))
@@ -1901,7 +1903,7 @@ char* FileBrowser::ShowDialog(char* pPath, char* pFileName, char* pFilter, char*
         }
         else if ((pSelB == (TextButton*)pFocus) || (pNameE == (EditNumber*)pFocus))
         {
-            p = pNameE->string;
+            p = (selMulti) ? NULL : pNameE->string;
             if (isempty(p) && rngok(pPicker->nCursor, 0, pPicker->numfiles))
                 p = files[pPicker->nCursor].name;
 
@@ -2102,6 +2104,7 @@ char* dirBrowse(char* pAPath, char* pFilter, char* pTitle, int flags)
     FileBrowser browser;
     int i = -1, j = 0, c = 0;
     char dirpath[BMAX_PATH] = "\0";
+    char fulpath[BMAX_PATH] = "\0";
     char filname[BMAX_PATH] = "\0";
     char *pPath;
 
@@ -2125,7 +2128,8 @@ char* dirBrowse(char* pAPath, char* pFilter, char* pTitle, int flags)
     }
 
     // maybe expand relative to absolute?
-    _fullpath(dirpath, dirpath, BMAX_PATH);
+    if (_fullpath(fulpath, dirpath, BMAX_PATH))
+        strcpy(dirpath, fulpath);
 
     pPath = browser.ShowDialog(dirpath, filname, pFilter, pTitle, flags);
     getcwd(dirpath, sizeof(dirpath));
@@ -2805,6 +2809,13 @@ static char getThumbnail_SEQ(char* filepath, int nTile, int wh, int hg, int bg)
                     helperAllocThumb(nTile, wh, hg, bg);
                     memcpy((void*)waloff[nTile], pTile, wh*hg);
                     tilePaint(nTile, pFrame->pal, pFrame->shade);
+                    
+                    if (pFrame->xflip)
+                        artedFlipTileX(nTile);
+                    
+                    if (pFrame->yflip)
+                        artedFlipTileY(nTile);
+                    
                     nRetn = 1;
                     break;
                 }
@@ -2943,4 +2954,48 @@ static char getThumbnail_PICS(char* filepath, int nTile, int wh, int hg, int bg)
     }
 
     return 0;
+}
+
+static char getThumbnail_LBP(char* filepath, int nTile, int twh, int thg, int bg)
+{
+    int nPrevNode = -1, hg = 0, y, l;
+    char *k, *v, *g = "LightBomb";
+    char buf[256];
+
+    QFONT* pFont = qFonts[1];
+    
+    IniFile lbp(filepath);
+    if (!lbp.SectionExists(g))
+        return 0;
+    
+    hg = 0;
+    while(lbp.GetNextString(&k, &v, &nPrevNode, g))
+        hg += pFont->height;
+    
+    if (!hg)
+        return 0;
+    
+    helperAllocThumb(nTile, twh, thg, bg);
+    
+    gfxBackupClip();
+    gfxSetClip(0, 0, twh, thg);
+    setviewtotile(nTile, thg, twh);
+    
+    nPrevNode = -1, y = (thg>>1)-(hg>>1);
+    while(lbp.GetNextString(&k, &v, &nPrevNode, g) && y < thg)
+    {
+        sprintf(buf, "%s = %s", k, v);
+        l = gfxGetTextLen(buf, pFont);
+        
+        gfxDrawText((twh>>1)-(l>>1), y, clr2std(kColorGrey16), buf, pFont);
+        y += pFont->height;
+    }
+    
+    setviewback();
+    gfxRestoreClip();
+    
+    artedRotateTile(nTile);
+    artedFlipTileY(nTile);
+
+    return 1;
 }

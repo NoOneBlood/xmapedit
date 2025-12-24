@@ -47,6 +47,7 @@ char h = 0;
 BYTE key, ctrl, alt, shift;
 short gHighSpr = -1, gHovSpr = -1;
 short gHovWall = -1, gHovStat = -1;
+short gJoinSector = -1;
 int bpsx, bpsy, bpsz, bang, bhorz;
 //int bsrcwall, bsrcsector, bsrcstat, bsrchit;
 
@@ -55,15 +56,12 @@ short temptype = 0, tempslope = 0, tempidx = -1;
 char tempvisibility = 0;
 short tempang = 0;
 
-int cpyspritecnt = 0;
 spritetype cpysprite[kMaxSprites + 1];
 XSPRITE cpyxsprite[kMaxXSprites + 1];
 
-int cpysectorcnt = 0;
 sectortype cpysector[kMaxSectors + 1];
 XSECTOR cpyxsector[kMaxXSectors + 1];
 
-int cpywallcnt = 0;
 walltype cpywall[kMaxWalls + 1];
 XWALL cpyxwall[kMaxXWalls + 1];
 
@@ -85,10 +83,9 @@ char buffer2[kBufferSize] = "";
 char buffer3[kBufferSize] = "";
 char gMapInfoStr[kBufferSize] = "";
 
-int boardSnapshotLoad(BYTE* pData, int nLen, char dir);
-int boardSnapshotMake(BYTE** pData, int* crcSiz);
 SNAPSHOT_MANAGER gMapSnapshot(boardSnapshotMake, boardSnapshotLoad);
 OBJECT_LIST gModernTypes;
+BITARRAY01 gModernTypesMap;
 
 struct COMPAT_STRING
 {
@@ -303,6 +300,35 @@ NAMED_TYPE gGameNames[5] =
     {4,                     "All"},
 };
 
+static int OSDFUNC_ShiftSysStatnum(const osdfuncparm_t *arg);
+static int OSDFUNC_PathChop(const osdfuncparm_t *arg);
+
+struct OSDFUNC
+{
+    const char* name;
+    const char* description;
+    int (*func)(const osdfuncparm_t*);
+};
+
+OSDFUNC gOsdFuncList[] =
+{
+    {
+        "statnumshift_sys",
+        "statnumshift_sys <val>: shift system reserved statnums by given value for sprites in a highlight\n",
+        OSDFUNC_ShiftSysStatnum
+    },
+    
+    {
+        "pathchop",
+        "pathchop <delta ang>: optimize path of patrol dudes by removing unnecessary markers\n",
+        OSDFUNC_PathChop
+    },
+    
+    {
+        NULL, NULL, NULL
+    },
+};
+
 // these are for exclusive loop processing supposed to be
 // set with xmpSetEditMode() function
 //////////////////////////////////////////////////////////
@@ -323,27 +349,6 @@ void initNames();
 
 void xmpCreateToolTestMap(char withSprite);
 
-const char* GetObjectCaption(int nType, int nID)
-{
-    switch(nType)
-    {
-        case OBJ_SECTOR:
-            if (!rngok(sector[nID].type, 0, 1024))      return NULL;
-            if (!gSectorCaptions[sector[nID].type])     return NULL;
-            return gSectorCaptions[sector[nID].type];
-        case OBJ_WALL:
-            if (!rngok(wall[nID].type, 0, 1024))        return NULL;
-            if (!gWallCaptions[wall[nID].type])         return NULL;
-            return gWallCaptions[wall[nID].type];
-        case OBJ_SPRITE:
-            if (!rngok(sprite[nID].type, 0, 1024))      return NULL;
-            if (!gSpriteCaptions[sprite[nID].type])     return NULL;
-            return gSpriteCaptions[sprite[nID].type];
-    }
-
-    return NULL;
-}
-
 const char *ExtGetSectorCaption(short nSect, char captStyle)
 {
     const char *pCapt; char *p = buffer;
@@ -358,20 +363,26 @@ const char *ExtGetSectorCaption(short nSect, char captStyle)
         if (pXSect->rxID > 0)
             p += sprintf(p, "%d: ", pXSect->rxID);
 
-
-        if ((pCapt = GetObjectCaption(OBJ_SECTOR, nSect)) == NULL)
-            p += sprintf(p, "<<T%d>>", pSect->type);
+        i = pSect->type;
+        if (rngok(i, 0, LENGTH(gSectorCaptions)) && (pCapt = gSectorCaptions[i]) != NULL)
+            p += sprintf(p, "%s", pCapt);
         else
-            p += sprintf(p, pCapt);
-
-
+            p += sprintf(p, "<<T%d>>", i);
+        
         if (pXSect->txID > 0)
             p += sprintf(p, ": %d", pXSect->txID);
 
         if (pXSect->panVel != 0)
-            p += sprintf(p, " PAN(%d,%d)", pXSect->panAngle, pXSect->panVel);
-
-        p += sprintf(p, " %s", gBoolNames[pXSect->state]);
+        {
+            p += sprintf(p, "%s", " ");
+            if (pXSect->panCeiling) p += sprintf(p, "%s", "C");
+            if (pXSect->panFloor)   p += sprintf(p, "%s", "F");
+            
+            p += sprintf(p, "P(%d,%d)", pXSect->panAngle, pXSect->panVel);
+        }
+        
+        if (pXSect->state)
+            p += sprintf(p, " %s", gBoolNames[pXSect->state]);
 
         if (gPreviewMode)
         {
@@ -395,6 +406,7 @@ const char *ExtGetWallCaption(short nWall, char captStyle)
 {
     const char *pCapt; char *p = buffer;
     walltype* pWall = &wall[nWall];
+    int i;
 
     p[0] = '\0';
     if (captStyle == kCaptionStyleMapedit && pWall->extra > 0)
@@ -404,21 +416,20 @@ const char *ExtGetWallCaption(short nWall, char captStyle)
         if (pXWall->rxID > 0)
             p += sprintf(p, "%d: ", pXWall->rxID);
 
-
-        if ((pCapt = GetObjectCaption(OBJ_WALL, nWall)) == NULL)
-            p += sprintf(p, "<<T%d>>", pWall->type);
+        i = pWall->type;
+        if (rngok(i, 0, LENGTH(gWallCaptions)) && (pCapt = gWallCaptions[i]) != NULL)
+            p += sprintf(p, "%s", pCapt);
         else
-            p += sprintf(p, pCapt);
-
+            p += sprintf(p, "<<T%d>>", i);
 
         if (pXWall->txID > 0)
             p += sprintf(p, ": %d", pXWall->txID);
 
-        if (pXWall->panXVel != 0 || pXWall->panYVel != 0)
-            p += sprintf(p, " PAN(%i,%i)", pXWall->panXVel, pXWall->panYVel);
-
-        p += sprintf(p, " %s", gBoolNames[pXWall->state]);
-
+        if (pXWall->panXVel || pXWall->panYVel)
+            p += sprintf(p, " P(%d,%d)", pXWall->panXVel, pXWall->panYVel);
+        
+        if (pXWall->state)
+            p += sprintf(p, " %s", gBoolNames[pXWall->state]);
     }
     else if (pWall->type || pWall->hitag)
     {
@@ -430,174 +441,140 @@ const char *ExtGetWallCaption(short nWall, char captStyle)
 
 const char *ExtGetSpriteCaption(short nSprite, char captStyle)
 {
-    spritetype *pSprite = &sprite[nSprite];
-    static char rx[6], name[32], midl[32], tx[6];
-    short nType = pSprite->type;
-    char *typeName = NULL, *to = buffer;
-    int i;
+    spritetype *pSpr = &sprite[nSprite];
+    static char name[32], midl[32];
+    char *typeName, *p = buffer;
+    int nType = pSpr->type;
 
-    to[0] = '\0';
+    *p = '\0';
 
     if (captStyle == kCaptionStyleBuild)
     {
-        if (nType || pSprite->hitag)
-            sprintf(to, "{%i:%i}", pSprite->hitag, nType);
+        if (nType || pSpr->hitag)
+            sprintf(p, "{%i:%i}", pSpr->hitag, nType);
 
-        return to;
+        return p;
     }
 
-    switch (pSprite->statnum)
+    if (!nType && pSpr->extra <= 0)
+        return p;
+
+    switch (pSpr->statnum)
     {
         case kStatMarker:
         case kStatAmbience:
         case kStatFX:
-            return "";
+            return p;
         case kStatProjectile:
-            sprintf(name, "MISSILE%d", nType - kMissileBase);
-            return name;
+            sprintf(p, "MISSILE%d", nType - kMissileBase);
+            return p;
         case kStatExplosion:
-            sprintf(name, "EXPLOSION%d", nType);
-            return name;
+            sprintf(p, "EXPLOSION%d", nType);
+            return p;
     }
 
-
-    if (!nType && pSprite->extra <= 0) return "";
-
-    name[0] = '\0';
-    if (nType < 0 || nType >= LENGTH(gSpriteCaptions) || (typeName = gSpriteCaptions[nType]) == NULL)
+    if (!rngok(nType, 0, LENGTH(gSpriteCaptions)) || (typeName = gSpriteCaptions[nType]) == NULL)
         sprintf(name, "<<T%i>>", nType);
     else
-        sprintf(name, "%s", typeName);
+        strcpy(name, typeName);
 
-    if (pSprite->extra <= 0)
+    if (pSpr->extra <= 0)
         return name;
 
-    XSPRITE *pXSprite = &xsprite[pSprite->extra];
-    midl[0] = rx[0] = tx[0] = 0;
-
-    switch (nType) {
+    XSPRITE *pXSpr = &xsprite[pSpr->extra];
+    
+    if (pXSpr->txID)
+    {
+        switch (pXSpr->txID)
+        {
+            case 1:
+                if (pXSpr->command < kCmdNumberic) break;
+                sprintf(p, "SECRETS_COUNTER [%d]", pXSpr->command - kCmdNumberic);
+                return p;
+            case 60:
+                if (pXSpr->txID != pXSpr->rxID || pXSpr->command != 100) break;
+                strcpy(p, "ENABLE_MODERN_FEATURES");
+                return p;
+        }
+    }
+    
+    *midl = '\0';
+    switch (nType)
+    {
         case kGenSound:
-            if (pXSprite->data2 <= 0) break;
-            else sprintf(midl, "%s [%i]", name, pXSprite->data2);
+            if (pXSpr->data2 <= 0) break;
+            else sprintf(midl, " [%i]", pXSpr->data2);
             break;
         case kDudeModernCustom:
-            if (pXSprite->sysData4 >= 2)
+            if (pXSpr->sysData4 >= 2)
             {
-                if (gCustomDudeNames[pSprite->index][0])
-                    sprintf(name, gCustomDudeNames[pSprite->index]);
+                if (gCustomDudeNames[pSpr->index][0])
+                    strcpy(name, gCustomDudeNames[pSpr->index]);
             }
             break;
         case kModernCondition:
         case kModernConditionFalse:
-            if (pXSprite->busyTime > 0)
+            if (pXSpr->busyTime > 0)
             {
-                sprintf(name, "LOOP");
+                strcpy(name, "LOOP");
                 if (nType == kModernConditionFalse)
-                    strcat(name, " NOT");
+                    strcpy(midl, " NOT");
             }
-/*          if (pXSprite->data1 > 0) {
-
-                for (i = 0; i < LENGTH(gCondCapt); i++) {
-                    if (pXSprite->data1 != gCondCapt[i].id)
-                        continue;
-
-                    strcat(name, " ");
-                    strcat(name, "[");
-                    strcat(name, strupr(gCondCapt[i].caption));
-
-                    if (!gCondCapt[i].isBool) {
-
-                        i = (pSprite->cstat & kSprBlock);
-                        if (pSprite->cstat & kSprMoveForward) sprintf(midl, "%s%d", i ? ">" : ">=", pXSprite->data2);
-                        else if (pSprite->cstat & kSprMoveReverse) sprintf(midl, "%s%d", i ? "<" : "<=", pXSprite->data2);
-                        else if (i) sprintf(midl, ">=%d & <=%d",pXSprite->data2, pXSprite->data3);
-                        else sprintf(midl, "=%d",pXSprite->data2);
-                        strcat(name, midl);
-                        midl[0] = 0;
-
-                    }
-
-                    strcat(name, "]");
-                    break;
-                }
-
-            } */
             break;
         case kModernObjDataAccumulator:
-            if (pXSprite->data2 < pXSprite->data3) sprintf(name, "INC");
-            else if (pXSprite->data2 > pXSprite->data3) sprintf(name, "DEC");
+            if (pXSpr->data2 < pXSpr->data3) strcpy(name, "INC");
+            else if (pXSpr->data2 > pXSpr->data3) strcpy(name, "DEC");
             break;
         case kModernSequentialTX:
-            if (!(pSprite->flags & 0x01)) break;
-            strcat(name, " ");
-            strcat(name, "[All]");
+            if (pSpr->flags & 0x01)
+                strcpy(midl, " [All]");
             break;
         case kMarkerPath:
-            if (pXSprite->data2 < 0) {
-
-                sprintf(midl, "%s[%i->%s]", name, pXSprite->data1, (pXSprite->data2 == -1) ? "END" : "BCK");
-                break;
-
-            } else if (pXSprite->data1 != pXSprite->data2) {
-
-                // check if destination marker exist
-                for (i = headspritestat[kStatPathMarker]; i != -1; i = nextspritestat[i]) {
-                    spritetype *pSprite2 = &sprite[i];
-                    if (pSprite2->extra > 0 && xsprite[pSprite2->extra].data1 == pXSprite->data2) {
-                        sprintf(midl, "%s[%i->%i]", name, pXSprite->data1, pXSprite->data2);
-                        break;
-                    }
-                }
-
-                // destination marker is not found
-                if (i == -1) sprintf(midl, "%s[%i->%i??]", name, pXSprite->data1, pXSprite->data2);
-                break;
-
+            if (pXSpr->data2 < 0)
+            {
+                sprintf(midl, "[%i->%s]", pXSpr->data1, (pXSpr->data2 == -1) ? "END" : "BCK");
             }
-            // no break
+            else if (pXSpr->data1 != pXSpr->data2)
+            {
+                sprintf(midl, "[%i->%i%s]", pXSpr->data1, pXSpr->data2, pathMarkerFind(NULL, pXSpr, 1) ? "" : "??");
+            }
+            else
+            {
+                sprintf(midl, "[%i]", pXSpr->data1);
+            }
+            break;
+        case kModernCustomDudeSpawn:
+            if (!pXSpr->data1 || pXSpr->sysData4 < 2) break;
+            sprintf(midl, " [%i]", pXSpr->data1);
+            break;
         default:
-            if ((nType == 0) || (nType >= 3 && nType <= 5)) break;
-            else if (nType < kMarkerEarthquake && pXSprite->data1 > 0) sprintf(midl, "%s [%i]", name, pXSprite->data1);
+            if (!pXSpr->data1 || !nType || irngok(nType, 3, 5)) break;
+            if (nType <= kMarkerEarthquake || nType == kSoundPlayer) sprintf(midl, " [%i]", pXSpr->data1);
             break;
     }
-
-    if (pXSprite->rxID > 0) sprintf(rx, "%i: ", pXSprite->rxID);
-    if (pXSprite->txID > 0) {
-
-        sprintf(tx, ": %i", pXSprite->txID);
-
-        switch (pXSprite->txID) {
-            case 1:
-                if (pXSprite->command < kCmdNumberic) break;
-                sprintf(midl, "SECRETS_COUNTER [%d]", pXSprite->command - kCmdNumberic);
-                break;
-            case 60:
-                if (pXSprite->txID != pXSprite->rxID || pXSprite->command != 100) break;
-                sprintf(midl, "ENABLE_MODERN_FEATURES");
-                break;
-        }
-
-    }
-
-    sprintf(to, "%s%s%s", rx, (!midl[0]) ? name : midl, tx);
-    if (rngok(nType, kSwitchBase, kSwitchMax))
-    {
-        strcat(to, " ");
-        strcat(to, gBoolNames[pXSprite->state]);
-    }
+    
+    if (pXSpr->rxID)
+        p += sprintf(p, "%d: ", pXSpr->rxID);
+    
+    p += sprintf(p, "%s", name);
+    
+    if (*midl)
+        p += sprintf(p, "%s", midl);
+    
+    if (pXSpr->txID)
+        p += sprintf(p, ": %d", pXSpr->txID);
+    
+    if (pXSpr->state && pSpr->statnum != kStatThing)
+        p += sprintf(p, " %s", gBoolNames[pXSpr->state]);
 
     if (gPreviewMode)
     {
-        if (rngok(nType, kModernCondition, kModernConditionFalse))
-        {
-            if (!pXSprite->state)
-            {
-                strcat(to, " [!]");
-            }
-        }
+        if (!pXSpr->state
+            && irngok(nType, kModernCondition, kModernConditionFalse))
+                p += sprintf(p, " %s", "[!]");
     }
 
-    return to;
+    return buffer;
 
 }
 
@@ -624,6 +601,9 @@ void ExtPreCheckKeys(void)
         gfxSetColor(clr2std(kColorGrey29));
         gfxFillBox(windowx1, windowy1, windowx2, windowy2);
     }
+    
+    if (ED3D)
+        viewRotateWallTiles(1);
 }
 
 void ExtAnalyzeSprites(void)
@@ -798,8 +778,8 @@ void xmpSplitModeProcess(Rect* r3D, Rect* r2D)
     int t, x, y;
 
     MOUSE* pMouse = &gMouse;
-    Rect *pRect;
-
+    Rect r(0, 0, 0, 0);
+    
     char mLook3D    = (gMouseLook.mode > 0);
     char clipMouse  = (pMouse->buttons || ctrl || alt || shift || mLook3D);
     char rFrameCol  = fade(384);
@@ -919,30 +899,29 @@ void xmpSplitModeProcess(Rect* r3D, Rect* r2D)
         gfxVLine(hxd, r3D->y1-t, r3D->y1);
         gfxVLine(hxd, r3D->y0, r3D->y0+t);
 
-        pRect = new Rect(r3D->x1, r3D->y0, r2D->x0+1, r2D->y1);
-        gfxFillBox(pRect);
+        r.set(r3D->x1, r3D->y0, r2D->x0+1, r2D->y1);
+        gfxFillBox(&r);
 
-        if (ED2D) pRect = new Rect(r2D->x0, hyd-1, r2D->x0+t, hyd+1);
-        else pRect = new Rect(r3D->x1-t+1, hyd-1, r3D->x1, hyd+1);
+        if (ED2D) r.set(r2D->x0, hyd-1, r2D->x0+t, hyd+1);
+        else r.set(r3D->x1-t+1, hyd-1, r3D->x1, hyd+1);
     }
     else
     {
         gfxHLine(hyd, r3D->x1-t, r3D->x1);
         gfxHLine(hyd, r3D->x0, r3D->x0+t);
 
-        pRect = new Rect(r3D->x0, r3D->y1, r2D->x1, r2D->y0);
-        gfxFillBox(pRect);
+        r.set(r3D->x0, r3D->y1, r2D->x1, r2D->y0);
+        gfxFillBox(&r);
 
-        if (ED2D) pRect = new Rect(hxd-1, r2D->y0, hxd+1, r2D->y0+t);
-        else pRect = new Rect(hxd-1, r3D->y1-t, hxd+1, r3D->y1);
-
+        r.set(hxd-1, r2D->y0, hxd+1, r2D->y0+t);
+        r.set(hxd-1, r3D->y1-t, hxd+1, r3D->y1);
     }
 
-    gfxFillBox(pRect);
+    gfxFillBox(&r);
 
-    pRect = new Rect(0, 0, xdim-1, hg);
+    r.set(0, 0, xdim-1, hg);
     gfxSetColor(clr2std(kColorBlack));
-    gfxRect(pRect);
+    gfxRect(&r);
 }
 
 /***********************************************************************
@@ -961,6 +940,9 @@ void ExtCheckKeys( void )
     keyGetHelper(&key, &ctrl, &shift, &alt);
     h = (totalclock & kHClock) ? 8 : 0;
     updateClocks();
+
+    if (ED3D)
+        viewRotateWallTiles(0);
 
     if (gMapedHud.draw)
     {
@@ -1072,10 +1054,11 @@ void ExtCheckKeys( void )
     }
     else
     {
-        previewProcess();
+        gPreview.ShowStatus();
+        gPreview.Process();
         FPSy+=20;
 
-        if (previewProcessKeys() || !previewCheckKey(key))
+        if (gPreview.KeyProcess(key, ctrl, alt, shift) || !gPreview.KeyCheck(key, ctrl, alt, shift))
         {
             keystatus[key] = 0;
             keyClear();
@@ -1317,93 +1300,12 @@ char dlgMapSettings()
     return false;
 }
 
-static int OSDFUNC_ShiftSysStatnum(const osdfuncparm_t *arg)
-{
-    int nNew, nOld, nVal = 256, i, j;
-    int nShifted = 0, nTotal = 0;
-    spritetype* pSpr;
-
-    if (gMapLoaded)
-    {
-        switch(arg->numparms)
-        {
-            case 1:
-                nVal = Bstrtol(arg->parms[0], NULL, 10);
-                break;
-            default:
-                return OSDCMD_SHOWHELP;
-        }
-    }
-    else
-    {
-        buildprintf("No map loaded!\n");
-        return OSDCMD_OK;
-    }
-
-    buildprintf("\n>>>> Statnum shifter utility for \"%s\"\n", gPaths.maps);
-    for (i = 0; i < highlightcnt; i++)
-    {
-        j = highlight[i];
-        if ((j & 0xC000) == 0)
-            continue;
-
-        pSpr = &sprite[j & 0x1FFF];
-        nTotal++;
-
-        if (pSpr->statnum == kStatFree)                                                                 ;
-        else if (pSpr->statnum == kStatExplosion && !rngok(pSpr->type, 0, kExplosionMax))               ;
-        else if (pSpr->statnum == kStatFX && !rngok(pSpr->type, 0, kFXMax))                             ;
-        else if (pSpr->statnum == kStatItem && !rngok(pSpr->type, kItemWeaponBase, kItemMax))           ;
-        else if (pSpr->statnum == kStatThing && !rngok(pSpr->type, kThingBase, kThingMax))              ;
-        else if (pSpr->statnum == kStatProjectile && !rngok(pSpr->type, kMissileBase, kMissileMax))     ;
-        else if ((pSpr->statnum == kStatDude) && !rngok(pSpr->type, kDudeBase, kDudeMax))               ;
-        else if (pSpr->statnum == kStatRespawn)                                                         ;
-        else if (pSpr->statnum == kStatPurge)                                                           ;
-        else if (pSpr->statnum == kStatTraps && !rngok(pSpr->type, kTrapBase, kTrapMax))                ;
-        else if (pSpr->statnum == kStatAmbience && pSpr->type != kSoundAmbient)                         ;
-        else if (pSpr->statnum == kStatSpares)                                                          ;
-        else if (pSpr->statnum == kStatFlare)                                                           ;
-        else if (pSpr->statnum == kStatDebris)                                                          ;
-        else if (pSpr->statnum == kStatPathMarker && pSpr->type != kMarkerPath)                         ;
-        else if (pSpr->statnum == kStatSpares)                                                          ;
-        else if (pSpr->statnum == kStatInactive)                                                        ;
-        else if (rngok(pSpr->statnum, 17, 128))                                                         ;
-        else continue;
-
-        nOld = pSpr->statnum;
-        nNew = ClipRange(pSpr->statnum + nVal, 0, kMaxStatus - 1);
-
-        buildprintf
-        (
-            "Sprite #%d, Type %d - %s: Shifting statnum from %d to %d...\n",
-            pSpr->index,
-            pSpr->type,
-            (rngok(pSpr->type, 0, LENGTH(gSpriteNames)) && !isempty(gSpriteNames[pSpr->type])) ? gSpriteNames[pSpr->type] : "<UNNAMED>",
-            nOld,
-            nNew
-        );
-
-        ChangeSpriteStat(pSpr->index, nNew);
-        nShifted++;
-    }
-
-    Beep(nShifted > 0);
-    buildprintf(">>>> %d of %d sprites shifted in total.\n", nShifted, nTotal);
-    if (nShifted)
-        CleanUp();
-
-    if (nShifted > 0)
-        asksave = 1;
-
-    return OSDCMD_OK;
-}
-
-
 const char* helpfilename    = "xmapedit.chm";
 const char helpkey          = KEY_F1;
 
 int ExtInit(int argc, char const * const argv[])
 {
+    OSDFUNC* p = gOsdFuncList;
     static char myBuildDate[16] = "UNK_DATE";
     char filename[BMAX_PATH] = "\0", *tmp;
     int i;
@@ -1416,42 +1318,35 @@ int ExtInit(int argc, char const * const argv[])
         strcpy(myBuildDate, build_date); myBuildDate[4] = '0'; // day with leading zero
         build_date = (const char*)myBuildDate;
     }
-
-    OSD_RegisterFunction
-    (
-        "statnumshift_sys",
-        "statnumshift_sys <val>: shift system reserved statnums by given value for sprites in a highlight\n",
-        OSDFUNC_ShiftSysStatnum
-    );
-
+    
+    while(p->name)
+        OSD_RegisterFunction(p->name, p->description, p->func), p++;
+    
     onquiteventcallback = dlgSaveAndOrQuit;
     HookReplaceFunctions();
     initcrc32table();
-
-    char *appdir = Bgetappdir();
-
+    
+    wm_setapptitle("XMAPEDIT");
+    buildsetlogfile(kLogFile);
+    buildprintf("XMAPEDIT BUILD %s\n", build_date);
+    
     // the OSX app bundle, or on Windows the directory where the EXE was launched
-    if (appdir)
+    if ((tmp = Bgetappdir()) != NULL)
     {
-        addsearchpath(appdir);
-        if ((i = strlen(appdir) - 1) >= 0)
+        addsearchpath(tmp);
+        if ((i = strlen(tmp) - 1) >= 0)
         {
-            if (slash(appdir[i])) appdir[i] = 0;
-            _chdir(appdir); // we need this so opening files through "Open with..." dialog works in Windows...
-            sprintf(buffer, "Using \"%s\" as working directory.\n", appdir);
+            if (slash(tmp[i])) tmp[i] = 0;
+            _chdir(tmp); // we need this so opening files through "Open with..." dialog works in Windows...
+            buildprintf("Using \"%s\" as working directory.\n", tmp);
         }
 
-        free(appdir);
+        free(tmp);
     }
     else
     {
         ThrowError("Failed to get app directory.");
     }
-
-    wm_setapptitle("XMAPEDIT");
-    buildsetlogfile(kLogFile);
-    buildprintf("XMAPEDIT BUILD %s\n", build_date);
-    buildprintf(buffer);
 
     // ---------------------------------------------------------------------------
     // setup timers
@@ -1642,8 +1537,7 @@ int ExtInit(int argc, char const * const argv[])
 
     gExtApps.Init(MapEditINI, "ExternalCommands");
 
-    memset(joinsector, -1, sizeof(joinsector));
-    gSeqEd.filename             = gPaths.seqs;
+    gJoinSector = -1;
     gTool.objType               = -1;
     gTool.objIndex              = -1;
     // ---------------------------------------------------------------------------
@@ -1658,21 +1552,20 @@ int ExtInit(int argc, char const * const argv[])
     if (gMisc.forceSetup) // should we show options?
         xmpOptions();
 
-    if (argc > 1)
-    {
-        if (!isempty(argv[1]))
-            strcpy(filename, argv[1]);
-    }
-    else if (gMisc.autoLoadMap)
+    if (argc < 2)
     {
         if (!isempty(gPaths.maps))
             strcpy(filename, gPaths.maps);
+        
+        if (!gMisc.autoLoadMap)
+        {
+            if ((tmp = browseOpen(filename, ".map")) != NULL)
+                strcpy(filename, tmp);
+        }
     }
-    else if ((tmp = browseOpen(filename, getExt(kMap))) != NULL)
-    {
-        strcpy(filename, tmp);
-    }
-
+    else if (!isempty(argv[1]))
+        strcpy(filename, argv[1]);
+    
     i = kToolMapEdit;
     if (!isempty(filename))
         i = toolOpenWith(filename);
@@ -1696,6 +1589,7 @@ int ExtInit(int argc, char const * const argv[])
             strcpy(gPaths.maps,
                 (!isempty(filename) && boardLoad(filename) == 0) ? filename : kDefaultMapName);
 
+            formatMapInfo(gMapInfoStr);
             ChangeExtension(gPaths.maps, getExt(kMap));
             gMapLoaded = 1;
             break;
@@ -1707,9 +1601,9 @@ int ExtInit(int argc, char const * const argv[])
             switch (i)
             {
                 case kToolSeqEdit:
-                    strcpy(gSeqEd.filename, filename);
-                    ChangeExtension(gPaths.images, getExt(kSeq));
-                    seqeditStart(gSeqEd.filename);
+                    strcpy(gPaths.seqs, filename);
+                    ChangeExtension(gPaths.seqs, getExt(kSeq));
+                    gSeqed.Start(gPaths.seqs);
                     break;
                 case kToolArtEdit:
                     strcpy(gPaths.images, filename);
@@ -1757,6 +1651,7 @@ void ExtUnInit(void)
         gCmtPrefs.Save(MapEditINI,      "Comments");
         gImportPrefs.Save(MapEditINI,   "ImportWizard");
         gDirBroPrefs.Save(MapEditINI,   "FileBrowser");
+        gLightBomb.Save(MapEditINI,     "LightBomb");
         MapEditINI->Save(kCoreIniName);
     }
 }
@@ -2557,12 +2452,14 @@ void xmpAbout(void) {
 
         {"Tested by", 1, 0, 0, 0},
         {"Spill,  Seizhak,  daMann,  BloodyTom", 1, 0, 1, 1},
+        {"Michael_Life_My_Agony,", 1, 0, 1, 1},
         {"Tekedon,  Nyyss0nen", 1, 0, 1, 1},
         {"and others", 1, 0, 1, 1},
         {"\0", 0, 0, 0},
 
         {"Manual written by", 1, 0, 0, 0},
-        {"Seizhak", 1, 0, 5, 5},
+        {"Seizhak (ENG, Original)", 1, 0, 5, 5},
+        {"Michael_Life_My_Agony (RUS)", 1, 0, 1, 5},
         {"\0", 0, 0, 0},
 
         {"Original MAPEDIT version by", 1, 0, 0, 0},
@@ -2826,13 +2723,13 @@ int xmpMenuProcess() {
                 }
                 return result;
             case mrToolPreviewMode:
-                if (!previewMenuProcess())
+                if (!gPreview.ShowMenu())
                 {
                     result = mrMenu;
                     break;
                 }
-                else if (gPreviewMode) previewStop();
-                previewStart();
+                else if (gPreviewMode) gPreview.Stop();
+                gPreview.Start();
                 return result;
             case mrBoardOptions:
                 if (dlgMapSettings()) return result;
@@ -2889,8 +2786,7 @@ int xmpMenuProcess() {
             }
             return result;
             case mrToolSeqEdit:
-                gTool.cantest = gMapLoaded;
-                seqeditStart(NULL);
+                gSeqed.Start(NULL);
                 return result;
             case mrToolArtEdit:
                 gTool.cantest = gMapLoaded;
@@ -2941,6 +2837,12 @@ int xmpMenuProcess() {
                 }
                 break;
             case mrReload:
+                if (!Confirm("Reload map now?"))
+                {
+                    result = mrMenu;
+                    break;
+                }
+                
                 hgltReset();
                 // no break
             case mrLoad:
@@ -3109,7 +3011,7 @@ void processMove() {
                                 }
                                 else
                                 {
-                                    previewMessage("Wall #%d touch error: the map must be modern to make this flag work!", i);
+                                    scrSetLogMessage("Wall #%d touch error: the map must be modern to make this flag work!", i);
                                     BeepFail();
                                 }
                             }
@@ -3490,7 +3392,6 @@ int boardLoad(char *filename)
 
     if (highlightsectorcnt > 0)
     {
-        cpyObjectClear();
 
         // save all the highlighted stuff before loading other map
         bspr = new VOIDLIST(sizeof(spritetype));    bxspr = new VOIDLIST(sizeof(XSPRITE));
@@ -3556,9 +3457,6 @@ int boardLoad(char *filename)
     {
         case kMapTypeBLOOD:
             dbLoadMap(pIo, (gCmtPrefs.enabled) ? mapname : NULL);
-            break;
-        case kMapTypeSAVEGAME_NBLOOD:
-            dbLoadSaveGame(pIo);
             break;
     }
 
@@ -3791,9 +3689,8 @@ void boardReset(int hgltreset)
     somethingintab = 255;
     mapversion = 7;
     gMapRev    = 0;
-
-    memset(joinsector, -1, sizeof(joinsector));
-
+    gJoinSector = -1;
+    
     if (!hgltreset) hgltReset(); // reset using default params
     else hgltReset(hgltreset);  // override param
 
@@ -3829,7 +3726,7 @@ static MAPSNAPEXTRA oldsnapextra;
 int boardSnapshotMake(BYTE** pData, int* crcSiz)
 {
     sectortype* pSect; XSECTOR* pXSect; walltype* pWall; XWALL* pXWall;
-    MAPSNAPEXTRA extra;
+    MAPSNAPEXTRA extra; spritetype* pSpr;
 
     int totalsiz = 0, miscsiz = 0, curofs, miscofs, t, i, j;
     short numcomments = gCommentMgr.commentsCount;
@@ -3847,6 +3744,7 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
     totalsiz += sizeof(parallaxtype);
     totalsiz += sizeof(Sky::pieces);
     totalsiz += sizeof(visibility);
+    totalsiz += sizeof(showinvisibility);
 
     totalsiz += sizeof(numcomments);
     totalsiz += sizeof(numsectors);
@@ -3919,6 +3817,7 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
     Io.write(&parallaxtype, sizeof(parallaxtype));
     Io.write(&Sky::pieces,  sizeof(Sky::pieces));
     Io.write(&visibility,   sizeof(visibility));
+    Io.write(&showinvisibility,   sizeof(showinvisibility));
     Io.write(&numcomments,  sizeof(numcomments));
     Io.write(&numsectors,   sizeof(numsectors));
     Io.write(&numwalls,     sizeof(numwalls));
@@ -3989,9 +3888,26 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
                 Io.seek(curofs, SEEK_SET);  // Back to current
             }
         }
-
-        // Write into object offset
-        Io.write(pSect, sizeof(sectortype));
+        
+        
+        if (hgltCheck(OBJ_FLOOR, i) < 0)
+        {
+            // Normal write into object offset
+            
+            Io.write(pSect, sizeof(sectortype));
+        }
+        else
+        {
+           // Negate picnum to indicate this
+           // sector supposed to be in
+           // highlight on load.
+            
+            pSect->floorpicnum = -pSect->floorpicnum;
+            Io.write(pSect, sizeof(sectortype));
+            pSect->floorpicnum = klabs(pSect->floorpicnum);
+        }
+        
+        
         if (pXSect)
         {
             // Write into xobject offset
@@ -4067,9 +3983,26 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
                 Io.seek(curofs, SEEK_SET);  // Back to current
             }
         }
+        
+        
+        if (hgltCheck(OBJ_WALL, i) < 0)
+        {
+            // Normal write into current offset
+            
+            Io.write(pWall, sizeof(walltype));
+        }
+        else
+        {
+           // Negate picnum to indicate this
+           // wall supposed to be in
+           // highlight on load.
+            
+            pWall->picnum = -pWall->picnum;
+            Io.write(pWall, sizeof(walltype));
+            pWall->picnum = klabs(pWall->picnum);
+        }
+        
 
-        // Write into current offset
-        Io.write(pWall, sizeof(walltype));
         if (pXWall)
         {
             // Write into current offset
@@ -4091,15 +4024,33 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
 
     for (i = 0; i < kMaxSprites; i++)
     {
-        if (sprite[i].statnum < kMaxStatus)
+        pSpr = &sprite[i];
+        
+        if (pSpr->statnum < kMaxStatus)
         {
-            Io.write(&sprite[i], sizeof(spritetype));
-            if (sprite[i].extra > 0)
+            if (!TestBitString(hgltspri, i))
+            {
+                // Normal writing
+                
+                Io.write(pSpr, sizeof(spritetype));
+            }
+            else
+            {
+               // Negate picnum to indicate this
+               // sprite supposed to be in
+               // highlight on load.
+               
+               pSpr->picnum = -pSpr->picnum;
+               Io.write(pSpr, sizeof(spritetype));
+               pSpr->picnum = klabs(pSpr->picnum);
+            }
+            
+            if (pSpr->extra > 0)
                 Io.write(&xsprite[sprite[i].extra], sizeof(XSPRITE));
         }
     }
 
-    if (gMisc.undoCamRestore)
+    if (!gPreviewMode && gMisc.undoCamRestore)
     {
         // Also write other non-crc
         // stuff into misc
@@ -4132,6 +4083,8 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     short numcomments;
     uint8_t pan[4];
 
+    hgltReset(kHgltSector | kHgltGradient | kHgltPoint);
+    gCommentMgr.DeleteAll();
     IOBuffer Io(nLen, pData);
 
     // Read header
@@ -4148,6 +4101,7 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     Io.read(&parallaxtype,  sizeof(parallaxtype));
     Io.read(&Sky::pieces,   sizeof(Sky::pieces));
     Io.read(&visibility,    sizeof(visibility));
+    Io.read(&showinvisibility,    sizeof(showinvisibility));
     Io.read(&numcomments,   sizeof(numcomments));
     Io.read(&numsectors,    sizeof(numsectors));
     Io.read(&numwalls,      sizeof(numwalls));
@@ -4156,7 +4110,6 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
 
     Io.read(&pskyoff, sizeof(pskyoff[0]) * Sky::pieces);
 
-    gCommentMgr.DeleteAll();
     numxsprites = numxwalls = numxsectors = 0;
     NumSprites = numsprites;
     numsprites = 0;
@@ -4174,45 +4127,49 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     {
         pSect = &sector[i];
         Io.read(pSect, sizeof(sectortype));
-        if (pSect->extra <= 0)
-            continue;
-
-        k = pSect->extra;
-        j = dbInsertXSector(i); pXSect = &xsector[j];
-        Io.read(pXSect, sizeof(XSECTOR));
-
-        if (numcomments && k != j)
-            gCommentMgr.RebindMatching(OBJ_SECTOR, k, OBJ_SECTOR, j, 1);
-
-        if (pXSect->panAlways || pXSect->busy)
+        
+        if (pSect->floorpicnum < 0) // Means sector is highlighted
+            hgltAdd(OBJ_FLOOR, i), pSect->floorpicnum = klabs(pSect->floorpicnum);
+        
+        if (pSect->extra > 0)
         {
-            // Read the actual object panning
+            k = pSect->extra;
+            j = dbInsertXSector(i); pXSect = &xsector[j];
+            Io.read(pXSect, sizeof(XSECTOR));
 
-            curofs = Io.tell();             // Save current offset
-            Io.seek(miscofs, SEEK_SET);     // Go to misc
+            if (numcomments && k != j)
+                gCommentMgr.RebindMatching(OBJ_SECTOR, k, OBJ_SECTOR, j, 1);
 
-            if (pXSect->panFloor)
+            if (pXSect->panAlways || pXSect->busy)
             {
-                Io.read(&pan, sizeof(pan));
+                // Read the actual object panning
 
-                pSect->floorxpanning  = pan[0];
-                pSect->floorypanning  = pan[1];
-                pXSect->floorXPanFrac = pan[2];
-                pXSect->floorYPanFrac = pan[3];
+                curofs = Io.tell();             // Save current offset
+                Io.seek(miscofs, SEEK_SET);     // Go to misc
+
+                if (pXSect->panFloor)
+                {
+                    Io.read(&pan, sizeof(pan));
+
+                    pSect->floorxpanning  = pan[0];
+                    pSect->floorypanning  = pan[1];
+                    pXSect->floorXPanFrac = pan[2];
+                    pXSect->floorYPanFrac = pan[3];
+                }
+
+                if (pXSect->panCeiling)
+                {
+                    Io.read(&pan, sizeof(pan));
+
+                    pSect->ceilingxpanning = pan[0];
+                    pSect->ceilingypanning = pan[1];
+                    pXSect->ceilXPanFrac   = pan[2];
+                    pXSect->ceilYPanFrac   = pan[3];
+                }
+
+                miscofs = Io.tell();        // Update misc offset
+                Io.seek(curofs, SEEK_SET);  // Go to object offset
             }
-
-            if (pXSect->panCeiling)
-            {
-                Io.read(&pan, sizeof(pan));
-
-                pSect->ceilingxpanning = pan[0];
-                pSect->ceilingypanning = pan[1];
-                pXSect->ceilXPanFrac   = pan[2];
-                pXSect->ceilYPanFrac   = pan[3];
-            }
-
-            miscofs = Io.tell();        // Update misc offset
-            Io.seek(curofs, SEEK_SET);  // Go to object offset
         }
     }
 
@@ -4220,6 +4177,9 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     {
         pWall = &wall[i];
         Io.read(pWall, sizeof(walltype));
+
+        if (pWall->picnum < 0) // Means wall is highlighted
+            hgltAdd(OBJ_WALL, i), pWall->picnum = klabs(pWall->picnum);
 
         if (pWall->extra > 0)
         {
@@ -4268,6 +4228,9 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
             pSpr = &sprite[j];
             memcpy(pSpr, &tspr, sizeof(spritetype));
             pSpr->index = j;
+            
+            if (pSpr->picnum < 0) // Means sprite is highlighted
+                hgltAdd(OBJ_SPRITE, pSpr->index), pSpr->picnum = klabs(pSpr->picnum);
 
             if (numcomments && tspr.index != j)
                 gCommentMgr.RebindMatching(OBJ_SPRITE, tspr.index, OBJ_SPRITE, j, 1);
@@ -4301,7 +4264,7 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
         }
     }
 
-    if (gMisc.undoCamRestore)
+    if (!gPreviewMode && gMisc.undoCamRestore)
     {
         // Also read other non-crc
         // stuff from misc
@@ -4344,8 +4307,9 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     oldnumwalls     = numwalls;
     oldnumsprites   = numsprites;
 
-    hgltReset(kHgltSector | kHgltGradient | kHgltPoint);
+    updatesector(posx, posy, &cursectnum);
     sectorToolDisableAll(1);
+    gJoinSector = -1;
     CleanUp();
 
     return 1;
@@ -4448,8 +4412,10 @@ void initNames()
                                 nVal = 0;
                                 ignore = (!isufix(val) || (nVal = atoi(val)) > MO || gMisc.showTypes < nVal);
                                 if (nVal == MO && !gModernTypes.Exists(nGroup, nType))
+                                {
                                     gModernTypes.Add(nGroup, nType);
-
+                                    SetBitString(gModernTypesMap, nType);
+                                }
                                 break;
                             }
                         }
@@ -4595,12 +4561,12 @@ void xmpEditLoopProcess2D(void)
 
 void xmpEditLoopProcessSPLIT(void)
 {
-    Rect r3D, *b3D; Rect r2D, *b2D;
+    Rect r3D, b3D; Rect r2D, b2D;
     SCREEN2D* pScr2D = &gScreen2D;
 
     xmpSplitModeCountWindowSize(&r3D, &r2D);
-    b2D = new Rect(pScr2D->view.wx1, pScr2D->view.wy1, pScr2D->view.wx2, pScr2D->view.wy2);
-    b3D = new Rect(windowx1, windowy1, windowx2, windowy2);
+    b2D.set(pScr2D->view.wx1, pScr2D->view.wy1, pScr2D->view.wx2, pScr2D->view.wy2);
+    b3D.set(windowx1, windowy1, windowx2, windowy2);
 
     setview(r3D.x0, r3D.y0, r3D.x1, r3D.y1);
     pScr2D->SetView(r2D.x0, r2D.y0, r2D.x1, r2D.y1, 1);
@@ -4633,8 +4599,8 @@ void xmpEditLoopProcessSPLIT(void)
 
     if ((ED23 & 0x80) == 0)
     {
-        pScr2D->SetView(b2D->x0, b2D->y0, b2D->x1, b2D->y1, 1);
-        setview(b3D->x0, b3D->y0, b3D->x1, b3D->y1);
+        pScr2D->SetView(b2D.x0, b2D.y0, b2D.x1, b2D.y1, 1);
+        setview(b3D.x0, b3D.y0, b3D.x1, b3D.y1);
     }
     else
     {
@@ -4686,13 +4652,14 @@ void xmpSetEditMode(char nMode)
             hudSetLayout(&gMapedHud, gHudPrefs.layout2D, &gMouse);
             scrSetGameMode(fullscreen, xdim, ydim, bpp);
             pGEditLoopProcessFunc = xmpEditLoopProcess2D;
+            viewRotateWallTiles(0);
             qsetmodeany(xdim, ydim);
 
             if (reset)
             {
-                joinsector[0] = joinsector[1] = -1;
                 sectorToolDisableAll(1);
                 hgltReset(kHgltPoint);
+                gJoinSector = -1;
             }
 
             ED23 = 0;
@@ -4800,4 +4767,140 @@ char* GetHoverName()
         return gSearchStatNames[searchstat];
 
     return gSearchStatNames[nMax-1];
+}
+
+static int OSDFUNC_PathChop(const osdfuncparm_t *arg)
+{
+    spritetype* pSpr;
+    int nDone, nTotal = gStatCount[kStatPathMarker];
+    int nVal = 0;
+    int i, j;
+    
+    if (gMapLoaded)
+    {
+        switch(arg->numparms)
+        {
+            case 1:
+                nVal = Bstrtol(arg->parms[0], NULL, 10);
+                break;
+            default:
+                return OSDCMD_SHOWHELP;
+        }
+    }
+    else
+    {
+        buildprintf("No map loaded!\n");
+        return OSDCMD_OK;
+    }
+    
+    buildprintf("\n>>>> Path marker optimizing utility for \"%s\"\n", gPaths.maps);
+    
+    if (highlightcnt > 0)
+    {
+        for (i = 0; i < highlightcnt; i++)
+        {
+            j = highlight[i];
+            if ((j & 0xC000) == 0)
+                continue;
+
+            pSpr = &sprite[j & 0x1FFF];
+            if (pSpr->statnum == kStatPathMarker && pSpr->extra > 0)
+                pathChop(&xsprite[pSpr->extra], nVal);
+        }
+    }
+    else
+    {
+        for (i = 0; i < kMaxSprites; i++)
+        {
+            pSpr = &sprite[i];
+            if (pSpr->statnum == kStatPathMarker && pSpr->extra > 0)
+                pathChop(&xsprite[pSpr->extra], nVal);
+        }
+    }
+    
+    nDone = nTotal - gStatCount[kStatPathMarker];
+    buildprintf(">>>> %d of %d markers removed in total.\n", nDone, nTotal);
+    if (nDone)
+        asksave = 1;
+    
+    return OSDCMD_OK;
+}
+
+static int OSDFUNC_ShiftSysStatnum(const osdfuncparm_t *arg)
+{
+    int nNew, nOld, nVal = 256, i, j;
+    int nShifted = 0, nTotal = 0;
+    spritetype* pSpr;
+
+    if (gMapLoaded)
+    {
+        switch(arg->numparms)
+        {
+            case 1:
+                nVal = Bstrtol(arg->parms[0], NULL, 10);
+                break;
+            default:
+                return OSDCMD_SHOWHELP;
+        }
+    }
+    else
+    {
+        buildprintf("No map loaded!\n");
+        return OSDCMD_OK;
+    }
+
+    buildprintf("\n>>>> Statnum shifter utility for \"%s\"\n", gPaths.maps);
+    for (i = 0; i < highlightcnt; i++)
+    {
+        j = highlight[i];
+        if ((j & 0xC000) == 0)
+            continue;
+
+        pSpr = &sprite[j & 0x1FFF];
+        nTotal++;
+
+        if (pSpr->statnum == kStatFree)                                                                 ;
+        else if (pSpr->statnum == kStatExplosion && !rngok(pSpr->type, 0, kExplosionMax))               ;
+        else if (pSpr->statnum == kStatFX && !rngok(pSpr->type, 0, kFXMax))                             ;
+        else if (pSpr->statnum == kStatItem && !rngok(pSpr->type, kItemWeaponBase, kItemMax))           ;
+        else if (pSpr->statnum == kStatThing && !rngok(pSpr->type, kThingBase, kThingMax))              ;
+        else if (pSpr->statnum == kStatProjectile && !rngok(pSpr->type, kMissileBase, kMissileMax))     ;
+        else if ((pSpr->statnum == kStatDude) && !rngok(pSpr->type, kDudeBase, kDudeMax))               ;
+        else if (pSpr->statnum == kStatRespawn)                                                         ;
+        else if (pSpr->statnum == kStatPurge)                                                           ;
+        else if (pSpr->statnum == kStatTraps && !rngok(pSpr->type, kTrapBase, kTrapMax))                ;
+        else if (pSpr->statnum == kStatAmbience && pSpr->type != kSoundAmbient)                         ;
+        else if (pSpr->statnum == kStatSpares)                                                          ;
+        else if (pSpr->statnum == kStatFlare)                                                           ;
+        else if (pSpr->statnum == kStatDebris)                                                          ;
+        else if (pSpr->statnum == kStatPathMarker && pSpr->type != kMarkerPath)                         ;
+        else if (pSpr->statnum == kStatSpares)                                                          ;
+        else if (pSpr->statnum == kStatInactive)                                                        ;
+        else if (rngok(pSpr->statnum, 17, 128))                                                         ;
+        else continue;
+
+        nOld = pSpr->statnum;
+        nNew = ClipRange(pSpr->statnum + nVal, 0, kMaxStatus - 1);
+
+        buildprintf
+        (
+            "Sprite #%d, Type %d - %s: Shifting statnum from %d to %d...\n",
+            pSpr->index,
+            pSpr->type,
+            (rngok(pSpr->type, 0, LENGTH(gSpriteNames)) && !isempty(gSpriteNames[pSpr->type])) ? gSpriteNames[pSpr->type] : "<UNNAMED>",
+            nOld,
+            nNew
+        );
+
+        ChangeSpriteStat(pSpr->index, nNew);
+        nShifted++;
+    }
+
+    Beep(nShifted > 0);
+    buildprintf(">>>> %d of %d sprites shifted in total.\n", nShifted, nTotal);
+    
+    if (nShifted)
+        CleanUp(), asksave = 1;
+
+    return OSDCMD_OK;
 }

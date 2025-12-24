@@ -30,10 +30,11 @@
 #include "img2tile.h"
 #include "mapcmt.h"
 #include "nnexts.h"
+#include "xmpror.h"
 
 #define kCaptPadNormal      2
 #define kCaptPadHover       kCaptPadNormal + 1
-#define kZoomTags           512
+#define kZoomTags           768
 #define kZoomSpritesUnder   256
 #define kZoomSprites        128
 #define kZoomEditCaption    256
@@ -248,21 +249,25 @@ void SCREEN2D::DrawLine(int x1, int y1, int x2, int y2, char nColor)
 
 void SCREEN2D::DrawLine(int x1, int y1, int x2, int y2, char c, char b, int drawPat)
 {
-    int odrawlinepat = drawlinepat;
+    static int odrawlinepat, dx, dy;
+    
+    odrawlinepat = drawlinepat;
     drawlinepat = drawPat;
 
     DrawLine(x1, y1, x2, y2, c);
     if (b)
     {
-        int dx = x2 - x1;
-        int dy = y2 - y1;
+        dx = x2 - x1, dy = y2 - y1;
         RotateVector(&dx, &dy, kAng45 / 2);
         switch (GetOctant(dx, dy))
         {
             case 0:
             case 4:
                 DrawLine(x1, y1-1, x2, y2-1, c);
-                DrawLine(x1, y1+1, x2, y2+1, c);
+                
+                if (b == 1)
+                    DrawLine(x1, y1+1, x2, y2+1, c);
+                
                 break;
             case 1:
             case 5:
@@ -270,31 +275,41 @@ void SCREEN2D::DrawLine(int x1, int y1, int x2, int y2, char c, char b, int draw
                 {
                     DrawLine(x1-1, y1+1, x2-1, y2+1, c);
                     DrawLine(x1-1, y1, x2, y2+1, c);
-                    DrawLine(x1+1, y1, x2+1, y2, c);
+                    
+                    if (b == 1)
+                        DrawLine(x1+1, y1, x2+1, y2, c);
                 }
                 else
                 {
                     DrawLine(x1-1, y1+1, x2-1, y2+1, c);
                     DrawLine(x1, y1+1, x2, y2+1, c);
-                    DrawLine(x1, y1+1, x2, y2+1, c);
+                    
+                    if (b == 1)
+                        DrawLine(x1, y1+1, x2, y2+1, c);
                 }
                 break;
             case 2:
             case 6:
-                DrawLine(x1-1, y1, x2-1, y2, c);
+                if (b == 1)
+                    DrawLine(x1-1, y1, x2-1, y2, c);
+                
                 DrawLine(x1+1, y1, x2+1, y2, c);
                 break;
             case 3:
             case 7:
                 if (klabs(dx) < klabs(dy))
                 {
-                    DrawLine(x1-1, y1-1, x2-1, y2-1, c);
+                    if (b == 1)
+                        DrawLine(x1-1, y1-1, x2-1, y2-1, c);
+                    
                     DrawLine(x1-1, y1, x2-1, y2, c);
                     DrawLine(x1+1, y1, x2+1, y2, c);
                 }
                 else
                 {
-                    DrawLine(x1-1, y1-1, x2-1, y2-1, c);
+                    if (b == 1)
+                        DrawLine(x1-1, y1-1, x2-1, y2-1, c);
+                    
                     DrawLine(x1, y1-1, x2, y2-1, c);
                     DrawLine(x1, y1+1, x2, y2+1, c);
                 }
@@ -722,6 +737,7 @@ void SCREEN2D::DrawWall(int nWall)
 {
     walltype* pWall = &wall[nWall];
     int nNext = pWall->nextwall;
+    char oneSideBlock = 0;
     char masked = 0;
     short flags;
 
@@ -735,13 +751,25 @@ void SCREEN2D::DrawWall(int nWall)
         else if (nNext == linehighlight)    flags = wall[nNext].cstat, nWall = nNext;
         else                                flags = pWall->cstat | wall[nNext].cstat;
 
-        masked = ((flags & kWallMasked) > 0);
-        THICK = ((flags & kWallBlock) > 0);
+        oneSideBlock    = ((pWall->cstat & kWallBlock) ^ (wall[nNext].cstat & kWallBlock));
+        masked          = ((flags & kWallMasked) != 0);
+        
+        if (flags & kWallBlock)
+            THICK = (oneSideBlock) ? 2 : 1;
     }
 
     color = GetWallColor(nWall, (nWall == linehighlight) ? h : 0);
-    DrawLine(x1, y1, x2, y2, color, THICK);
-
+    
+    if (oneSideBlock)
+    {
+        DrawLine(x1, y1, x2, y2, color, 0);
+        DrawLine(x1, y1, x2, y2, color, (nWall == linehighlight) ? THICK : 2, kPatDotted2);
+    }
+    else
+    {
+        DrawLine(x1, y1, x2, y2, color, THICK);
+    }
+    
     if (masked)
     {
         color = ColorGet(kColorLightMagenta,  0);
@@ -801,7 +829,7 @@ const char* SCREEN2D::CaptionGet(int nType, int nID)
     return (!isempty(t)) ? t : NULL;
 }
 
-void SCREEN2D::CaptionPrint(const char* text, int cx, int cy, char pd, char fc, short bc, char shadow, QFONT* pFont)
+void SCREEN2D::CaptionPrint(const char* text, int cx, int cy, char pd, char fc, short bc, signed char sh, char shadow, QFONT* pFont)
 {
     int x1, x2, y1, y2, wh, hg;
     wh = gfxGetTextLen((char*)text, pFont) >> 1;
@@ -812,6 +840,12 @@ void SCREEN2D::CaptionPrint(const char* text, int cx, int cy, char pd, char fc, 
 
     if (OnScreen(x1, y1, x2, y2))
     {
+        if (sh)
+        {
+            BYTE* pPlu = (palookup[0] + shgetpalookup(0, sh));
+            fc = pPlu[fc], bc = pPlu[bc];
+        }
+        
         if (bc >= 0)
         {
             gfxSetColor((unsigned char)bc);
@@ -853,32 +887,75 @@ void SCREEN2D::CaptionPrintSector(int nSect, char hover, QFONT* pFont)
 
 void SCREEN2D::CaptionPrintSprite(int nSpr, char hover, QFONT* pFont)
 {
-    int cx, cy; short flags;
+    int cx, cy;
     const char* caption = ExtGetSpriteCaption(nSpr, prefs.showTags);
-    unsigned char fc, pd, bc, bh = 0, dark = 0;
-
+    unsigned char pd, bc, sh = 0, bh = 0, dark = 0;
+    short fc = -1;
+    
     if (!caption[0])
         return;
-
-    cx = cscalex(sprite[nSpr].x);
-    cy = cscaley(sprite[nSpr].y);
-    flags = sprite[nSpr].cstat;
-
-    bh = (flags & kSprBlock);
-    if (flags & kSprMoveForward)
+    
+    spritetype* pSpr = &sprite[nSpr];
+    
+    cx = cscalex(pSpr->x);
+    cy = cscaley(pSpr->y);
+    
+    bh = (pSpr->cstat & kSprBlock);
+    if (pSpr->cstat & kSprMoveForward)
     {
-        bc = ColorGet(kColorLightBlue,  (hover) ? h : !bh);
+        bc = ColorGet(kColorLightBlue, (hover) ? h : !bh);
         dark = !bh;
     }
-    else if (flags & kSprMoveReverse)       bc = ColorGet(kColorLightGreen, (hover) ? h : !bh);
-    else                                    bc = ColorGet(kColorCyan,       (hover) ? h :  bh);
-
-    if (flags & kSprHitscan)                fc = ColorGet(kColorRed,        (hover && h));
-    else if (dark)                          fc = ColorGet(kColorLightGray,  (hover && h));
-    else                                    fc = ColorGet(kColorBlack,      (hover && h));
-
+    else if (pSpr->cstat & kSprMoveReverse)
+    {
+        bc = ColorGet(kColorLightGreen, (hover) ? h : !bh);
+    }
+    else if (pSpr->statnum == kStatItem)
+    {
+        bc = ColorGet(kColorLightMagenta, 0);
+        sh = (hover && h) ? 0 : 8;
+    }
+    else if (pSpr->statnum == kStatDude)
+    {
+        bc = ColorGet(kColorLightRed, 0);
+        fc = ColorGet(kColorGrey20,  hover && h);
+    }
+    else if (pSpr->statnum == kStatPathMarker)
+    {
+        bc = ColorGet(kColorGrey26, hover && h);
+        dark = 1;
+    }
+    else if (pSpr->type == kMarkerDudeSpawn || pSpr->type == kModernCustomDudeSpawn)
+    {
+        bc = ColorGet(kColorLightRed, 0);
+        dark = 1;
+    }
+    else if (TestBitString(gModernTypesMap, pSpr->type))
+    {
+        bc = ColorGet(kColorYellow, 0);
+        sh = (hover && h) ? 0 : 8;
+    }
+    else
+    {
+        bc = ColorGet(kColorLightCyan, hover && h);
+    }
+    
+    if (fc < 0)
+    {
+        if (pSpr->cstat & kSprHitscan)          fc = ColorGet(kColorRed,        (hover && h));
+        else if (dark)                          fc = ColorGet(kColorGrey16,     (hover && h));
+        else                                    fc = ColorGet(kColorBlack,      (hover && h));
+    }
+    
+    if (pSpr->cstat & kSprInvisible)
+        sh += 14;
+    
+    if (!bh)
+        sh += 8;
+    
+    
     pd = (hover) ? kCaptPadHover : kCaptPadNormal;
-    CaptionPrint(caption, cx, cy, pd, fc, bc, false, pFont);
+    CaptionPrint(caption, cx, cy, pd, fc, bc, sh, false, pFont);
 }
 
 void SCREEN2D::CaptionPrintWall(int nWall, char hover, QFONT* pFont)
@@ -897,7 +974,7 @@ void SCREEN2D::CaptionPrintWall(int nWall, char hover, QFONT* pFont)
     ScalePoints(&cx, &cy);
 
     pd = (hover) ? kCaptPadHover : kCaptPadNormal;
-    CaptionPrint(caption, cx, cy, pd, fc, bc, false, pFont);
+    CaptionPrint(caption, cx, cy, pd, fc, bc, 4, false, pFont);
 }
 
 void SCREEN2D::SetView(int x1, int y1, int x2, int y2, char clip)
@@ -920,7 +997,7 @@ void SCREEN2D::SetView(int x1, int y1, int x2, int y2, char clip)
     }
     else
     {
-        pCaptFont = qFonts[0];
+        pCaptFont = qFonts[(ydim <= 1080) ? 7 : 0];
         pEditFont = qFonts[1];
     }
 }
@@ -979,8 +1056,7 @@ void SCREEN2D::ScreenDraw(void)
     else if (data.grid)
         DrawGrid();
 
-
-    /* flood sectors using translucent rotatesprite */
+    /* flood sectors using translucency */
     ////////////////////////////
     if (prefs.useTransluc)
     {
@@ -993,7 +1069,7 @@ void SCREEN2D::ScreenDraw(void)
             FillSector(sectorhighlight, color, 1);
         }
 
-        if (highlightsectorcnt > 0 || joinsector[0] >= 0)
+        if (highlightsectorcnt > 0 || gJoinSector >= 0)
         {
             color = ColorGet(kColorLightGreen);
 
@@ -1001,15 +1077,15 @@ void SCREEN2D::ScreenDraw(void)
             for (i = 0; i < highlightsectorcnt; i++)
             {
                 nSect = highlightsector[i];
-                if (nSect != joinsector[0])
+                if (nSect != gJoinSector)
                     FillSector(nSect, color, 1);
             }
 
             // flood sector waiting for merging
-            if (joinsector[0] >= 0)
+            if (gJoinSector >= 0)
             {
                 color = ColorGet(kColorYellow);
-                FillSector(joinsector[0], color, 1);
+                FillSector(gJoinSector, color, 1);
             }
         }
 
@@ -1027,10 +1103,10 @@ void SCREEN2D::ScreenDraw(void)
         }
 
         // flood sector waiting for merging
-        if (joinsector[0] >= 0)
+        if (gJoinSector >= 0)
         {
             color = ColorGet(kColorYellow);
-            FillSector(joinsector[0], color);
+            FillSector(gJoinSector, color);
         }
     }
 
@@ -1285,11 +1361,11 @@ void SCREEN2D::ScreenDraw(void)
         DrawWallMidPoint(linehighlight, GetWallColor(linehighlight, h));
     }
 
-    if (prefs.showTags)
+    /* draw object captions */
+    ////////////////////////////
+    if (data.zoom >= kZoomTags)
     {
-        /* draw object captions */
-        ////////////////////////////
-        if (data.zoom >= kZoomTags)
+        if (prefs.showTags)
         {
             for (i = 0; i < numsectors; i++)
                 CaptionPrintSector(i, (sectorhighlight == i), pCaptFont);
@@ -1305,23 +1381,23 @@ void SCREEN2D::ScreenDraw(void)
                         CaptionPrintSprite(j, TestBitString(hgltspri, j), pCaptFont);
                 }
             }
-
-            /* redraw captions of a hovered objects */
-            ////////////////////////////
-            if (pointhighlight >= 0)
-            {
-                if ((pointhighlight & 0xc000) != 16384)
-                {
-                    CaptionPrintWall(pointhighlight, true, pCaptFont);
-                }
-                else if (prefs.showSprites)
-                {
-                    CaptionPrintSprite(pointhighlight&16383, true, pCaptFont);
-                }
-            }
-            else if (linehighlight >= 0)
-                CaptionPrintWall(linehighlight, true, pCaptFont);
         }
+        
+        /* redraw captions of a hovered objects */
+        ////////////////////////////
+        if (pointhighlight >= 0)
+        {
+            if ((pointhighlight & 0xc000) != 16384)
+            {
+                CaptionPrintWall(pointhighlight, true, pCaptFont);
+            }
+            else if (prefs.showSprites)
+            {
+                CaptionPrintSprite(pointhighlight&16383, true, pCaptFont);
+            }
+        }
+        else if (linehighlight >= 0)
+            CaptionPrintWall(linehighlight, true, pCaptFont);
     }
 
     /* indicate first and alignto walls */
@@ -1415,7 +1491,7 @@ void SCREEN2D::ScreenDraw(void)
 
     if (prefs.showFeatures)
     {
-        /* draw circle wall and door wizard features */
+        /* draw various sector features */
         ////////////////////////////
         if (pGCircleW)                                  pGCircleW->Draw(this);
         else if (pGDoorSM && pGDoorSM->StatusGet() > 0) pGDoorSM->Draw(this);
@@ -1797,15 +1873,11 @@ void SCREEN2D::DrawGrid()
 void SCREEN2D::ShowMap(char flags)
 {
     int op = pixelaspect;
-    Rect* b;
-
+    Rect b(windowx1, windowy1, windowx2, windowy2);
     pixelaspect = 65535;
-    if (prefs.clipView)
-    {
-        b = new Rect(windowx1, windowy1, windowx2, windowy2);
-        setview(view.wx1, view.wy1, ClipHigh(view.wx2, xdim-1), ClipHigh(view.wy2, ydim-1));
-    }
-
+    
+    setview(view.wx1, view.wy1, ClipHigh(view.wx2, xdim-1), ClipHigh(view.wy2, ydim-1));
+    
     flags = 12;
     if (prefs.showMap > 1)
         flags++;
@@ -1820,7 +1892,7 @@ void SCREEN2D::ShowMap(char flags)
 
     pixelaspect = op;
     if (prefs.clipView)
-        setview(b->x0, b->y0, b->x1, b->y1);
+        setview(b.x0, b.y0, b.x1, b.y1);
 
 }
 

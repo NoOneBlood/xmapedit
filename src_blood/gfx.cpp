@@ -24,8 +24,6 @@
 #include "screen.h"
 #include "tile.h"
 
-extern "C" unsigned char *transluc;
-
 int clip[4][4];
 int clipCnt = 0;
 Rect clipRect(0, 0, 0, 0);
@@ -33,12 +31,37 @@ ROMFONT vFonts[kMaxVFonts];
 QFONT* qFonts[kMaxQFonts];
 QBITMAP* pBitmaps[kMaxBitmaps];
 char gColor = 0, gStdColor[32];
-
-void u_gfxPixel_NORMAL(int x, int y);
-void u_gfxPixel_TRANS(int x, int y);
-
-PUGFXPIXEL u_gfxPixel = u_gfxPixel_NORMAL;
 static char transmode = 0;
+
+inline void u_gfxPixel_NORMAL(int x, int y)             { *((char*)FRAMEPLACE(x, y)) = gColor; }
+inline void u_gfxPixel_TRANS1(int x, int y)             { char* d = (char*)FRAMEPLACE(x, y); *d = TRANSLUCENT1(*d, palookup[0], gColor); }
+inline void u_gfxPixel_TRANS2(int x, int y)             { char* d = (char*)FRAMEPLACE(x, y); *d = TRANSLUCENT2(*d, palookup[0], gColor); }
+
+inline void ud_gfxPixelA_NORMAL(char* d)                { *d = gColor; }
+inline void ud_gfxPixelA_TRANS1(char* d)                { *d = TRANSLUCENT1(*d, palookup[0], gColor); }
+inline void ud_gfxPixelA_TRANS2(char* d)                { *d = TRANSLUCENT2(*d, palookup[0], gColor); }
+
+inline void ud_gfxPixelB_NORMAL(char* d, char c)        { *d = c; }
+inline void ud_gfxPixelB_TRANS1(char* d, char c)        { *d = TRANSLUCENT1(*d, palookup[0], c); }
+inline void ud_gfxPixelB_TRANS2(char* d, char c)        { *d = TRANSLUCENT2(*d, palookup[0], c); }
+
+inline void ud_gfxSet_TRANS1(char* d, int v, int c)     { while(--c >= 0) *d = TRANSLUCENT1(*d, palookup[0], v), d++; }
+inline void ud_gfxSet_TRANS2(char* d, int v, int c)     { while(--c >= 0) *d = TRANSLUCENT2(*d, palookup[0], v), d++; }
+
+inline void ud_gfxCpy_TRANS1(char* d, char* s, int c)   { while(--c >= 0) *d = TRANSLUCENT1(*d, palookup[0], *s), d++, s++; }
+inline void ud_gfxCpy_TRANS2(char* d, char* s, int c)   { while(--c >= 0) *d = TRANSLUCENT2(*d, palookup[0], *s), d++, s++; }
+
+typedef void (*PUGFXPIXEL)(int x, int y);
+typedef void (*PUDGFXPIXELA)(char* dst);
+typedef void (*PUDGFXPIXELB)(char* dst, char c);
+typedef void (*PUDGFXSET)(char* dst, int v, int c);
+typedef void (*PUDGFXCPY)(char* dst, char* src, int c);
+
+PUGFXPIXEL u_gfxPixel       = u_gfxPixel_NORMAL;
+PUDGFXPIXELA ud_gfxPixelA   = ud_gfxPixelA_NORMAL;
+PUDGFXPIXELB ud_gfxPixelB   = ud_gfxPixelB_NORMAL;
+PUDGFXSET ud_gfxSet         = (PUDGFXSET)memset;
+PUDGFXCPY ud_gfxCpy         = (PUDGFXCPY)memcpy;
 
 static const char* gStdColorNames[] =
 {
@@ -96,11 +119,11 @@ void gfxBlitM2V(char* src, int bpl, int width, int height, int x, int y)
     #endif
 
     begindrawing();
-    char* dest = (char*)frameplace+ylookup[y]+x;
+    char* dest = (char*)FRAMEPLACE(x, y);
     int i = height;
     do
     {
-        memcpy(dest, src, width);
+        ud_gfxCpy(dest, src, width);
         src += bpl;
         dest += ylookup[1];
     } while (--i);
@@ -115,7 +138,7 @@ void gfxBlitMT2V(char* src, char tc, int bpl, int width, int height, int x, int 
     #endif
 
     begindrawing();
-    char* dest = (char*)frameplace+ylookup[y]+x;
+    char* dest = (char*)FRAMEPLACE(x, y);
     int i = height;
     do
     {
@@ -123,7 +146,7 @@ void gfxBlitMT2V(char* src, char tc, int bpl, int width, int height, int x, int 
         do
         {
             if (*src != tc)
-                *dest = *src;
+                ud_gfxPixelB(dest, *src);
             src++;
             dest++;
         } while (--j);
@@ -141,7 +164,7 @@ void gfxBlitMono(char *src, char mask, int bpl, int width, int height, int x, in
     #endif
 
     begindrawing();
-    char* dest = (char*)frameplace+ylookup[y]+x;
+    char* dest = (char*)FRAMEPLACE(x, y);
     int i = height;
     do
     {
@@ -149,7 +172,7 @@ void gfxBlitMono(char *src, char mask, int bpl, int width, int height, int x, in
         do
         {
             if (*src&mask)
-                *dest = (char)gColor;
+                ud_gfxPixelA(dest);
             src++;
             dest++;
         } while (--j);
@@ -215,21 +238,10 @@ void gfxPixel(int x, int y)
     }
 }
 
-void u_gfxPixel_NORMAL(int x, int y)
-{
-    char* dest = (char*)frameplace+ylookup[y]+x;
-    *dest = (char)gColor;
-}
-
-void u_gfxPixel_TRANS(int x, int y)
-{
-    unsigned char* plu = palookup[0];
-    char* d = (char*)frameplace+ylookup[y]+x;
-    *d = transluc[(transmode == 1) ? ((*d<<8)+plu[gColor]) : *d+(plu[gColor]<<8)];
-}
-
 void gfxHLine(int y, int x0, int x1)
 {
+    int l;
+    
     #if USE_POLYMOST
         if (getrendermode() >= 3)
             return;
@@ -237,11 +249,15 @@ void gfxHLine(int y, int x0, int x1)
 
     if (!rngok(y, clipRect.y0, clipRect.y1))
         return;
-
+    
     x0 = ClipLow(x0, clipRect.x0);
     x1 = ClipHigh(x1, clipRect.x1-1);
-    while(x0 <= x1)
-        u_gfxPixel(x0++, y);
+    
+    if ((l = x1-x0) <= 0)
+        return;
+    
+    char* d = (char*)FRAMEPLACE(x0, y);
+    ud_gfxSet(d, gColor, l);
 }
 
 void gfxVLine(int x, int y0, int y1)
@@ -256,9 +272,9 @@ void gfxVLine(int x, int y0, int y1)
 
     y0 = ClipLow(y0, clipRect.y0);
     y1 = ClipHigh(y1, clipRect.y1-1);
-    while(y0 <= y1)
-        u_gfxPixel(x, y0++);
-
+    
+    char* d = (char*)FRAMEPLACE(x, y0);
+    while(y0 <= y1) ud_gfxPixelA(d), y0++, d+=ylookup[1];
 }
 
 
@@ -400,29 +416,14 @@ void gfxFillBox(int x0, int y0, int x1, int y1)
 
     begindrawing();
 
-    if (transmode)
+    char* d = (char*)FRAMEPLACE(x0, y0);
+    int wh = x1 - x0;
+    while(--y1 >= y0)
     {
-        int y;
-        while(x0 != x1)
-        {
-            y = y0;
-            while(y != y1)
-                u_gfxPixel(x0, y++);
-
-            x0++;
-        }
+        ud_gfxSet(d, gColor, wh);
+        d+=ylookup[1];
     }
-    else
-    {
-        char* dest = (char*)frameplace+ylookup[y0]+x0;
-        int hg = y1 - y0, wh = x1 - x0;
-        while(--hg >= 0)
-        {
-            memset(dest, gColor, wh);
-            dest+=ylookup[1];
-        }
-    }
-
+    
     enddrawing();
 
 }
@@ -600,7 +601,7 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
                         rect1.x1-rect1.x0, rect1.y1-rect1.y0, rect1.x0, rect1.y0);
                     break;
                 case kFontTypeRasterHoriz:
-                    gfxBlitMT2V(&pFont->data[pChar->offset+rect2.y0*pChar->w+rect2.x0], pFont->charLast, pChar->w,
+                    gfxBlitMT2V(&pFont->data[pChar->offset+rect2.y0*pChar->w+rect2.x0], pFont->tcolor, pChar->w,
                         rect1.x1-rect1.x0, rect1.y1-rect1.y0, rect1.x0, rect1.y0);
                     break;
             }
@@ -653,7 +654,7 @@ void gfxDrawTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont,
     }
     else
     {
-        dy+=fh;
+        //dy+=fh;
     }
 
     if (flags & kTextACenter)
@@ -693,9 +694,9 @@ void gfxDrawTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont,
             if (!(flags & kTextDryRun))
             {
                 if (flags & kTextShadow)
-                    gfxDrawText(dx+1, dy+1, clr2std(31), &str[j], pFont);
-
-                gfxDrawText(dx, dy, fc, &str[j], pFont);
+                    gfxPrinTextShadow(dx, dy, fc, &str[j], pFont);
+                else
+                    gfxDrawText(dx, dy, fc, &str[j], pFont);
             }
 
             if (c)
@@ -764,14 +765,30 @@ void gfxDrawLabel(int x, int y, int color, char* pzLabel, QFONT* pFont)
 void gfxTranslucency(char nLevel)
 {
     transmode = nLevel;
-
-    if (transmode)
+    
+    switch(transmode)
     {
-        u_gfxPixel = u_gfxPixel_TRANS;
-    }
-    else
-    {
-        u_gfxPixel = u_gfxPixel_NORMAL;
+        case 1:
+            u_gfxPixel      = u_gfxPixel_TRANS1;
+            ud_gfxPixelA    = ud_gfxPixelA_TRANS1;
+            ud_gfxPixelB    = ud_gfxPixelB_TRANS1;
+            ud_gfxSet       = ud_gfxSet_TRANS1;
+            ud_gfxCpy       = ud_gfxCpy_TRANS1;
+            break;
+        case 2:
+            u_gfxPixel      = u_gfxPixel_TRANS2;
+            ud_gfxPixelA    = ud_gfxPixelA_TRANS2;
+            ud_gfxPixelB    = ud_gfxPixelB_TRANS2;
+            ud_gfxSet       = ud_gfxSet_TRANS2;
+            ud_gfxCpy       = ud_gfxCpy_TRANS2;
+            break;
+        default:
+            u_gfxPixel      = u_gfxPixel_NORMAL;
+            ud_gfxPixelA    = ud_gfxPixelA_NORMAL;
+            ud_gfxPixelB    = ud_gfxPixelB_NORMAL;
+            ud_gfxSet       = (PUDGFXSET)memset;
+            ud_gfxCpy       = (PUDGFXCPY)memcpy;
+            break;
     }
 }
 
@@ -816,7 +833,7 @@ void viewDrawChar( QFONT *pFont, BYTE c, int x, int y, BYTE *pPalookup )
         vince[i] = kStepY;
     }
 
-    BYTE *p = (BYTE*)(frameplace + ylookup[dest.y0] + dest.x0);
+    BYTE *p = (BYTE*)FRAMEPLACE(dest.x0, dest.y0);
 
     x = dest.x0;
     int u = 0;

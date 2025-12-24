@@ -137,9 +137,6 @@ int toolGetViewTile(int nTile, int nOctant, char *flags, int *ang);
 BOOL toolLoadAs(char* path, char* ext, char* title = "Load file");
 BOOL toolSaveAs(char* path, char* ext);
 
-void cpyRestoreObject(int type, int idx);
-void cpySaveObject(int type, int idx);
-
 int toolExploderSeq();
 int toolGibTool(int nGib, int type = -1);
 int toolXWalls2XSprites();

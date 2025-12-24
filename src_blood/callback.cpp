@@ -24,14 +24,18 @@
 #include "callback.h"
 #include "db.h"
 #include "preview.h"
+#include "seq.h"
 
-static void Remove( int nSprite ) {
-    previewDelSprite(nSprite);
-}
-
-static void RemoveSpecial( int nSprite ) {
-    if (sprite[nSprite].yvel == kDeleteReally)
-        previewDelSprite(nSprite);
+static void Remove(int nSprite)
+{
+    spritetype *pSprite = &sprite[nSprite];
+    evKill(nSprite, 3);
+    if (pSprite->extra > 0)
+        seqKill(3, pSprite->extra);
+    sfxKill3DSound(pSprite);
+    
+    if (pSprite->statnum < kStatFree)
+        DeleteSprite(nSprite);
 }
 
 void FlareBurst(int nSprite)
@@ -49,8 +53,6 @@ void FlareBurst(int nSprite)
         pSpawn->clipdist = 2;
         pSpawn->owner = pSprite->owner;
 
-         pSpawn->yvel = kDeleteReally;
-
         int nAngle2 = (i<<11)/8;
         int dx = 0;
         int dy = mulscale30r(nRadius, Sin(nAngle2));
@@ -64,9 +66,9 @@ void FlareBurst(int nSprite)
         xvel[pSpawn->index] += dx;
         yvel[pSpawn->index] += dy;
         zvel[pSpawn->index] += dz;
-        evPost(pSpawn->index, 3, 960, kCallbackRemoveSpecial);
+        evPost(pSpawn->index, 3, 960, kCallbackRemove);
     }
-    evPost(nSprite, 3, 0, kCallbackRemoveSpecial);
+    evPost(nSprite, 3, 0, kCallbackRemove);
 }
 
 void CounterCheck(int nSector) // 12
@@ -94,7 +96,6 @@ void CounterCheck(int nSector) // 12
 
 CALLBACK_FUNC gCallback[kCallbackMax] = {
     Remove,             // kCallbackRemove
-    RemoveSpecial,
     callbackUniMissileBurst,
     callbackMakeMissileBlocking,
     FlareBurst,

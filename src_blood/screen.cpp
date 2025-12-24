@@ -27,7 +27,7 @@
 
 PALETTE gamepal;
 RGB baseDAC[256];
-RGB *palTable[5];
+RGB *palTable[kPalMax];
 
 extern "C" unsigned char *transluc;
 static char(*gammaTable)[256];
@@ -171,6 +171,18 @@ void scrSetMessage(char *__format, ...)
     //}
 
     pMsg->time = totalclock+(gScreen.msgShowCur<<3)+gScreen.msgTime;
+}
+
+void scrSetLogMessage(char *__format, ...)
+{
+    char temp[256];
+    va_list argptr;
+    va_start(argptr, __format);
+    vsprintf(temp, __format, argptr);
+    va_end(argptr);
+
+    scrSetMessage(temp);
+    buildprintf("%s\n",temp);
 }
 
 void scrDisplayMessage()

@@ -43,6 +43,7 @@
 #define kSplitModeWndPad 2
 
 extern OBJECT_LIST gModernTypes;
+extern BITARRAY01 gModernTypesMap;
 
 enum {
 kDetailSpriteNoVoxel1       = 0x0008,
@@ -68,19 +69,17 @@ extern char h;
 extern BYTE key, ctrl, alt, shift;
 extern short gHighSpr, gHovSpr;
 extern short gHovWall, gHovStat;
+extern short gJoinSector;
 extern short temptype, tempidx;
 extern char tempvisibility;
 extern short tempang, tempslope;
 
-extern int cpyspritecnt;
 extern spritetype cpysprite[kMaxSprites + 1];
 extern XSPRITE cpyxsprite[kMaxXSprites + 1];
 
-extern int cpysectorcnt;
 extern sectortype cpysector[kMaxSectors + 1];
 extern XSECTOR cpyxsector[kMaxXSectors + 1];
 
-extern int cpywallcnt;
 extern walltype cpywall[kMaxWalls + 1];
 extern XWALL cpyxwall[kMaxXWalls + 1];
 
@@ -156,6 +155,7 @@ mrAsave                         = 107,
 mrAsaveMax                      = 113,
 mrLoadAsave                     = mrAsaveMax,
 mrTest                          ,
+mrHelp                          ,
 mrOptions                       ,
 mrAbout                         ,
 mrBoardOptions                  ,
@@ -230,7 +230,8 @@ int boardSave(char* filename, BOOL autosave);
 int boardSaveAuto();
 void boardReset(int hgltreset = 0);
 void boardStartNew();
-
+int boardSnapshotLoad(BYTE* pData, int nLen, char dir);
+int boardSnapshotMake(BYTE** pData, int* crcSiz);
 const char *ExtGetSectorCaption(short sectnum, char captStyle);
 const char *ExtGetWallCaption(short wallnum, char captStyle);
 const char *ExtGetSpriteCaption(short spritenum, char captStyle);

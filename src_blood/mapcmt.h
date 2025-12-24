@@ -63,7 +63,7 @@ class MAP_COMMENT_MGR {
 
     private:
         int CRC;
-        int deFonts[3], cuFonts[10];
+        int deFonts[3], cuFonts[5];
     public:
         MAP_COMMENT* comments;
         unsigned int commentsCount;

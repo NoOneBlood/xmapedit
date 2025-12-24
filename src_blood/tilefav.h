@@ -22,21 +22,23 @@
 ***********************************************************************************/
 #ifndef __TILEFAV_H
 #define __TILEFAV_H
-#define kMaxFavoriteTiles 1024
+#include "common_game.h"
+
 #define kFavTilesFileName "xmapedit/xmapedit.ftl"
 
-struct GAME_OBJECT_TILE {
+struct FAVTILE
+{
     short pic;
     short type;
 };
-extern GAME_OBJECT_TILE gFavTiles[kMaxFavoriteTiles];
-extern short gFavTilesC;
+
+extern VOIDLIST gFavTiles;
 
 void favoriteTileInit();
-int favoriteTileAddSimple(short type, short picnum);
-BOOL favoriteTileRemove(int nTile);
-int favoriteTileSelect(int startPic, int nDefault, BOOL returnTile, int objType);
+char favoriteTileAddSimple(short type, short picnum);
+char favoriteTileRemove(int nTile);
+int favoriteTileSelect(int startPic, int nDefault, int objType);
 spritetype* favTileInsert(int where, int nSector, int x, int y, int z, int nAngle);
-int tileInFaves(int picnum);
 void favoriteTileSave();
+FAVTILE* tileInFaves(int nTile);
 #endif

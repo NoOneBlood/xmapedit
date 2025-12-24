@@ -304,8 +304,8 @@ int findUnusedPath(DIALOG_ITEM* dialog, DIALOG_ITEM *control) {
 
 int findUnusedStack()
 {
-    int i = numsectors, s, e;
-    IDLIST stacks(true);
+    IDLIST ustack(true), lstack(true);
+    int i = numsectors, n, s, e;
     spritetype* pSpr;
     walltype* pWall;
 
@@ -316,25 +316,28 @@ int findUnusedStack()
         {
             pWall = &wall[s++];
             if (pWall->extra > 0 && pWall->type == kWallStack)
-                stacks.AddIfNot(xwall[pWall->extra].data);
+            {
+                n = xwall[pWall->extra].data;
+                if (!ustack.Exists(n))      ustack.Add(n);
+                else if (!lstack.Exists(n)) lstack.Add(n);
+            }
         }
-
 
         for (s = headspritesect[i]; s >= 0; s = nextspritesect[s])
         {
             pSpr = &sprite[s];
-            if (pSpr->extra > 0
-                && irngok(pSpr->type, kMarkerLowLink, kMarkerLowGoo) && pSpr->type != kMarkerWarpDest)
-                    stacks.AddIfNot(xsprite[pSpr->extra].data1);
-
-            if (stacks.GetLength() >= 64)
-                return -1;
+            if (pSpr->extra > 0 && irngok(pSpr->type, kMarkerLowLink, kMarkerLowGoo) && pSpr->type != kMarkerWarpDest)
+            {
+                n = xsprite[pSpr->extra].data1;
+                if (!ustack.Exists(n))      ustack.Add(n);
+                else if (!lstack.Exists(n)) lstack.Add(n);
+            }
         }
     }
 
-    while(++i < 64) // search for free id
+    for (i = 0; i < 32768; i++) // search for free id
     {
-        if (!stacks.Exists(i))
+        if (!ustack.Exists(i) || !lstack.Exists(i))
             return i;
     }
 

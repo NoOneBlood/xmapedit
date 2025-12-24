@@ -17,6 +17,8 @@ resource "QFN\MONO\FONT3.QFN" as 2;
 resource "QFN\MONO\SMALL1.QFN" as 3;
 resource "QFN\MONO\DESDEMON.QFN" as 4;
 resource "QFN\MONO\ARIAL12.QFN" as 5;
+// 6
+resource "QFN\MONO\8x6.QFN" as 7;
 resource "QFN\MONO\CALIB16.QFN" as 8;
 ////////////////////////////////
 
@@ -24,12 +26,6 @@ resource "QFN\MONO\CALIB16.QFN" as 8;
 //VCOLOR QFONT TYPES
 ///////////////////////////////
 resource "QFN\VCOLOR\FONTBLOD.QFN" as 6;
-resource "QFN\VCOLOR\FONTSMAL.QFN" as 7;
-//resource "QFN\VCOLOR\KFONT6.QFN" as 8;
-resource "QFN\VCOLOR\KFONT7.QFN" as 9;
-resource "QFN\VCOLOR\PFONT2O.QFN" as 10;
-resource "QFN\VCOLOR\TFONT1.QFN" as 11;
-resource "QFN\VCOLOR\TFONT3.QFN" as 12;
 ///////////////////////////////
 
 // MONOCHROME VGA ROM FONTS

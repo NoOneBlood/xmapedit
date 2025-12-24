@@ -145,44 +145,6 @@ int toolOpenWith(char* filename, char flags)
 
 }
 
-
-void cpySaveObject(int type, int idx) {
-
-    switch (type) {
-        case OBJ_SPRITE:
-            cpysprite[idx] = sprite[idx];
-            break;
-        case OBJ_FLOOR:
-        case OBJ_CEILING:
-            cpysector[idx] = sector[idx];
-            break;
-        case OBJ_WALL:
-        case OBJ_MASKED:
-            cpywall[idx] = wall[idx];
-            break;
-    }
-
-}
-
-void cpyRestoreObject(int type, int idx) {
-
-    switch (type) {
-        case OBJ_SPRITE:
-            sprite[idx] = cpysprite[idx];
-            break;
-        case OBJ_FLOOR:
-        case OBJ_CEILING:
-            sector[idx] = cpysector[idx];
-            break;
-        case OBJ_WALL:
-        case OBJ_MASKED:
-            wall[idx] = cpywall[idx];
-            break;
-    }
-
-}
-
-
 BOOL toolSaveAs(char* path, char* ext)
 {
     return (browseSave(path, ext, NULL) != NULL);

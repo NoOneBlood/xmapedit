@@ -1,6 +1,6 @@
 /**********************************************************************************
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 2021: Originally written by NoOne.
+// Copyright (C) 2025: Originally written by NoOne.
 // Implementation of SEQ animation files editor (SEQEDIT).
 //
 // This file is part of XMAPEDIT.
@@ -23,40 +23,81 @@
 #ifndef __XMPSEQED
 #define __XMPSEQED
 #include "common_game.h"
+#include "xmpstub.h"
+#include "xmphudlg.h"
 #include "seq.h"
 
+class SEQEDIT
+{
+    protected:
+        struct CLIPBOARD
+        {
+            SEQFRAME frame;
+            unsigned int ok         : 1;
+        }
+        clipboard;
+        
+        struct REFINFO
+        {
+            uint32_t pic;
+            uint8_t  pal, xsiz, ysiz;
+            int32_t  z;
+        }
+        refinfo;
+        
+        Seq* pSeq;
+        SEQFRAME* pFrame;
+        
+        MAPEDIT_HUD* pHud;
+        XSECTOR* pViewXSect;
+        POINT2D origin;
+        OBJECT obj;
+        
+        unsigned int playing        : 3;
+        unsigned int edit3d         : 1;
+        
+        unsigned int viewBorders    : 1;
+        unsigned int viewOctant     : 4;
+        unsigned int viewZ          : 4;
+        unsigned int viewSurface    : 8;
+        signed   int viewShade      : 8;
+        unsigned int viewPal        : 8;
+        
+        unsigned int nFrame         : 32;
+        unsigned int zoom           : 32;
+        signed   int CRC            : 32;
+        signed   int rffID          : 32;
+        // -------------------------------------
+        void ProcessLoop();
+        void Quit();
+        // -------------------------------------
+        char AnimNew();
+        char AnimLoad(char* filename, Seq** pOut = NULL);
+        char AnimSave(char* filename);
+        void AnimStartPlaying(char flags = 0x0);
+        void AnimStopPlaying();
+        // -------------------------------------
+        void FrameClean(SEQFRAME* pFrame);
+        void FrameDraw(SEQFRAME* pFrame);
+        // -------------------------------------
+        void HudShowInfo();
+        void HudEditInfo();
+        void HudUpdateStatus();
+        // -------------------------------------
+        void ObjectUpdate(char nType = 0);
+        // -------------------------------------
+        void SoundPlay(int nID);
+        void SoundStop();
+        // -------------------------------------
+        inline int  GetDefaultZoom()        { return mulscale8(0x10000, perc2val(75, ydim-pHud->Height())); }
+        inline void ObjectReset()           { ObjectUpdate(1); };
 
-#define kSeqExt ".seq"
-#define kSeqMaxFrames   1024
-#define kSeqMemSize sizeof(Seq) + kSeqMaxFrames * sizeof(SEQFRAME)
-
-
-struct SEQEDIT {
-
-    POINT2D origin;
-    SEQFRAME clipboard;
-    char* filename;
-    unsigned int clipboardOk    : 1;
-    unsigned int edit3d         : 1;
-    unsigned int asksave        : 1;
-    unsigned int curPal         : 8;
-    unsigned int rffID;
-
+    public:
+        // -------------------------------------
+        void Start(char* filename = NULL);
+        
 };
 
-extern SEQEDIT gSeqEd;
-
-void seqeditStart(char* seqFile);
-void seqeditProcess();
-
-
-void seqeditPrintFlags(int x, int y, char* buff, QFONT* pFont, int bcol = 1, int tcol = 0);
-void seqeditObjectInit(BOOL cpy);
-void seqeditObjectUpdate(SEQFRAME* pFrame);
-void seqeditDrawTile(SEQFRAME *pFrame, int zoom, int *nTileArg, int nOctant);
-void seqFrameSetTile(SEQFRAME* pFrame, int nTile);
-void seqeditSetFrameDefaults(SEQFRAME* pFrame);
-void seqeditNewAnim();
-BOOL SEQSave();
-BOOL SEQLoad(Seq* out);
+extern DIALOG_ITEM dlgSeqedit[];
+extern SEQEDIT gSeqed;
 #endif

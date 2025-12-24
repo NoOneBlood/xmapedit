@@ -147,7 +147,7 @@ void AddBusy(int a1, BUSYID a2, int nDelta)
 
         if ((!gModernMap && gBusyCount >= kMaxBusyCountVanilla) || gBusyCount >= kMaxBusyCount)
         {
-            previewMessage("Failed to AddBusy for #%d! Max busy reached (%d)", a1, gBusyCount);
+            scrSetLogMessage("Failed to AddBusy for #%d! Max busy reached (%d)", a1, gBusyCount);
             return;
         }
         gBusy[i].at0 = a1;
@@ -217,7 +217,7 @@ void OperateSprite(int nSprite, XSPRITE *pXSprite, EVENT event)
     switch (pSprite->type) {
         case kDudeGargoyleStatueFlesh:
         case kDudeGargoyleStatueStone:
-            previewKillDude(pSprite, pXSprite);
+            gPreview.DudeKill(pSprite);
             break;
         case kTrapMachinegun:
             if (pXSprite->health <= 0) break;
@@ -553,7 +553,7 @@ void SetupGibWallState(walltype *pWall, XWALL *pXWall)
         pWall->cstat |= 64;
     if (pWall2)
     {
-        pWall2->cstat |= 1;
+        pWall2->cstat &= ~1;
         if (bVector)
             pWall2->cstat |= 64;
         pWall->cstat |= 16;
@@ -1297,9 +1297,9 @@ int VDoorBusy(unsigned int nSector, unsigned int a2)
             if ((pXSector->interruptable) || (pXSector->crush && pXSprite->health > 0))
             {
                 if (!pXSector->crush);
-                else if (IsDudeSprite(pSprite)) previewKillDude(pSprite, pXSprite);
+                else if (IsDudeSprite(pSprite)) gPreview.DudeKill(pSprite);
                 else if (IsThingSprite(pSprite))
-                    previewDestroyThing(pSprite, pXSprite, kCmdSpriteImpact);
+                    gPreview.ThingKill(pSprite, kCmdSpriteImpact);
 
                 a2 = ClipRange(a2-(vbp/2)*4, 0, 65536);
             }
@@ -1314,9 +1314,9 @@ int VDoorBusy(unsigned int nSector, unsigned int a2)
             if ((pXSector->interruptable) || (pXSector->crush && pXSprite->health > 0))
             {
                 if (!pXSector->crush);
-                else if (IsDudeSprite(pSprite)) previewKillDude(pSprite, pXSprite);
+                else if (IsDudeSprite(pSprite)) gPreview.DudeKill(pSprite);
                 else if (IsThingSprite(pSprite))
-                    previewDestroyThing(pSprite, pXSprite, kCmdSpriteImpact);
+                    gPreview.ThingKill(pSprite, kCmdSpriteImpact);
 
                 a2 = ClipRange(a2-(vbp/2)*4, 0, 65536);
             }
@@ -1519,10 +1519,10 @@ int TeleFrag(int nKiller, int nSector)
         XSPRITE* pXSprite = pSprite->extra > 0 ? &xsprite[pSprite->extra] : NULL;
 
         if (!pXSprite) continue;
-        else if (pSprite->statnum == kStatThing) previewDestroyThing(pSprite, pXSprite, kCmdSpriteImpact);
+        else if (pSprite->statnum == kStatThing) gPreview.ThingKill(pSprite, kCmdSpriteImpact);
         else if (pSprite->statnum == kStatDude && pXSprite->health > 0)
         {
-            previewKillDude(pSprite, pXSprite);
+            gPreview.DudeKill(pSprite);
             cnt++;
         }
     }
@@ -1543,7 +1543,7 @@ void OperateTeleport(unsigned int nSector, XSECTOR *pXSector)
         {
             if (SectorContainsDudes(pDest->sectnum))
             {
-                previewMessage("Dude teleport failed: Destination sector contains dudes!");
+                scrSetLogMessage("Dude teleport failed: Destination sector contains dudes!");
                 continue;
             }
 
@@ -1567,7 +1567,7 @@ void OperateTeleport(unsigned int nSector, XSECTOR *pXSector)
         if (cnt)
             sprintf(&buff[i], " (telefragged %d dudes!)", cnt);
 
-        previewMessage(buff);
+        scrSetLogMessage(buff);
         posx = sprite[marker].x; posy = sprite[marker].y; posz = sprite[marker].z;
 
         i = nSector;
@@ -1607,7 +1607,7 @@ void OperatePath(unsigned int nSector, XSECTOR *pXSector, EVENT event)
         trTriggerSprite(pSprite2->index, pXSprite2, kCmdOn);
 
     if (nSprite < 0) {
-        previewMessage("Unable to find path marker with id #%d for path sector #%d", nId, nSector);
+        scrSetLogMessage("Unable to find path marker with id #%d for path sector #%d", nId, nSector);
         pXSector->state = 0;
         pXSector->busy = 0;
         return;
@@ -1739,9 +1739,9 @@ void InitPath(unsigned int nSector, XSECTOR *pXSector)
         }
     }
 
-    if (nSprite < 0) {
-        //ThrowError("Unable to find path marker with id #%d", nId);
-        previewMessage("Unable to find path marker with id #%d for path sector #%d", nId, nSector);
+    if (nSprite < 0)
+    {
+        scrSetLogMessage("Unable to find path marker with id #%d for path sector #%d", nId, nSector);
         return;
 
     }
@@ -2262,7 +2262,8 @@ void trInit(void)
     pathSpriteInit();
 
     evSend(0, 0, kChannelLevelStart, kCmdOn);
-    switch (gPreview.mode) {
+    switch (gPreview.mode)
+    {
         case kGameModeCoop:
             evSend(0, 0, kChannelLevelStartCoop, kCmdOn);
             break;

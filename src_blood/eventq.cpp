@@ -431,42 +431,32 @@ void evSend(int nIndex, int nType, int rxId, COMMAND_ID command, int nCauser)
             if (!gPreview.triggerStart) return;
             break;
         case kChannelLevelExitNormal:
-            previewMessage("Trigger normal level end.");
+            scrSetLogMessage("Trigger normal level end.");
             BeepOk();
             return;
         case kChannelLevelExitSecret:
-            previewMessage("Trigger secret level end.");
+            scrSetLogMessage("Trigger secret level end.");
             BeepOk();
             return;
         case kChannelSecretFound:
             switch (command - kCmdNumberic) {
                 case 0:
-                    previewMessage("A secret is revealed.");
+                    scrSetLogMessage("A secret is revealed.");
                     BeepOk();
                     break;
                 case 1:
-                    previewMessage("You found a SUPER secret.");
+                    scrSetLogMessage("You found a SUPER secret.");
                     BeepOk();
                     break;
                 default:
-                    previewMessage("Wrong command for triggering secret!");
+                    scrSetLogMessage("Wrong command for triggering secret!");
                     BeepFail();
                     break;
             }
             return;
         case kChannelTextOver:
             if (nType != OBJ_SPRITE) return; // only sprites can send messages
-            else if (command >= kCmdNumberic)
-            {
-                if ((i = 1 + (command - kCmdNumberic)) <= 32) {
-                    sprintf(buffer, "message%d", i); sprintf(buffer3, "Trigger INI %s", buffer);
-                    previewMessage(gPreview.pEpisode->GetKeyString(getFilename(gPaths.maps, buffer2), buffer, buffer3));
-                    BeepOk();
-                    return;
-                }
-            }
-            previewMessage("Wrong command for triggering INI message!");
-            BeepFail();
+            gPreview.MapMessage(command);
             return;
         case kChannelRemoteBomb0:
         case kChannelRemoteBomb1:

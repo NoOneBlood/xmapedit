@@ -39,6 +39,7 @@ short tileIndex[kMaxTiles], voxelIndex[kMaxTiles], tileIndexCursor, tileIndexCou
 char tilePluIndex[kMaxTiles];
 BYTE surfType[kMaxTiles], viewType[kMaxTiles];
 schar tileShade[kMaxTiles];
+uint16_t gRotTile[kMaxTiles];
 
 
 char *viewNames[] = {
@@ -1048,7 +1049,7 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
                             }
                         }
 
-                        if (tileInFaves(nDTile) >= 0)
+                        if (tileInFaves(nDTile))
                             gfxDrawText(x + bsx - favLen - kMar, y + bsy - qFonts[3]->height - kMar, gStdColor[12], fav, qFonts[3]);
 
                     }
@@ -1351,7 +1352,7 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
                 updLev = 2;
                 break;
             case KEY_F: // add or remove tile from favorites
-                if ((i = tileInFaves(nTile)) >= 0)
+                if (tileInFaves(nTile))
                 {
                     if (Confirm("Remove this tile from the favorites?"))
                     {
@@ -1359,9 +1360,9 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
                         scrSetMessage("Tile #%d has been removed from the favorites.", nTile);
                     }
                 }
-                else if (gFavTilesC < kMaxFavoriteTiles - 1 && (i = favoriteTileAddSimple(temptype, (short)nTile)) >= 0)
+                else if (favoriteTileAddSimple(temptype, nTile))
                 {
-                    scrSetMessage("Tile #%d added as type #%d.", gFavTiles[i].pic, gFavTiles[i].type);
+                    scrSetMessage("Tile #%d favorited as type #%d.", nTile, temptype);
                 }
                 break;
 
@@ -1780,7 +1781,7 @@ void tileShowInfoWindow(int nTile) {
         y+=10;
     }
 
-    sprintf(buffer, "Favorited: %s", yesNo(tileInFaves(nTile) >= 0));
+    sprintf(buffer, "Favorited: %s", yesNo(tileInFaves(nTile) != NULL));
     dialog.Insert(new Label(x, y, buffer));
 
     y+=20;

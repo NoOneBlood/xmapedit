@@ -20,223 +20,188 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
-#include "common_game.h"
+
 #include "tile.h"
 #include "xmpmaped.h"
 #include "aadjust.h"
 
-short gFavTilesC = 0;
-GAME_OBJECT_TILE gFavTiles[];
-IniFile FavoriteTilesIni(kFavTilesFileName);
+static FAVTILE item = {-1, -1};
+VOIDLIST gFavTiles(sizeof(item), &item);
 
-void favoriteTileInit() {
-
-    char tmp[255];
-    int j, nType, nPic, nPrevNode = -1;
-    char* key = NULL; char* value;
-    memset(gFavTiles, -1, sizeof(gFavTiles)); gFavTilesC = 0;
-    while (FavoriteTilesIni.GetNextString(tmp, &key, &value, &nPrevNode, "Favorites"))
+void favoriteTileInit()
+{
+    IniFile* pIni = new IniFile(kFavTilesFileName);
+    int nType, nPic, nPrevNode = -1;
+    char *key, *value;
+    
+    gFavTiles.Clear();
+    while (pIni->GetNextString(&key, &value, &nPrevNode, "Favorites"))
     {
         if ((nPic = enumStrGetInt(0, value)) <= 0 || nPic >= kMaxTiles) continue;
         else if ((nType = enumStrGetInt(1, NULL)) < 0 || nType >= 1024) continue;
-        else if ((j = tileInFaves(nPic)) >= 0) // already in faves? replace it
-        {
-            gFavTiles[j].pic  = (short) nPic;
-            gFavTiles[j].type = (short) nType;
-        }
-        else
-        {
-            gFavTiles[gFavTilesC].pic  = (short) nPic;
-            gFavTiles[gFavTilesC].type = (short) nType;
-            gFavTilesC++;
-        }
+        item.pic  = (short)nPic, item.type = (short)nType;
+        gFavTiles.AddUnique(&item);
     }
-}
-void favoriteTileSave() {
-
-    if (FavoriteTilesIni.SectionExists("Favorites"))
-        FavoriteTilesIni.SectionRemove("Favorites");
-
-    char key[4]; char value[32];
-    if (gFavTilesC > 0) {
-        for (int i = 0, j = 0; i < gFavTilesC; i++) {
-            if (gFavTiles[i].pic == -1 || gFavTiles[i].type == -1)
-                continue;
-
-            sprintf(key, "%d", j++);
-            sprintf(value, "%d,%d", gFavTiles[i].pic, gFavTiles[i].type);
-            FavoriteTilesIni.PutKeyString("Favorites", key, value);
-
-        }
-    }
-
-    FavoriteTilesIni.Save();
-    return;
-
+    
+    delete(pIni);
 }
 
-int favoriteTileAddSimple(short type, short picnum) {
+void favoriteTileSave()
+{
+    IniFile* pIni; FAVTILE* p;
+    char key[4], value[32];
+    int i = 0;
+    
+    if (fileExists(kFavTilesFileName))
+        fileDelete(kFavTilesFileName);
+    
+    if (gFavTiles.Length() > 0)
+    {
+        pIni = new IniFile(kFavTilesFileName);
+        
+        for (p = (FAVTILE*)gFavTiles.First(), i = 0; p->pic >= 0; p++, i++)
+        {
+            sprintf(key, "%d", i);
+            sprintf(value, "%d,%d", p->pic, p->type);
+            pIni->PutKeyString("Favorites", key, value);
+        }
+        
+        pIni->Save();
+        delete(pIni);
+    }
+}
 
-    short nType = 0; int i = 0;
-
+char favoriteTileAddSimple(short type, short picnum)
+{
+    FAVTILE *p;
+    char name[64] = "\0";
+    int i;
+    
+    item.type = 0;
+    item.pic  = picnum;
+    
     // try to offer type from autoData (search by pic)
-    for (i = 0; i < autoDataLength; i++) {
+    for (i = 0; i < autoDataLength; i++)
+    {
         if (autoData[i].picnum != picnum) continue;
-        nType = (short) ClipLow(autoData[i].type, 0);
+        item.type = ClipLow(autoData[i].type, 0);
         break;
-
     }
+    
+    item.type = ClipRange((item.type <= 0) ? type : item.type, 0, 1023);
+    if (gSpriteNames[item.type])
+        strcpy(name, gSpriteNames[item.type]);
 
-    memset(buffer, 0, LENGTH(buffer));
-    nType = (short)ClipRange((nType <= 0) ? type : nType, 0, 1023);
-    if (gSpriteNames[nType])
-        sprintf(buffer, gSpriteNames[nType]);
-
-    if ((nType = name2TypeId(buffer)) >= 0) {
-
-        picnum = (short) picnum;
-        nType  = (short) nType;
-
+    if ((item.type = name2TypeId(name)) >= 0)
+    {
         // check if this pic already in faves
-        if ((i = tileInFaves(picnum)) >= 0) {
-
-            if (gFavTiles[i].type != nType) {
-                if (!Confirm("Change type from %d to %d?", gFavTiles[i].type, nType))
-                    return -1;
-            }
-
-            gFavTiles[i].type = nType;
-            return i;
-
+        if ((p = tileInFaves(picnum)) != NULL)
+        {
+            if (p->type != item.type && !Confirm("Change type from %d to %d?", p->type, item.type))
+                return 0;
+            
+            p->type = item.type;
+            return 1;
         }
-
-        gFavTiles[gFavTilesC].pic  = (short) picnum;
-        gFavTiles[gFavTilesC].type = nType;
-        return gFavTilesC++;
-
+        
+        gFavTiles.Add(&item);
+        return 1;
     }
 
-    return -1;
+    return 0;
 
 }
 
-BOOL favoriteTileRemove(int nTile) {
-
-    int i = 0, j = 0;
-    for (i = 0; i < gFavTilesC; i++) {
-        if (gFavTiles[i].pic != nTile) continue;
-        gFavTiles[i].pic = gFavTiles[i].type = -1;
-        break;
+char favoriteTileRemove(int nTile)
+{
+    for (FAVTILE* p = (FAVTILE*)gFavTiles.First(); p->pic >= 0; p++)
+    {
+        if (p->pic != nTile)
+            continue;
+        
+        gFavTiles.Remove(p);
+        return 1;
     }
-
-    if (i == gFavTilesC)
-        return FALSE;
-
-    // adjust array
-    if (gFavTilesC - 1 > 0) {
-
-        for (j = i + 1; j < gFavTilesC; j++, i++) {
-            gFavTiles[i].pic  = gFavTiles[j].pic;
-            gFavTiles[i].type = gFavTiles[j].type;
-
-            gFavTiles[j].pic = gFavTiles[j].type = -1;
-        }
-
-    } else {
-
-        gFavTiles[0].pic = gFavTiles[0].type = -1;
-
-    }
-
-    gFavTilesC--;
-    return TRUE;
-
+    
+    return 0;
 }
 
-int favoriteTileSelect(int startPic, int nDefault, BOOL returnTile, int objType) {
-
-    BOOL startPicFound = FALSE;
-    int i = 0, j = 0; int picnum = -1, idx = -1;
-
-    if (gFavTilesC > 0) {
-
-        // fill tile index array
-        for (i = 0, tileIndexCount = 0; i < gFavTilesC; i++) {
-            if (gFavTiles[i].pic == -1 || gFavTiles[i].type == -1)
-                continue;
-
-            tileIndex[tileIndexCount] = gFavTiles[i].pic;
-
-            // get predefined PLU from autoData
-            switch (objType) {
-                case OBJ_SPRITE:
-                case OBJ_FLATSPRITE:
-                    for (int j = 0; j < autoDataLength; j++) {
-                        if (autoData[j].type != gFavTiles[i].type || autoData[j].picnum != gFavTiles[i].pic) continue;
-                        tilePluIndex[tileIndexCount] = (char) ClipRange(autoData[j].plu, 0, kPluMax);
-                        break;
-                    }
+int favoriteTileSelect(int startPic, int nDefault, int objType)
+{
+    int i, j; int nTile = -1;
+    char startPicFound = 0;
+    FAVTILE* p;
+    
+    tileIndexCount = 0;
+    
+    for (p = (FAVTILE*)gFavTiles.First(); p->pic >= 0; p++)
+    {
+        tileIndex[tileIndexCount] = p->pic;
+        
+        // get predefined PLU from autoData
+        switch (objType)
+        {
+            case OBJ_SPRITE:
+            case OBJ_FLATSPRITE:
+                for (i = 0; i < autoDataLength; i++)
+                {
+                    if (autoData[i].type != p->type || autoData[i].picnum != p->pic) continue;
+                    tilePluIndex[tileIndexCount] = (char)ClipRange(autoData[i].plu, 0, kPluMax);
                     break;
-            }
-
-            if (gFavTiles[i].pic == startPic)
-                startPicFound = TRUE;
-
-            tileIndexCount++;
-
-        }
-
-        if ((picnum = tilePick((startPicFound) ? startPic : -1, -1, OBJ_CUSTOM, "Favorite tiles")) >= 0) {
-
-            for (i = 0; i < gFavTilesC; i++) {
-                if (gFavTiles[i].pic != picnum) continue;
-                else idx = i;
+                }
                 break;
-            }
-
         }
-
+        
+        tileIndexCount++;
+        if (p->pic == startPic)
+            startPicFound = 1;
     }
-
-    return (idx < 0) ? nDefault : (returnTile) ? picnum : idx;
+    
+    if (tileIndexCount > 0 &&
+        (nTile = tilePick((startPicFound) ? startPic : -1, -1, OBJ_CUSTOM, "Favorite tiles")) >= 0)
+            return nTile;
+    
+    return nDefault;
 }
 
-spritetype* favTileInsert(int where, int nSector, int x, int y, int z, int nAngle) {
-
-    spritetype* pSprite = NULL; int idx = favoriteTileSelect(-1, -1, FALSE, OBJ_SPRITE);
-    if (idx < 0) return pSprite;
-
-    int nSprite = InsertSprite(nSector, kStatDecoration);
+spritetype* favTileInsert(int where, int nSector, int x, int y, int z, int nAngle)
+{
+    int nSpr, nTile;
+    spritetype* pSpr;
+    
+    if ((nTile = favoriteTileSelect(-1, -1, OBJ_SPRITE)) < 0
+        || (nSpr = InsertSprite(nSector, kStatDecoration)) < 0)
+            return NULL;
+    
     updatenumsprites();
 
-    pSprite = &sprite[nSprite];
-
-    // set type according selected picnum
-    pSprite->picnum = gFavTiles[idx].pic;
-    pSprite->type = gFavTiles[idx].type;
-
+    pSpr = &sprite[nSpr];
+    pSpr->picnum = nTile;
+    
+    for (FAVTILE* p = (FAVTILE*)gFavTiles.First(); p->pic >= 0; p++)
+    {
+        if (p->pic != nTile) continue;
+        pSpr->type = p->type; // set type according selected picnum
+        break;
+    }
+    
     AutoAdjustSprites();
 
-    pSprite->x = x; pSprite->y = y; pSprite->z = z;
-    pSprite->ang = (short)nAngle;
-
-    int zTop, zBot;
-    GetSpriteExtents(pSprite, &zTop, &zBot);
-
-    if ( where == OBJ_FLOOR) pSprite->z += getflorzofslope(nSector, pSprite->x, pSprite->y) - zBot;
-    else pSprite->z += getceilzofslope(nSector, pSprite->x, pSprite->y) - zTop;
-
-    return pSprite;
+    pSpr->x = x; pSpr->y = y; pSpr->z = z;
+    pSpr->ang = (short)nAngle;
+    
+    clampSprite(pSpr);
+    return pSpr;
 
 }
 
-int tileInFaves(int picnum) {
-
-    for (int i = 0; i < gFavTilesC; i++) {
-        if (gFavTiles[i].pic == picnum)
-            return i;
+FAVTILE* tileInFaves(int nTile)
+{
+    for (FAVTILE* p = (FAVTILE*)gFavTiles.First(); p->pic >= 0; p++)
+    {
+        if (p->pic == nTile)
+            return p;
     }
 
-    return -1;
-
+    return NULL;
 }

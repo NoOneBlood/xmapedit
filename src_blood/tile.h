@@ -69,6 +69,7 @@ extern short voxelIndex[kMaxTiles];
 extern BYTE surfType[kMaxTiles];
 extern BYTE viewType[kMaxTiles];
 extern schar tileShade[kMaxTiles];
+extern uint16_t gRotTile[kMaxTiles];
 
 int tileInitFromIni();
 

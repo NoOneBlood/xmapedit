@@ -125,7 +125,7 @@ int hgltSectRotate(int flags, int nAng);
 int hgltSectAutoRedWall(int flags = 0x00);
 int hgltSectDelete();
 
-char hgltListOuterLoops(int* nStart, int* s, int* e, IDLIST* pDone, char which);
+char hgltListOuterLoops(int* s, int* e, IDLIST* slist, IDLIST* wlist, char which);
 void hgltIsolateChannels(char which);
 void hgltIsolateRorMarkers(int which);
 

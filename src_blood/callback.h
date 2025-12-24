@@ -26,7 +26,6 @@
 enum CALLBACK_ID {
     kCallbackNone = -1,
     kCallbackRemove = 0,
-    kCallbackRemoveSpecial = 1,
     kCallbackMissileBurst,
     kCallbackMissileSpriteBlock,
     kCallbackFXFlareBurst,

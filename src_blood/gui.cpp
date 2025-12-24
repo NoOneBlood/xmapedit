@@ -1881,8 +1881,11 @@ void GUIInit() {
     // make all NULL fonts use default GUI font
     for (i = 0; i < LENGTH(qFonts); i++)
         if (!qFonts[i]) qFonts[i] = pFont;
-
-
+    
+    // !!! fix baseline of 2d captions 
+    if (qFonts[7] != pFont)
+        qFonts[7]->baseline = 5;
+    
     // load various GUI images
     for (i = 0; i < LENGTH(pBitmaps); i++)
     {
@@ -2191,18 +2194,17 @@ int showButtons(NAMED_TYPE* names, int namesLen, char* title) {
     return dialog.endState;
 }
 
-int showButtons(char** names, int namesLen, char* title) {
-
-    int i;
-    NAMED_TYPE* array = (NAMED_TYPE*)Resource::Alloc(sizeof(NAMED_TYPE)*namesLen);
-    for (i = 0; i < namesLen; i++)
+int showButtons(char** names, int namesLen, char* title)
+{
+    VOIDLIST list(sizeof(NAMED_TYPE));
+    
+    for (int i = 0; i < namesLen; i++)
     {
-        array[i].name = names[i];
-        array[i].id = i;
+        NAMED_TYPE t = {i, names[i]};
+        list.Add(&t);
     }
-    i = showButtons(array, namesLen, title);
-    Resource::Free(array);
-    return i;
+    
+    return showButtons((NAMED_TYPE*)list.First(), list.Length(), title);
 }
 
 #define kDialogPad 4
@@ -2395,6 +2397,28 @@ BOOL Confirm(char *__format, ...) {
 
     retn = showStandardWindow(buffer, buttons, "Confirm");
     return (retn == mrYes || retn == mrOk);
+}
+
+void ShowFileContents(char* pPath)
+{
+    char buttons[] = { mrOk, mrNone };
+    unsigned char* text = NULL, *p;
+    int nSiz;
+    
+    if ((nSiz = fileLoadHelper(pPath, &text)) > 0)
+    {
+        if ((p = (unsigned char*)realloc(text, nSiz+1)) != NULL)
+        {
+            p[nSiz] = '\0';
+            showStandardWindow((char*)p, buttons, pPath);
+            free(p);
+            return;
+        }
+
+        free(text);
+    }
+    
+    Alert("Unable to show contents of file '%s'!", pPath);
 }
 
 char fade(int rate) {

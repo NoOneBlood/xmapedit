@@ -1,6 +1,6 @@
 /**********************************************************************************
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 2021: Originally written by NoOne.
+// Copyright (C) 2025: Originally written by NoOne.
 // Implementation of SEQ animation files editor (SEQEDIT).
 //
 // This file is part of XMAPEDIT.
@@ -21,87 +21,295 @@
 ////////////////////////////////////////////////////////////////////////////////////
 ***********************************************************************************/
 
-#include "common_game.h"
-#include "xmpmaped.h"
 #include "tile.h"
 #include "xmpsnd.h"
 #include "xmptools.h"
 #include "xmpseqed.h"
-#include "xmpconf.h"
-#include "xmpevox.h"
+#include "sectorfx.h"
+#include "xmpexplo.h"
 
-#define kMar 4
-#define kSurfSoundBase 800
+#define MSG_TIME        80
+#define kMaxFrames      256
+#define kAnimSize       sizeof(Seq) + (sizeof(SEQFRAME)*kMaxFrames)
 
-SEQEDIT gSeqEd;
-Seq *pSeq = NULL;
-Seq *pSeqImport = NULL;
+SEQEDIT gSeqed;
 
-char* pasteDirection[] = {
+static MAPEDIT_HUD_STATUS statViewZ;
+static MAPEDIT_HUD_STATUS statViewZoom;
+static MAPEDIT_HUD_STATUS statViewShade;
+static MAPEDIT_HUD_STATUS statViewSurface;
+static MAPEDIT_HUD gSeqedHud;
 
+static void dlgSeqToDialog(DIALOG_HANDLER* pHandle, Seq* pSeq, SEQFRAME* pFrame);
+static void dlgDialogToSeq(DIALOG_HANDLER* pHandle, Seq* pSeq, SEQFRAME* pFrame);
+
+static char helperToggleSeqFlags(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key);
+static char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key);
+
+static char* pasteDirection[] =
+{
     "&Current frame only",
     "All &next frames",
     "All &previous frames",
     "&All frames",
-
 };
 
-CHECKBOX_LIST clipboardMenu[] = {
-
-    {FALSE,     "&Tile"},
-    {TRUE,      "&X-repeat"},
-    {TRUE,      "&Y-repeat"},
-    {TRUE,      "&Shade"},
-    {TRUE,      "&Palette"},
-    {FALSE,     "&Flags"},
-
+static char* spawnMenu[] =
+{
+    "&Create new sprite",
+    "&Edit SEQ for current object",
+    "&Quit",
 };
 
-void seqeditStart(char* seqFile) {
+static char* viewZNames[] =
+{
+    "Floor",
+    "Middle",
+    "Ceiling",
+    "Original",
+};
 
-    short sect;
-    BOOL showMenu = TRUE;
-    int i, screenMode = qsetmode;
+static CHECKBOX_LIST clipboardMenu[] =
+{
+    {0,     "&Tile"},
+    {1,     "&X-repeat"},
+    {1,     "&Y-repeat"},
+    {1,     "&Shade"},
+    {1,     "&Palette"},
+    {0,     "&Flags"},
+};
 
-    updatesector(posx, posy, &sect);
+static enum
+{
+    kSeqDlgSpeed       = 1,
+    kSeqDlgFrames,
+    kSeqDlgSound,
+    kSeqDlgRemove,
+    kSeqDlgLoop,
+    kSeqDlgFramePic,
+    kSeqDlgFramePal,
+    kSeqDlgFrameXSiz,
+    kSeqDlgFrameYSiz,
+    kSeqDlgFrameShade,
+    kSeqDlgSndRange,
+    kSeqDlgFrameBLK,
+    kSeqDlgFrameHSC,
+    kSeqDlgFrameAIM,
+    kSeqDlgFrameTRG,
+    kSeqDlgFramePSH,
+    kSeqDlgFrameSMK,
+    kSeqDlgFrameTR1,
+    kSeqDlgFrameTR2,
+    kSeqDlgFrameFLX,
+    kSeqDlgFrameFLY,
+    kSeqDlgFrameINV,
+    kSeqDlgFrameSND,
+    kSeqDlgFrameSRF,
+};
 
-    i = getHighlightedObject();
-    gTool.cantest = (i && sect >= 0 && numsectors > 0);
-    gSeqEd.edit3d = (gTool.cantest && screenMode == 200);
+DIALOG_ITEM dlgSeqedit[] =
+{
+    { NO,   1,      0,  0,  0,                      HEADER,     "Animation         " },
+    { NO,   1,      0,  1,  kSeqDlgSpeed,           NUMBER,     "Delay........: %-5d",              0,     32767,           NULL,   NULL},
+    { NO,   1,      0,  2,  kSeqDlgFrames,          NUMBER,     "Frames.......: %-3d",              0,     kMaxFrames,      NULL,   NULL},
+    { NO,   1,      0,  3,  kSeqDlgSound,           NUMBER,     "Sound........: %-5d",              0,     32767,           NULL,   helperAuditSound},
 
-    if (gTool.cantest && i != 200)
+    { NO,   1,      0,  6,  0,                      HEADER,     "Playback done" },
+    { NO,   1,      0,  7,  kSeqDlgRemove,          CHECKBOX,   "Delete",                           0,      1,              NULL, helperToggleSeqFlags},
+    { NO,   1,      0,  8,  kSeqDlgLoop,            CHECKBOX,   "Loop",                             0,      1,              NULL, helperToggleSeqFlags},
+
+    { NO,   1,      22,  0,  0,                     HEADER,     "Frame properties   " },
+    { NO,   1,      22,  1,  kSeqDlgFramePic,       NUMBER,     "Picnum.......: %-5d",              0,      kMaxTiles - 1,  NULL,   NULL},
+    { NO,   1,      22,  2,  kSeqDlgFramePal,       NUMBER,     "Palookup.....: %-2d",              0,      127,            NULL,   NULL},
+    { NO,   1,      22,  3,  kSeqDlgFrameXSiz,      NUMBER,     "X-repeat.....: %-3d",              0,      255,            NULL,   NULL},
+    { NO,   1,      22,  4,  kSeqDlgFrameYSiz,      NUMBER,     "Y-repeat.....: %-3d",              0,      255,            NULL,   NULL},
+    { NO,   1,      22,  5,  kSeqDlgFrameShade,     NUMBER,     "Shade........: %-+4d",             -128,   127,            NULL,   NULL},
+    { NO,   1,      22,  6,  kSeqDlgSndRange,       NUMBER,     "Sound range..: %-2d",              0,      15,             NULL,   NULL},
+
+    { NO,   1,      45,  0,  0,                      HEADER,     "Frame flags              " },
+    { NO,   1,      45,  1,  kSeqDlgFrameBLK,        CHECKBOX,   "Blocking" },
+    { NO,   1,      45,  2,  kSeqDlgFrameHSC,        CHECKBOX,   "Hitscan" },
+    { NO,   1,      45,  3,  kSeqDlgFrameAIM,        CHECKBOX,   "Auto-aim" },
+    { NO,   1,      45,  4,  kSeqDlgFrameTRG,        CHECKBOX,   "Trigger" },
+
+    { NO,   1,      45,  6,  kSeqDlgFramePSH,        CHECKBOX,   "Pushable" },
+    { NO,   1,      45,  7,  kSeqDlgFrameSMK,        CHECKBOX,   "Smoke" },
+    { NO,   1,      45,  8,  kSeqDlgFrameTR1,        CHECKBOX,   "Trans 75%",                      0,      1,              NULL, helperToggleSeqFlags},
+    { NO,   1,      45,  9,  kSeqDlgFrameTR2,        CHECKBOX,   "Trans 50%",                      0,      1,              NULL, helperToggleSeqFlags},
+
+    { NO,   1,      59,  1,  kSeqDlgFrameFLX,        CHECKBOX,   "X-flipped" },
+    { NO,   1,      59,  2,  kSeqDlgFrameFLY,        CHECKBOX,   "Y-flipped" },
+    { NO,   1,      59,  3,  kSeqDlgFrameINV,        CHECKBOX,   "Invisible" },
+    { NO,   1,      59,  5,  kSeqDlgFrameSND,        CHECKBOX,   "Play sound" },
+    { NO,   1,      59,  6,  kSeqDlgFrameSRF,        CHECKBOX,   "Surf sound" },
+
+    { NO,   1,      0,  0,  0,  CONTROL_END },
+};
+
+void SEQEDIT::Start(char* filename)
+{
+    SNAPSHOT_MANAGER mapState(boardSnapshotMake, boardSnapshotLoad);
+    int i, s, e, ax, ay;
+    int nSpr, nSect;
+    
+    mapState.Make(0);
+
+    pViewXSect  = NULL;
+    obj.type    = OBJ_NONE;
+    rffID       = -1;
+    obj.index   = -1;
+    nSect       = -1;
+    edit3d      =  0;
+
+    if (numsectors > 0 && getHighlightedObject())
     {
-        if (!Confirm("The object is not a sprite. Spawn SEQ and continue anyway?"))
-            return;
+        if (searchstat != OBJ_SPRITE && cursectnum >= 0)
+        {
+            switch(i = showButtons(spawnMenu, LENGTH(spawnMenu), "Object is not an sprite...") - mrUser)
+            {
+                case 0:
+                    if ((nSpr = InsertSprite(cursectnum, 0)) >= 0)
+                    {
+                        sprite[nSpr].x = posx;
+                        sprite[nSpr].y = posy;
+                        sprite[nSpr].z = posz;
+                        sprite[nSpr].ang = (ang + kAng180) & kAngMask;
+
+                        clampSprite(&sprite[nSpr]);
+
+                        searchstat      = OBJ_SPRITE;
+                        searchsector    = cursectnum;
+                        searchwall      = searchindex = nSpr;
+                        offsetPos(0, -1024, 0, ang, &posx, &posy, NULL);
+                        break;
+                    }
+                    Alert("Unable to create new sprite!");
+                    // no break
+                case 1:
+                    break;
+                default:
+                    return;
+            }
+        }
+
+        switch(obj.type = searchstat)
+        {
+            case OBJ_FLOOR:
+            case OBJ_CEILING:
+                GetXSector(searchsector);
+                obj.index                       = searchsector;
+                nSect                           = searchsector;
+                if (searchstat == OBJ_FLOOR)
+                {
+                    refinfo.pic                     = sector[searchsector].floorpicnum;
+                    refinfo.pal                     = sector[searchsector].floorpal;
+                    sector[searchsector].floorpal   = 0;
+                }
+                else
+                {
+                    refinfo.pic                     = sector[searchsector].ceilingpicnum;
+                    refinfo.pal                     = sector[searchsector].ceilingpal;
+                    sector[searchsector].ceilingpal = 0;
+                }
+                
+                avePointSector(searchsector, &ax, &ay);
+                ang = getangle(ax - posx, ay - posy);
+                break;
+            case OBJ_WALL:
+            case OBJ_MASKED:
+                GetXWall(searchwall);
+                obj.index                       = searchwall;
+                nSect                           = sectorofwall(searchwall);
+                refinfo.pic                     = (obj.type == OBJ_WALL)
+                                                ? wall[searchwall].picnum
+                                                : wall[searchwall].overpicnum;
+                refinfo.pal                     = wall[searchwall].pal;
+                refinfo.xsiz                    = wall[searchwall].xrepeat;
+                refinfo.ysiz                    = wall[searchwall].yrepeat;
+                wall[searchwall].pal            = 0;
+                
+                avePointWall(searchwall, &ax, &ay);
+                ang = getangle(ax - posx, ay - posy);
+                break;
+            case OBJ_SPRITE:
+                GetXSprite(searchwall);
+                obj.index                       = searchwall;
+                nSect                           = sprite[searchwall].sectnum;
+                refinfo.pic                     = sprite[searchwall].picnum;
+                refinfo.pal                     = sprite[searchwall].pal;
+                refinfo.xsiz                    = sprite[searchwall].xrepeat;
+                refinfo.ysiz                    = sprite[searchwall].yrepeat;
+                refinfo.z                       = sprite[searchwall].z;
+                ang = getangle(sprite[searchwall].x - posx, sprite[searchwall].y - posy);
+                sprite[searchwall].pal          = 0;
+                break;
+        }
+
+        if (nSect >= 0)
+        {
+            sectortype* pSect = &sector[nSect];
+            viewSurface = surfType[pSect->floorpicnum];
+            viewShade   = pSect->floorshade;
+            
+            pSect->floorstat    |= kSectShadeFloor;
+            
+            pSect->floorshade    = 0;
+            if (!isSkySector(nSect, OBJ_CEILING))
+                pSect->ceilingshade  = 0;
+
+            getSectorWalls(nSect, &s, &e);
+            while(s <= e)
+                wall[s].shade = 0, s++;
+
+            for (s = headspritesect[nSect]; s >= 0; s = nextspritesect[s])
+                sprite[s].shade = 0;
+
+            if (pSect->extra > 0)
+                dbDeleteXSector(pSect->extra);
+
+            GetXSector(nSect);
+
+            pViewXSect = &xsector[pSect->extra];
+            pViewXSect->shadeAlways     = 1;
+            pViewXSect->shadeFloor      = 1;
+            pViewXSect->shadeWalls      = 1;
+            pViewXSect->amplitude       = ClipLow(viewShade, 1);
+            
+            if (!isSkySector(nSect, OBJ_CEILING))
+                pViewXSect->shadeCeiling    = 1;
+            
+            InitSectorFX();
+            DoSectorLighting();
+            edit3d = 1;
+        }
     }
 
+    AnimNew();
 
-    seqKillAll();
-
-    pSeq = (Seq*)Resource::Alloc(kSeqMemSize);
-    memset(pSeq, 0, kSeqMemSize);
-    pSeq->ticksPerFrame = 12;
-    gTool.surface = kSurfStone;
-
-    if (seqFile)
+    if (filename)
     {
-        sprintf(gPaths.seqs, seqFile);
-        if ((showMenu = (!SEQLoad(pSeq))) == TRUE)
-            Alert("Failed to load SEQ %s", gPaths.seqs);
+        strcpy(gPaths.seqs, filename);
+        if (!AnimLoad(gPaths.seqs))
+            Alert("Failed to load file \"%s\"!", gPaths.seqs), filename = NULL;
     }
 
-    if (showMenu)
+    if (!filename)
     {
         while( 1 )
         {
-            switch (showButtons(toolMenu, LENGTH(toolMenu), gToolNames[kToolSeqEdit].name) - mrUser) {
+            switch (showButtons(toolMenu, LENGTH(toolMenu), gToolNames[kToolSeqEdit].name) - mrUser)
+            {
                 case 1:
-                    if (!toolLoadAs(gSeqEd.filename, kSeqExt) || !SEQLoad(pSeq)) continue;
-                    break;
+                    if (!browseOpen(gPaths.seqs, kSeqExt)) continue;
+                    else if (AnimLoad(gPaths.seqs)) break;
+                    else Alert("Failed to load file \"%s\"!", gPaths.seqs);
+                    continue;
                 case 0:
-                    seqeditNewAnim();
+                    strcpy(gPaths.seqs, "newanim");
+                    AnimNew();
                     break;
                 default:
+                    Quit();
                     return;
             }
 
@@ -109,1016 +317,1437 @@ void seqeditStart(char* seqFile) {
         }
     }
 
-    toolGetResTableValues();
-    toolSetOrigin(&gSeqEd.origin, xdim >> 1, ydim >> 1);
+    xmpSetEditMode(0x01);
+    seqKillAll();
+    sfxInit();
 
-    if (gTool.cantest)
-    {
-        gTool.objType  = (char)searchstat;
-        gTool.objIndex = (i == 300) ? searchsector : searchwall;
+    gHovSpr  = -1;
+    gHovWall = -1;
+    gHovStat = OBJ_NONE;
+    showinvisibility = 0;
 
-        cpySaveObject(gTool.objType, gTool.objIndex);
-        if (gTool.objType == OBJ_SPRITE)
-            GetSpriteExtents(&sprite[gTool.objIndex], &gTool.zTop, &gTool.zBot);
-
-        seqeditObjectInit(FALSE);
-    }
-
-    artedInit();    // switch to art editing mode as well
-    gArtEd.mode     = kArtEdModeBatch;
-    // only allow batch tile edit mode (seqedit has internal offsets editor)
-    gArtEd.modeMin  = gArtEd.mode;
-    gArtEd.modeMax  = gArtEd.mode;
+    pHud = &gSeqedHud;
+    pHud->SetView(kHudLayoutFull, gHudPrefs.fontPack);
+    pHud->SetLogo("XSEQEDIT", (char*)build_date, gSysTiles.icoXmp);
+    hudSetLayout(pHud, kHudLayoutFull, &gMouse);
 
     gTileView.bglayers++;
-    xmpSetEditMode(0x01);
 
-    seqeditProcess();
+    artedInit();    // switch to art editing mode as well and don't allow to disable it
+    gArtEd.mode     = kArtEdModeBatch;
+    gArtEd.modeMin  = kArtEdModeBatch;
+    gArtEd.modeMax  = kArtEdModeBatch;
+
+    origin.x = MIDPOINT(0, xdim);
+    origin.y = MIDPOINT(0, ydim-pHud->Height());
+
+    HudUpdateStatus();
+    ProcessLoop();
+    Quit();
 
     gTileView.bglayers--;
-
-    // finished the editing
-    if (gTool.cantest)
-        cpyRestoreObject(gTool.objType, gTool.objIndex);
-
-    keyClear();
-    gSeqEd.clipboardOk = FALSE;
-    gTool.objType = -1;
-    gTool.objIndex = -1;
-    gTool.pSprite = NULL;
-    Resource::Free(pSeq);
-    pSeq = NULL;
-
-    gScreen.msg[0].time = 0;
     artedUninit();
+    keyClear();
 
-    if (screenMode == 200)      xmpSetEditMode(0x01);
-    else                        xmpSetEditMode(0x00);
-
+    mapState.Load(0);
 }
 
-void seqeditProcess( void ) {
+void SEQEDIT::ProcessLoop()
+{
+    char quit = 0;
+    int nPlayTime = 0, nKeyTime = 0;
+    int nTile = 0, nStep;
+    int i, j, k;
+    
+    nFrame = 0;
 
-    int timeCounter = 0, fidx = 0, nTile = 0, nTileView = 0, nTileTemp = 0;
-    int nOctant = 0, i = 0, j = 0, k = 0, x = kMar, y = kMar, gStep;
-    BYTE playing = 0, key, ctrl, shift, alt;
-    spritetype* pSprite = gTool.pSprite;
-    QFONT* pFont = gTool.pFont;
-    char* message = gScreen.msg[0].text;
-
-    while ( 1 ) {
-
+    while( 1 )
+    {
         updateClocks();
-        sndProcess();
 
-        fidx = ClipRange(fidx, 0, pSeq->nFrames);
-        SEQFRAME *pFrame = (pSeq->nFrames <= 0) ? NULL :&pSeq->frames[fidx];
-
-        if (!pFrame)
+        if (playing && pSeq->ticksPerFrame)
         {
-            gfxSetColor(gStdColor[28]);
-            gfxFillBox(0, 0, xdim, ydim);
-            toolDrawPixels(gTool.hudPixels, gStdColor[29]);
-            sprintf(buffer, "You must insert a new frame"); i = gfxGetTextLen(strupr(buffer), pFont);
-            gfxPrinTextShadow((xdim >> 1) - (i >> 1), (ydim >> 1) - (pFont->height >> 1), gStdColor[15], buffer, pFont);
-        }
-        else
-        {
-            if (gTool.objIndex >= 0)
+            nPlayTime -= gFrameTicks;
+            while(nPlayTime < 0)
             {
-                seqeditObjectUpdate(pFrame);
-                nOctant = updViewAngle(pSprite);
-            }
-
-            // inherit palette from previous frames if current is zero
-            if (pFrame->pal == 0)
-            {
-                for (i = fidx, j = 0; i >= 0; i--) {
-                    if (pSeq->frames[i].pal == 0) continue;
-                    gSeqEd.curPal = (char)pSeq->frames[i].pal;
-                    j = 1;
-                    break;
-                }
-
-                if (j != 1)
-                    gSeqEd.curPal = 0;
-            }
-            else
-            {
-                gSeqEd.curPal = (char)pFrame->pal;
-            }
-
-            if (gSeqEd.edit3d)
-            {
-                processDrawRooms();
-                processMove();
-                processMouseLook3D();
-                gMouse.Draw();
-
-                nTileView = toolGetViewTile(nTile, nOctant, NULL, NULL);
-            }
-            else
-            {
-                gfxSetColor(gStdColor[28]);
-                gfxFillBox(0, 0, xdim, ydim);
-                toolDrawPixels(gTool.hudPixels, gStdColor[29]);
-
-                j = ydim / 3;
-                toolDrawCenter(&gSeqEd.origin, gStdColor[20], j, j, gTool.centerPixels);
-                toolDrawCenterHUD(&gSeqEd.origin, nTile, nTileView, j, nOctant, gStdColor[19]);
-                seqeditDrawTile(pFrame, gTool.tileZoom, &nTileView, nOctant);
-                toolDrawCenter(&gSeqEd.origin, gStdColor[20], 6, 6, 1);
-            }
-        }
-
-        // title
-        if (totalclock > gScreen.msg[0].time)
-        {
-
-            j = gStdColor[15];
-            sprintf(message, "%s", (strlen(gSeqEd.filename) ? gSeqEd.filename : "Unnamed"));
-            if (gSeqEd.rffID >= 0)
-            {
-                strcat(message, " ");
-                sprintf(buffer, "(ID: %d)", gSeqEd.rffID);
-                strcat(message, buffer);
-            }
-
-            strcat(message, " ");
-            strcat(message, "-");
-            strcat(message, " ");
-
-            sprintf(buffer, "%s", gToolNames[kToolSeqEdit].name);
-            strcat(message, buffer);
-
-            strupr(message);
-
-        // message
-        }
-        else
-        {
-            j = gStdColor[(gFrameClock & 32) ? 15 : 7];
-        }
-
-        toolDrawWindow(0, 0, xdim, ydim, message, (char)j);
-
-        y = 15 + kMar;
-
-        if (playing)
-        {
-            scrSetMessage("NOW PLAYING");
-            timeCounter -= gFrameTicks;
-            while (timeCounter < 0)
-            {
-                timeCounter += pSeq->ticksPerFrame;
-                if (++fidx == pSeq->nFrames)
+                nPlayTime += pSeq->ticksPerFrame;
+                if (++nFrame == pSeq->nFrames)
                 {
-                    if (playing & 0x02) fidx = 0;
-                    else gScreen.msg[0].time = fidx = playing = 0;
-                    sndKillAllSounds();
+                    if (playing & 0x02)
+                    {
+                        nFrame = 0;
+                    }
+                    else
+                    {
+                        AnimStopPlaying();
+                    }
                 }
-
+                
+                nFrame = ClipRange(nFrame, 0, pSeq->nFrames - 1);
+                pFrame = &pSeq->frames[nFrame];
+                
                 if (playing)
                 {
-                    if (pSeq->frames[fidx].playSound)
-                        auditSound(pSeq->nSoundID+pSeq->frames[fidx].soundRange, -1, 0);
+                    if (pFrame->playSound)
+                        SoundPlay(pSeq->nSoundID + Random(pFrame->soundRange));
 
-                    if (pSeq->frames[fidx].surfaceSound)
-                        auditSound(kSurfSoundBase+gTool.surface+Random(1), -1, 0);
+                    if (pFrame->surfaceSound && viewSurface)
+                        SoundPlay(kSurfSoundBase + (viewSurface<<1) + Random(2));
                 }
             }
         }
-
-        fidx = ClipRange(fidx, 0, pSeq->nFrames);
-        pFrame = (pSeq->nFrames <= 0) ? NULL :&pSeq->frames[fidx];
-        sprintf(buffer, "SEQUENCE: TICKS PER FRAME=%03d / SHADE=%03d / SOUND=%05d", pSeq->ticksPerFrame, gTool.shade, pSeq->nSoundID);
-        gfxPrinTextShadow(kMar, y, gStdColor[16], buffer, pFont);
-
-        buffer[0] = 0;
-        if (pSeq->flags & kSeqRemove)
+        else
         {
-            sprintf(buffer, "[ DELETE ON ]");
-            j = 12;
-        }
-        else if (pSeq->flags & kSeqLoop)
-        {
-            sprintf(buffer, "[ LOOP ON ]");
-            j = 9;
+            nFrame = ClipRange(nFrame, 0, pSeq->nFrames - 1);
+            pFrame = &pSeq->frames[nFrame];
         }
 
-        if (buffer[0] != 0)
+        if (edit3d)
         {
-            i = gfxGetTextLen(buffer, pFont);
-            gfxPrinTextShadow(xdim - kMar - i, y, gStdColor[j], buffer, pFont);
+            processMove();
+            processMouseLook3D();
+            processDrawRooms();
+        }
+        else
+        {
+            gfxSetColor(clr2std(kColorGrey29));
+            gfxFillBox(windowx1, windowy1, windowx2, windowy2);
+            FrameDraw(pFrame);
         }
 
-        if (pFrame)
-        {
-            nTile = seqGetTile(pFrame);
-
-            y = y + pFont->height + 2;
-            gfxSetColor(gStdColor[6]);
-            gfxHLine(y, kMar, xdim - kMar);
-            y+=4;
-
-            sprintf(buffer, "VIEW TILE = %04d", nTileView);
-            gfxPrinTextShadow(kMar, y, gStdColor[17], strupr(buffer), pFont);
-
-            sprintf(buffer, "X-OFFSET = %04d", panm[nTileView].xcenter);
-            gfxPrinTextShadow(kMar, y+=pFont->height, gStdColor[17], strupr(buffer), pFont);
-
-            sprintf(buffer, "Y-OFFSET = %04d", panm[nTileView].ycenter);
-            gfxPrinTextShadow(kMar, y+=pFont->height, gStdColor[17], strupr(buffer), pFont);
-
-            sprintf(buffer, "SURFACE = %s", surfNames[surfType[nTileView]]);
-            gfxPrinTextShadow(kMar, y+=pFont->height, gStdColor[17], strupr(buffer), pFont);
-
-            sprintf(buffer, "VIEW TYPE = %s", viewNames[viewType[nTileView]]);
-            gfxPrinTextShadow(kMar, y+=pFont->height, gStdColor[17], strupr(buffer), pFont);
-
-            memset(buffer, 0, sizeof(buffer)); sprintf(buffer, "auto");
-            if (pFrame->pal) sprintf(&buffer[16], "%03d", pFrame->pal);
-            else sprintf(&buffer[16], buffer);
-
-            if (pFrame->xrepeat) sprintf(&buffer[32], "%03d", pFrame->xrepeat);
-            else sprintf(&buffer[32], buffer);
-
-            if (pFrame->yrepeat) sprintf(&buffer[64], "%03d", pFrame->yrepeat);
-            else sprintf(&buffer[64], buffer);
-
-            sprintf(buffer2,
-                "TILE=%04d  SHADE=%+04d  PALETTE=%s  X-REPEAT=%s  Y-REPEAT=%s  SOUND RANGE=%02d",
-                nTile, pFrame->shade, &buffer[16], &buffer[32], &buffer[64], pFrame->soundRange
-            );
-
-            y = ydim - kMar - pFont->height;
-            gfxPrinTextShadow(kMar, y, gStdColor[16], strupr(buffer2), pFont);
-
-            y = y - 4;
-            gfxSetColor(gStdColor[6]);
-            gfxHLine(y, kMar, xdim - kMar);
-            y = y - pFont->height - 2;
-
-            sprintf(buffer, "FRAME %d OF %d", (pSeq->nFrames > 0) ? fidx + 1 : fidx, pSeq->nFrames);
-            gfxPrinTextShadow(kMar, y, gStdColor[16], buffer, pFont);
-
-            int yofs = pFont->height + (pFont->height >> 2);
-            y = y + pFont->height; x = xdim - (pFont->width << 3) - (kMar << 1);
-
-            if (pFrame->blockable)          seqeditPrintFlags(x, y-=yofs,   "BLOCKING", pFont, 4);
-            if (pFrame->invisible)          seqeditPrintFlags(x, y-=yofs,   "INVISIBLE", pFont, 0, 7);
-            if (pFrame->autoaim)            seqeditPrintFlags(x, y-=yofs,   "AUTO-AIM", pFont, 10);
-            if (pFrame->hittable)           seqeditPrintFlags(x, y-=yofs,   "HITSCAN", pFont, 5);
-            if (pFrame->smoke)              seqeditPrintFlags(x, y-=yofs,   "SMOKE", pFont, 6);
-            if (pFrame->trigger)            seqeditPrintFlags(x, y-=yofs,   "TRIGGER", pFont, 12);
-            if (pFrame->pushable)           seqeditPrintFlags(x, y-=yofs,   "PUSHABLE", pFont, 2);
-
-            if (pFrame->transparent2)       seqeditPrintFlags(x, y-=yofs,   "TRANSLUCENT1", pFont, 7, 0);
-            else if (pFrame->transparent)   seqeditPrintFlags(x, y-=yofs,   "TRANSLUCENT2", pFont, 8, 0);
-
-            if (pFrame->surfaceSound)       seqeditPrintFlags(x, y-=yofs,   "SURFACE SND", pFont, 15);
-            if (pFrame->playSound)          seqeditPrintFlags(x, y-=yofs,   "PLAY SOUND", pFont, 14);
-            if (pFrame->xflip)              seqeditPrintFlags(x, y-=yofs,   "FLIP X", pFont, 9);
-            if (pFrame->yflip)              seqeditPrintFlags(x, y-=yofs,   "FLIP Y", pFont, 13);
-        }
-
-        showframe();
+        ObjectUpdate();
+        HudShowInfo();
         handleevents();
         keyGetHelper(&key, &ctrl, &shift, &alt);
+        OSD_Draw();
+        showframe();
+        
+        if (key)
+            keyClear();
 
-        switch (key) {
+        // GLOBAL keys
+        //////////////////
+
+        switch(key)
+        {
             case KEY_ESC:
+                if (playing)
+                {
+                    AnimStopPlaying();
+                    continue;
+                }
+
+                if (!gArtEd.asksave && CRC == crc32once((unsigned char*)pSeq, kAnimSize))
+                {
+                    if (Confirm("Quit now?"))
+                        return;
+
+                    continue;
+                }
+
+                if ((i = DlgSaveChanges("Save changes?", gArtEd.asksave)) == -1) continue;
+                else if (i == 0)
+                    return;
+                
+                // no break
+            case KEY_F2:
+                if ((ctrl || !fileExists(gPaths.seqs)) && !browseSave(gPaths.seqs, kSeqExt)) continue;
+                else if (!AnimSave(gPaths.seqs)) Alert("Failed to save file \"%s\"", gPaths.seqs);
+                else
+                {
+                    rffID = -1;
+                    pHud->SetMsgImp(MSG_TIME, "Saved to \"%s\"", gPaths.seqs);
+                    
+                    if (key == KEY_ESC)
+                    {
+                        if (i > 1)
+                            artedSaveChanges();
+                        
+                        // quitting now
+                        return;
+                    }
+                    
+                    if (gArtEd.asksave && Confirm("Save ART changes as well?"))
+                        artedSaveChanges();
+                }
+                continue;
+            case KEY_F11: // load previous existing fileID in rff
+            case KEY_F12: // load next existing fileID in rff
+            case KEY_F3:  // call load dialog
+                if (key == KEY_F3)
+                {
+                    if (ctrl)
+                    {
+                        if (Confirm("Start new animation?"))
+                            AnimNew();
+
+                        continue;
+                    }
+                    
+                    if (!browseOpen(gPaths.seqs, kSeqExt))
+                        continue;
+                }
+                else
+                {
+                    if (ctrl)
+                    {
+                        gHudPrefs.fontPack = IncRotate(gHudPrefs.fontPack, kHudFontPackMax);
+                        pHud->SetMsgImp(MSG_TIME, "HUD font: %s", gHudFontNames[gHudPrefs.fontPack]);
+                        hudSetFontPack(pHud, gHudPrefs.fontPack, &gMouse);
+                        continue;
+                    }
+                    
+                    i = getClosestId(ClipRange(rffID, 0, 65534), 65534, gExtNames[kSeq], key == KEY_F12);
+                    sprintf(gPaths.seqs, "%d.%s", i, gExtNames[kSeq]);
+                }
+                
+                if (AnimLoad(gPaths.seqs))
+                {
+                    pHud->SetMsgImp(MSG_TIME, "File \"%s\" loaded from %s", gPaths.seqs, (rffID >= 0) ? gPaths.bloodRFF : "disk");
+                    HudUpdateStatus();
+                    AnimStopPlaying();
+                    ObjectReset();
+                    continue;
+                }
+                
+                Alert("Failed to load file \"%s\"!", gPaths.seqs);
+                continue;
+            case KEY_F4:// import
+                j = rffID;
+                strcpy(buffer, gPaths.seqs);
+                if (browseOpen(gPaths.seqs, kSeqExt, "Import animation") != NULL)
+                {
+                    Seq* pTmp = NULL;
+                    if (AnimLoad(gPaths.seqs, &pTmp))
+                    {
+                        for (i = 0, k = pSeq->nFrames; i < pTmp->nFrames; i++, k++)
+                        {
+                            if (k >= kMaxFrames)
+                            {
+                                Alert("Max (%d) frames reached!", kMaxFrames);
+                                break;
+                            }
+
+                            pSeq->frames[k] = pTmp->frames[i];
+                            pSeq->nFrames++;
+                        }
+
+                        Alert("%d of %d frames has been added.", i, pTmp->nFrames);
+                        if (i > 0) nFrame = pSeq->nFrames - i;
+                        HudUpdateStatus();
+                    }
+                    else
+                    {
+                        Alert("Failed to load file \"%s\"!", gPaths.seqs);
+                    }
+
+                    if (pTmp)
+                        free(pTmp);
+                }
+                strcpy(gPaths.seqs, buffer);
+                rffID = j;
+                continue;
             case KEY_SPACE:
-                if (!playing) break;
-                fidx = gScreen.msg[0].time = playing = 0;
-                sndKillAllSounds();
+                if (pSeq->nFrames)
+                {
+                    if (playing)
+                    {
+                        AnimStopPlaying();
+                        continue;
+                    }
+
+                    AnimStartPlaying((shift) ? 0x00 : 0x02);
+                }
                 continue;
             case KEY_PADENTER:
-                if (!gTool.cantest) Alert("You must load a map to enable 3D mode.");
-                else scrSetMessage("3D edit mode is %s", onOff(gSeqEd.edit3d^=1));
-                break;
-            case KEY_PADSTAR:
-            case KEY_PADSLASH:
-                i = (key == KEY_PADSTAR) ? 0x1000 : -0x1000;
-                gTool.tileZoom = ClipRange(gTool.tileZoom + i, 0x1000, 0x10000 << 4);
-                scrSetMessage("Zoom: %d%%.", (gTool.tileZoom * 100) / toolGetDefTileZoom());
-                break;
+                if (obj.type != OBJ_NONE)
+                {
+                    edit3d = !edit3d;
+                    pHud->SetMsgImp(MSG_TIME, "3D Mode is %s", onOff(edit3d));
+                    HudUpdateStatus();
+                    continue;
+                }
+
+                pHud->SetMsgImp(MSG_TIME, "3D Mode is not available");
+                edit3d = 0;
+                continue;
+            case KEY_CAPSLOCK:
+                if (!edit3d)
+                    viewBorders = !viewBorders;
+                continue;
+            case KEY_SLASH:
             case KEY_COMMA:
             case KEY_PERIOD:
-            case KEY_SLASH:
-                if (gTool.objType == OBJ_SPRITE)
+                if (pSeq->nFrames)
                 {
-                    // set angle for the sprite to keep edit modes in sync
-                    if (key == KEY_SLASH) pSprite->ang = (short)(ang + kAng180);
-                    else if (key == KEY_COMMA) pSprite->ang += kAng45;
-                    else pSprite->ang -= kAng45;
+                    if (panm[seqGetTile(pFrame)].view == kSprViewSingle)
+                    {
+                        pHud->SetMsgImp(MSG_TIME, "Tile #%d has no view type.", seqGetTile(pFrame));
+                        continue;
+                    }
 
-                    pSprite->ang = (short)(pSprite->ang & kAngMask);
-                    nOctant = updViewAngle(pSprite);
+                    if (key == KEY_COMMA)
+                    {
+                        if (pFrame->xflip)  viewOctant = IncRotate(viewOctant, 8);
+                        else                viewOctant = DecRotate(viewOctant, 8);
+                    }
+                    else if (key == KEY_PERIOD)
+                    {
+                        if (pFrame->xflip)  viewOctant = DecRotate(viewOctant, 8);
+                        else                viewOctant = IncRotate(viewOctant, 8);
+                    }
+                    else
+                    {
+                        viewOctant = 0;
+                    }
+
+                    if (obj.type == OBJ_SPRITE)
+                    {
+                        sprite[obj.index].ang  = (ang + kAng180) & kAngMask;
+                        sprite[obj.index].ang -= (kAng45 * viewOctant);
+                    }
                 }
-                else if (key == KEY_SLASH) nOctant = 0;
-                else if (key == KEY_COMMA) nOctant = DecRotate(nOctant, 8);
-                else nOctant = IncRotate(nOctant, 8);
-                break;
+                continue;
+            case KEY_PADSTAR:
+            case KEY_PADSLASH:
+                if (pSeq->nFrames)
+                {
+                    if (edit3d)
+                    {
+                       if (obj.type == OBJ_SPRITE)
+                       {
+                            spritetype* pSpr = &sprite[obj.index];
+                            XSPRITE* pXSpr = &xsprite[pSpr->extra];
+                            pSpr->xrepeat = refinfo.xsiz;
+                            pSpr->yrepeat = refinfo.ysiz;
+
+                            if (!pXSpr->scale)
+                                pXSpr->scale = 256;
+
+                            nStep = (key == KEY_PADSTAR) ? 8 : -8;
+                            pXSpr->scale  = ClipRange(pXSpr->scale + nStep, 1, 256<<4);
+                            pSpr->xrepeat = ClipRange(mulscale8(pSpr->xrepeat, pXSpr->scale), 0, 255);
+                            pSpr->yrepeat = ClipRange(mulscale8(pSpr->yrepeat, pXSpr->scale), 0, 255);
+                            ObjectUpdate();
+                       }
+                    }
+                    else
+                    {
+                        nStep = (key == KEY_PADSTAR) ? 0x1000 : -0x1000;
+                        zoom = ClipRange(zoom + nStep, 0, 0x10000 << 2);
+                    }
+
+                    HudUpdateStatus();
+                }
+                continue;
             case KEY_PLUS:
                 if (ctrl)
                 {
-                    gTool.surface = (BYTE)IncRotate(gTool.surface, LENGTH(surfNames) - 1);
-                    scrSetMessage("Floor surface type is %s", surfNames[gTool.surface]);
+                    viewSurface = IncRotate(viewSurface, LENGTH(surfNames));
+                    HudUpdateStatus();
                 }
                 else
                 {
-                    pSeq->ticksPerFrame = (short)ClipHigh(pSeq->ticksPerFrame + 1, 32767);
-                    gSeqEd.asksave = TRUE;
+                    pSeq->ticksPerFrame = ClipHigh(pSeq->ticksPerFrame + 1, 32767);
                 }
-                break;
+                continue;
             case KEY_MINUS:
                 if (ctrl)
                 {
-                    gTool.surface = (BYTE)DecRotate(gTool.surface, LENGTH(surfNames) - 1);
-                    scrSetMessage("Floor surface type is %s", surfNames[gTool.surface]);
+                    viewSurface = DecRotate(viewSurface, LENGTH(surfNames));
+                    HudUpdateStatus();
                 }
                 else
                 {
-                    pSeq->ticksPerFrame = (short)ClipLow(pSeq->ticksPerFrame - 1, 1);
-                    gSeqEd.asksave = TRUE;
+                    pSeq->ticksPerFrame = ClipLow(pSeq->ticksPerFrame - 1, 1);
+                }
+                continue;
+            case KEY_PADMINUS:
+            case KEY_PADPLUS:
+            case KEY_PAD0:
+                if (shift)
+                {
+                    if (key == KEY_PADMINUS)        viewShade = (ctrl) ? +127 : ClipHigh(viewShade + 1, 127);
+                    else if (key == KEY_PADPLUS)    viewShade = (ctrl) ? -128 : ClipLow(viewShade - 1, -128);
+                    else                            viewShade = 0;
+
+                    HudUpdateStatus();
+
+                    if (pViewXSect)
+                        pViewXSect->amplitude = viewShade;
+                }
+                else if (!playing && pSeq->nFrames)
+                {
+                    if (alt && key != KEY_PAD0)
+                    {
+                        i = GetNumberBox("Frame shade", pFrame->shade, pFrame->shade);
+                        pFrame->shade = ClipRange(i, -128, 127);
+                        continue;
+                    }
+
+                    if (key == KEY_PADMINUS)        pFrame->shade = (ctrl) ? +127 : ClipHigh(pFrame->shade + 1, 127);
+                    else if (key == KEY_PADPLUS)    pFrame->shade = (ctrl) ? -128 : ClipLow(pFrame->shade - 1, -128);
+                    else                            pFrame->shade = 0;
+                }
+                continue;
+            case KEY_BACKSLASH:
+                if (edit3d && obj.type == OBJ_SPRITE)
+                {
+                    viewZ = IncRotate(viewZ, 4);
+                    HudUpdateStatus();
                 }
                 break;
-
         }
 
         if (playing)
             continue;
 
-        switch (key) {
-            case KEY_ESC:
-                if (!gSeqEd.asksave) return;
-                switch (i = DlgSaveChanges("Save sequence?", gArtEd.asksave)) {
-                    case 2:
-                    case 1:
-                        if (!gSeqEd.filename[0] && !toolSaveAs(gSeqEd.filename, kSeqExt)) break;
-                        if (i > 1) artedSaveChanges();
-                        SEQSave();
-                        // no break
-                    case 0:
-                        return;
-                    default:
-                        break;
-                }
-                break;
-            case KEY_F1:
-                if (!Confirm("Start new animation?")) break;
-                seqeditNewAnim();
-                scrSetMessage("New animation created.");
-                break;
-            case KEY_F2:
-                if (pSeq->nFrames <= 0)
-                {
-                    Alert("Cannot save empty animation.");
-                    break;
-                }
-                else if (((!strlen(gSeqEd.filename) || ctrl) && !toolSaveAs(gSeqEd.filename, kSeqExt))) break;
-                else
-                {
-                    gSeqEd.asksave = FALSE;
-                    gSeqEd.rffID = -1;
-                    SEQSave();
-                    if (gArtEd.asksave && Confirm("Save ART changes?"))
-                        artedSaveChanges();
-                    BeepOk();
-                }
-                break;
-            case KEY_F11: // load previous existing fileID
-            case KEY_F12: // load next existing fileID
-                i = getClosestId(ClipRange(gSeqEd.rffID, 0, 65534), 65534, gExtNames[kSeq], (BOOL)(key == KEY_F12));
-                sprintf(gSeqEd.filename, "%d", i);
-                if (SEQLoad(pSeq))
-                {
-                    gSeqEd.asksave = FALSE; gSeqEd.rffID = i; fidx = 0;
-                    seqeditObjectInit(TRUE);
-                    seqeditObjectUpdate(&pSeq->frames[fidx]);
-                    BeepOk();
-                }
-                break;
-            case KEY_F3:
-                if (!toolLoadAs(gSeqEd.filename, kSeqExt) || !SEQLoad(pSeq)) break;
-                gSeqEd.asksave = FALSE;
-                BeepOk();
-                fidx = 0;
-                break;
-            case KEY_F4:// import seq animation
-                j = gSeqEd.rffID;
-                sprintf(buffer, gSeqEd.filename);
-                if (toolLoadAs(gSeqEd.filename, kSeqExt, "Import SEQ file") != NULL)
-                {
-                    pSeqImport = (Seq*)Resource::Alloc(kSeqMemSize);
-                    memset(pSeqImport, 0, kSeqMemSize);
+        //// GLOBAL editing
+        ////////////////////////////
 
-                    if (SEQLoad(pSeqImport))
-                    {
-                        for (i = 0, k = pSeq->nFrames; i < pSeqImport->nFrames; i++, k++)
-                        {
-                            if (k >= kSeqMaxFrames)
-                            {
-                                Alert("Max (%d) frames reached!", kSeqMaxFrames);
-                                break;
-                            }
-
-                            pSeq->frames[k] = pSeqImport->frames[i];
-                            pSeq->nFrames = (short)k;
-                        }
-
-                        Alert("%d of %d frames imported successfully.", i, pSeqImport->nFrames);
-                    }
-                    else
-                    {
-                        Alert("Failed to import \"%s\"!", gSeqEd.filename);
-                    }
-
-                    Resource::Free(pSeqImport);
-                    pSeqImport = NULL;
-
-                }
-                sprintf(gSeqEd.filename, buffer);
-                gSeqEd.rffID = j;
-                gSeqEd.asksave = TRUE;
-                break;
-            case KEY_SPACE:
-                if (pSeq->nFrames < 1 || pSeq->ticksPerFrame <= 0) break;
-                playing = (shift) ? 0x01 : 0x02;
-                timeCounter = fidx = 0;
-                break;
-            case KEY_F10:
-                playSound(pSeq->nSoundID, (ctrl) ? 0 : pSeq->frames[fidx].soundRange);
-                break;
-            case KEY_1:
-            case KEY_2:
-                if (pSeq->nFrames <= 0) {
-                    Alert("You must insert frame.");
-                    break;
-                }
-                switch (key){
-                    case KEY_1:
-                        if (fidx > 0) fidx--;
-                        else scrSetMessage("First frame reached.");
-                        break;
-                    case KEY_2:
-                        if (fidx < pSeq->nFrames - 1) fidx++;
-                        else scrSetMessage("Last frame reached.");
-                        break;
-                }
-                break;
-            case KEY_HOME:
-            case KEY_END:
-                fidx = (key == KEY_HOME) ? 0 : pSeq->nFrames - 1;
-                break;
-            case KEY_G:
-                fidx = ClipRange(GetNumberBox("Goto frame", 1, 1), 0, pSeq->nFrames - 1);
-                break;
-            case KEY_V:
-                if (fidx >= pSeq->nFrames) break;
-                nTileTemp = tilePick(nTile, nTile, OBJ_ALL, "Frame picnum");
-                if (pSeq->nFrames <= 0) {
-                    seqeditSetFrameDefaults(pFrame);
-                    pSeq->nFrames++;
-                }
-                seqFrameSetTile(pFrame, nTileTemp);
-                gSeqEd.asksave = TRUE;
-                break;
-            case KEY_INSERT:
-                if ((nTileTemp = tilePick(nTile, -1, OBJ_ALL, "Insert new frame")) < 0) break;
-                else if (pSeq->nFrames >= kSeqMaxFrames)
-                {
-                    Alert("Max (%d) frames reached!", kSeqMaxFrames);
-                    break;
-                }
-                else if (pSeq->nFrames <= 0) // insert first frame
-                {
-                    seqeditSetFrameDefaults(&pSeq->frames[fidx]);
-                }
-                else
-                {
-                    if (!ctrl) fidx++; // insert next frame AFTER current (BEFORE otherwise)
-                    for (i = pSeq->nFrames; i >= fidx && i - 1 >= 0; i--)
-                        pSeq->frames[i] = pSeq->frames[i - 1];
-                }
-                pSeq->frames[fidx].playSound = 0;
-                pSeq->frames[fidx].surfaceSound = 0;
-                pSeq->frames[fidx].soundRange = 0;
-                seqFrameSetTile(&pSeq->frames[fidx], nTileTemp);
-                pSeq->nFrames++; gSeqEd.asksave = TRUE;
-                scrSetMessage("New frame created.");
-                BeepOk();
-                break;
-            case KEY_DELETE:
-                if (pSeq->nFrames <= 0) break;
-                memmove(pFrame, &pSeq->frames[fidx + 1], sizeof(SEQFRAME) * (pSeq->nFrames - fidx - 1));
-                if (fidx == --pSeq->nFrames) fidx--;
-                gSeqEd.asksave = TRUE;
-                scrSetMessage("Frame deleted.");
-                BeepOk();
-                break;
-        }
-
-        switch (key) {
-            case KEY_F5:        case KEY_F6:
-            case KEY_X:         case KEY_Y:         case KEY_M:
-            case KEY_B:         case KEY_I:         case KEY_T:
-            case KEY_H:         case KEY_K:         case KEY_U:
-            case KEY_L:         case KEY_D:         case KEY_R:
-            case KEY_S:         case KEY_P:         case KEY_F9:
-            case KEY_PADMINUS:  case KEY_PADPLUS:   case KEY_PAD0:
-            case KEY_PADUP:     case KEY_PADDOWN:   case KEY_PADLEFT:
-            case KEY_PADRIGHT:  case KEY_PAD7:      case KEY_PAD9:
-            case KEY_PAGEUP:    case KEY_PAGEDN:
-                if (fidx >= pSeq->nFrames) continue;
-                gSeqEd.asksave = TRUE;
-                break;
-        }
-
-        switch (key) {
-            case KEY_X: pFrame->xflip           = !pFrame->xflip;           break;
-            case KEY_Y: pFrame->yflip           = !pFrame->yflip;           break;
-            case KEY_M: pFrame->autoaim         = !pFrame->autoaim;         break;
-            case KEY_B: pFrame->blockable       = !pFrame->blockable;       break;
-            case KEY_I: pFrame->invisible       = !pFrame->invisible;       break;
-            case KEY_H: pFrame->hittable        = !pFrame->hittable;        break;
-            case KEY_K: pFrame->smoke           = !pFrame->smoke;           break;
-            case KEY_U: pFrame->surfaceSound    = !pFrame->surfaceSound;    break;
-            case KEY_T: pFrame->trigger         = !pFrame->trigger;         break;
-            case KEY_R:
-                if (!pFrame->transparent) pFrame->transparent = 1;
-                else if (!pFrame->transparent2) pFrame->transparent2 = 1;
-                else pFrame->transparent = pFrame->transparent2 = 0;
-                break;
-            case KEY_F5: {
-                sprintf(buffer, "Tile#%d view type", nTile);
-                if ((i = showButtons(viewNames, LENGTH(viewNames), buffer)) < mrUser) break;
-                viewType[nTile] = (BYTE)(i - mrUser);
-                if (!isExternalModel(nTile))
-                    panm[nTile].view = viewType[nTile];
-                artedArtDirty(nTile, kDirtyPicanm);
-                gSeqEd.asksave = TRUE;
-                break;
-            }
-            case KEY_F6:
-                sprintf(buffer, "Tile#%d surface", nTileView);
-                if ((i = showButtons(surfNames, LENGTH(surfNames), buffer)) < mrUser) break;
-                surfType[nTileView] = (BYTE)(i - mrUser);
-                artedArtDirty(nTileView, kDirtyDat);
-                gSeqEd.asksave = TRUE;
-                break;
-            case KEY_F9: // reverse frames order
-            {
-                SEQFRAME cpyframe;
-                for (i = 0; i < pSeq->nFrames >> 1; i++)
-                {
-                    cpyframe = pSeq->frames[i];
-                    pSeq->frames[i] = pSeq->frames[pSeq->nFrames - i - 1];
-                    pSeq->frames[pSeq->nFrames - i - 1] = cpyframe;
-                }
-                scrSetMessage("Reverse frames order.");
-                break;
-            }
+        switch(key)
+        {
             case KEY_L:
                 pSeq->flags ^= kSeqLoop;
                 pSeq->flags &= ~kSeqRemove;
-                break;
+                HudUpdateStatus();
+                continue;
             case KEY_D:
                 pSeq->flags ^= kSeqRemove;
                 pSeq->flags &= ~kSeqLoop;
-                break;
-            case KEY_TAB:
-                memcpy(&gSeqEd.clipboard, pFrame, sizeof(SEQFRAME));
-                scrSetMessage("Copy frame #%d.", fidx + 1);
-                gSeqEd.clipboardOk = TRUE;
-                BeepOk();
-                break;
-            case KEY_ENTER:
-                if (!gSeqEd.clipboardOk)
+                HudUpdateStatus();
+                continue;
+            case KEY_V:
+                if (pSeq->nFrames)
                 {
-                    scrSetMessage("There is nothing to paste.");
-                    BeepFail();
-                    break;
+                    if ((nTile = tilePick(seqGetTile(pFrame), -1, OBJ_ALL, "Frame picnum")) >= 0)
+                        seqSetTile(pFrame, nTile);
+
+                    continue;
                 }
-
-                gSeqEd.asksave = TRUE;
-                if (!shift) // paste whole frame
-                {
-                    memcpy(pFrame, &gSeqEd.clipboard, sizeof(SEQFRAME));
-                    scrSetMessage("Paste frame #%d", fidx + 1);
-                    BeepOk();
-                    break;
-                }
-                else    // paste selected properties
-                {
-                    while ( 1 )
-                    {
-                        if ((i = createCheckboxList(clipboardMenu, LENGTH(clipboardMenu), "Paste properties", TRUE)) == 0) break;
-                        else if ((j = showButtons(pasteDirection, LENGTH(pasteDirection), "Select direction")) < mrUser)
-                            continue;
-
-                        switch (j-=mrUser) {
-                            case 0:     i = fidx;       break;
-                            case 1:     i = fidx + 1;   break;
-                            case 2:     i = fidx - 1;   break;
-                            case 3:     i = 0;          break;
-                        }
-
-                        i = ClipRange(i, 0, pSeq->nFrames - 1);
-
-                        while ( 1 ) {
-
-                            if (clipboardMenu[0].option)
-                            {
-                                pSeq->frames[i].tile  = gSeqEd.clipboard.tile;
-                                pSeq->frames[i].tile2 = gSeqEd.clipboard.tile2;
-                            }
-                            if (clipboardMenu[1].option) pSeq->frames[i].xrepeat = gSeqEd.clipboard.xrepeat;
-                            if (clipboardMenu[2].option) pSeq->frames[i].yrepeat = gSeqEd.clipboard.yrepeat;
-                            if (clipboardMenu[3].option) pSeq->frames[i].shade = gSeqEd.clipboard.shade;
-                            if (clipboardMenu[4].option) pSeq->frames[i].pal = gSeqEd.clipboard.pal;
-                            if (clipboardMenu[5].option)
-                            {
-                                pSeq->frames[i].xflip           = gSeqEd.clipboard.xflip;
-                                pSeq->frames[i].yflip           = gSeqEd.clipboard.yflip;
-                                pSeq->frames[i].autoaim         = gSeqEd.clipboard.autoaim;
-                                pSeq->frames[i].blockable       = gSeqEd.clipboard.blockable;
-                                pSeq->frames[i].invisible       = gSeqEd.clipboard.invisible;
-                                pSeq->frames[i].hittable        = gSeqEd.clipboard.hittable;
-                                pSeq->frames[i].smoke           = gSeqEd.clipboard.smoke;
-                                pSeq->frames[i].surfaceSound    = gSeqEd.clipboard.surfaceSound;
-                                pSeq->frames[i].trigger         = gSeqEd.clipboard.trigger;
-                                pSeq->frames[i].transparent     = gSeqEd.clipboard.transparent;
-                                pSeq->frames[i].transparent2    = gSeqEd.clipboard.transparent2;
-                                pSeq->frames[i].pushable            = gSeqEd.clipboard.pushable;
-                                pSeq->frames[i].playSound       = gSeqEd.clipboard.playSound;
-                            }
-                            switch (j) {
-                                case 1:
-                                case 3:
-                                    if (++i >= pSeq->nFrames) break;
-                                    continue;
-                                case 2:
-                                    if (--i < 0) break;
-                                    continue;
-                            }
-                            break;
-
-                        }
-
-                        scrSetMessage("Paste selected properties.");
-                        BeepOk();
-                        break;
-
-                    }
-
-                }
-                break;
-            case KEY_S:
-                if (alt || pSeq->nSoundID <= 0)
-                    pSeq->nSoundID = (short)GetNumberBox("Global Sound ID", pSeq->nSoundID, pSeq->nSoundID);
-                if (pSeq->nSoundID > 0 && ctrl && !alt)
-                    pFrame->soundRange = ClipRange(GetNumberBox("Random Sound Range", pFrame->soundRange, pFrame->soundRange), 0, 15);
-                if (pSeq->nSoundID > 0 && !ctrl && !alt)
-                    pFrame->playSound = !pFrame->playSound;
-                break;
-            case KEY_P:
-                gSeqEd.asksave = TRUE;
-                if (!alt && !shift)
-                {
-                    pFrame->pushable = !pFrame->pushable;
-                    break;
-                }
-                else if (alt) pFrame->pal = GetNumberBox("Palookup", pFrame->pal, pFrame->pal);
-                else if (shift & 0x01) pFrame->pal = getClosestId(pFrame->pal, kPluMax - 1, "PLU", TRUE);
-                else if (shift & 0x02) pFrame->pal = getClosestId(pFrame->pal, kPluMax - 1, "PLU", FALSE);
-                scrSetMessage("Frame #%d palookup: %d", fidx, pFrame->pal);
-                break;
-            case KEY_PADMINUS:
-            case KEY_PADPLUS:
-                if (shift) {
-                    gTool.shade = (schar) ((key == KEY_PADMINUS) ? ClipHigh(gTool.shade + 1, 127) : ClipLow(gTool.shade - 1, -128));
-                    gSeqEd.asksave = FALSE;
-                    break;
-                } else if (alt) {
-                    pFrame->shade = GetNumberBox("Frame shade", pFrame->shade, pFrame->shade);
-                    break;
-                }
-                switch (key) {
-                    case KEY_PADMINUS:
-                        if (ctrl) pFrame->shade = 127;
-                        else pFrame->shade = ClipHigh(pFrame->shade + 1, 127);
-                        break;
-                    case KEY_PADPLUS:
-                        if (ctrl) pFrame->shade = -128;
-                        else pFrame->shade = ClipLow(pFrame->shade - 1, -128);
-                        break;
-                }
-                break;
-            case KEY_PAD0:
-                if (!ctrl) pFrame->shade = 0;
-                else gTool.shade = 0;
-                break;
-            case KEY_PADUP:
-            case KEY_PADDOWN:
-            case KEY_PAD7:
-            case KEY_PAD9:
-                gStep = shift ? 1 : 4;
-                if (key != KEY_PAD7 && key != KEY_PAD9 && !ctrl && alt)
-                {
-                    pFrame->yrepeat = GetNumberBox("Frame Y-Repeat", pFrame->yrepeat, pFrame->yrepeat);
-                    break;
-                }
-                switch (key) {
-                    case KEY_PADDOWN:
-                    case KEY_PAD7:
-                        if (ctrl) pFrame->yrepeat = 0;
-                        else pFrame->yrepeat = DecNext(pFrame->yrepeat, gStep);
-                        break;
-                    case KEY_PADUP:
-                    case KEY_PAD9:
-                        if (ctrl) pFrame->yrepeat = 255;
-                        else pFrame->yrepeat = IncNext(pFrame->yrepeat, gStep);
-                        break;
-                }
-
-                if (key != KEY_PAD7 && key != KEY_PAD9) break;
                 // no break
-            case KEY_PADLEFT:
-            case KEY_PADRIGHT:
-                gStep = shift ? 1 : 4;
-                if (key != KEY_PAD7 && key != KEY_PAD9 && !ctrl && alt)
+            case KEY_INSERT:
+                if (pSeq->nFrames < kMaxFrames)
                 {
-                    pFrame->xrepeat = GetNumberBox("Frame X-Repeat", pFrame->xrepeat, pFrame->xrepeat);
-                    break;
-                }
-                switch (key) {
-                    case KEY_PADLEFT:
-                    case KEY_PAD7:
-                        if (ctrl) pFrame->xrepeat = 0;
-                        else pFrame->xrepeat = DecNext(pFrame->xrepeat, gStep);
-                        break;
-                    case KEY_PADRIGHT:
-                    case KEY_PAD9:
-                        if (ctrl) pFrame->xrepeat = 255;
-                        else pFrame->xrepeat = IncNext(pFrame->xrepeat, gStep);
-                        break;
-                }
-                break;
-            case KEY_PAGEUP:
-            case KEY_PAGEDN:
-                nTileTemp = seqGetTile(pFrame);
-                while ( 1 ) {
-
-                    nTileTemp = (key == KEY_PAGEDN) ? nTileTemp - 1 : nTileTemp + 1;
-                    if (nTileTemp < 0 || nTileTemp >= kMaxTiles) break;
-                    else if (!tilesizx[nTileTemp] || !tilesizy[nTileTemp])
+                    if ((nTile = tilePick((pSeq->nFrames) ? seqGetTile(pFrame) : 0, -1, OBJ_ALL, "New frame")) < 0)
                         continue;
 
-                    seqFrameSetTile(pFrame, nTileTemp);
-                    break;
+                    if (pSeq->nFrames)
+                    {
+                        if (!ctrl)
+                            nFrame++; // insert next frame AFTER current (BEFORE otherwise)
 
+                        for (i = pSeq->nFrames; i >= nFrame && i-1 >= 0; i--)
+                            pSeq->frames[i] = pSeq->frames[i-1];
+                    }
+                    else
+                    {
+                        pFrame = pSeq->frames;
+                        FrameClean(pFrame);
+                        nFrame = 0;
+                    }
+
+                    pSeq->frames[nFrame].playSound    = 0;
+                    pSeq->frames[nFrame].surfaceSound = 0;
+                    pSeq->frames[nFrame].soundRange   = 0;
+                    seqSetTile(&pSeq->frames[nFrame], nTile);
+                    pSeq->nFrames++;
+
+                    pHud->SetMsgImp(MSG_TIME, "Frame created");
                 }
-                break;
-            case KEY_UP:
-            case KEY_DOWN:
-            case KEY_RIGHT:
-            case KEY_LEFT:
-            case KEY_PAD5: {
-                if (gSeqEd.edit3d || fidx >= pSeq->nFrames) break;
-                switch (key) {
-                    case KEY_UP:
-                        if (!shift) panm[nTileView].ycenter = ClipHigh(panm[nTileView].ycenter + 1, 127);
-                        else panm[nTileView].ycenter = ClipHigh(tilesizy[nTileView] - tilesizy[nTileView] / 2, 127);
-                        break;
-                    case KEY_DOWN:
-                        if (!shift) panm[nTileView].ycenter = ClipLow(panm[nTileView].ycenter - 1, -128);
-                        else panm[nTileView].ycenter = ClipLow(-tilesizy[nTileView] / 2, -128);
-                        break;
-                    case KEY_LEFT:
-                        if (!shift) panm[nTileView].xcenter = ClipHigh(panm[nTileView].xcenter + 1, 127);
-                        else panm[nTileView].xcenter = ClipHigh(-tilesizx[nTileView] / 2, 127);
-                        break;
-                    case KEY_RIGHT:
-                        if (!shift) panm[nTileView].xcenter = ClipLow(panm[nTileView].xcenter - 1, -128);
-                        else panm[nTileView].xcenter = ClipLow(tilesizx[nTileView] - tilesizx[nTileView] / 2, -128);
-                        break;
-                    case KEY_PAD5:
-                        panm[nTileView].xcenter = 0;
-                        panm[nTileView].ycenter = 0;
-                        break;
+                continue;
+            case KEY_S:
+                if (alt || !pSeq->nSoundID)
+                    pSeq->nSoundID = ClipRange(GetNumberBox("Global sound ID", pSeq->nSoundID, pSeq->nSoundID), 0, 32767);
+
+                if (pSeq->nFrames && pSeq->nSoundID)
+                {
+                    if (ctrl)
+                    {
+                        pFrame->soundRange = ClipRange(GetNumberBox("Sound ID range", pFrame->soundRange, pFrame->soundRange), 0, 15);
+                        continue;
+                    }
+
+                    if (!alt)
+                        pFrame->playSound = !pFrame->playSound;
                 }
-                artedArtDirty(nTileView, kDirtyPicanm);
-                gSeqEd.asksave = TRUE;
-                break;
-            }
+                continue;
+            case KEY_F5:
+                if (alt && pSeq->nFrames)
+                {
+                    artedDlgViewTypeSet(seqGetTile(pFrame));
+                    continue;
+                }
+                HudEditInfo();
+                continue;
+            case KEY_F6:
+                if (alt && pSeq->nFrames)
+                {
+                    nTile = seqGetTile(pFrame);
+                    if ((i = showButtons(surfNames, LENGTH(surfNames), "Tile surface type")) >= mrUser)
+                    {
+                        surfType[nTile] = i - mrUser;
+                        artedArtDirty(nTile, kDirtyDat);
+                    }
+
+                    continue;
+                }
+                HudEditInfo();
+                continue;
+            case KEY_F10:
+                auditSound
+                (
+                pSeq->nSoundID + Random((ctrl && pSeq->nFrames) ? pFrame->soundRange : 0),
+                kSoundPlayer,
+                buffer
+                );
+                pHud->SetMsgImp(MSG_TIME, buffer);
+                continue;
+            case KEY_ENTER:
+                if (!clipboard.ok)
+                {
+                    pHud->SetMsgImp(MSG_TIME, "There is nothing to paste.");
+                    continue;
+                }
+
+                if (!shift)
+                {
+                    if (pSeq->nFrames <= 0)
+                        pFrame = pSeq->frames, nFrame = 0, pSeq->nFrames++;
+
+                    memcpy(pFrame, &clipboard.frame, sizeof(SEQFRAME));
+                    pHud->SetMsgImp(MSG_TIME, "Paste to frame #%d", nFrame+1);
+                    ObjectReset();
+                    continue;
+                }
+
+                while ( 1 )
+                {
+                    if ((i = createCheckboxList(clipboardMenu, LENGTH(clipboardMenu), "Paste properties", TRUE)) == 0)
+                        break;
+
+                    if (pSeq->nFrames > 1)
+                    {
+                        if ((j = showButtons(pasteDirection, LENGTH(pasteDirection), "Select direction")) < mrUser)
+                            continue;
+
+                        switch (j -= mrUser)
+                        {
+                            case 0: i = nFrame;     break;
+                            case 1: i = nFrame + 1; break;
+                            case 2: i = nFrame - 1; break;
+                            case 3: i = 0;          break;
+                        }
+                    }
+                    else
+                    {
+                        if (pSeq->nFrames <= 0)
+                            pFrame = pSeq->frames, nFrame = 0, pSeq->nFrames++;
+
+                        i = nFrame;
+                        j = 0;
+                    }
+
+                    i = ClipRange(i, 0, pSeq->nFrames - 1);
+                    SEQFRAME* pBuffer = &clipboard.frame;
+
+                    while ( 1 )
+                    {
+                        SEQFRAME* pFrame = &pSeq->frames[i];
+
+                        if (clipboardMenu[0].option)
+                        {
+                            pFrame->tile  = pBuffer->tile;
+                            pFrame->tile2 = pBuffer->tile2;
+                        }
+
+                        if (clipboardMenu[1].option) pFrame->xrepeat    = pBuffer->xrepeat;
+                        if (clipboardMenu[2].option) pFrame->yrepeat    = pBuffer->yrepeat;
+                        if (clipboardMenu[3].option) pFrame->shade      = pBuffer->shade;
+                        if (clipboardMenu[4].option) pFrame->pal        = pBuffer->pal;
+                        if (clipboardMenu[5].option)
+                        {
+                            pFrame->xflip           = pBuffer->xflip;
+                            pFrame->yflip           = pBuffer->yflip;
+                            pFrame->autoaim         = pBuffer->autoaim;
+                            pFrame->blockable       = pBuffer->blockable;
+                            pFrame->invisible       = pBuffer->invisible;
+                            pFrame->hittable        = pBuffer->hittable;
+                            pFrame->smoke           = pBuffer->smoke;
+                            pFrame->transparent     = pBuffer->transparent;
+                            pFrame->transparent2    = pBuffer->transparent2;
+                            pFrame->pushable        = pBuffer->pushable;
+
+                            if (j == 0)
+                            {
+                                pFrame->surfaceSound    = pBuffer->surfaceSound;
+                                pFrame->trigger         = pBuffer->trigger;
+                                pFrame->playSound       = pBuffer->playSound;
+                            }
+                        }
+
+                        if ((j == 2 && --i >= 0) ||
+                            ((j == 1 || j == 3) && ++i < pSeq->nFrames))
+                                continue;
+
+                        break;
+                    }
+
+                    pHud->SetMsgImp(MSG_TIME, "Paste selected properties.");
+                    ObjectReset();
+                    break;
+                }
+                continue;
         }
 
-        keyClear();
+        if (pSeq->nFrames <= 0)
+            continue;
 
+        //// FRAME editing
+        ////////////////////////////
+
+        switch(key)
+        {
+            case KEY_HOME:  nFrame = 0;                                                                 continue;
+            case KEY_END:   nFrame = ClipLow(pSeq->nFrames - 1, 0);                                     continue;
+            case KEY_X:     pFrame->xflip           = !pFrame->xflip;                                   continue;
+            case KEY_Y:     pFrame->yflip           = !pFrame->yflip;                                   continue;
+            case KEY_M:     pFrame->autoaim         = !pFrame->autoaim;                                 continue;
+            case KEY_B:     pFrame->blockable       = !pFrame->blockable;                               continue;
+            case KEY_I:     pFrame->invisible       = !pFrame->invisible;                               continue;
+            case KEY_H:     pFrame->hittable        = !pFrame->hittable;                                continue;
+            case KEY_K:     pFrame->smoke           = !pFrame->smoke;                                   continue;
+            case KEY_U:     pFrame->surfaceSound    = !pFrame->surfaceSound;                            continue;
+            case KEY_T:     pFrame->trigger         = !pFrame->trigger;                                 continue;
+            case KEY_R:
+                if (!pFrame->transparent)
+                {
+                    pFrame->transparent  = 1;
+                }
+                else if (!pFrame->transparent2)
+                {
+                    pFrame->transparent2 = 1;
+                }
+                else
+                {
+                    pFrame->transparent  = 0;
+                    pFrame->transparent2 = 0;
+                }
+                continue;
+            case KEY_P:
+                if (alt || shift)
+                {
+                    if (alt) pFrame->pal = pluPickAdvanced(seqGetTile(pFrame), pFrame->shade, pFrame->pal, "Palookup");
+                    else if (shift & 0x01) pFrame->pal = getClosestId(pFrame->pal, kPluMax - 1, "PLU", TRUE);
+                    else if (shift & 0x02) pFrame->pal = getClosestId(pFrame->pal, kPluMax - 1, "PLU", FALSE);
+
+                    if (pFrame->pal == 0)
+                        viewPal = 0, ObjectReset();
+
+                    continue;
+                }
+                pFrame->pushable = !pFrame->pushable;
+                continue;
+            case KEY_1:
+                nFrame = ClipLow(nFrame - 1, 0);
+                continue;
+            case KEY_2:
+                nFrame = ClipHigh(nFrame + 1, pSeq->nFrames-1);
+                continue;
+            case KEY_G:
+                i = GetNumberBox("Goto frame", nFrame+1, nFrame+1);
+                nFrame = ClipRange(i - 1, 0, pSeq->nFrames-1);
+                continue;
+            case KEY_DELETE:
+                pSeq->nFrames--;
+                for (i = nFrame; i < pSeq->nFrames; i++)
+                    pSeq->frames[i] = pSeq->frames[i+1];
+
+                nFrame = ClipHigh(nFrame, pSeq->nFrames-1);
+                continue;
+            case KEY_F9: // reverse frames order
+                if (pSeq->nFrames > 1)
+                {
+                    for (i = 0; i < pSeq->nFrames >> 1; i++)
+                    {
+                        SEQFRAME cpyframe = pSeq->frames[i];
+                        pSeq->frames[i] = pSeq->frames[pSeq->nFrames-i-1];
+                        pSeq->frames[pSeq->nFrames-i-1] = cpyframe;
+                    }
+
+                    pHud->SetMsgImp(MSG_TIME, "Reverse frames order.");
+                }
+                continue;
+            case KEY_PADUP:
+            case KEY_PADDOWN:
+            case KEY_PADLEFT:
+            case KEY_PADRIGHT:
+            case KEY_PAD7:
+            case KEY_PAD9:
+                if (alt && key != KEY_PAD7 && key != KEY_PAD9)
+                {
+                    if (key == KEY_PADDOWN || key == KEY_PADUP)
+                    {
+                        pFrame->yrepeat = ClipRange(GetNumberBox("Frame Y-Repeat", pFrame->yrepeat, pFrame->yrepeat), 0, 255);
+                    }
+                    else
+                    {
+                        pFrame->xrepeat = ClipRange(GetNumberBox("Frame X-Repeat", pFrame->xrepeat, pFrame->xrepeat), 0, 255);
+                    }
+
+                    continue;
+                }
+                else
+                {
+                    nStep = (shift) ? 1 : 4;
+                    if (key == KEY_PADRIGHT || key == KEY_PAD9)  pFrame->xrepeat = (ctrl) ? 255 : IncNext(pFrame->xrepeat, nStep);
+                    if (key == KEY_PADUP    || key == KEY_PAD9)  pFrame->yrepeat = (ctrl) ? 255 : IncNext(pFrame->yrepeat, nStep);
+                    if (key == KEY_PADLEFT  || key == KEY_PAD7)  pFrame->xrepeat = (ctrl) ? 0   : DecNext(pFrame->xrepeat, nStep);
+                    if (key == KEY_PADDOWN  || key == KEY_PAD7)  pFrame->yrepeat = (ctrl) ? 0   : DecNext(pFrame->yrepeat, nStep);
+                }
+                ObjectReset();
+                continue;
+            case KEY_PAGEUP:
+            case KEY_PAGEDN:
+                nTile = seqGetTile(pFrame);
+                do
+                {
+                   nTile = (key == KEY_PAGEDN)
+                        ? IncRotate(nTile, gMaxTiles) : DecRotate(nTile, gMaxTiles);
+                }
+                while (!tileLoadTile(nTile));
+                seqSetTile(pFrame, nTile);
+                continue;
+            case KEY_TAB:
+                memcpy(&clipboard.frame, pFrame, sizeof(*pFrame));
+                pHud->SetMsgImp(MSG_TIME, "Copy frame #%d.", nFrame+1);
+                clipboard.ok = 1;
+                continue;
+        }
+
+        if (!edit3d && totalclock > nKeyTime)
+        {
+            int nAng = 0;
+            nTile = toolGetViewTile(seqGetTile(pFrame), viewOctant, NULL, &nAng);
+            nKeyTime = totalclock + 6;
+
+            int hg = tilesizy[nTile], hhg = hg >> 1, yo = panm[nTile].ycenter;
+            int wh = tilesizx[nTile], hwh = wh >> 1, xo = panm[nTile].xcenter;
+            char xf = (pFrame->xflip || nAng == kAng180);
+            char yf = (pFrame->yflip);
+
+            i = 0;
+            if (!keystatus[KEY_PAD5])
+            {
+                char rt = keystatus[KEY_RIGHT], lt = keystatus[KEY_LEFT];
+                char up = keystatus[KEY_UP],    dn = keystatus[KEY_DOWN];
+                
+                if ((up && !yf) || (dn && yf))  yo = ClipHigh((shift) ? ((yo >= 0) ? hhg : 0) : yo + 1, +127), i = 1;
+                if ((dn && !yf) || (up && yf))  yo = ClipLow((shift) ? ((yo <= 0) ? -hhg : 0) : yo - 1, -128), i = 1;
+                if ((lt && !xf) || (rt && xf))  xo = ClipHigh((shift) ? ((xo >= 0) ? hwh : 0) : xo + 1, +127), i = 1;
+                if ((rt && !xf) || (lt && xf))  xo = ClipLow((shift) ? ((xo <= 0) ? -hwh : 0) : xo - 1, -128), i = 1;
+            }
+            else
+            {
+                xo = 0;
+                yo = 0;
+                i  = 1;
+            }
+
+            if (i)
+            {
+                panm[nTile].ycenter = yo, panm[nTile].xcenter = xo;
+                artedArtDirty(nTile, kDirtyPicanm);
+                continue;
+            }
+        }
     }
+
+    return;
 }
 
-void seqeditNewAnim() {
+void SEQEDIT::Quit()
+{
+    if (pSeq)
+        free(pSeq), pSeq = NULL;
 
-    if (pSeq != NULL) {
-        Resource::Free(pSeq);
-        pSeq = NULL;
-    }
+    clipboard.ok = 0;
+}
 
-    if (pSeq == NULL)
-    {
-        pSeq = (Seq *)Resource::Alloc(kSeqMemSize);
-        memset(pSeq, 0, kSeqMemSize);
-        pSeq->ticksPerFrame = 12;
-    }
+char SEQEDIT::AnimNew()
+{
+    int i;
 
-    gSeqEd.rffID = -1;
+    if (pSeq)
+        free(pSeq);
+
+    pSeq = (Seq*)malloc(kAnimSize);
+    dassert(pSeq != NULL);
+
+    memset(pSeq, 0, kAnimSize);
+
+    pSeq->nFrames       = 1;
     pSeq->ticksPerFrame = 12;
-    gSeqEd.filename[0] = 0;
-    gSeqEd.asksave = FALSE;
+    rffID               = -1;
+    CRC                 = 0;
 
+    i = kMaxFrames;
+    while(--i >= 0)
+        FrameClean(&pSeq->frames[i]);
 
+    return 1;
 }
 
-BOOL SEQSave( void ) {
+char SEQEDIT::AnimLoad(char* filename, Seq** pOut)
+{
+    RESHANDLE hRes = NULL; Seq *pTmp, *pRFFAnim;
+    char edit = (pOut == NULL), r = 0;
+    int hFile, i, nSize;
 
-    int hFile;
-    if (gSeqEd.filename[0] == 0)
-        return FALSE;
+    if (pOut != NULL)
+        dassert(*pOut == NULL);
 
-    ChangeExtension(gSeqEd.filename, getExt(kSeq));
-    if ((hFile = open(gSeqEd.filename, O_CREAT|O_WRONLY|O_BINARY|O_TRUNC, S_IREAD|S_IWRITE)) == -1)
-    {
-        Alert("Error creating SEQ file");
-        return FALSE;
-    }
+    if ((i = fileExists(filename, &hRes)) <= 0
+        || (pTmp = (Seq*)malloc(kAnimSize)) == NULL)
+            return 0;
 
-    sprintf(pSeq->signature, kSEQSig); pSeq->version = 0x0301;
-    write(hFile, pSeq, sizeof(Seq) + pSeq->nFrames * sizeof(SEQFRAME));
-    scrSetMessage("Sequence saved.");
-    gSeqEd.asksave = FALSE;
-    close(hFile);
-    return TRUE;
-
-}
-
-BOOL SEQLoad(Seq* out) {
-
-    dassert(out != NULL);
-
-    int i, hFile;
-    DICTNODE* hSeq = NULL;
-    if (gSeqEd.filename[0] == 0)
-        return FALSE;
-
-    ChangeExtension(gSeqEd.filename, getExt(kSeq));
-    i = fileExists(gSeqEd.filename, &hSeq);
+    memset(pTmp, 0, kAnimSize);
 
     // first try load from the disk
-    if ((i & 0x1) && (hFile = open(gSeqEd.filename, O_RDONLY|O_BINARY, S_IWRITE|S_IREAD)) >= 0)
+    if ((i & 0x01) && ((hFile = open(filename, O_RDONLY|O_BINARY, S_IWRITE|S_IREAD)) >= 0))
     {
-        read(hFile, out, ClipHigh(filelength(hFile), kSeqMemSize));
-        gSeqEd.rffID = -1;
+        nSize = ClipHigh(filelength(hFile), kAnimSize);
+        read(hFile, pTmp, nSize);
         close(hFile);
+        if (edit)
+            rffID = -1;
     }
-    else if (hSeq != NULL) // then load from rff
+    else if (hRes != NULL) // rff otherwise
     {
-        Seq* pRFFSeq = (Seq*)gSysRes.Load(hSeq);
-        memcpy(out, pRFFSeq, ClipHigh(gSysRes.Size(hSeq), kSeqMemSize));
-        sprintf(gSeqEd.filename, hSeq->name);
-        gSeqEd.rffID = hSeq->id;
+        pRFFAnim = (Seq*)gSysRes.Load(hRes);
+        nSize = ClipHigh(gSysRes.Size(hRes), kAnimSize);
+        memcpy(pTmp, pRFFAnim, nSize);
+        if (edit)
+        {
+            strcpy(gPaths.seqs, hRes->name);
+            rffID = hRes->id;
+        }
     }
 
-
-    if (i > 0 && memcmp(out->signature, kSEQSig, sizeof(out->signature)) == 0)
+    if ((r = (memcmp(pTmp->signature, kSEQSig, LENGTH(pTmp->signature)) == 0)) != 0)
     {
-        gSeqEd.asksave = FALSE;
-        scrSetMessage("File %s loaded from the %s.", gSeqEd.filename, (gSeqEd.rffID >= 0) ? "rff" : "disk");
-        for (i = 0; i < out->nFrames; i++)
-            tilePreloadTile((short)seqGetTile(&out->frames[i]), -2);
+        if (edit)
+        {
+            if (!pSeq)
+                AnimNew();
 
-        return TRUE;
-
+            memcpy(pSeq, pTmp, nSize), free(pTmp);
+            CRC = crc32once((unsigned char*)pSeq, kAnimSize); // save to compare changes
+        }
+        else
+        {
+            *pOut = pTmp;
+        }
+    }
+    else
+    {
+       free(pTmp);
     }
 
-    scrSetMessage("Error loading SEQ %s", gSeqEd.filename);
-    return FALSE;
-
+    return r;
 }
 
-void seqeditObjectInit(BOOL cpy) {
-
-    if (!gTool.cantest)
-        return;
-
-    if (cpy)
-        cpyRestoreObject(gTool.objType, gTool.objIndex);
-
-    switch (gTool.objType) {
-        case OBJ_SPRITE:
-            gTool.pSprite = &sprite[gTool.objIndex];
-            if ((gTool.pSprite->cstat & kSprRelMask) == kSprFace)
-                gTool.pSprite->ang = (short)((ang + kAng180) & kAngMask);
-            gTool.pSprite->pal = 0;
-            chgSpriteZ(gTool.pSprite, gTool.zBot);
-            gTool.surface = surfType[sector[gTool.pSprite->sectnum].floorpicnum];
-            break;
-        case OBJ_FLOOR:
-            sector[gTool.objIndex].floorpal = 0;
-            break;
-        case OBJ_CEILING:
-            sector[gTool.objIndex].ceilingpal = 0;
-            break;
-        case OBJ_WALL:
-        case OBJ_MASKED:
-            wall[gTool.objIndex].pal = 0;
-            break;
-    }
-
-}
-
-void seqeditObjectUpdate(SEQFRAME* pFrame) {
-
-    switch (gTool.objType) {
-        case OBJ_SPRITE:
-            UpdateSprite(GetXSprite(gTool.objIndex), pFrame);
-            chgSpriteZ(gTool.pSprite, gTool.zBot);
-            break;
-        case OBJ_FLOOR:
-            UpdateFloor(GetXSector(gTool.objIndex), pFrame);
-            break;
-        case OBJ_CEILING:
-            UpdateCeiling(GetXSector(gTool.objIndex), pFrame);
-            break;
-        case OBJ_WALL:
-            UpdateWall(GetXWall(gTool.objIndex), pFrame);
-            break;
-        case OBJ_MASKED:
-            UpdateMasked(GetXWall(gTool.objIndex), pFrame);
-            break;
-    }
-
-}
-
-void seqFrameSetTile(SEQFRAME* pFrame, int nTile) {
-
-    pFrame->tile = nTile&4095;
-    pFrame->tile2 = nTile>>12;
-
-}
-
-void seqeditSetFrameDefaults(SEQFRAME* pFrame) {
-
-    if (!pFrame)
-        return;
-
-    pFrame->shade = -4;
-    pFrame->transparent2 = 0;
-    pFrame->transparent = 0;
-    pFrame->blockable = 1;
-    pFrame->hittable = 1;
-    pFrame->pal = 0;
-
-
-}
-
-void seqeditDrawTile(SEQFRAME *pFrame, int zoom, int *nTileArg, int nOctant)
+char SEQEDIT::AnimSave(char* filename)
 {
+    SEQFRAME* p;
+    int hFile, i;
 
-    char flags = 0; // default position by origin
-    int nTile = seqGetTile(pFrame); int ang = 0;
-    schar nShade = (schar)ClipRange(gTool.shade + pFrame->shade, -128, 127);
+    if (filename == NULL)
+        return 0;
 
-    if (keystatus[KEY_CAPSLOCK])        flags |= kRSNoMask;
-    if (pFrame->transparent)            flags |= kRSTransluc;
-    if (pFrame->transparent2)           flags |= kRSTranslucR;
-    if (pFrame->xflip)                  ang += kAng180, flags ^= kRSYFlip;
-    if (pFrame->yflip)                  flags |= kRSYFlip;
+    ChangeExtension(filename, kSeqExt);
+    if ((hFile = open(filename, O_CREAT|O_WRONLY|O_BINARY|O_TRUNC, S_IREAD|S_IWRITE)) == -1)
+        return 0;
 
-    nTile = toolGetViewTile(nTile, nOctant, &flags, &ang);
+    pSeq->version = kSeqVersion;
 
-    //origin.x = ClipLow(origin.x, w + panm[nTile].xcenter);
-    //origin.x = ClipHigh(origin.x, x - w + panm[nTile].xcenter);
-    //origin.y = ClipLow(origin.y, tilesizy[nTile] / 2 + panm[nTile].ycenter);
-    //origin.y = ClipHigh(origin.y, y - h + panm[nTile].ycenter);
+    for (i = 0; i < pSeq->nFrames; i++)
+    {
+        p = &pSeq->frames[i];
+        if (seqGetTile(p) >= 4095 || p->surfaceSound || p->soundRange)
+        {
+            pSeq->version = kSeqVersionExt1;
+            break;
+        }
+    }
 
-    if ( !pFrame->invisible )
-        rotatesprite(gSeqEd.origin.x << 16, gSeqEd.origin.y << 16, zoom, ang, nTile, nShade,
-            (char)gSeqEd.curPal, flags, 0, 0, xdim-1, ydim-1);
+    for (i = 0; i < pSeq->nFrames; i++)
+    {
+        p = &pSeq->frames[i];
+        if (seqGetPal(p) >= 32)
+        {
+            pSeq->version = kSeqVersionExt2;
+            break;
+        }
+    }
 
-    *nTileArg = nTile;
+    memcpy(pSeq->signature, kSEQSig, sizeof(pSeq->signature));
+    write(hFile, pSeq, sizeof(Seq) + pSeq->nFrames * sizeof(SEQFRAME));
+    close(hFile);
+    
+    CRC = crc32once((unsigned char*)pSeq, kAnimSize);
+    return 1;
 }
 
-void seqeditPrintFlags(int x, int y, char* buff, QFONT* pFont, int bcol, int tcol) {
+void SEQEDIT::AnimStartPlaying(char flags)
+{
+    SoundStop();
 
-    int len = gfxGetTextLen(buff, pFont);
-    int mid = (xdim - kMar - 1) - (x - 1)>> 1;
+    playing = (flags) ? flags
+            : (pSeq->flags & kSeqLoop) ? 0x02 : 0x01;
 
-    gfxSetColor(gStdColor[bcol]);
-    gfxFillBox(x - 1, y - 1, xdim - kMar, y + pFont->height);
-    gfxDrawText((x + mid) - (len >> 1), (y + (pFont->height >> 3)) - 1, gStdColor[tcol], buff, pFont);
+    nFrame = 0;
+}
+
+void SEQEDIT::AnimStopPlaying()
+{
+    SoundStop();
+    playing = 0;
+    nFrame = 0;
+}
+
+void SEQEDIT::FrameClean(SEQFRAME* pFrame)
+{
+    memset(pFrame, 0, sizeof(*pFrame));
+
+    pFrame->hittable    = 1;
+    pFrame->blockable   = 1;
+    pFrame->autoaim     = 1;
+    pFrame->shade       = 8;
+}
+
+void SEQEDIT::FrameDraw(SEQFRAME* pFrame)
+{
+    ROMFONT* pFont = pHud->GetFont(kHudFontMsg);
+    int nShade, nTile, nVTile, nVPal, nZoom, nAng;
+    int wh, hg, sz, i;
+    int x[4], y[4];
+
+    char c = clr2std(kColorLightCyan);
+    static char buf[16];
+    char flags = 0;
+
+    hg = ydim-pHud->Height();
+    nZoom = mulscale8(0x10000, perc2val(75, hg)) + zoom;
+    sz = perc2val(40, hg);
+
+    if (pSeq->nFrames <= 0)
+    {
+        toolDrawCenter(&origin, c, sz, sz, 4);
+        return;
+    }
+
+    if (pFrame->pal != 0)
+        viewPal = pFrame->pal;
+
+    nVPal  = (pFrame->pal == 0) ? viewPal : pFrame->pal;
+    nShade = ClipRange(viewShade + pFrame->shade, -128, 127);
+    nTile  = seqGetTile(pFrame);
+    nAng   = 0;
+
+    if (pFrame->transparent)                flags |= kRSTransluc;
+    if (pFrame->transparent2)               flags |= kRSTranslucR;
+
+    if (pFrame->xflip && pFrame->yflip)     nAng += kAng180;
+    else if (pFrame->xflip)                 nAng += kAng180, flags |= kRSYFlip;
+    else if (pFrame->yflip)                 flags |= kRSYFlip;
+
+    nVTile = toolGetViewTile(nTile, viewOctant, &flags, &nAng);
+    toolDrawCenter(&origin, c, sz, sz, 4);
+
+    if (!pFrame->invisible)
+    {
+        rotatesprite(origin.x << 16, origin.y << 16, nZoom, nAng, nVTile, nShade, nVPal, flags, 0, 0, xdim-1, ydim-1);
+
+        if (viewBorders)
+        {
+            gfxSetColor(clr2std(kColorGrey26));
+            GetRotateSpriteExtents(origin.x, origin.y, nZoom, nAng, nVTile, flags, xdim-1, ydim-1, x, y);
+            gfxLine(x[0], y[0], x[1], y[1]), gfxLine(x[1], y[1], x[2], y[2]);
+            gfxLine(x[2], y[2], x[3], y[3]), gfxLine(x[3], y[3], x[0], y[0]);
+        }
+    }
+
+    wh = pFont->wh, hg = pFont->hg;
+    sprintf(buf, "X:%+03d", panm[nVTile].xcenter);
+    printextShadow(origin.x + sz + wh, origin.y - (hg >> 1), c, buf, pFont);
+
+    i = (sprintf(buf, "Y:%+03d", panm[nVTile].ycenter) * pFont->ls) >> 1;
+    printextShadow(origin.x - i, origin.y + sz + hg, c, buf, pFont);
+
+    switch (viewType[nTile])
+    {
+        case kSprViewFull5:
+        case kSprViewFull8:
+            i = (sprintf(buf, "ANG:%03ddeg", viewOctant * 45) * pFont->ls)>>1;
+            printextShadow(origin.x - i, origin.y + sz + (hg << 1), c, buf, pFont);
+            break;
+    }
+
+    pHud->SetTile(nVTile, nVPal, nShade);
+}
+
+void SEQEDIT::HudShowInfo()
+{
+    int nVTile, nVPal, nShade, i;
+    static char* onDone[] = {"Stop", "Loop", "Delete"};
+    static char buffer[256], filename[BMAX_PATH];
+    char* p = buffer;
+
+    getFilename(gPaths.seqs, filename, 0);
+    strcat(filename, kSeqExt);
+    strupr(filename);
+
+    if (playing)
+        p += sprintf(p, "[%s] ", "PLAY");
+
+    p += sprintf(p, "\"%s\"", filename);
+    if (rffID >= 0)
+        p += sprintf(p, " (ID #%d)", rffID);
+    else
+        p += sprintf(p, " (%s)", "DISK");
+
+    p += sprintf(p, "%s ", ":");
+
+    if (pSeq->nFrames > 0)
+    {
+        p += sprintf(p, "Frame=%d/%d", nFrame+1, pSeq->nFrames);
+
+        i = (ClipLow(pSeq->nFrames, 0))*pSeq->ticksPerFrame;
+        p += sprintf(p, ", Length=%02d:%03d%s", i/120, i%120, (i/120 == 0) ? "ms" : "s");
+
+        if (rngok(pSeq->flags & 0x03, 0x00, 0x03))
+            p += sprintf(p, ", When done=%s", onDone[pSeq->flags & 0x03]);
+    }
+    else
+    {
+        p += sprintf(p, "%s", "No frames!");
+    }
 
 
+    if (!pSeq->nFrames || playing)
+        pHud->SetMsgImp(16, buffer);
+    else
+        pHud->SetMsg(buffer);
+
+    if (pSeq->nFrames)
+    {
+        nVTile = toolGetViewTile(seqGetTile(pFrame), viewOctant, NULL, NULL);
+        nVPal  = (pFrame->pal == 0) ? viewPal : pFrame->pal;
+        nShade = ClipRange(viewShade + pFrame->shade, -128, 127);
+
+        pHud->SetTile(nVTile, nVPal, nShade);
+    }
+    else
+    {
+        pHud->SetTile();
+    }
+
+    pHud->DrawIt();
+
+    DIALOG_HANDLER dialog(pHud, dlgSeqedit);
+    dlgSeqToDialog(&dialog, pSeq, pFrame);
+    dialog.Paint();
+}
+
+void SEQEDIT::HudEditInfo()
+{
+    int t = pSeq->nFrames;
+    int i;
+    
+    pHud->DrawIt();
+    DIALOG_HANDLER dialog(pHud, dlgSeqedit);
+    dlgSeqToDialog(&dialog, pSeq, pFrame);
+
+    if (dialog.Edit())
+    {
+        dlgDialogToSeq(&dialog, pSeq, pFrame);
+        nFrame = ClipRange(nFrame, 0, pSeq->nFrames - 1);
+        pFrame = &pSeq->frames[nFrame];
+        
+        i = pSeq->nFrames;
+        while(--i >= t)
+            FrameClean(&pSeq->frames[t]);
+    }
+}
+
+void SEQEDIT::HudUpdateStatus()
+{
+    int nZoom;
+
+    statViewSurface.id  = 1;
+    statViewShade.id    = 2;
+    statViewZoom.id     = 3;
+    statViewZ.id        = 4;
+
+    pHud->StatusRem(&statViewShade);
+    pHud->StatusRem(&statViewSurface);
+    pHud->StatusRem(&statViewZoom);
+    pHud->StatusRem(&statViewZ);
+
+    if (viewSurface && obj.type == OBJ_SPRITE)
+    {
+        sprintf(statViewSurface.text, "Surface: %s", surfNames[viewSurface]);
+        statViewSurface.color[0][0] = clr2std(kColorGreen);
+        statViewSurface.color[1][0] = clr2std(kColorGrey18);
+        pHud->StatusAdd(&statViewSurface);
+    }
+
+    if (viewShade)
+    {
+        sprintf(statViewShade.text, "Shade: %+d", viewShade);
+        statViewShade.color[0][0] = clr2std(kColorGrey28);
+        statViewShade.color[1][0] = clr2std(kColorGrey18);
+        pHud->StatusAdd(&statViewShade);
+    }
+
+    if (edit3d)
+    {
+        if (obj.type == OBJ_SPRITE)
+        {
+            sprintf(statViewZ.text, "Z: %s", viewZNames[viewZ]);
+            statViewZ.color[0][0] = clr2std(kColorBlue);
+            statViewZ.color[1][0] = clr2std(kColorGrey18);
+            pHud->StatusAdd(&statViewZ);
+
+            XSPRITE* pXSpr = &xsprite[sprite[obj.index].extra];
+            if (pXSpr->scale && (nZoom = IVAL2PERC(pXSpr->scale, 256)) != 100)
+            {
+                sprintf(statViewZoom.text, "Scale: %d%%", nZoom);
+                statViewZoom.color[0][0] = clr2std(kColorRed);
+                statViewZoom.color[1][0] = clr2std(kColorGrey18);
+                pHud->StatusAdd(&statViewZoom);
+            }
+        }
+    }
+    else if ((nZoom = IVAL2PERC(zoom, GetDefaultZoom())) > 0)
+    {
+        sprintf(statViewZoom.text, "Zoom: %d%%", nZoom); strupr(statViewZoom.text);
+        statViewZoom.color[0][0] = clr2std(kColorRed);
+        statViewZoom.color[1][0] = clr2std(kColorGrey18);
+        pHud->StatusAdd(&statViewZoom);
+    }
+}
+
+void SEQEDIT::ObjectUpdate(char nType)
+{
+    spritetype* pSpr; sectortype* pSect; walltype* pWall;
+    int cz, fz, zt, zb;
+    int dx, dy;
+    
+    switch (obj.type)
+    {
+        case OBJ_SPRITE:
+            pSpr = &sprite[obj.index];
+
+            if (pSeq->nFrames)
+            {
+                if (nType == 1)
+                {
+                    if (pFrame->xrepeat == 0)   pSpr->xrepeat = refinfo.xsiz;
+                    if (pFrame->yrepeat == 0)   pSpr->yrepeat = refinfo.ysiz;
+                    if (pFrame->pal == 0)       pSpr->pal = 0;
+                }
+
+                UpdateSprite(pSpr->extra, pFrame);
+            }
+            else
+            {
+                pSpr->xrepeat = refinfo.xsiz;
+                pSpr->yrepeat = refinfo.ysiz;
+                pSpr->picnum  = refinfo.pic;
+                pSpr->pal     = refinfo.pal;
+                pSpr->flags   = 0;
+            }
+
+            getzsofslope(pSpr->sectnum, pSpr->x, pSpr->y, &cz, &fz);
+            GetSpriteExtents(pSpr, &zt, &zb);
+
+            switch(viewZ)
+            {
+                case 0:  pSpr->z = fz - (zb - pSpr->z); break;
+                case 1:  pSpr->z = MIDPOINT(fz, cz);    break;
+                case 2:  pSpr->z = cz + (pSpr->z - zt); break;
+                case 3:  pSpr->z = refinfo.z;           break;
+            }
+            
+            dx = posx - pSpr->x, dy = posy - pSpr->y;
+            RotateVector(&dx, &dy, -pSpr->ang + kAng45 / 2);
+            viewOctant = GetOctant(dx, dy);
+            
+            break;
+        case OBJ_FLOOR:
+            pSect = &sector[obj.index];
+
+            if (pSeq->nFrames)
+            {
+                if (nType == 1)
+                {
+                    if (pFrame->pal == 0)   pSect->floorpal = 0;
+                }
+
+                UpdateFloor(pSect->extra, pFrame);
+            }
+            else
+            {
+                pSect->floorpicnum  = refinfo.pic;
+                pSect->floorpal     = refinfo.pal;
+            }
+
+            break;
+        case OBJ_CEILING:
+            pSect = &sector[obj.index];
+
+            if (pSeq->nFrames)
+            {
+                if (nType == 1)
+                {
+                    if (pFrame->pal == 0)   pSect->ceilingpal = 0;
+                }
+
+                UpdateCeiling(pSect->extra, pFrame);
+            }
+            else
+            {
+                pSect->ceilingpicnum  = refinfo.pic;
+                pSect->ceilingpal     = refinfo.pal;
+            }
+
+            break;
+        case OBJ_WALL:
+        case OBJ_MASKED:
+            pWall = &wall[obj.index];
+
+            if (pSeq->nFrames)
+            {
+                if (nType == 1)
+                {
+                    if (pFrame->pal == 0)   pWall->pal = 0;
+                }
+
+                (obj.type == OBJ_WALL)
+                    ? UpdateWall(pWall->extra, pFrame)
+                    : UpdateMasked(pWall->extra, pFrame);
+            }
+            else if (obj.type == OBJ_WALL)
+            {
+                pWall->picnum       = refinfo.pic;
+                pWall->pal          = refinfo.pal;
+            }
+            else
+            {
+                pWall->overpicnum   = refinfo.pic;
+                pWall->pal          = refinfo.pal;
+            }
+
+            break;
+    }
+}
+
+void SEQEDIT::SoundPlay(int nID)
+{
+    switch(obj.type)
+    {
+        case OBJ_SPRITE:
+            //SoundStop();
+            sfxPlay3DSound(&sprite[obj.index], nID, -1, 0);
+            break;
+        case OBJ_NONE:
+            //SoundStop();
+            auditSound(nID, -1, (char)0);
+            break;
+    }
+}
+
+void SEQEDIT::SoundStop()
+{
+    sndKillAllSounds();
+    sfxKillAllSounds();
+}
+
+static void dlgSeqToDialog(DIALOG_HANDLER* pHandle, Seq* pSeq, SEQFRAME* pFrame)
+{
+    pHandle->SetValue(kSeqDlgSpeed,         pSeq->ticksPerFrame);
+    pHandle->SetValue(kSeqDlgSound,         pSeq->nSoundID);
+    pHandle->SetValue(kSeqDlgFrames,        pSeq->nFrames);
+
+    pHandle->SetValue(kSeqDlgRemove,        (pSeq->flags & kSeqRemove) != 0);
+    pHandle->SetValue(kSeqDlgLoop,          (pSeq->flags & kSeqLoop) != 0);
+
+    if (pSeq->nFrames)
+    {
+        pHandle->SetValue(kSeqDlgFramePic,      seqGetTile(pFrame));
+        pHandle->SetValue(kSeqDlgFramePal,      seqGetPal(pFrame));
+        pHandle->SetValue(kSeqDlgFrameXSiz,     pFrame->xrepeat);
+        pHandle->SetValue(kSeqDlgFrameYSiz,     pFrame->yrepeat);
+        pHandle->SetValue(kSeqDlgFrameShade,    pFrame->shade);
+        pHandle->SetValue(kSeqDlgSndRange,      pFrame->soundRange);
+        pHandle->SetValue(kSeqDlgFrameBLK,      pFrame->blockable);
+        pHandle->SetValue(kSeqDlgFrameHSC,      pFrame->hittable);
+        pHandle->SetValue(kSeqDlgFrameAIM,      pFrame->autoaim);
+        pHandle->SetValue(kSeqDlgFrameTRG,      pFrame->trigger);
+        pHandle->SetValue(kSeqDlgFramePSH,      pFrame->pushable);
+        pHandle->SetValue(kSeqDlgFrameSMK,      pFrame->smoke);
+        pHandle->SetValue(kSeqDlgFrameFLX,      pFrame->xflip);
+        pHandle->SetValue(kSeqDlgFrameFLY,      pFrame->yflip);
+        pHandle->SetValue(kSeqDlgFrameINV,      pFrame->invisible);
+        pHandle->SetValue(kSeqDlgFrameSND,      pFrame->playSound);
+        pHandle->SetValue(kSeqDlgFrameSRF,      pFrame->surfaceSound);
+        
+        if (pFrame->transparent2)
+        {
+            pHandle->SetValue(kSeqDlgFrameTR1,      0);
+            pHandle->SetValue(kSeqDlgFrameTR2,      1);
+        }
+        else if (pFrame->transparent)
+        {
+            pHandle->SetValue(kSeqDlgFrameTR1,      1);
+            pHandle->SetValue(kSeqDlgFrameTR2,      0);
+        }
+        else
+        {
+            pHandle->SetValue(kSeqDlgFrameTR1,      0);
+            pHandle->SetValue(kSeqDlgFrameTR2,      0);
+        }
+    }
+}
+
+static void dlgDialogToSeq(DIALOG_HANDLER* pHandle, Seq* pSeq, SEQFRAME* pFrame)
+{
+    pSeq->ticksPerFrame     = pHandle->GetValue(kSeqDlgSpeed);
+    pSeq->nSoundID          = pHandle->GetValue(kSeqDlgSound);
+    pSeq->nFrames           = pHandle->GetValue(kSeqDlgFrames);
+
+    if (pHandle->GetValue(kSeqDlgRemove))
+    {
+        pSeq->flags |= kSeqRemove;
+        pSeq->flags &= ~kSeqLoop;
+    }
+    else
+        pSeq->flags &= ~kSeqRemove;
+
+    if (pHandle->GetValue(kSeqDlgLoop))
+    {
+        pSeq->flags &= ~kSeqRemove;
+        pSeq->flags |= kSeqLoop;
+    }
+    else
+        pSeq->flags &= ~kSeqLoop;
+
+    if (pSeq->nFrames)
+    {
+        seqSetTile(pFrame, pHandle->GetValue(kSeqDlgFramePic));
+        seqSetPal(pFrame, pHandle->GetValue(kSeqDlgFramePal));
+
+        pFrame->xrepeat         = pHandle->GetValue(kSeqDlgFrameXSiz);
+        pFrame->yrepeat         = pHandle->GetValue(kSeqDlgFrameYSiz);
+        pFrame->shade           = pHandle->GetValue(kSeqDlgFrameShade);
+        pFrame->soundRange      = pHandle->GetValue(kSeqDlgSndRange);
+
+        pFrame->blockable       = pHandle->GetValue(kSeqDlgFrameBLK);
+        pFrame->hittable        = pHandle->GetValue(kSeqDlgFrameHSC);
+        pFrame->autoaim         = pHandle->GetValue(kSeqDlgFrameAIM);
+        pFrame->trigger         = pHandle->GetValue(kSeqDlgFrameTRG);
+        pFrame->pushable        = pHandle->GetValue(kSeqDlgFramePSH);
+        pFrame->smoke           = pHandle->GetValue(kSeqDlgFrameSMK);
+        
+        if (pHandle->GetValue(kSeqDlgFrameTR2))
+        {
+            pFrame->transparent  = 1;
+            pFrame->transparent2 = 1;
+        }
+        else if (pHandle->GetValue(kSeqDlgFrameTR1))
+        {
+            pFrame->transparent  = 1;
+            pFrame->transparent2 = 0;
+        }
+        else
+        {
+            pFrame->transparent  = 0;
+            pFrame->transparent2 = 0;
+        }
+        
+        pFrame->xflip           = pHandle->GetValue(kSeqDlgFrameFLX);
+        pFrame->yflip           = pHandle->GetValue(kSeqDlgFrameFLY);
+        pFrame->invisible       = pHandle->GetValue(kSeqDlgFrameINV);
+        pFrame->playSound       = pHandle->GetValue(kSeqDlgFrameSND);
+        pFrame->surfaceSound    = pHandle->GetValue(kSeqDlgFrameSRF);
+    }
+}
+
+static char helperToggleSeqFlags(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
+{
+    if (key == KEY_SPACE)
+    {
+        for (DIALOG_ITEM* p = dialog; p->type != CONTROL_END; p++)
+        {
+            if ((control->tabGroup == kSeqDlgRemove && p->tabGroup == kSeqDlgLoop)
+                || (control->tabGroup == kSeqDlgLoop && p->tabGroup == kSeqDlgRemove))
+                {
+                    p->value = 0;
+                    break;
+                }
+            
+            if ((control->tabGroup == kSeqDlgFrameTR1 && p->tabGroup == kSeqDlgFrameTR2)
+                || (control->tabGroup == kSeqDlgFrameTR2 && p->tabGroup == kSeqDlgFrameTR1))
+                {
+                    p->value = 0;
+                    break;
+                }
+        }
+    }
+
+    return key;
+}
+
+static char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
+{
+    int i;
+    char msg[128];
+
+    switch (key)
+    {
+        case KEY_UP:
+            for (i = control->value+1; i < 65535; i++)
+            {
+                if (gSoundRes.Lookup(i, "SFX") != NULL)
+                {
+                    control->value = i;
+                    break;
+                }
+            }
+            return 0;
+        case KEY_DOWN:
+            if (control->value == 1)
+            {
+                control->value = 0;
+                return 0;
+            }
+            for (i = control->value-1; i > 0; i--)
+            {
+                if (gSoundRes.Lookup(i, "SFX") != NULL)
+                {
+                    control->value = i;
+                    break;
+                }
+            }
+            return 0;
+        case KEY_F10:
+        case KEY_SPACE:
+            auditSound(control->value, -1, msg);
+            gSeqedHud.SetMsg(msg);
+            return 0;
+    }
+
+    return key;
 }

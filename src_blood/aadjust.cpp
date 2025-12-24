@@ -382,8 +382,7 @@ void adjSetApperance(spritetype* pSprite, int idx) {
     if (!gAutoAdjust.enabled)
         return;
 
-    int faved = tileInFaves(pSprite->picnum);
-    if (faved < 0 || gFavTiles[faved].pic <= 0)
+    if (!tileInFaves(pSprite->picnum))
     {
         if (gAutoAdjust.setPic && autoData[idx].picnum >= 0)
             pSprite->picnum = autoData[idx].picnum;
@@ -532,7 +531,7 @@ void cleanUpSectWalls(int nSect)
         /** try to fix incorrectly attached next walls or detach it **/
         /** ------------------------------------------------------- **/
 
-        if ((nNextW >= 0) ^ (nNextS >= 0))
+        if (((nNextW >= 0) ^ (nNextS >= 0)) || (sectorofwall(s) != nSect))
         {
             wallDetach(nNextW);
             wallDetach(s);
@@ -721,7 +720,7 @@ void CleanUpMisc() {
     if (gPreviewMode)
         return;
 
-    int i, j, s, e;
+    int i, j;
     for (i = 0; i < numsectors; i++)
     {
         sectortype* pSector = &sector[i];
@@ -787,8 +786,13 @@ void CleanUpMisc() {
                 if (pSprite->statnum == kStatDude)
                 {
                     // use KEY instead of DROP field for key drop
-                    if (pXSpr->dropItem >= kItemKeySkull && pXSpr->dropItem <= kItemKey7)
+                    if (irngok(pXSpr->dropItem, kItemKeySkull, kItemKey7))
                         pXSpr->key = 1 + pXSpr->dropItem - kItemKeySkull, pXSpr->dropItem = 0;
+                    
+                    pXSpr->goalAng    = (gMisc.autoGoalAngle) ? pSprite->ang & kAngMask : 0;
+                    pXSpr->medium     = (isUnderwaterSector(i) != 0);
+                    pXSpr->burnSource = -1;
+                    pXSpr->target     = -1;
                 }
             }
         }

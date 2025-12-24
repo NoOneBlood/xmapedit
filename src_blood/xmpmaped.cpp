@@ -1,6 +1,8 @@
 #include "xmpmaped.h"
 #include "aadjust.h"
 #include "preview.h"
+#include "xmparted.h"
+#include "tile.h"
 
 char* const gSectToolNames[] =
 {
@@ -69,15 +71,20 @@ void avePointWall(int nWall, int* x, int* y)
 
 
 
-void loopGetWalls(int nStartWall, int* swal, int *ewal)
+void loopGetWalls(int nWall, int* s, int *e)
 {
     int i;
-    *swal = *ewal = i = nStartWall;
-    while(wall[i].point2 != nStartWall)
+    *s = *e = nWall;
+    
+    while( 1 )
     {
-        if (wall[i].point2 < *swal) *swal = wall[i].point2;
-        if (wall[i].point2 > *ewal) *ewal = wall[i].point2;
-        i = wall[i].point2;
+        if ((i = wall[*e].point2) <= *e)
+        {
+            *s = i;
+            break;
+        }
+        
+        *e = i;
     }
 
 }
@@ -431,9 +438,11 @@ void sectFlip(int nSect, int cx, int cy, int flags, int)
 
 int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
 {
-    int i, j, k, f, s, e, ax, ay, ls, le;
+    int nSectOld, nLoopNumA, nLoopNumB;
     int nWall, nWallOther, nWallNum;
-    int nLoopNumA, nLoopNumB;
+    int i, j, k, f, s, e, ls, le;
+    int x1, y1, x2, y2;
+    int x3, y3, x4, y4;
     int nRetn = 0;
 
     if (nWallA < 0 || nWallB < 0)
@@ -441,6 +450,73 @@ int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
 
     if (nWallA == nWallB)
         return -2;
+    
+    nSectOld = -1;
+    
+#if 0
+    if (sectCountParts(nSect) > 1)
+    {
+        // This is a multipart sector, so we have to
+        // find the part we are trying to split and
+        // turn it into new standalone sector.
+        //
+        // Unlike normal loops, the "part"
+        // must have clockwise walls
+        // direction.
+        
+        avePointWall(nWallA, &x1, &y1); avePointWall(nWallB, &x2, &y2);
+        offsetPos(0, 8, 0, (GetWallAngle(nWallA) + kAng90) & kAngMask, &x1, &y1, NULL);
+        offsetPos(0, 8, 0, (GetWallAngle(nWallB) + kAng90) & kAngMask, &x2, &y2, NULL);
+        getSectorWalls(nSect, &s, &e);
+        
+        while(s <= e)
+        {
+            loopGetWalls(s, &ls, &le);
+            if (clockdir(ls) == 0 && loopInside(x1, y1, ls) && loopInside(x2, y2, ls))
+            {
+                if (loopnumofsector(nSect, nWallA) == loopnumofsector(nSect, nWallB))
+                {
+                    if (numsectors + 2 >= kMaxSectors)
+                        return -4;
+                    
+                    sectortype model = sector[nSect];
+                    VOIDLIST wls(sizeof(walltype));
+                    
+                    getWallCoords(nWallA, &x1, &y1, &x2, &y2);
+                    getWallCoords(nWallB, &x3, &y3, &x4, &y4);
+                    
+                    for (i = ls; i <= le; i++) wls.Add(&wall[i]);
+                    
+                    // Remove the part loop and re-insert it as a
+                    // new sector, then move any normal loops
+                    // that was inside of an old sector
+                    // to new.
+                    
+                    loopDelete(ls);
+                    i = insertLoop(-1, (walltype*)wls.First(), wls.Length(), &model);
+                    i = sectorofwall(i); sectLoopTransfer(nSect, i);
+                    
+                    // Refresh info and continue split.
+                    
+                    nSectOld    = nSect, nSect = i;
+                    nWallA      = findWallAtPos(nSect, x1, y1, x2, y2);
+                    nWallB      = findWallAtPos(nSect, x3, y3, x4, y4);
+                }
+                
+                break;
+            }
+            
+            s = ++le;
+        }
+        
+        // If no parts found, don't allow to
+        // split it to avoid walls
+        // corruption.
+        
+        if (s > e)
+            return -5;
+    }
+#endif
 
     nLoopNumA   = loopnumofsector(nSect, nWallA);
     nLoopNumB   = loopnumofsector(nSect, nWallB);
@@ -766,6 +842,9 @@ int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
                     fixrepeats(wall[i].nextwall);
             }
         }
+        
+        //if (nSectOld >= 0)
+            //redSectorMerge(numsectors-3, numsectors-2);
     }
 
     return nRetn;
@@ -1043,6 +1122,23 @@ char sectAutoAlignSlope(int nSect, char which)
         alignflorslope(nSect, x, y, getflorzofslope(nSectNext, x, y));
 
     return 1;
+}
+
+int sectCountParts(int nSect)
+{
+    int c = 0, s, e, ls, le;
+    getSectorWalls(nSect, &s, &e);
+        
+    while(s <= e)
+    {
+        loopGetWalls(s, &ls, &le);
+        if (clockdir(ls) == 0)
+            c++;
+
+        s = ++le;
+    }
+    
+    return c;
 }
 
 char pointOnLine(int x, int y, int x1, int y1, int x2, int y2)
@@ -1327,22 +1423,86 @@ short wallCstatToggle(int nWall, short cstat, char nextWall)
 
 char wallVisible(int nWall)
 {
-    int nSect, nNext;
-    int x, y;
-
+    walltype* pWall = &wall[nWall];
+    int nSect, nNextSect;
+    int x[2], y[2];
+    int i;
+    
     nSect = sectorofwall(nWall);
-
-    if ((nNext = wall[nWall].nextsector) >= 0)
+    
+    if ((nNextSect = pWall->nextsector) >= 0)
     {
-        if ((wall[nWall].cstat & kWallMasked) == 0 && (wall[nWall].cstat & kWallOneWay) == 0)
+        if ((pWall->cstat & kWallMasked) == 0 && (pWall->cstat & kWallOneWay) == 0)
         {
-            getWallCoords(nWall, &x, &y);
-            return ((getceilzofslope(nSect, x, y) < getceilzofslope(nNext, x, y))
-                        || (getflorzofslope(nSect, x, y) > getflorzofslope(nNext, x, y)));
+            getWallCoords(nWall, &x[0], &y[0], &x[1], &y[1]);
+            for (i = 0; i < 2; i++)
+            {
+                if ((getceilzofslope(nSect, x[i], y[i]) < getceilzofslope(nNextSect, x[i], y[i]))
+                    || (getflorzofslope(nSect, x[i], y[i]) > getflorzofslope(nNextSect, x[i], y[i])))
+                            return 1;
+            }
+            
+            return 0;
         }
     }
 
     return (klabs(sector[nSect].floorz - sector[nSect].ceilingz) > 0);
+}
+
+void wallRotateTile(int nWall, char enable)
+{
+    walltype* pWall = &wall[nWall];
+    int nTile = pWall->picnum;
+    
+    if (enable)
+    {
+        if (gRotTile[nTile] > pWall->picnum)
+        {
+            pWall->picnum = gRotTile[nTile];
+            return;
+        }
+        
+        PICANM* pnm = &panm[pWall->picnum];
+        int nBlank = tileSearchFreeRange(pnm->frames);
+        char backward = (pnm->type == 3);
+        int i = pnm->frames;
+        
+        dassert(nBlank > nTile);
+        
+        if (backward)
+            nBlank += i;
+        
+        pWall->picnum = nBlank;
+        
+        do
+        {
+            artedCopyTile(nTile, nBlank);
+            artedRotateTile(nBlank);
+            gSysTiles.add(nBlank);
+            
+            gRotTile[nTile]  = nBlank;
+            gRotTile[nBlank] = nTile;
+            
+            if (backward)
+            {
+                nBlank--;
+                nTile--;
+            }
+            else
+            {
+                nBlank++;
+                nTile++;
+            }
+            
+            i--;
+        }
+        while(i >= 0);
+    }
+    else if (gRotTile[nTile] && gRotTile[nTile] < nTile)
+    {
+        pWall->picnum = gRotTile[nTile];
+        return;
+    }
 }
 
 char insideLoop(int x, int y, int nStartWall)
@@ -1397,66 +1557,94 @@ char setAligntoWall(int nSect, int nWall)
 
 void setFirstWall(int nSect, int nWall)
 {
-    int start, length, shift;
-    int i, j, k;
-    walltype tempWall;
+    #if 1   
+        // this one breaks point2 order
+        int start, length, shift;
+        int i, j, k;
+        walltype tempWall;
 
-    // rotate the walls using the shift copy algorithm
+        // rotate the walls using the shift copy algorithm
 
-    start = sector[nSect].wallptr;
-    length = sector[nSect].wallnum;
+        start = sector[nSect].wallptr;
+        length = sector[nSect].wallnum;
 
-    dassert(nWall >= start && nWall < start + length);
-    shift = nWall - start;
+        dassert(nWall >= start && nWall < start + length);
+        shift = nWall - start;
 
-    int aWall = start + sector[nSect].alignto;
-    int ax, ay;
+        int aWall = start + sector[nSect].alignto;
+        int ax, ay;
 
-    if (shift == 0)
-        return;
+        if (shift == 0)
+            return;
 
-    if (aWall != start)
-        getWallCoords(aWall, &ax, &ay);
-
-    i = k = start;
-
-    for (int n = length; n > 0; n--)
-    {
-        if (i == k)
-            tempWall = wall[i];
-
-        j = i + shift;
-        while (j >= start + length)
-            j -= length;
-
-        if (j == k)
-        {
-            wall[i] = tempWall;
-            i = ++k;
-        }
-        else
-        {
-            wall[i] = wall[j];
-            i = j;
-        }
-    }
-
-    for (i = start; i < start + length; i++)
-    {
         if (aWall != start)
+            getWallCoords(aWall, &ax, &ay);
+
+        i = k = start;
+
+        for (int n = length; n > 0; n--)
         {
-            if (wall[i].x == ax && wall[i].y == ay)
-                sector[nSect].alignto = i - start, aWall = start;
+            if (i == k)
+                tempWall = wall[i];
+
+            j = i + shift;
+            while (j >= start + length)
+                j -= length;
+
+            if (j == k)
+            {
+                wall[i] = tempWall;
+                i = ++k;
+            }
+            else
+            {
+                wall[i] = wall[j];
+                i = j;
+            }
         }
 
-        if ((wall[i].point2 -= shift) < start)
-            wall[i].point2 += length;
+        for (i = start; i < start + length; i++)
+        {
+            if (aWall != start)
+            {
+                if (wall[i].x == ax && wall[i].y == ay)
+                    sector[nSect].alignto = i - start, aWall = start;
+            }
 
-        if (wall[i].nextwall >= 0)
-            wall[wall[i].nextwall].nextwall = (short)i;
-    }
+            if ((wall[i].point2 -= shift) < start)
+                wall[i].point2 += length;
 
+            if (wall[i].nextwall >= 0)
+                wall[wall[i].nextwall].nextwall = (short)i;
+        }
+        
+    #else
+        setfirstwall(nSect, nWall);
+    #endif
     CleanUp();
+}
+
+char loopInside(int x, int y, int nWall)
+{
+    int i = nWall, x1, y1, x2, y2;
+    unsigned int cnt = 0;
+    
+    do
+    {
+        getWallCoords(i, &x1, &y1, &x2, &y2);
+        y1-=y, y2-=y;
+        
+        if ((y1^y2) < 0)
+        {
+            x1-=x, x2-=x;
+            cnt ^= ((x1^x2) >= 0) ? (x1) : ((x1*y2-x2*y1)^y2);
+        }
+        
+        i = wall[i].point2;
+    }
+    while(i != nWall);
+    
+    return ((cnt >> 31) > 0);
 }
 
 char loopInside(int nSect, POINT2D* pPoint, int c, char full)
@@ -1602,7 +1790,7 @@ int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectort
 
         pSect->wallptr  = nWall;
         pSect->wallnum  = nCount;
-        numsectors++;
+        nSect = numsectors++;
     }
 
     movewalls(nWall, nCount); // increases numwalls automatically
@@ -1646,19 +1834,18 @@ int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectort
         if (clockdir(nStartWall) == 0)
             flipwalls(nStartWall, nStartWall + nCount);
 
-        t = nSect;
+        setFirstWall(nSect, nStartWall + nCount); // fix wallptr, so slope dir won't change
+        nStartWall+=(sector[nSect].wallnum-nCount);
+        
         for (i = 0; i < kMaxSprites; i++)
         {
             spritetype* pSpr = &sprite[i];
-            if (pSpr->statnum < kMaxStatus && pSpr->sectnum == nSect
-                && FindSector(pSpr->x, pSpr->y, &t) && t != nSect)
-                    ChangeSpriteSect(pSpr->index, t);
+            if (pSpr->statnum >= kMaxStatus || nSect != pSpr->sectnum)
+                continue;
+            
+            sprFixSector(pSpr);
         }
-
-        setFirstWall(nSect, nStartWall + nCount); // fix wallptr, so slope dir won't change
-        nStartWall+=(sector[nSect].wallnum-nCount);
     }
-
 
     if (!pWModel)
     {
@@ -1694,18 +1881,22 @@ int insertLoop(int nSect, walltype* pWalls, int nCount, sectortype* pSModel)
 
         do
         {
-            wall[i].picnum      = pWalls[j].picnum;
-            wall[i].overpicnum  = pWalls[j].overpicnum;
-            wall[i].shade       = pWalls[j].shade;
-            wall[i].pal         = pWalls[j].pal;
-            wall[i].xrepeat     = pWalls[j].xrepeat;
-            wall[i].yrepeat     = pWalls[j].yrepeat;
-            wall[i].xpanning    = pWalls[j].xpanning;
-            wall[i].ypanning    = pWalls[j].ypanning;
-            wall[i].lotag       = pWalls[j].lotag;
-            wall[i].hitag       = pWalls[j].hitag;
-            wall[i].cstat       = pWalls[j].cstat;
-            wall[i].extra       = pWalls[j].extra;
+            k = j; // flipped walls check
+            while(pWalls[k].x != wall[i].x || pWalls[k].y != wall[i].y)
+                k = DecRotate(k, nCount);
+            
+            wall[i].picnum      = pWalls[k].picnum;
+            wall[i].overpicnum  = pWalls[k].overpicnum;
+            wall[i].shade       = pWalls[k].shade;
+            wall[i].pal         = pWalls[k].pal;
+            wall[i].xrepeat     = pWalls[k].xrepeat;
+            wall[i].yrepeat     = pWalls[k].yrepeat;
+            wall[i].xpanning    = pWalls[k].xpanning;
+            wall[i].ypanning    = pWalls[k].ypanning;
+            wall[i].lotag       = pWalls[k].lotag;
+            wall[i].hitag       = pWalls[k].hitag;
+            wall[i].cstat       = pWalls[k].cstat;
+            wall[i].extra       = pWalls[k].extra;
             wall[i].nextwall    = -1;
             wall[i].nextsector  = -1;
 
@@ -1817,47 +2008,34 @@ void sectLoopMain(int nSect, int* s, int* e)
 }
 
 
-int sectLoopTransfer(int nSectA, int nSectB)
+int sectLoopTransfer(int nSectA, int nSectB, char flags)
 {
-    int i, j, s, e, ls, le, done = 0;
-    int skip[4];
-
-    if (nSectA == nSectB)
-        return 0;
-
-    sectLoopMain(nSectA, &skip[0], &skip[1]);
-    skip[2] = skip[0], skip[3] = skip[1];
-
-    getSectorWalls(nSectB, &s, &e);
-    while(s <= e)
+    int s, e, ls, le;
+    int done = 0;
+    
+    if (nSectA != nSectB)
     {
-        if (wall[s].nextsector == nSectA)
+        getSectorWalls(nSectA, &s, &e);
+        while(e >= s)
         {
-            loopGetWalls(wall[s].nextwall, &skip[2], &skip[3]);
-            break;
+            loopGetWalls(e, &ls, &le);
+            
+            if (clockdir(ls) == 1)
+            {
+                if (flags & 0x04)
+                {
+                    while (le >= ls && inside(wall[le].x, wall[le].y, nSectB)) le--;
+                    if (le < ls && loopTransfer(ls, nSectB, flags) >= 0)
+                        done++;
+                }
+                else if (loopTransfer(ls, nSectB, flags) >= 0)
+                    done++;
+            }
+            
+            e = --ls;
         }
-
-        s++;
     }
-
-
-    getSectorWalls(nSectA, &s, &e);
-
-    for (i = e; i >= s; i--)
-    {
-        loopGetWalls(i, &ls, &le);
-        if (irngok(ls, skip[0], skip[1]))
-            continue;
-
-        if (irngok(ls, skip[2], skip[3]))
-            continue;
-
-        for (j = ls; j <= le && inside(wall[j].x, wall[j].y, nSectB); j++);
-        if (j > le && loopTransfer(ls, nSectB) >= 0)
-            done++;
-    }
-
-    sectAttach(nSectB);
+    
     return done;
 }
 
@@ -2228,14 +2406,15 @@ int collectWallsOfNode(IDLIST* pList, int nWall, char flags)
             t = nWall;
             do
             {
-                if (wall[lastwall(t)].nextwall >= 0)
+                n = lastwall(t);
+                if (wall[n].nextwall >= 0)
                 {
-                    t = wall[lastwall(t)].nextwall;
+                    t = wall[n].nextwall;
                     pList->Add(t);
                 }
                 else
                 {
-                    pList->Add(lastwall(t));
+                    pList->Add(n);
                     break;
                 }
 
@@ -2761,4 +2940,195 @@ int AutoAlignSectors(int nStart, int nFor, IDLIST* pList)
     return pList->GetLength();
 }
 
+XSPRITE* pathMarkerFind(XSECTOR* pXSect, XSPRITE *pXMark, IDLIST* pDone, char dir)
+{
+    spritetype* pSpr; XSPRITE* pXSpr;
+    int nID, i;
 
+    nID = (pXMark != NULL) ? ((dir) ? pXMark->data2 : pXMark->data1) : pXSect->data;
+
+    for (i = headspritestat[kStatPathMarker]; i >= 0; i = nextspritestat[i])
+    {
+        pSpr = &sprite[i];
+        if (!xspriRangeIsFine(pSpr->extra))
+            continue;
+
+        pXSpr = &xsprite[pSpr->extra];
+        if ((dir && pXSpr->data1 == nID) || (!dir && pXSpr->data2 == nID))
+        {
+            if (!pDone || !pDone->Exists(i))
+                return pXSpr;
+        }
+    }
+
+    return NULL;
+}
+
+XSECTOR* pathMarkerFindSector(XSPRITE *pXMark)
+{
+    sectortype* pSect; XSECTOR* pXSect;
+    XSPRITE *a, *s, *p;
+    int i;
+    
+    IDLIST done(1);
+    
+    i = numsectors;
+    while(--i >= 0)
+    {
+        pSect = &sector[i];
+        
+        if (pSect->extra < 0
+            || (pSect->type != kSectorPath && pSect->type != kModernSectorPathSprite))
+                continue;
+        
+        a = s = p = NULL;
+        pXSect = &xsector[pSect->extra];
+        while((a = pathMarkerFind(pXSect, a, &done, 1)) != NULL && a != p && a != s)
+        {
+            if (a == pXMark) return pXSect;
+            done.Add(a->reference);
+            p = a;
+        }
+    }
+    
+    return NULL;
+}
+
+void pathMarkerChangeData(int nOld, int nNew, char dir)
+{
+    spritetype* pSpr; XSPRITE* pXSpr;
+    int nID, i;
+    
+    for (i = headspritestat[kStatPathMarker]; i >= 0; i = nextspritestat[i])
+    {
+        pSpr = &sprite[i];
+        if (!xspriRangeIsFine(pSpr->extra))
+            continue;
+
+        pXSpr = &xsprite[pSpr->extra];
+        if (dir == 1 && pXSpr->data2 == nOld)    pXSpr->data2 = nNew;
+        if (dir != 1 && pXSpr->data1 == nOld)    pXSpr->data1 = nNew;
+    }
+}
+
+char pathChopIsMarkerAllowed(XSPRITE* xa, XSPRITE* xb)
+{
+    int i, out = 0, in = 0;
+    int j;
+    
+    if (sprite[xa->reference].hitag != sprite[xb->reference].hitag)
+        return 0;
+    
+    if (xa->txID)
+        return 0; // because can send multiple times
+    
+    if (xa->rxID)
+    {
+        if (xa->rxID == xb->rxID && xa->locked != xb->locked)
+            return 0; // because can toggle lock
+    }
+    
+    if (xa->data2 < 0 || xa->data1 == xa->data2)    return 0;
+    if (xa->command == kCmdDudeFlagsSet)            return 0;
+    if (xa->waitTime)                               return 0;
+    if (xa->busyTime != xb->busyTime)               return 0;
+    if (xa->dudeLockout)                            return 0;
+    
+    for (i = headspritestat[kStatPathMarker]; i >= 0; i = nextspritestat[i])
+    {
+        spritetype* c = &sprite[i];
+        if (c->extra < 0)
+            continue;
+        
+        XSPRITE* xc = &xsprite[c->extra];
+        if ((xc->data1 == xa->data2 && ++out > 1) || (xc->data2 == xb->data1 && ++in > 1))
+            return 0;
+    }
+    
+    i = numsectors;
+    while(--i >= 0)
+    {
+        if (sector[i].extra <= 0)
+            continue;
+        
+        if (sector[i].type != kSectorPath && sector[i].type != kModernSectorPathSprite)
+            continue;
+        
+        XSECTOR* pXSect = &xsector[sector[i].extra];
+        XSPRITE* xt = NULL;
+        
+        for (j = headspritestat[kStatPathMarker]; j >= 0; j = nextspritestat[j])
+        {
+            spritetype* c = &sprite[j];
+            if (c->extra < 0)
+                continue;
+            
+            XSPRITE* xc = &xsprite[c->extra];
+            if (xt == NULL)
+            {
+                if (xc->data1 == pXSect->data)
+                    xt = xc;
+            }
+            else if (xt->data2 == xc->data1)
+                xt = xc;
+            
+            if (xt == xa)
+                return 0;
+        }
+        
+    }
+    
+    return 1;
+}
+
+void pathChop(XSPRITE* xa, int nAng)
+{
+    spritetype *a, *b, *c; XSPRITE *xb;
+    int i, da, a1, a2;
+    int32_t* p;
+    
+    IDLIST found(1);
+    
+    for (i = headspritestat[kStatPathMarker]; i >= 0; i = nextspritestat[i])
+    {
+        b = &sprite[i];
+        if (b->extra < 0 || found.Exists(i))
+            continue;
+        
+        xb = &xsprite[b->extra];
+        if (xb->data1 == xa->data2)
+        {
+            i = headspritestat[kStatPathMarker];
+            found.Add(xa->reference);
+            xa = xb;
+        }
+    }
+    
+    p = found.First();
+    
+    while(*p >= 0)
+    {
+        a = &sprite[*p]; p++; if (*p < 0) break;
+        b = &sprite[*p]; p++; if (*p < 0) break;
+        c = &sprite[*p];
+        
+        a1 = getangle(a->x - b->x, a->y - b->y) & kAngMask;
+        a2 = getangle(b->x - c->x, b->y - c->y) & kAngMask;
+        da = klabs(DANGLE(a1, a2));
+        
+        if (da <= nAng)
+        {
+            if (pathChopIsMarkerAllowed(&xsprite[a->extra], &xsprite[b->extra]))
+            {
+                DeleteSprite(b->index);
+                found.Remove(b->index);
+                
+                xsprite[a->extra].data2 = xsprite[c->extra].data1;
+                p = found.First();
+                continue;
+            }
+        }
+        
+        p--;
+    }
+}

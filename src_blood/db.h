@@ -50,7 +50,6 @@ enum
     kMapTypeUNK                 = 0,
     kMapTypeBLOOD                  ,
     kMapTypeBUILD                  ,
-    kMapTypeSAVEGAME_NBLOOD        ,
     kMapTypeMax                    ,
 };
 

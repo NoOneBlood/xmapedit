@@ -146,6 +146,19 @@ kRandomizeDude                      = 1,
 kRandomizeTX                        = 2,
 };
 
+enum enum_ITEM_GROUP
+{
+kItemGroupItem                      = 0,
+kItemGroupWeapon,
+kItemGroupAmmo,
+kItemGroupArmor,
+kItemGroupHealth,
+kItemGroupPowerup,
+kItemGroupKey,
+kItemGroupMax,
+};
+
+
 struct SPRITEMASS
 {
     int seqId;
@@ -167,6 +180,7 @@ struct EXTERNAL_FILES_LIST
 extern SPRITEMASS gSpriteMass[kMaxXSprites];
 extern EXTERNAL_FILES_LIST gExternFiles[2];
 extern char gCustomDudeNames[kMaxSprites][32];
+extern char gItemTypeGroup[];
 
 
 inline BOOL xspriRangeIsFine(int nXindex) {

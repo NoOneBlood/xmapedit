@@ -130,6 +130,92 @@ void GetSpriteExtents(spritetype* pSpr, int *top, int *bot)
     *top = *bot - ((nSizeY * pSpr->yrepeat) << 2);
 }
 
+void GetRotateSpriteExtents(int sx, int sy, int nZoom, int nAng, int nTile, int flags, int wxs, int wys, int x[4], int y[4])
+{
+    PICANM* pAnm = &panm[nTile];
+    int x1, y1, x2, y2, cos, sin;
+    int wh, hg, xo, yo, t;
+    
+    wh = tilesizx[nTile], hg = tilesizy[nTile];
+    cos = sintable[(nAng + kAng90) & kAngMask];
+    sin = sintable[nAng & kAngMask];
+    sx <<= 16, sy <<= 16;
+    
+    if ((flags & kRSCorner) == 0)
+    {
+        xo = pAnm->xcenter + (wh >> 1);
+        yo = pAnm->ycenter + (hg >> 1);
+    }
+    else
+    {
+        xo = 0;
+        yo = 0;
+    }
+    
+    if (flags & kRSYFlip)
+        yo = hg - yo;
+    
+	if ((flags & kRSScale) != 0)  //Auto window size scaling
+	{
+        if ((flags & kRSNoClip) == 0)
+		{
+			if (widescreen)
+            {
+				t = ydimenscale, sx = ((wxs+2)<<15)+scale(sx-(320<<15),ydimen<<16, 200 * pixelaspect);
+			}
+            else
+            {
+				t = xdimenscale;
+				sx = ((wxs+2)<<15)+scale(sx-(320<<15),xdimen,320);
+			}
+            
+			sy = ((wys+2)<<15)+mulscale16(sy-(200<<15), t);
+		}
+		else
+		{
+			  //If not clipping to startmosts, & auto-scaling on, as a
+			  //hard-coded bonus, scale to full screen instead
+			if (widescreen)
+            {
+				t = scale(ydim<<16,yxaspect,200*pixelaspect);
+				sx = (xdim<<15)+32768+scale(sx-(320<<15),ydim<<16,200*pixelaspect);
+			}
+            else
+            {
+				t = scale(xdim,yxaspect,320);
+				sx = (xdim<<15)+32768+scale(sx-(320<<15),xdim,320);
+			}
+            
+			sy = (ydim<<15)+32768+mulscale16(sy-(200<<15),t);
+		}
+        
+		nZoom = mulscale16(nZoom, t);
+	}
+    
+    x1 = x2 = mulscale14(cos, nZoom);
+	y1 = y2 = mulscale14(sin, nZoom);
+    
+	if ((flags & kRSScale) != 0 || (flags & kRSNoClip) == 0) //Don't aspect unscaled perms
+	{
+		x2 = mulscale16(x1, xyaspect);
+		y2 = mulscale16(y1, xyaspect);
+	}
+    
+	x[0] = sx - (x2 * xo - y2 * yo);
+	x[1] = x[0] + x2 * wh;
+	x[3] = x[0] - y2 * hg;
+	x[2] = x[1] + x[3] - x[0];
+    
+    y[0] = sy - (y1 * xo + x1 * yo);
+	y[1] = y[0] + y1 * wh;
+	y[3] = y[0] + x1 * hg;
+	y[2] = y[1] + y[3] - y[0];
+    
+    t = 4;
+    while(--t >= 0)
+        x[t] >>= 16, y[t] >>= 16;
+}
+
 unsigned int qrand(void)
 {
     if (randSeed&0x80000000)
@@ -321,6 +407,7 @@ SCANDIRENT* dirScan(char* path, char* filter, int* numfiles, int* numdirs, char 
     SCANDIRENT* db = NULL, tmp;
     char *ext, *p, buf[BMAX_PATH];
     char newpath[BMAX_PATH];
+    char fulpath[BMAX_PATH];
 
     int i, t;
 
@@ -341,7 +428,8 @@ SCANDIRENT* dirScan(char* path, char* filter, int* numfiles, int* numdirs, char 
     if (flags & 0x01)
     {
         strcpy(newpath, path); pathCatSlash(newpath);
-        _fullpath(newpath, newpath, BMAX_PATH);
+        _fullpath(fulpath, newpath, BMAX_PATH);
+        strcpy(newpath, fulpath);
         path = newpath;
     }
 

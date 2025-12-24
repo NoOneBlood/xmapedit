@@ -7,6 +7,7 @@
 #include "xmptools.h"
 #include "xmpexplo.h"
 #include "xmpmaped.h"
+#include "xmpseqed.h"
 #include "tile.h"
 #include "hglt.h"
 
@@ -22,6 +23,7 @@ static char helperPickItemTile(DIALOG_ITEM *pRoot, DIALOG_ITEM *control, BYTE ke
 static char helperPickEnemyTile(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 static char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 static char helperSetFlags(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
+static char helperXSectorSetData(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key);
 
 static int dlgCountItems(DIALOG_ITEM* pDlg)
 {
@@ -50,7 +52,7 @@ DIALOG_ITEM dlgXSprite[] =
     { NO,   1,      0,  1,  2,  NUMBER,         "RX ID: %-4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  2,  3,  NUMBER,         "TX ID: %-4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  3,  4,  LIST,           "State  %1d: %-3s", 0, 1, gBoolNames },
-    { NO,   1,      0,  4,  5,  LIST,           "Cmd: %3d: %-16s", 0, 255, gCommandNames },
+    { NO,   1,      0,  4,  5,  LIST,           "Cmd: %3d: %-16s", 0, 255, gCommandNames, helperPickIniMessage },
 
     { NO,   1,      0,  5,  0,  HEADER,         "Send when:" },
     { NO,   1,      0,  6,  6,  CHECKBOX,       "going ON" },
@@ -108,7 +110,7 @@ DIALOG_ITEM dlgXSprite[] =
     { NO,   1,      64, 6,  44, LIST,           "Key:  %1d %-7.7s", 0, 7, gKeyItemNames },
     { NO,   1,      64, 7,  45, LIST,           "Wave: %1d %-7.7s", 0, 3, gBusyNames },
     { NO,   1,      64, 8,  46, NUMBER,         "Hi-tag: %-6d",  -32768, 32767, NULL,  helperSetFlags },
-    { NO,   1,      64, 9,  47, NUMBER,         "Message:   %-3d", 0, 255, NULL, helperPickIniMessage },
+    { NO,   1,      64, 9,  47, NUMBER,         "Lock msg:  %-3d", 0, 255, NULL, helperPickIniMessage },
     { NO,   1,      64, 10, 48, NUMBER,         "Drop item: %-3d", 0, 199, NULL, helperPickItemTile },
 
     { NO,   1,      0,  0,  0,  CONTROL_END },
@@ -156,7 +158,7 @@ DIALOG_ITEM dlgXWall[] =
     { NO,   1,      0,  1,  kWallRX,            NUMBER,     "RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  2,  kWallTX,            NUMBER,     "TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  3,  kWallState,         LIST,       "State %1d: %-3.3s", 0, 1, gBoolNames },
-    { NO,   1,      0,  4,  kWallCmd,           LIST,       "Cmd: %3d: %-18.18s", 0, 255, gCommandNames },
+    { NO,   1,      0,  4,  kWallCmd,           LIST,       "Cmd: %3d: %-18.18s", 0, 255, gCommandNames, helperPickIniMessage },
 
     { NO,   1,      0,  5,  0,                  HEADER,     "Send when:" },
     { NO,   1,      0,  6,  kWallGoingOn,       CHECKBOX,   "going ON" },
@@ -165,7 +167,7 @@ DIALOG_ITEM dlgXWall[] =
     { NO,   1,      0,  9,  kWallWaitTime,      NUMBER,     "waitTime = %4d", 0, 4095 },
     { NO,   1,      0,  10, kWallRestState,     LIST,       "restState %1d: %-3.3s", 0, 1, gBoolNames },
 
-    { NO,   1,      30, 0,  0,                  HEADER,         "Trigger On:" },
+    { NO,   1,      30, 0,  0,                  HEADER,     "Trigger On:" },
     { NO,   1,      30, 1,  kWallTrPush,        CHECKBOX,   "Push" },
     { NO,   1,      30, 2,  kWallTrVector,      CHECKBOX,   "Vector" },
     { MO,   1,      30, 3,  kWallTrTouch,       CHECKBOX,   "Touch" },
@@ -259,7 +261,7 @@ DIALOG_ITEM dlgXSectorFX[] =
     { NO,   1,      55, 5,  25, CHECKBOX,   "bob floor" },
     { NO,   1,      55, 6,  26, CHECKBOX,   "bob ceiling" },
     { NO,   1,      55, 7,  27, CHECKBOX,   "rotate" },
-    { NO,   1,      55, 9,  28, NUMBER,     "DamageType: %1d", 0, 6, NULL},
+    { NO,   1,      55, 9,  28, NUMBER,     "DamageType: %1d", 0, 7, NULL},
 
     { NO,   1,      0,  0,  0,  CONTROL_END },
 };
@@ -271,7 +273,7 @@ DIALOG_ITEM dlgXSector[] =
     { NO,   1,      0,  1,  kSectRX,            NUMBER,     "RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  2,  kSectTX,            NUMBER,     "TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  3,  kSectState,         LIST,       "State %1d: %-3.3s", 0, 1, gBoolNames },
-    { NO,   1,      0,  4,  kSectCmd,           LIST,       "Cmd: %3d: %-16.16s", 0, 255, gCommandNames },
+    { NO,   1,      0,  4,  kSectCmd,           LIST,       "Cmd: %3d: %-16.16s", 0, 255, gCommandNames, helperPickIniMessage },
 
     { NO,   1,      0,  5,  0,                  HEADER,     "Trigger Flags:" },
     { NO,   1,      0,  6,  kSectDecoupled,     CHECKBOX,   "Decoupled" },
@@ -312,7 +314,7 @@ DIALOG_ITEM dlgXSector[] =
     { NO,   1,      65, 4,  kSectCrush,         CHECKBOX,   "Crush" },
 
     { NO,   1,      65, 6,  0,                  HEADER,     "Data:         " },
-    { NO,   1,      65, 7,  kSectData,          NUMBER,     "Data", 0, 32767 },
+    { NO,   1,      65, 7,  kSectData,          NUMBER,     "Data", 0, 32767, NULL, helperXSectorSetData },
     { NO,   1,      65, 10, kSectFX,            DIALOG,     "FX...",  0, 0, NULL, helperDoSectorFXDialog },
     { NO,   1,      0,  0,  0,                  CONTROL_END },
 };
@@ -385,6 +387,7 @@ static DIALOG_INFO gDialogInfo[] =
     { OBJ_WALL,     dlgXWall,       dlgXWallToDialog,       dlgDialogToXWall,       gSearchStatNames[OBJ_WALL],     kWallType, },
     { OBJ_SECTOR,   dlgXSector,     dlgXSectorToDialog,     dlgDialogToXSector,     gSearchStatNames[OBJ_SECTOR],   kSectType, },
     { OBJ_SECTOR,   dlgXSectorFX,   dlgXSectorFXToDialog,   dlgDialogToXSectorFX,   "SectorFX",                     -1, },
+    { OBJ_NONE,     dlgSeqedit,     NULL,                   NULL,                   "SeqAnim",                      -1, },
 };
 
 DIALOG_INFO* GetDialogInfo(DIALOG_ITEM* pDlg, int nID = OBJ_NONE)
@@ -689,62 +692,39 @@ char DIALOG_HANDLER::Edit()
                 }
             }
         }
+        
+        if (mouse.buttons) // convert mouse buttons in keyboard scans
+        {
+            key = 0;
 
+            if (mouse.wheel)
+            {
+                if (mouse.wheel == -1)
+                {
+                    if (keystatus[KEY_Q])   key = KEY_LEFT;
+                    else if (ctrl || alt)   key = KEY_PAGEUP;
+                    else if (shift)         key = KEY_PADPLUS;
+                    else                    key = KEY_UP;
+                }
+                else
+                {
+                    if (keystatus[KEY_Q])   key = KEY_RIGHT;
+                    else if (ctrl || alt)   key = KEY_PAGEDN;
+                    else if (shift)         key = KEY_PADMINUS;
+                    else                    key = KEY_DOWN;
+                }
+            }
+            else if (mouse.press & 1)       key = KEY_SPACE;
+            else if (mouse.press & 2)       pCur->value = 0;
+            else if (mouse.press & 4)       key = KEY_F10;
+        }
+        
         if (key)
         {
             if (pCur->pHelpFunc)
                 key = pCur->pHelpFunc(pDlg, pCur, key);
         }
-        else  if (mouse.buttons) // convert mouse buttons in keyboard scans
-        {
-            if (mouse.wheel && keystatus[KEY_Q])
-            {
-                key = (mouse.wheel < 0) ? KEY_LEFT : KEY_RIGHT;
-                mouse.wheel = 0;
-            }
-
-            if ((mouse.press & 4) && pCur->pHelpFunc)
-            {
-                key = pCur->pHelpFunc(pDlg, pCur, KEY_F10);
-                continue;
-            }
-
-            if (mouse.press & 2)
-            {
-                pCur->value = 0;
-            }
-
-            switch (pCur->type)
-            {
-                case CHECKBOX:
-                case ELT_SELECTOR:
-                    if (mouse.press & 1) key = KEY_SPACE;
-                    break;
-                case DIALOG:
-                    if (!(mouse.press & 1)) break;
-                    pCur->pHelpFunc(pDlg, pCur, KEY_ENTER);
-                    continue;
-                case LIST:
-                case NUMBER:
-                case NUMBER_HEX:
-                    if (mouse.wheel == -1)
-                    {
-                        if (ctrl || alt) key = KEY_PAGEUP;
-                        else if (shift) key = KEY_PADPLUS;
-                        else if (pCur->pHelpFunc != helperAuditSound) key = KEY_UP;
-                        else pCur->pHelpFunc(pDlg, pCur, KEY_UP); // force skip non-existing sounds
-                    }
-                    else if (mouse.wheel == 1)
-                    {
-                        if (ctrl || alt) key = KEY_PAGEDN;
-                        else if (shift) key = KEY_PADMINUS;
-                        else if (pCur->pHelpFunc != helperAuditSound) key = KEY_DOWN;
-                        else pCur->pHelpFunc(pDlg, pCur, KEY_DOWN); // force skip non-existing sounds
-                    }
-                    break;
-            }
-        }
-
+        
         nVal = pCur->value;
 
         switch (key)
@@ -756,9 +736,22 @@ char DIALOG_HANDLER::Edit()
             case KEY_ESC:
                 keystatus[key] = 0;
                 sndKillAllSounds();
+                sfxKillAllSounds();
                 if (--editStatus <= 0 && pHints)
                     DELETE_AND_NULL(pHints);
-                return (key == KEY_ESC) ? 0 : 1;
+                
+                if (key == KEY_ESC)
+                {
+                    if (editStatus <= 0 && !gMisc.confirmObjEdit)
+                    {
+                        BeepOk();
+                        return 1;
+                    }
+                    
+                    return 0;
+                }
+                
+                return 1;
             case KEY_TAB:
             case KEY_RIGHT:
                 if (!shift)
@@ -1155,10 +1148,13 @@ void ShowSectorData(int nSector, BOOL xFirst, BOOL showDialog)
     char buf[256], *pBuf = buf;
     int i;
 
-    pBuf += sprintf(pBuf, "Sector #%d: Height = %d, Area = %d", nSector, klabs(pSect->floorz-pSect->ceilingz), AreaOfSector(pSect));
+    pBuf += sprintf(pBuf, "Sector #%d: Height=%dp, Area=%d", nSector, klabs(pSect->floorz-pSect->ceilingz)>>8, AreaOfSector(pSect));
     if (pSect->alignto)
-        pBuf += sprintf(pBuf, ", Auto-align to wall = #%d", pSect->wallptr + pSect->alignto);
-
+        pBuf += sprintf(pBuf, ", Align wall=#%d", pSect->wallptr + pSect->alignto);
+    
+    i = sectCountParts(nSector);
+    pBuf += sprintf(pBuf, ", Parts=%d", i);
+    
     if (pSect->extra > 0 && xFirst)
     {
         if (showDialog)
@@ -1177,7 +1173,7 @@ void ShowSectorData(int nSector, BOOL xFirst, BOOL showDialog)
             }
         }
 
-        pBuf += sprintf(pBuf, ", Extra = %d, XRef = %d", pSect->extra, xsector[pSect->extra].reference);
+        pBuf += sprintf(pBuf, ", Extra=%d, XRef=%d", pSect->extra, xsector[pSect->extra].reference);
     }
     else if (showDialog)
     {
@@ -1228,7 +1224,7 @@ void ShowWallData(int nWall, BOOL xFirst, BOOL showDialog)
     else                                    pBuf += sprintf(pBuf, "Wall");
 
     nLen = exactDist(x2 - x1, y2 - y1);
-    pBuf += sprintf(pBuf, " #%d: Length = %d", nWall, (int)nLen);
+    pBuf += sprintf(pBuf, " #%d: Length=%d", nWall, (int)nLen);
     if (grid)
     {
         double nGrid = (double)(nLen / (2048>>grid));
@@ -1242,10 +1238,10 @@ void ShowWallData(int nWall, BOOL xFirst, BOOL showDialog)
         }
     }
 
-    pBuf += sprintf(pBuf, ", Angle = %d", getangle(x2 - x1, y2 - y1) & kAngMask);
+    pBuf += sprintf(pBuf, ", Angle=%d", getangle(x2 - x1, y2 - y1) & kAngMask);
 
     if (pWall->extra > 0)
-        pBuf += sprintf(pBuf, ", Extra = %d, XRef = %d", pWall->extra, xwall[pWall->extra].reference);
+        pBuf += sprintf(pBuf, ", Extra=%d, XRef=%d", pWall->extra, xwall[pWall->extra].reference);
 
     sectortype* pSect = &sector[nSect];
     if (pSect->wallptr == nWall) pBuf += sprintf(pBuf, " [FIRST]");
@@ -1318,7 +1314,7 @@ void ShowMapInfo(BOOL showDialog)
         if (gPreview.difficulty >= 5 || nSkill == gPreview.difficulty)
             *pBuf = '*', pBuf++; // mark current difficulty
 
-        sprintf(pBuf, "SKL%d", nSkill + 1);
+        sprintf(pBuf, "SKILL #%d", nSkill + 1);
 
         t = strlen(buf)*fw;
         gfxSetColor(kColorHeaderBack);
@@ -1369,7 +1365,7 @@ void ShowMapInfo(BOOL showDialog)
         if (gGameNames[i].id == nMode)
         {
             t = sprintf(buf, "Showing statistics for game mode: %s", gGameNames[i].name)*fw;
-            printextShadow(x1+((x2-x1>>1)) - (t>>1), y2-fh, kColorNormalText, buf, pFont);
+            printextShadow(x1+((x2-x1>>1)) - (t>>1), y2-(fh>>1)+1, kColorNormalText, buf, pFont);
             break;
         }
     }
@@ -1399,7 +1395,7 @@ void ShowSpriteData(int nSprite, BOOL xFirst, BOOL showDialog)
     }
     else
     {
-        pBuf += sprintf(pBuf, "Sprite #%d: Statnum = %d", nSprite, pSpr->statnum);
+        pBuf += sprintf(pBuf, "Sprite #%d: Statnum=%d", nSprite, pSpr->statnum);
     }
 
     if (pSpr->extra > 0 && xFirst)
@@ -1411,7 +1407,7 @@ void ShowSpriteData(int nSprite, BOOL xFirst, BOOL showDialog)
             dialog.Paint();
         }
 
-        pBuf += sprintf(pBuf, ", Extra = %d, XRef = %d", pSpr->extra, xsprite[pSpr->extra].reference);
+        pBuf += sprintf(pBuf, ", Extra=%d, XRef=%d", pSpr->extra, xsprite[pSpr->extra].reference);
     }
     else if (showDialog)
     {
@@ -1542,13 +1538,14 @@ char helperGetNextUnusedID(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 
 char helperDoSectorFXDialog(DIALOG_ITEM*, DIALOG_ITEM*, BYTE key)
 {
-    if (key == KEY_ENTER)
+    if (key == KEY_SPACE || key == KEY_ENTER)
     {
         DIALOG_HANDLER dialog(&gMapedHud, dlgXSectorFX);
-        dialog.Edit();
-        return 0;
+        if (!dialog.Edit())
+            return 0; // back one level
     }
-
+    
+    // break editing
     return key;
 }
 
@@ -1706,19 +1703,49 @@ char helperPickItemTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
     return key;
 }
 
-char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key)
+char helperPickIniMessage(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
 {
     if (key != KEY_F10 && key != KEY_SPACE)
         return key;
-
+    
+    char messageType; 
     char messages[kMaxMessages][kMaxMessageLength], tmpbuf[BMAX_PATH];
-    NAMED_TYPE iniMessages[kMaxMessages];
+    NAMED_TYPE iniMessages[kMaxMessages]; DIALOG_ITEM* p;
     char *pName, *pKey, *pVal;
     IniFile* pEpisode = NULL;
     int nID, nPrevNode;
     int i, n;
+    
+    // Only for sprites: check if focused on Lock msg
+    // to setup messages for locked
+    // state.
+    
+    messageType = (dialog == dlgXSprite && control->tabGroup == 47);
+    
+    if (!messageType)
+    {
+        // Check if this supposed to be a normal message which
+        // could be triggered by any
+        // object types?
+        
+        for (p = dialog; p->tabGroup != CONTROL_END; p++)
+        {
+            if (p->tabGroup == 3 && p->value == 3 && control->tabGroup == 5)
+            {
+                // Has TX ID set to message
+                // channel and focused on
+                // cmd field!
+                
+                messageType = 2;
+                break;
+            }
+        }
+    }
+    
+    if (!messageType)
+        return key;
 
-    sprintf(tmpbuf, gPaths.episodeIni);
+    strcpy(tmpbuf, gPaths.episodeIni);
     while ((pName = browseOpenFS(tmpbuf, ".INI")) != NULL)
     {
         if (pEpisode)
@@ -1751,6 +1778,10 @@ char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key)
 
                 iniMessages[i].name = messages[i];
                 iniMessages[i].id = nID;
+                
+                if (messageType == 2)
+                    iniMessages[i].id += kCmdNumberic - 1;
+                
                 i++;
             }
         }
@@ -1759,7 +1790,7 @@ char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key)
         {
             if ((i = showButtons(iniMessages, i, "Pick message")) >= mrUser)
             {
-                sprintf(gPaths.episodeIni, tmpbuf);
+                strcpy(gPaths.episodeIni, tmpbuf);
                 if (gPreview.pEpisode)
                     delete(gPreview.pEpisode);
 
@@ -1837,6 +1868,36 @@ char helperSetFlags(DIALOG_ITEM* pItem, DIALOG_ITEM *control, BYTE key)
         return 0;
     }
 
+    return key;
+}
+
+static char helperXSectorSetData(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
+{
+    DIALOG_ITEM *p;
+    int nType = -1;
+    int i;
+    
+    if (key == KEY_F10 || key == KEY_SPACE)
+    {
+        for (p = dialog; p->tabGroup != CONTROL_END; p++)
+        {
+            if (p->tabGroup == kSectType)
+            {
+                nType = p->value;
+                break;
+            }
+        }
+        
+        switch(nType)
+        {
+            case kSectorPath:
+            case kModernSectorPathSprite:
+                if ((i = findUnusedPath(dialog, control)) < 0) break;
+                control->value = i;
+                return 0;
+        }
+    }
+    
     return key;
 }
 
@@ -1972,7 +2033,7 @@ void dlgDialogToWall(DIALOG_HANDLER* pHandle, int nWall)
     pWall->point2       = pHandle->GetValue(3);
     // 4
     pWall->nextwall     = pHandle->GetValue(5);
-    pWall->nextwall     = pHandle->GetValue(6);
+    pWall->nextsector   = pHandle->GetValue(6);
     pWall->hitag        = pHandle->GetValue(7);
     pWall->type         = pHandle->GetValue(8);
     pWall->extra        = pHandle->GetValue(9);
@@ -2396,10 +2457,10 @@ void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
     pXSector->triggerWallPush   = pHandle->GetValue(kSectTrWPush);
     pXSector->triggerEnter      = pHandle->GetValue(kSectTrEnter);
     pXSector->triggerExit       = pHandle->GetValue(kSectTrExit);
-
-    int i = 0;
+    
+    int i, x, y, z = sector[nSector].floorz;
     short cstat = 0;
-    int x = kHiddenSpriteLoc, y = kHiddenSpriteLoc, z = sector[nSector].floorz;
+    char found = 0;
 
     // delete all the sector sfx sprites in this sector
     for (i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
@@ -2408,9 +2469,9 @@ void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
             continue;
 
         // save info of first found sprite
-        if (x == kHiddenSpriteLoc)
+        if (!found)
         {
-
+            found = 1;
             x = sprite[i].x;
             y = sprite[i].y;
             z = sprite[i].z;
@@ -2428,7 +2489,7 @@ void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
             continue;
 
         // set new coords if there was no old sprite found
-        if (x == kHiddenSpriteLoc)
+        if (!found)
             avePointSector(nSector, &x, &y);
 
         int nSprite = InsertSprite(nSector, 0);

@@ -62,8 +62,9 @@ short sectCstatSet(int nSect, short cstat, int objType);
 void sectDetach(int nSect);
 void sectAttach(int nSect);
 char sectAutoAlignSlope(int nSect, char which = 0x03);
+int sectCountParts(int nSect);
 void sectLoopMain(int nSect, int* s, int* e);
-int sectLoopTransfer(int nSectA, int nSectB);
+int sectLoopTransfer(int nSectA, int nSectB, char flags = 0xFF);
 
 void wallDetach(int nWall);
 void wallAttach(int nWall, int nNextS, int nNextW);
@@ -75,10 +76,12 @@ short wallCstatRem(int nWall, short cstat, char nextWall = 1);
 short wallCstatToggle(int nWall, short cstat, char nextWall = 1);
 char wallVisible(int nWall);
 int wallGetSect(int nWall);
+void wallRotateTile(int nWall, char enable);
 
 int getSectorHeight(int nSector);
 void setFirstWall(int nSect, int nWall);
 char setAligntoWall(int nSect, int nWall);
+char loopInside(int x, int y, int nWall);
 char loopInside(int nSect, POINT2D* pPoint, int nCount, char full);
 int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel = NULL, sectortype* pSModel = NULL);
 int insertLoop(int nSect, walltype* pWalls, int nCount, sectortype* pSModel = NULL);
@@ -142,4 +145,13 @@ int GetWallZPeg(int nWall);
 int AutoAlignWalls(int nWall0, char flags = 0x01);
 char AlignWalls(int w0, int z0, int w1, int z1, char doxpan);
 int AutoAlignSectors(int nStart, int nFor, IDLIST* pList);
+
+XSPRITE* pathMarkerFind(XSECTOR* pXSect, XSPRITE *pXMark, IDLIST* pDone, char dir);
+inline XSPRITE* pathMarkerFind(XSECTOR* pXSect, XSPRITE *pXMark, char dir)
+{
+    return pathMarkerFind(pXSect, pXMark, NULL, dir);
+}
+XSECTOR* pathMarkerFindSector(XSPRITE *pXMark);
+void pathMarkerChangeData(int nOld, int nNew, char dir = 1);
+void pathChop(XSPRITE* xa, int nAng);
 #endif

@@ -24,6 +24,12 @@
 #ifndef SEQ_H
 #define SEQ_H
 
+#define kSeqExt             ".seq"
+#define kSeqVersion         0x0300
+#define kSeqVersionExt1     0x0301
+#define kSeqVersionExt2     0x0302
+#define kSurfSoundBase      800
+
 enum {
 kSeqLoop        = 0x01,
 kSeqRemove      = 0x02,
@@ -48,9 +54,9 @@ struct SEQFRAME {
     unsigned int xflip              : 1; //
     unsigned int yflip              : 1; //
     unsigned int tile2              : 4;
-    unsigned soundRange             : 4; // (by NoOne) random sound range relative to global SEQ sound
-    unsigned surfaceSound           : 1; // (by NoOne) trigger surface sound when moving / touching
-    unsigned reserved               : 2;
+    unsigned int soundRange         : 4; // (by NoOne) random sound range relative to global SEQ sound
+    unsigned int surfaceSound       : 1; // (by NoOne) trigger surface sound when moving / touching
+    unsigned int pal2               : 2;
 };
 
 struct Seq {
@@ -84,6 +90,9 @@ struct SEQINST
 };
 
 int seqGetTile(SEQFRAME* pFrame);
+void seqSetTile(SEQFRAME* pFrame, int nTile);
+int seqGetPal(SEQFRAME* pFrame);
+void seqSetPal(SEQFRAME* pFrame, int nPal);
 int seqRegisterClient(void(*pClient)(int, int));
 void seqPrecacheId(int id);
 SEQINST* GetInstance(int nType, int nXIndex);
