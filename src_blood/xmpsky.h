@@ -35,6 +35,7 @@ class Sky
     //------------------------------------------------------------------------------------
     public:
     static int pieces;
+    static int visibility;
     static unsigned char customBitsFlag;
     static unsigned char tileRepeatCount;
     static int Setup(int nSect, int nFor, int nShade, int nPal, int nNewPic, int panX, int panY, BOOL global);

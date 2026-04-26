@@ -190,10 +190,14 @@ void CXTracker::Draw(SCREEN2D* pScr)
             lock = isLocked(pDb->type, pDb->index);
             pat = (lock) ? kPatDotted : kPatNormal;
             
+            gfxTranslucency(2);
+            
             if (!tx)
                 pScr->DrawArrow(x2, y2, x1, y1, color, pScr->data.zoom, kAng15 + kAng5, 0, pat, pat);
             else
                 pScr->DrawArrow(x1, y1, x2, y2, color, pScr->data.zoom, kAng15 + kAng5, 0, pat, pat);
+            
+            gfxTranslucency(0);
         }
         
         pDb++;

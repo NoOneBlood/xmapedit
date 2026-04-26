@@ -25,6 +25,7 @@
 #define __XMPSHAPE_H
 
 #include "common_game.h"
+#include "xmpmaped.h"
 #include "xmp2dscr.h"
 
 enum
@@ -40,12 +41,12 @@ enum
 extern NAMED_TYPE gLoopShapeErrors[];
 extern NAMED_TYPE gLoopShapeTypes[kLoopShapeMax];
 
-
 class LOOPSHAPE
 {
     private:
         OBJECT model;
         POINT2D point[255];
+        VOIDLIST* intersects;
         unsigned int active         : 1;
         unsigned int rotateAng      : 16;
         unsigned int shapeType      : 8;
@@ -63,7 +64,10 @@ class LOOPSHAPE
         signed   int sx, sy;
         signed   int cx, cy;
         signed   int ex, ey;
+        int SetupPrivate(int x, int y);
     public:
+        LOOPSHAPE(int nType, int nSect, int x, int y);
+        ~LOOPSHAPE();
         void Start(int nType, int nSect, int x, int y);
         void Stop();
         char Setup(int x2, int y2, OBJECT* pModel);
@@ -73,22 +77,24 @@ class LOOPSHAPE
         void SetupCircle(int x2, int y2);
         void Draw(SCREEN2D* pScr);
         int Insert();
-        void UpdateShape(int x, int y);
         char CheckIntersection(void);
         char ChgPoints(int nNum);
         void ChgAngle(int nAng);
-        LOOPSHAPE(int nType, int nSect, int x, int y)           { active = 0; Start(nType, nSect, x, y);    }
-        ~LOOPSHAPE()                                            { Stop();   active = 0;                     }
-        inline void AddAngle(int nAng = 32)                     { ChgAngle(klabs(nAng));                    }
-        inline void RemAngle(int nAng = 32)                     { ChgAngle(-nAng);                          }
-        inline char AddPoints(int nNum = 1)                     { return ChgPoints(klabs(nNum));            }
-        inline char RemPoints(int nNum = 1)                     { return ChgPoints(-nNum);                  }
-        inline void Start(int nSect, int x, int y)              { Start(shapeType, nSect, x, y);            }
-        inline int Width()                                      { return width;                             }
-        inline int Height()                                     { return height;                            }
-        inline int StatusGet()                                  { return status;                            }
-        inline int SectorGet()                                  { return destSect;                          }
-        inline int NumPoints()                                  { return numPoints;                         }
-        inline void StatusSet(int nStat)                        { status = nStat;                           }
+        inline char Setup(OBJECT* pModel)                       { return Setup(0x7FFFFFFF, 0x7FFFFFFF, pModel); }
+        inline void AddAngle(int nAng = 16)                     { ChgAngle(klabs(nAng));                        }
+        inline void RemAngle(int nAng = 16)                     { ChgAngle(-nAng);                              }
+        inline char AddPoints(int nNum = 1)                     { return ChgPoints(klabs(nNum));                }
+        inline char RemPoints(int nNum = 1)                     { return ChgPoints(-nNum);                      }
+        inline void Start(int nSect, int x, int y)              { Start(shapeType, nSect, x, y);                }
+        inline int Width()                                      { return width;                                 }
+        inline int Height()                                     { return height;                                }
+        inline int StatusGet()                                  { return status;                                }
+        inline int SectorGet()                                  { return destSect;                              }
+        inline int NumPoints()                                  { return numPoints;                             }
+        inline void Reset()
+        { 
+            ex = sx = cx; ey = sy = cy;
+            //destSect = initDestSect;
+        }
 };
 #endif

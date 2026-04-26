@@ -34,12 +34,15 @@ class LOOPBUILD
     private:
         POINT2D *point;
         walltype* pModelW; sectortype* pModelS;
+        VOIDLIST* intersects;
         WALLPOINT_INFO cross;
 
         unsigned int numPoints          : 32;
         unsigned int numAutoPoints      : 32;
         unsigned int autoTimer          : 32;
         unsigned int autoState          : 2;
+        unsigned int atFirstPoint       : 1;
+        unsigned int atLastPoint        : 1;
         signed   int destSect           : 32;
         signed   int status             : 16;
         int SetupPrivate(int x, int y);
@@ -47,7 +50,7 @@ class LOOPBUILD
         char SetupAutoCompletion();
 
     public:
-        LOOPBUILD()     { point = NULL;  Start(); }
+        LOOPBUILD()     { point = NULL; intersects = NULL; Start(); }
         ~LOOPBUILD()    { Stop(); }
         void Start();
         void Stop();

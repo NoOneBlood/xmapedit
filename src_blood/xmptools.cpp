@@ -2120,6 +2120,7 @@ void IMPORT_WIZARD::MapEraseInfo()
                 if (cstat & kWallOneWay)    pWall->cstat |= kWallOneWay;
                 if (cstat & kWallHitscan)   pWall->cstat |= kWallHitscan;
                 if (cstat & kWallTransluc)  pWall->cstat |= kWallTransluc;
+                if (cstat & kWallRotate90)  pWall->cstat |= kWallRotate90;
             }
         }
 

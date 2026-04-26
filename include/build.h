@@ -344,7 +344,6 @@ void fixrepeats(short i);
 unsigned char changechar(unsigned char dachar, int dadir, unsigned char smooshyalign, unsigned char boundcheck);
 int checksectorpointer( short nWall, short nSector );
 void updatenumsprites( void );
-short whitelinescan(short dalinehighlight);
 int clockdir(short wallstart);
 int movewalls(int start, int offs);
 void flipwalls(short numwalls, short newnumwalls);

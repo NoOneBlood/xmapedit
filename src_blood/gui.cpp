@@ -2101,7 +2101,7 @@ int GetStringBox( char *title, char *s )
 int GetNumberBox( char *title, int n, int nDefault )
 {
     if (!title) title = "";
-    const int wh = ClipRange(pFont->width*strlen(title), 154, xdim-4);
+    const int wh = ClipRange(gfxGetTextLen(title, pFont)+pFont->width, 154, xdim-4);
 
     // create the dialog
     Window dialog(0, 0, wh+14, 42, title);

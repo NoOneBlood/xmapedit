@@ -130,6 +130,10 @@ void QAVEDIT::ProcessLoop()
     int x = kMar, y = kMar, dx, dy;
     int i, j, len, keytimer = 0;
 
+    FRAMEINFO  *pFrame;
+    TILE_FRAME *pLayer;
+    SOUNDINFO  *pSound;
+
     layer = 0;
     frame = 0;
 
@@ -991,12 +995,11 @@ void QAVEDIT::FrameDraw(FRAMEINFO* pFrame)
     {
         TILE_FRAME* pLayer = &pFrame->tiles[i];
         if (pLayer->picnum > 0)
-        {
             DrawFrame(pQav->x, pQav->y, pLayer, 0x02, viewshade, viewplu);
-            if (!playing && layer == i)
-                LayerHighlight(frame, i);
-        }
     }
+    
+    if (!playing)
+        LayerHighlight(frame, layer);
 }
 
 void QAVEDIT::LayerDelete(int nFrame, int nLayer)
@@ -1020,6 +1023,8 @@ void QAVEDIT::LayerClean(int nFrame, int nLayer)
 
 void QAVEDIT::LayerHighlight(int nFrame, int nLayer)
 {
+    TILE_FRAME* pLayer = LayerGet(nFrame, nLayer);
+    
     int xoffs, yoffs, t, x[4], y[4];
     if (pLayer->stat & kRSCorner) xoffs = yoffs = 0;
     else

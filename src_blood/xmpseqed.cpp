@@ -110,38 +110,38 @@ static enum
 DIALOG_ITEM dlgSeqedit[] =
 {
     { NO,   1,      0,  0,  0,                      HEADER,     "Animation         " },
-    { NO,   1,      0,  1,  kSeqDlgSpeed,           NUMBER,     "Delay........: %-5d",              0,     32767,           NULL,   NULL},
-    { NO,   1,      0,  2,  kSeqDlgFrames,          NUMBER,     "Frames.......: %-3d",              0,     kMaxFrames,      NULL,   NULL},
-    { NO,   1,      0,  3,  kSeqDlgSound,           NUMBER,     "Sound........: %-5d",              0,     32767,           NULL,   helperAuditSound},
+    { NO,   1,      0,  1,  kSeqDlgSpeed,           NUMBER,     "Delay........: %-5d",              0,     32767,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      0,  2,  kSeqDlgFrames,          NUMBER,     "Frames.......: %-3d",              0,     kMaxFrames,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      0,  3,  kSeqDlgSound,           NUMBER,     "Sound........: %-5d",              0,     32767,           NULL,   helperAuditSound,   NO_DEFVAL },
 
     { NO,   1,      0,  6,  0,                      HEADER,     "Playback done" },
-    { NO,   1,      0,  7,  kSeqDlgRemove,          CHECKBOX,   "Delete",                           0,      1,              NULL, helperToggleSeqFlags},
-    { NO,   1,      0,  8,  kSeqDlgLoop,            CHECKBOX,   "Loop",                             0,      1,              NULL, helperToggleSeqFlags},
+    { NO,   1,      0,  7,  kSeqDlgRemove,          CHECKBOX,   "Delete",                           0,      1,              NULL, helperToggleSeqFlags,   NO_DEFVAL },
+    { NO,   1,      0,  8,  kSeqDlgLoop,            CHECKBOX,   "Loop",                             0,      1,              NULL, helperToggleSeqFlags,   NO_DEFVAL },
 
     { NO,   1,      22,  0,  0,                     HEADER,     "Frame properties   " },
-    { NO,   1,      22,  1,  kSeqDlgFramePic,       NUMBER,     "Picnum.......: %-5d",              0,      kMaxTiles - 1,  NULL,   NULL},
-    { NO,   1,      22,  2,  kSeqDlgFramePal,       NUMBER,     "Palookup.....: %-2d",              0,      127,            NULL,   NULL},
-    { NO,   1,      22,  3,  kSeqDlgFrameXSiz,      NUMBER,     "X-repeat.....: %-3d",              0,      255,            NULL,   NULL},
-    { NO,   1,      22,  4,  kSeqDlgFrameYSiz,      NUMBER,     "Y-repeat.....: %-3d",              0,      255,            NULL,   NULL},
-    { NO,   1,      22,  5,  kSeqDlgFrameShade,     NUMBER,     "Shade........: %-+4d",             -128,   127,            NULL,   NULL},
-    { NO,   1,      22,  6,  kSeqDlgSndRange,       NUMBER,     "Sound range..: %-2d",              0,      15,             NULL,   NULL},
+    { NO,   1,      22,  1,  kSeqDlgFramePic,       NUMBER,     "Picnum.......: %-5d",              0,      kMaxTiles - 1,  NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      22,  2,  kSeqDlgFramePal,       NUMBER,     "Palookup.....: %-2d",              0,      127,            NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      22,  3,  kSeqDlgFrameXSiz,      NUMBER,     "X-repeat.....: %-3d",              0,      255,            NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      22,  4,  kSeqDlgFrameYSiz,      NUMBER,     "Y-repeat.....: %-3d",              0,      255,            NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      22,  5,  kSeqDlgFrameShade,     NUMBER,     "Shade........: %-+4d",             -128,   127,            NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      22,  6,  kSeqDlgSndRange,       NUMBER,     "Sound range..: %-2d",              0,      15,             NULL,   NULL,   NO_DEFVAL },
 
     { NO,   1,      45,  0,  0,                      HEADER,     "Frame flags              " },
-    { NO,   1,      45,  1,  kSeqDlgFrameBLK,        CHECKBOX,   "Blocking" },
-    { NO,   1,      45,  2,  kSeqDlgFrameHSC,        CHECKBOX,   "Hitscan" },
-    { NO,   1,      45,  3,  kSeqDlgFrameAIM,        CHECKBOX,   "Auto-aim" },
-    { NO,   1,      45,  4,  kSeqDlgFrameTRG,        CHECKBOX,   "Trigger" },
+    { NO,   1,      45,  1,  kSeqDlgFrameBLK,        CHECKBOX,   "Blocking",                      0,      1,              NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      45,  2,  kSeqDlgFrameHSC,        CHECKBOX,   "Hitscan",                       0,      1,              NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      45,  3,  kSeqDlgFrameAIM,        CHECKBOX,   "Auto-aim",                      0,      1,              NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      45,  4,  kSeqDlgFrameTRG,        CHECKBOX,   "Trigger",                       0,      1,              NULL,   NULL,   NO_DEFVAL },
 
-    { NO,   1,      45,  6,  kSeqDlgFramePSH,        CHECKBOX,   "Pushable" },
-    { NO,   1,      45,  7,  kSeqDlgFrameSMK,        CHECKBOX,   "Smoke" },
-    { NO,   1,      45,  8,  kSeqDlgFrameTR1,        CHECKBOX,   "Trans 75%",                      0,      1,              NULL, helperToggleSeqFlags},
-    { NO,   1,      45,  9,  kSeqDlgFrameTR2,        CHECKBOX,   "Trans 50%",                      0,      1,              NULL, helperToggleSeqFlags},
+    { NO,   1,      45,  6,  kSeqDlgFramePSH,        CHECKBOX,   "Pushable",                      0,      1,              NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      45,  7,  kSeqDlgFrameSMK,        CHECKBOX,   "Smoke",                         0,      1,              NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      45,  8,  kSeqDlgFrameTR1,        CHECKBOX,   "Trans 75%",                     0,      1,              NULL, helperToggleSeqFlags,   NO_DEFVAL },
+    { NO,   1,      45,  9,  kSeqDlgFrameTR2,        CHECKBOX,   "Trans 50%",                     0,      1,              NULL, helperToggleSeqFlags,   NO_DEFVAL },
 
-    { NO,   1,      59,  1,  kSeqDlgFrameFLX,        CHECKBOX,   "X-flipped" },
-    { NO,   1,      59,  2,  kSeqDlgFrameFLY,        CHECKBOX,   "Y-flipped" },
-    { NO,   1,      59,  3,  kSeqDlgFrameINV,        CHECKBOX,   "Invisible" },
-    { NO,   1,      59,  5,  kSeqDlgFrameSND,        CHECKBOX,   "Play sound" },
-    { NO,   1,      59,  6,  kSeqDlgFrameSRF,        CHECKBOX,   "Surf sound" },
+    { NO,   1,      59,  1,  kSeqDlgFrameFLX,        CHECKBOX,   "X-flipped",                     0,      1,              NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      59,  2,  kSeqDlgFrameFLY,        CHECKBOX,   "Y-flipped",                     0,      1,              NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      59,  3,  kSeqDlgFrameINV,        CHECKBOX,   "Invisible",                     0,      1,              NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      59,  5,  kSeqDlgFrameSND,        CHECKBOX,   "Play sound",                    0,      1,              NULL,   NULL,   NO_DEFVAL },
+    { NO,   1,      59,  6,  kSeqDlgFrameSRF,        CHECKBOX,   "Surf sound",                    0,      1,              NULL,   NULL,   NO_DEFVAL },
 
     { NO,   1,      0,  0,  0,  CONTROL_END },
 };
@@ -937,9 +937,9 @@ void SEQEDIT::ProcessLoop()
             case KEY_P:
                 if (alt || shift)
                 {
-                    if (alt) pFrame->pal = pluPickAdvanced(seqGetTile(pFrame), pFrame->shade, pFrame->pal, "Palookup");
-                    else if (shift & 0x01) pFrame->pal = getClosestId(pFrame->pal, kPluMax - 1, "PLU", TRUE);
-                    else if (shift & 0x02) pFrame->pal = getClosestId(pFrame->pal, kPluMax - 1, "PLU", FALSE);
+                    if (alt) seqSetPal(pFrame, pluPickAdvanced(seqGetTile(pFrame), pFrame->shade, seqGetPal(pFrame), "Palookup"));
+                    else if (shift & 0x01) seqSetPal(pFrame, getClosestId(seqGetPal(pFrame), 128, "PLU", TRUE));
+                    else if (shift & 0x02) seqSetPal(pFrame, getClosestId(seqGetPal(pFrame), 128, "PLU", FALSE));
 
                     if (pFrame->pal == 0)
                         viewPal = 0, ObjectReset();
@@ -1248,9 +1248,9 @@ void SEQEDIT::FrameDraw(SEQFRAME* pFrame)
     }
 
     if (pFrame->pal != 0)
-        viewPal = pFrame->pal;
+        viewPal = seqGetPal(pFrame);
 
-    nVPal  = (pFrame->pal == 0) ? viewPal : pFrame->pal;
+    nVPal  = (pFrame->pal == 0) ? viewPal : seqGetPal(pFrame);
     nShade = ClipRange(viewShade + pFrame->shade, -128, 127);
     nTile  = seqGetTile(pFrame);
     nAng   = 0;
@@ -1343,7 +1343,7 @@ void SEQEDIT::HudShowInfo()
     if (pSeq->nFrames)
     {
         nVTile = toolGetViewTile(seqGetTile(pFrame), viewOctant, NULL, NULL);
-        nVPal  = (pFrame->pal == 0) ? viewPal : pFrame->pal;
+        nVPal  = (pFrame->pal == 0) ? viewPal : seqGetPal(pFrame);
         nShade = ClipRange(viewShade + pFrame->shade, -128, 127);
 
         pHud->SetTile(nVTile, nVPal, nShade);

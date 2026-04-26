@@ -39,6 +39,7 @@ static int helperGetMostHigh(int* pMost, int nCnt, int* r)
 }
 
 int Sky::pieces = 1;
+int Sky::visibility = 512;
 unsigned char Sky::customBitsFlag = 0;
 unsigned char Sky::tileRepeatCount = 0;
 int Sky::MakeSimilar(int nSect, int nFor, BOOL global)

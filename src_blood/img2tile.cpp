@@ -1049,24 +1049,11 @@ IMG2TILEFUNC imgGetConvFunc(int nImgType)
     return (IMG2TILEFUNC)getFuncPtr(gImgFuncs, LENGTH(gImgFuncs), nImgType);
 }
 
-BYTE LookupClosestColor(BYTE* inverseMap, int r, int g, int b )
-{
-    r >>= 2;
-    g >>= 2;
-    b >>= 2;
-    return inverseMap[(((r << 6) | g) << 6) | b];
-}
-
 BOOL BuildPLU(BYTE* out, PALETTE pal, int grayLevel) {
 
     dassert(out != NULL);
 
-    RESHANDLE hMap;
-    if ((hMap = gGuiRes.Lookup((uint32_t)0, "DAT")) == NULL)
-        return FALSE;
-
     int i, j, r, g, b, n;
-    BYTE *inverseMap = (BYTE*)gGuiRes.Load(hMap);
     BYTE *p = out;
 
     for ( i = 0; i < 64; i++ )
@@ -1077,7 +1064,7 @@ BOOL BuildPLU(BYTE* out, PALETTE pal, int grayLevel) {
             r = interpolate(pal[j].r, grayLevel, n);
             g = interpolate(pal[j].g, grayLevel, n);
             b = interpolate(pal[j].b, grayLevel, n);
-            *p++ = LookupClosestColor(inverseMap, r, g, b);
+            *p++ = countBestColor(gamepal, r, g, b);
         }
     }
 

@@ -27,43 +27,26 @@
 
 NAMED_TYPE gLoopBuildErrors[] =
 {
-    {-1, "Out of free walls"},
-    {-2, "Out of free sectors"},
-    {-3, "Must insert a point there first"},
-    {-4, "Cannot draw over red lines"},
-    {-5, "Cannot draw over old lines"},
-    {-6, "Lines intersection"},
-    {-7, "Wall or sector inside this loop"},
+    {-1,  "Out of free walls"},
+    {-2,  "Out of free sectors"},
+    {-3,  "Must insert a point there first"},
+    {-4,  "Cannot draw over red lines"},
+    {-5,  "Cannot draw over old lines"},
+    {-6,  "Lines intersection"},
+    {-7,  "Cannot go through solid walls"},
+    {-8,  "Could not find STARTING wall to split"},
+    {-9,  "Could not find ENDING wall to split"},
+    {-10, "Obsolete split"},
     {-999, NULL},
 };
-
-int findSplitWallAtPos(int nSect, int x, int y)
-{
-    int ms, me, s, e;
-    int n = -1;
-
-    getSectorWalls(nSect, &s, &e);
-    sectLoopMain(nSect, &ms, &me);
-    while(s <= e)
-    {
-        if (wall[s].x == x && wall[s].y == y)
-        {
-            if (irngok(s, ms, me)) // main loop is priority!
-                return s;
-
-            n = s;
-        }
-
-        s++;
-    }
-
-    return n;
-}
 
 void LOOPBUILD::Stop()
 {
     if (point)
-        free(point);
+        FREE_AND_NULL(point);
+    
+    if (intersects)
+        DELETE_AND_NULL(intersects);
 }
 
 void LOOPBUILD::Start()
@@ -71,7 +54,11 @@ void LOOPBUILD::Start()
     Stop();
     point = (POINT2D*)malloc(sizeof(POINT2D*)<<1);
     dassert(point != NULL);
-
+    
+    ISPLITENTRY dummy;
+    memset(&dummy, 0, sizeof(dummy));
+    intersects = new VOIDLIST(sizeof(dummy), &dummy);
+    
     pModelW = NULL; pModelS = NULL;
     numPoints = numAutoPoints = 0;
     destSect = -1;
@@ -84,6 +71,11 @@ void LOOPBUILD::Start()
 void LOOPBUILD::AddPoint(int x, int y, int nPoint)
 {
     const int nSiz = sizeof(POINT2D)<<1;
+    int i = numPoints;
+    while(--i >= 0)
+        if (x == point[i].x && y == point[i].y)
+            return;
+    
     point = (POINT2D*)realloc(point, nSiz*(numPoints+1));
     dassert(point != NULL);
 
@@ -126,17 +118,30 @@ void LOOPBUILD::RemAutoPoints(void)
 
 int LOOPBUILD::Make()
 {
-    POINT2D *f = First(), *l = Last()+1;
-    int nSect = -1, i, s, e;
-
+    int i, n, s;
+    
     switch(status)
     {
         case 1:
         case 2:
-            if (destSect < 0) break;
-            else if ((s = findSplitWallAtPos(destSect, f->x, f->y)) < 0) break;
-            else if ((e = findSplitWallAtPos(destSect, l->x, l->y)) < 0) break;
-            else return sectSplit(destSect, s, e, point, numPoints+1);
+        case 8:
+            if (destSect >= 0)
+            {
+                ISPLITPARAM isplit;
+                memset(&isplit, 0, sizeof(isplit));
+                
+                isplit.startSect    = destSect;
+                isplit.points       = point;
+                isplit.numpoints    = numPoints+1;
+                isplit.out.entries  = NULL;
+                
+                return intersectSplit(&isplit);
+            }
+            break;
+        case 10:
+            if (destSect >= 0)
+                return sectSplit(destSect, point, numPoints+1);
+            break;
         case 6: // autocompletion
             numPoints += numAutoPoints; // expand numpoints
             numAutoPoints = 0;
@@ -147,15 +152,17 @@ int LOOPBUILD::Make()
         case 7:
             if ((i = insertLoop(destSect, point, numPoints, pModelW, pModelS)) >= 0)
             {
-                nSect = sectorofwall(i);
-                loopGetWalls(i, &s, &e);
-                while(s <= e)
+                s = i;
+                do
                 {
-                    checksectorpointer(s, nSect);
                     fixrepeats(s);
-                    s++;
+                    if ((n = findNextWall(s)) >= 0)
+                        wallAttach(s, n), wallAttach(n, s);
+                    
+                    s = wall[s].point2;
                 }
-
+                while(s != i);
+                
                 if (status == 7)
                     redSectorMake(i);
 
@@ -281,9 +288,10 @@ char LOOPBUILD::SetupAutoCompletion(void)
 
 int LOOPBUILD::SetupPrivate(int x, int y)
 {
-    POINT2D *first, *last; char atFirstPoint;
-    int x1, y1, x2, y2, x3, y3, x4, y4, tx, ty, lna, lnb;
-    int i, j, s, e, ls, le;
+    ISPLITENTRY* entry; POINT2D *first, *last;
+    int x1, y1, x2, y2, x3, y3, x4, y4, tx, ty;
+    int i, j, t, a, s, e, ls, le;
+    int nResult, splitState = -1;
 
     if (numPoints < 2)
     {
@@ -301,7 +309,7 @@ int LOOPBUILD::SetupPrivate(int x, int y)
             if (autoState == 1) // success
             {
                 if (!autoTimer)
-                    autoTimer = totalclock + 64; // delayed drawing?
+                    autoTimer = totalclock + 48; // delayed drawing?
 
                 return 6;
             }
@@ -319,15 +327,122 @@ int LOOPBUILD::SetupPrivate(int x, int y)
     if (numPoints > 0)
         UpdPoint(x, y, numPoints); // this updates tail point (tail != last)
 
-    if (numwalls+1 >= kMaxWalls)        return -1;
-    if (pointOnWallLine(x, y) == 3)     return -3;
-    if (numPoints == 0)                 return  0;  // ready for point insertion
-
+    if (numwalls+1 >= kMaxWalls)
+        return -1;
+    
+    if (numPoints == 0)
+    {
+        i = numwalls;
+        while(--i >= 0 && pointOnWallLine(i, x, y, 0) != 3);
+        return (i < 0) ? 0 : -3; // maybe ready for point insertion
+    }
+    
     first = First(), last = Last(); // these must be updated after potential autocompletion
-    atFirstPoint = (first->x == x && first->y == y);
+    atFirstPoint = (approxDist(x-first->x, y-first->y) <= 0);
+    atLastPoint  = (approxDist(x-last->x, y-last->y)   <= 0);
     cross.w = -1;
-
-    if (numPoints >= 2)
+    
+    if (intersects->Length())
+        intersects->Clear();
+    
+    if (numPoints == 1)
+    {
+        x1 = point[0].x;
+        y1 = point[0].y;
+        
+        a = getangle(mousxplc-x1, mousyplc-y1);
+        offsetPos(0, 12, 0, a, &x1, &y1, NULL);
+        for (i = 0; i < numsectors && destSect < 0; i++)
+        {
+            if (ED32_Inside(x1, y1, i))
+                destSect = i;
+        }
+    }
+    
+    if (destSect >= 0)
+    {
+        // check for potential sectors split
+        
+        ISPLITPARAM isplit;
+        memset(&isplit, 0, sizeof(isplit));
+        
+        isplit.startSect    = destSect;
+        isplit.points       = point;
+        isplit.numpoints    = numPoints+1;
+        isplit.collect      = 1;
+        isplit.out.entries  = intersects;
+        
+        if ((nResult = intersectSplit(&isplit)) < 0)
+        {
+            switch(nResult)
+            {
+                case -1:    return -1;  // out of walls
+                case -2:    return -2;  // out of sectors
+                case -3:    return -8;  // no starting wall
+                case -4:
+                    if (intersects->Length())
+                    {
+                        entry = (ISPLITENTRY*)intersects->Last();
+                        cross.w = entry->w, cross.x = entry->x, cross.y = entry->y;
+                    }
+                    return -7; // going through solid wall
+                case -5:
+                    // see if we can do a classic split
+                    if ((s = findWallAtPos(destSect, first->x, first->y)) < 0);     // skip
+                    else if ((e = findWallAtPos(destSect, x, y)) < 0);              // skip
+                    else if (s != e) splitState = 10;                               // classic split
+                    break;                                                          // continue drawing without split
+            }
+        }
+        else if (intersects->Length())
+        {
+            ISPLITANALYZE analyze;
+            if ((nResult = isplit.out.AnalyzeEntries(&analyze)) != 0)
+            {
+                entry = (ISPLITENTRY*)intersects->Last();
+                switch(pointOnWallLine(entry->w, x, y))
+                {
+                    case 3:
+                        if (!atLastPoint) break;
+                        // no break
+                    case 2:
+                    case 1:
+                        splitState = 1; // split
+                        break;
+                    default:
+                        splitState = (atLastPoint) ? -9 : 0;
+                        break;
+                }
+                
+                if ((splitState > 0) || (splitState == 0 && atFirstPoint))
+                {
+                    switch(nResult)
+                    {
+                        case 3: splitState = 2; break;
+                        case 4: splitState = 8; break;
+                        case 1:
+                        case 2:
+                            splitState = 1;
+                            break;
+                    }
+                }
+                
+                if (intersects->Length() == 1 && atFirstPoint)
+                    splitState = -10; // obsolete split
+            }
+            else if (atFirstPoint)  splitState = -10;  // obsolete split
+            else                    splitState = 0;    // maybe ready for new point
+            
+            if (splitState < 0 && splitState != -1)
+                return splitState;
+            
+            if (splitState > 0 && !atFirstPoint
+                && findWallAtPos(destSect, first->x, first->y) < 0)
+                    splitState = 0; // no starting wall
+        }
+    }
+    
+    if (numPoints > 0)
     {
         j = numPoints;
         i = j;
@@ -339,102 +454,49 @@ int LOOPBUILD::SetupPrivate(int x, int y)
         {
             x3 = point[i-1].x;  x4 = point[i-0].x;
             y3 = point[i-1].y;  y4 = point[i-0].y;
-
-            if ((x3 == x2 && y3 == y2) || (x3 == x1 && y3 == y1));
-            else if ((x4 == x2 && y4 == y2) && (x4 == x1 && y4 == y1));
-            else if (pointOnLine(x1, y1, x3, y3, x4, y4))
+            
+            if (pointOnLine(x3, y3, x1, y1, x2, y2, 0) == 3)
             {
-                cross.w = i, cross.x = x1, cross.y = y1;
+                cross.w = j, cross.x = x3, cross.y = y3;
                 return -5;
             }
-
+            
+            if ((t = pointOnLine(x1, y1, x3, y3, x4, y4, 0)) > 0)
+            {
+                if (atFirstPoint || splitState > 0)
+                    continue;
+                
+                if (approxDist(x1-x2, y1-y2) > 0)
+                    cross.w = j, cross.x = x, cross.y = y;
+                
+                return -5;
+            }
+            
             if (kintersection(x1, y1, x2, y2, x3, y3, x4, y4, &cross.x, &cross.y))
             {
-                if (cross.x == first->x && cross.y == first->y
-                    && x1 == first->x && y1 == first->y)
-                        continue;
-
                 cross.w = i;
                 return -6;
             }
         }
-    }
-
-    if (!atFirstPoint)
-    {
-        if (numPoints > 0)
+        
+        i = numwalls;
+        while(--i >= 0)
         {
-            for (i = 0; i < numPoints; i++)
+            if (wall[i].nextwall >= 0 && splitState == -1)
             {
-                if (point[i].x == x && point[i].y == y)
-                    return -5; // drawing over inserted points
+                getWallCoords(i, &x1, &y1, &x2, &y2);
+                if (x1 == x && y1 == y && x2 == last->x && y2 == last->y)
+                    return -4; // drawing over double sided walls
+                
+                continue;
             }
-
-            for(i = 0, j = 0; i < numwalls; i++)
-            {
-                if (wall[i].nextwall >= 0)
-                {
-                    getWallCoords(i, &x1, &y1, &x2, &y2);
-                    if (x1 == x && y1 == y && x2 == last->x && y2 == last->y) j = 1;
-                    if (x1 == last->x && y1 == last->y && x2 == x && y2 == y) j = 1;
-                }
-            }
-
-            if (j)
-                return -4; // drawing over double sided walls
+            
+            if (destSect < 0 && pointOnWallLine(i, x, y, 0) == 3)
+                return -3;
         }
 
-        if (numPoints == 1)
-        {
-            tx = first->x; ty = first->y;
-            offsetPos(0, 12, 0, getangle(x-first->x, y-first->y) & kAngMask, &tx, &ty, NULL);
-
-            // check for potential sector split
-            for (i = 0; destSect < 0 && i < numsectors; i++)
-            {
-                if (!inside(tx, ty, i))
-                    continue;
-
-                getSectorWalls(i, &s, &e);
-                while(s <= e)
-                {
-                    getWallCoords(s, &x1, &y1, &x2, &y2);
-                    if (x1 == first->x && y1 == first->y && (x2 != x || y2 != y))
-                    {
-                        j = lastwall(s);
-                        if (wall[j].x != x || wall[j].y != y)
-                        {
-                            destSect = i;
-                            break;
-                        }
-                    }
-
-                    s++;
-                }
-            }
-        }
-
-        if (destSect >= 0)
-        {
-            // see if we can split sector now
-            if ((s = findSplitWallAtPos(destSect, first->x, first->y)) < 0); // skip
-            else if ((e = findSplitWallAtPos(destSect, x, y)) < 0);          // skip
-            else if (s != e)
-            {
-                lna = loopnumofsector(destSect, s);
-                lnb = loopnumofsector(destSect, e);
-
-                if (lna == lnb)
-                {
-                    if (numwalls + (numPoints<<1) >= kMaxWalls)     return -1;
-                    else if (numsectors + 2 >= kMaxSectors)         return -2;
-                    else                                            return  1; // ready for split
-                }
-                else if (numwalls + numPoints >= kMaxWalls)         return -1;
-                else if (numsectors >= kMaxSectors)                 return -2;
-                else                                                return  2; // ready for join
-            }
-        }
+        if (splitState != -1)
+            return splitState;
     }
 
     if (atFirstPoint)
@@ -498,16 +560,19 @@ char LOOPBUILD::Setup(int x, int y)
 
 void LOOPBUILD::Draw(SCREEN2D* pScr)
 {
-    POINT2D *p, *first = First(), *last = Last(); LINE2D l; VOIDLIST* lines;
-    int x1, y1, x2, y2, sx1, sy1, sx2, sy2;
+    ISPLITENTRY* e;
+    POINT2D *p, *first = First(), *last = Last(); LINE2D l;
+    int x1, y1, x2, y2, sx1, sy1, sx2, sy2, tx, ty;
     int nTotal, vs, i, j;
     char isAuto = 0, c;
 
     const char cWallNewA        = pScr->ColorGet(kColorLightGray);
     const char cWallNewB        = pScr->ColorGet(kColorLightRed);
+    const char cWallNewC        = pScr->ColorGet(kColorGrey18);
     const char cWallAng         = pScr->ColorGet(kColorBlack);
     const char cCaptFrgA        = pScr->ColorGet(kColorYellow);
     const char cCaptFrgB        = pScr->ColorGet(kColorLightGray);
+    const char cCaptFrgC        = pScr->ColorGet(kColorGrey18);
     const char cVertFrgA        = pScr->ColorGet(kColorYellow);
     const char cVertBgdA        = pScr->ColorGet(kColorBlack);
     const char cVertFrgB        = pScr->ColorGet(kColorLightMagenta);
@@ -519,12 +584,15 @@ void LOOPBUILD::Draw(SCREEN2D* pScr)
     if (status != 6)                    nTotal = numPoints;
     else if (totalclock < autoTimer)    nTotal = numPoints-1;
     else                                nTotal = numPoints+numAutoPoints, isAuto = 1;
-
-    if (pScr->prefs.useTransluc)
+    
+    if (pScr->prefs.useTransluc && nTotal > 2)
     {
-        if (numPoints >= 2 && irngok(status, 3, 7) && (isAuto || status != 6))
+        i = ((irngok(status, 3, 7) && (status != 6 || isAuto))
+            || (atFirstPoint && (irngok(status, 1, 2) || status == 8)));
+        
+        if (i)
         {
-            lines = new VOIDLIST(sizeof(l));
+            VOIDLIST lines(sizeof(l));
             for (i = j = 0; i < nTotal; i++)
             {
                 j = IncRotate(j, nTotal);
@@ -534,12 +602,12 @@ void LOOPBUILD::Draw(SCREEN2D* pScr)
                 l.x2 = point[j].x;
                 l.y2 = point[j].y;
 
-                lines->Add(&l);
+                lines.Add(&l);
             }
+            
             gfxTranslucency(1);
-            pScr->FillPolygon((LINE2D*)lines->First(), lines->Length(), cFillOk, 1);
+            pScr->FillPolygon((LINE2D*)lines.First(), lines.Length(), cFillOk, 1);
             gfxTranslucency(0);
-            delete(lines);
         }
     }
 
@@ -557,19 +625,58 @@ void LOOPBUILD::Draw(SCREEN2D* pScr)
         x1 = sx1 = p->x;
         y1 = sy1 = p->y;
 
-        if (isAuto)             c = cWallNewB;
-        else if (status == 1)   c = cWallNewB;
-        else                    c = cWallNewA;
-
+        switch(status)
+        {
+            case 10:
+            case 8:
+            case 1:
+                c = BLINKTIME(32) ? cWallNewB : cWallNewA;
+                break;
+            case 7:
+                c = cWallNewB;
+                break;
+            case 3:
+                c = cWallNewC;
+                break;
+            default:
+                if (isAuto) c = cWallNewB;
+                else        c = cWallNewA;
+                break;
+        }
+        
         pScr->ScalePoints(&sx1, &sy1, &sx2, &sy2);
         pScr->DrawLine(sx1, sy1, sx2, sy2, c);
         if (p == last && !isAuto && x1 != x2 && y1 != y2)
             pScr->DrawLine(sx1, sy1, sx2, sy2, cWallAng, 0, kPatDotted);
 
         vs = (first == p) ? 7 : 5;
-        if ((j = findWallAtPos(x1, y1)) >= 0)  pScr->DrawVertex(sx1, sy1, cVertFrgB, cVertBgdB, vs);
-        else                                   pScr->DrawVertex(sx1, sy1, cVertFrgA, cVertBgdA, vs);
-
+        if (findWallAtPos(x1, y1) >= 0) pScr->DrawVertex(sx1, sy1, cVertFrgB, cVertBgdB, vs);
+        else                            pScr->DrawVertex(sx1, sy1, cVertFrgA, cVertBgdA, vs);
+        
+        if (intersects->Length())
+        {
+            sx1 = x1, sy1 = y1;
+            sx2 = x2, sy2 = y2;
+            vs = ClipHigh(8, pScr->vertexSize);
+            
+            for (e = (ISPLITENTRY*)intersects->First(); e->type; e++)
+            {
+                if (!pointOnLine(e->x, e->y, sx1, sy1, sx2, sy2))
+                    continue;
+                
+                tx = e->x; ty = e->y;
+                pScr->ScalePoints(&tx, &ty);
+                
+                if (e->onpoint)    c = pScr->ColorGet(kColorLightGray, 0);
+                else               c = pScr->ColorGet((e->skip) ? kColorLightGray : kColorLightRed, 0);
+                
+                pScr->DrawVertex(tx, ty, c, c, vs);
+                pScr->CaptionPrintLineEdit(0, x1, y1, e->x, e->y, cCaptFrgC, -1, pScr->pEditFont);
+                x1 = e->x, y1 = e->y;
+            }
+            
+        }
+        
         c = (isAuto) ? cCaptFrgB : cCaptFrgA;
         pScr->CaptionPrintLineEdit(0, x1, y1, x2, y2, c, -1, pScr->pEditFont);
 

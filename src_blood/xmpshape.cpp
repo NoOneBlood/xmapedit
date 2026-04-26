@@ -27,10 +27,13 @@
 NAMED_TYPE gLoopShapeErrors[] =
 {
     {-1, "Incorrect shape size"},
-    {-2, "Shape is invalid"},
+    {-2, "Invalid shape"},
     {-3, "Intersection"},
-    {-4, "Sectors limit exceeded"},
-    {-5, "Walls limit exceeded"},
+    {-4, "Out of free sectors"},
+    {-5, "Out of free walls"},
+    {-6, "Obsolete shape"},
+    {-7, "Cannot go through solid walls"},
+    {-8, "Intersection split error"},
     {-999, NULL},
 };
 
@@ -50,6 +53,27 @@ static short gShapeInfo[kLoopShapeMax][6] =
     {4,     4,      4,      16,     16,     kAng360},
     {3,     3,      3,      32,     32,     kAng360},
 };
+
+LOOPSHAPE::LOOPSHAPE(int nType, int nSect, int x, int y)
+{
+    ISPLITENTRY dummy;
+    memset(&dummy, 0, sizeof(dummy));
+    intersects = new VOIDLIST(sizeof(dummy), &dummy);
+    
+    active = 0;
+    
+    Start(nType, nSect, x, y);
+}
+
+LOOPSHAPE::~LOOPSHAPE()
+{
+    Stop();
+    
+    if (intersects)
+        DELETE_AND_NULL(intersects);
+    
+    active = 0;
+}
 
 void LOOPSHAPE::Start(int nType, int nSect, int x, int y)
 {
@@ -81,7 +105,7 @@ void LOOPSHAPE::Start(int nType, int nSect, int x, int y)
         point[i].x = x;
         point[i].y = y;
     }
-
+    
     active = 1;
 }
 
@@ -169,11 +193,18 @@ void LOOPSHAPE::SetupCircle(int x2, int y2)
     cx = sx; cy = sy;
 }
 
-void LOOPSHAPE::UpdateShape(int x, int y)
+int LOOPSHAPE::SetupPrivate(int x, int y)
 {
-    int i, s;
-
-    ex = x, ey = y;
+    ISPLITPARAM isplit;
+    int i, s, e, ls, le;
+    int nResult;
+    
+    if (intersects->Length())
+        intersects->Clear();
+    
+    if (x != 0x7FFFFFFF) ex = x;
+    if (y != 0x7FFFFFFF) ey = y;
+    
     switch(shapeType)
     {
         case kLoopShapeRect:
@@ -199,55 +230,114 @@ void LOOPSHAPE::UpdateShape(int x, int y)
         doGridCorrection(&point[i].x, &point[i].y, 10);
     }
 
-    if (!width && !height)                                                          status  =  0;
-    else if (!width || !height)                                                     status  = -2;
-    else if (width < minWidth || height < minHeight)                                status  = -1;
-    else if (destSect >= 0 && CheckIntersection())                                  status  = -3;
-    else if (destSect >= 0 && numsectors >= kMaxSectors - 1)                        status  = -4;
-    else if (numwalls >= kMaxWalls - numPoints - 1)                                 status  = -5;
-    else if (status != 2)                                                           status  =  1;
-
-    if (status == 1)
+    if (!width && !height)                                  return  0;
+    if (width < minWidth || height < minHeight)             return -1;
+    if (numwalls >= kMaxWalls - numPoints - 1)              return -5;
+    
+    if (destSect >= 0)
     {
-        // Try to update destination sector for
-        // potential wall loop transfer and
-        // auto red sector
-        // creation.
-
-        i = numPoints;
-        if (destSect >= 0)
-            while(--i >= 0 && inside(point[i].x, point[i].y, destSect));
-
-        if (i >= 0)
+        if (numsectors >= kMaxSectors - 1)
+            return -4;
+        
+        // Check for potential multisplit first
+        
+        s = numsectors;
+        if (ED32_Inside(point[0].x, point[0].y, destSect)) s = destSect;
+        else while(--s >= 0 && !ED32_Inside(point[0].x, point[0].y, s));
+        
+        if (s >= 0)
         {
-            s = numsectors;
-            while(i >= 0 && --s >= 0)
+            memset(&isplit, 0, sizeof(isplit));
+            
+            isplit.startSect    = s;
+            isplit.points       = point;
+            isplit.numpoints    = numPoints;
+            isplit.isloop       = 1;
+            isplit.collect      = 1;
+            
+            isplit.out.entries  = intersects;
+            
+            if ((nResult = intersectSplit(&isplit)) < 0)
             {
-                if (s == destSect)
-                    continue;
-
-                i = numPoints;
-                while(--i >= 0 && inside(point[i].x, point[i].y, s));
+                switch(nResult)
+                {
+                    case -1: return -5; // out of walls
+                    case -2: return -4; // out of sectors
+                    case -3: return -3;
+                    case -4: return -7; // intersects the white wall
+                    default: return -8;
+                }
             }
 
-            if (initDestSect >= 0 && destSect >= 0)
-            {
-                (s >= 0) ? destSect = s : status = -3;
-            }
-            else
+            if (intersects->Length())
             {
                 destSect = s;
+                ISPLITANALYZE analyze;
+                if ((nResult = isplit.out.AnalyzeEntries(&analyze)) == 0)
+                    return -6;
+                
+                return 3;
             }
+            
+            if (CheckIntersection()) // this checks the old destSect!
+                return -3;
         }
     }
+    
+    // Try to update destination sector for
+    // potential wall loop transfer and
+    // auto red sector
+    // creation.
+
+    i = numPoints;
+    if (destSect >= 0)
+        while(--i >= 0 && inside(point[i].x, point[i].y, destSect));
+
+    if (i >= 0)
+    {
+        s = numsectors;
+        while(i >= 0 && --s >= 0)
+        {
+            if (s == destSect)
+                continue;
+
+            i = numPoints;
+            while(--i >= 0 && inside(point[i].x, point[i].y, s));
+        }
+
+        if (initDestSect >= 0 && destSect >= 0 && s < 0)
+            return -3;
+        
+        destSect = s;
+    }
+    
+    if (destSect >= 0)
+    {
+        // Check if loop is going to be made around wall loop(s)
+        // of the destination sector. In this case the new one
+        // should become red sector.
+        
+        getSectorWalls(destSect, &s, &e);
+        while(s <= e)
+        {
+            loopGetWalls(s, &ls, &le);
+            while(ls <= le && insidePoints(wall[ls].x, wall[ls].y, point, numPoints)) ls++;
+            if (ls > le)
+                return (numwalls + (numPoints<<1) < kMaxWalls - 1) ? 2 : -5;
+            
+            s++;
+        }
+    }
+    
+    return 1;
 }
 
 char LOOPSHAPE::CheckIntersection(void)
 {
-
     int x1, y1, x2, y2, x3, y3, x4, y4;
     int i, j, s, e;
-
+    int32_t* p;
+    
     if (destSect >= 0)
     {
         // Cannot cross sector walls and
@@ -277,16 +367,14 @@ char LOOPSHAPE::CheckIntersection(void)
 
 char LOOPSHAPE::Setup(int x2, int y2, OBJECT* pModel)
 {
-    UpdateShape(x2, y2);
-
-    if (status > 0)
+    if ((status = SetupPrivate(x2, y2)) >= 0)
     {
         if (pModel)
             memcpy(&model, pModel, sizeof(OBJECT));
-
+        
         return 1;
     }
-
+    
     return 0;
 }
 
@@ -296,150 +384,176 @@ void LOOPSHAPE::Draw(SCREEN2D* pScr)
         return;
 
     char fillCol;
-    char const vtxCol1 = pScr->ColorGet(kColorBlack);
-    char const vtxCol2 = pScr->ColorGet(kColorYellow);
-    char const lineCol = pScr->ColorGet(kColorGrey18);
-    int n = numPoints, i, x1, y1, x2, y2;
-    LINE2D fill[LENGTH(point)], *p;
+    char const vtxCol1  = pScr->ColorGet(kColorBlack);
+    char const vtxCol2  = pScr->ColorGet(kColorYellow);
+    char const lineCol1 = pScr->ColorGet(kColorLightGray);
+    char const captCol1 = pScr->ColorGet(kColorYellow);
+    char const captCol2 = pScr->ColorGet(kColorLightGray);
+    
+    LINE2D l; ISPLITENTRY* e;
+    int i, j, x1, y1, x2, y2, sx1;
+    int sy1, sx2, sy2, tx, ty, vs;
+    char c;
+    
+    if (status == 3)        fillCol = pScr->ColorGet(kColorLightBlue);
+    else if (status > 0)    fillCol = pScr->ColorGet((destSect >= 0) ? kColorBlue : kColorGrey28);
+    else                    fillCol = pScr->ColorGet(kColorLightRed);
 
-    if (status > 0)
-        fillCol = pScr->ColorGet((destSect >= 0) ? kColorLightBlue : kColorBlue);
-    else
-        fillCol = pScr->ColorGet(kColorLightRed);
-
-    for (i = 0, p = fill; i < n; i++, p++)
+    VOIDLIST lines(sizeof(l));
+    for (i = j = 0; i < numPoints; i++)
     {
-        if (i < n - 1)
-        {
-            x1 = point[i].x;    x2 = point[i+1].x;
-            y1 = point[i].y;    y2 = point[i+1].y;
-        }
-        else
-        {
-            x1 = point[0].x;    x2 = point[n-1].x;
-            y1 = point[0].y;    y2 = point[n-1].y;
-        }
+        j = IncRotate(j, numPoints);
+        l.x1 = point[i].x;
+        l.y1 = point[i].y;
 
-        p->x1 = x1, p->x2 = x2;
-        p->y1 = y1, p->y2 = y2;
+        l.x2 = point[j].x;
+        l.y2 = point[j].y;
+
+        lines.Add(&l);
     }
-
-
-
+    
     if (pScr->prefs.useTransluc)
     {
         gfxTranslucency(1);
-
-        if (destSect >= 0)
+        
+        if (destSect >= 0 && destSect != initDestSect)
             pScr->FillSector(destSect, pScr->ColorGet(kColorGrey28), 2);
-
-        pScr->FillPolygon(fill, numPoints, fillCol, 1);
+        
+        pScr->FillPolygon((LINE2D*)lines.First(), lines.Length(), fillCol, 1);
         gfxTranslucency(0);
     }
     else
     {
-        pScr->FillPolygon(fill, numPoints, fillCol, 2);
+        pScr->FillPolygon((LINE2D*)lines.First(), lines.Length(), fillCol, 2);
     }
-
-    for (i = 0, p = fill; i < n; i++, p++)
+    
+    for (i = j = 0; i < numPoints; i++)
     {
-        x1 = pScr->cscalex(p->x1),  x2 = pScr->cscalex(p->x2);
-        y1 = pScr->cscaley(p->y1),  y2 = pScr->cscaley(p->y2);
+        j = IncRotate(j, numPoints);
+        x1 = sx1 = point[i].x;
+        y1 = sy1 = point[i].y;
 
-        pScr->DrawLine(x1, y1, x2, y2, lineCol, 0, kPatDotted);
-        pScr->DrawVertex(x1, y1, vtxCol1, vtxCol2, pScr->vertexSize);
-        pScr->DrawVertex(x2, y2, vtxCol1, vtxCol2, pScr->vertexSize);
-
-        x1 = p->x1, x2 = p->x2;
-        y1 = p->y1, y2 = p->y2;
-        pScr->CaptionPrintLineEdit(0, x1, y1, x2, y2,
-                    pScr->ColorGet(kColorYellow), -1, qFonts[3]);
+        x2 = sx2 = point[j].x;
+        y2 = sy2 = point[j].y;
+        
+        vs = pScr->vertexSize;
+        
+        pScr->ScalePoints(&sx1, &sy1, &sx2, &sy2);
+        pScr->DrawLine(sx1, sy1, sx2, sy2, lineCol1, 0, kPatDotted);
+        pScr->DrawVertex(sx1, sy1, vtxCol1, vtxCol2, vs);
+        
+        if (intersects->Length())
+        {
+            sx1 = x1, sy1 = y1;
+            sx2 = x2, sy2 = y2;
+            
+            for (e = (ISPLITENTRY*)intersects->First(); e->type; e++)
+            {
+                if (!pointOnLine(e->x, e->y, sx1, sy1, sx2, sy2))
+                    continue;
+                
+                tx = e->x; ty = e->y;
+                pScr->ScalePoints(&tx, &ty);
+                vs = ClipHigh(pScr->vertexSize, 8);
+                
+                if (e->onpoint)
+                    c = pScr->ColorGet(kColorLightGray, 0);
+                else
+                    c = pScr->ColorGet((e->skip) ? kColorLightGray : kColorRed, BLINKTIME(32));
+                
+                
+                //c = (e->skip) ? kColorLightGray : (e->onpoint) ? kColorBrown : kColorRed;
+                pScr->DrawVertex(tx, ty, vtxCol1, c, vs);
+                pScr->CaptionPrintLineEdit(0, x1, y1, e->x, e->y, captCol1, -1, qFonts[3]);
+                x1 = e->x, y1 = e->y;
+            }
+        }
+        
+        pScr->CaptionPrintLineEdit(0, x1, y1, x2, y2, captCol1, -1, qFonts[3]);
     }
-
-    x1 = pScr->cscalex(cx); y1 = pScr->cscaley(cy);
-    pScr->DrawIconCross(x1, y1, lineCol, 2);
-
+    
+    tx = cx; ty = cy;
+    pScr->ScalePoints(&tx, &ty);
+    pScr->DrawIconCross(tx, ty, lineCol1, 2);
 }
 
 int LOOPSHAPE::Insert()
 {
+    ISPLITPARAM isplit;
     walltype wmodel; sectortype smodel;
     int nSect = numsectors, nWall = -1;
     int t, ls, le, s, e;
-
-    memset(&wmodel, 0, sizeof(wmodel));
-    wmodel.extra        = -1;
-    wmodel.xrepeat      = 8;
-    wmodel.yrepeat      = 8;
-
-    memset(&smodel, 0, sizeof(smodel));
-    smodel.extra        = -1;
-    smodel.floorz       = 8192<<2;
-    smodel.ceilingz     = -smodel.floorz;
-
-    switch(model.type)
+    
+    if (irngok(status, 1, 2))
     {
-        case OBJ_WALL:
-        case OBJ_MASKED:
-            if (rngok(model.index, 0, numwalls))
-            {
-                memcpy(&wmodel, &wall[model.index], sizeof(walltype));
-                if ((t = sectorofwall(model.index)) >= 0)
-                    memcpy(&smodel, &sector[t], sizeof(sectortype));
-            }
-            break;
-        case OBJ_SPRITE:
-            model.index = sprite[model.index].sectnum;
-            // no break;
-        case OBJ_FLOOR:
-        case OBJ_CEILING:
-        case OBJ_SECTOR:
-            if (rngok(model.index, 0, numsectors))
-            {
-                t = sector[model.index].wallptr;
-                memcpy(&smodel, &sector[model.index], sizeof(sectortype));
-                memcpy(&wmodel, &wall[t], sizeof(walltype));
-            }
-            break;
-    }
+        memset(&wmodel, 0, sizeof(wmodel));
+        wmodel.extra        = -1;
+        wmodel.xrepeat      = 8;
+        wmodel.yrepeat      = 8;
 
-    if ((nWall = insertLoop(destSect, point, numPoints, &wmodel, &smodel)) >= 0)
-    {
-        loopGetWalls(nWall, &s, &e);
+        memset(&smodel, 0, sizeof(smodel));
+        smodel.extra        = -1;
+        smodel.floorz       = 8192<<2;
+        smodel.ceilingz     = -smodel.floorz;
 
-        for (t = s; t <= e; t++)
+        switch(model.type)
         {
-            if (numsectors > nSect) checksectorpointer(t, nSect);
-            fixrepeats(t);
-        }
-
-        AutoAlignWalls(s);
-
-        if (destSect >= 0)
-        {
-            // Check if loop has been made around wall loop(s)
-            // of the destination sector. In this case
-            // auto create red sector and transfer
-            // loops.
-
-            getSectorWalls(destSect, &s, &e);
-            while(s <= e)
-            {
-                loopGetWalls(s, &ls, &le);
-                while(ls <= le && insidePoints(wall[ls].x, wall[ls].y, point, numPoints)) ls++;
-                if (ls > le)
+            case OBJ_WALL:
+            case OBJ_MASKED:
+                if (rngok(model.index, 0, numwalls))
                 {
-                    redSectorMake(nWall);
-                    break;
+                    memcpy(&wmodel, &wall[model.index], sizeof(walltype));
+                    if ((t = sectorofwall(model.index)) >= 0)
+                        memcpy(&smodel, &sector[t], sizeof(sectortype));
                 }
-
-                s++;
-            }
+                break;
+            case OBJ_SPRITE:
+                model.index = sprite[model.index].sectnum;
+                // no break;
+            case OBJ_FLOOR:
+            case OBJ_CEILING:
+            case OBJ_SECTOR:
+                if (rngok(model.index, 0, numsectors))
+                {
+                    t = sector[model.index].wallptr;
+                    memcpy(&smodel, &sector[model.index], sizeof(sectortype));
+                    memcpy(&wmodel, &wall[t], sizeof(walltype));
+                }
+                break;
         }
-
-        CleanUp();
+        
+        if ((nWall = insertLoop(destSect, point, numPoints, &wmodel, &smodel)) >= 0)
+        {
+            s = nWall;
+            do
+            {
+                fixrepeats(s);
+                if ((t = findNextWall(s)) >= 0)
+                    wallAttach(s, t), wallAttach(t, s);
+                
+                s = wall[s].point2;
+            }
+            while(s != nWall);
+            
+            AutoAlignWalls(nWall);
+            
+            if (status == 2)
+                redSectorMake(nWall);
+        }
     }
-
+    else if (status == 3)
+    {
+        memset(&isplit, 0, sizeof(isplit));
+        
+        isplit.startSect    = destSect;
+        isplit.points       = point;
+        isplit.numpoints    = numPoints;
+        isplit.isloop       = 1;
+        
+        nWall = intersectSplit(&isplit);
+    }
+    
+    CleanUp();
     return nWall;
 }
 
@@ -447,17 +561,10 @@ char LOOPSHAPE::ChgPoints(int nNum)
 {
     int nOld = numPoints;
     numPoints = ClipRange(numPoints + nNum, minPoints, maxPoints);
-    if (nOld != numPoints)
-    {
-        UpdateShape(ex, ey);
-        return 1;
-    }
-
-    return 0;
+    return (nOld != numPoints);
 }
 
 void LOOPSHAPE::ChgAngle(int nAng)
 {
     rotateAng = (rotateAng + nAng) & kAngMask;
-    UpdateShape(ex, ey);
 }

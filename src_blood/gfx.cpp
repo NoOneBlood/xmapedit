@@ -250,14 +250,13 @@ void gfxHLine(int y, int x0, int x1)
     if (!rngok(y, clipRect.y0, clipRect.y1))
         return;
     
-    x0 = ClipLow(x0, clipRect.x0);
-    x1 = ClipHigh(x1, clipRect.x1-1);
+    x0 = ClipRange(x0, clipRect.x0, clipRect.x1-1);
+    x1 = ClipRange(x1, clipRect.x0, clipRect.x1-1);
     
     if ((l = x1-x0) <= 0)
         return;
     
-    char* d = (char*)FRAMEPLACE(x0, y);
-    ud_gfxSet(d, gColor, l);
+    ud_gfxSet((char*)FRAMEPLACE(x0, y), gColor, l);
 }
 
 void gfxVLine(int x, int y0, int y1)
@@ -270,8 +269,8 @@ void gfxVLine(int x, int y0, int y1)
     if (!rngok(x, clipRect.x0, clipRect.x1))
         return;
 
-    y0 = ClipLow(y0, clipRect.y0);
-    y1 = ClipHigh(y1, clipRect.y1-1);
+    y0 = ClipRange(y0, clipRect.y0, clipRect.y1-1);
+    y1 = ClipRange(y1, clipRect.y0, clipRect.y1-1);
     
     char* d = (char*)FRAMEPLACE(x, y0);
     while(y0 <= y1) ud_gfxPixelA(d), y0++, d+=ylookup[1];
@@ -289,9 +288,8 @@ void gfxLine(int x1, int y1, int x2, int y2)
     #endif
 
     Rect* r = &clipRect;
-    unsigned int drawpat = (drawlinepat != kPatNormal) ? drawlinepat : 0;
-    int i = 0, t, dx, dy;
-    unsigned int c = 0;
+    unsigned int drawpat, c;
+    int dx, dy, i, t;
 
     dx = x2-x1; dy = y2-y1;
 
@@ -311,16 +309,29 @@ void gfxLine(int x1, int y1, int x2, int y2)
     if (dy >= 0)
     {
         if ((y1 >= r->y1) || (y2 < r->y0)) return;
-        if (y1 < r->y0) { if (dx) x1 += scale(r->y0-y1,dx,dy); y1 = r->y0; if (x1 < r->x0) x1 = r->x0; }
-        if (y2 >= r->y1) { if (dx) x2 += scale(r->y1-1-y2,dx,dy); y2 = r->y1-1; if (x2 < r->x0) x2 = r->x0; }
+        if (y1 < r->y0) { if (dx) x1 += scale(r->y0-y1,dx,dy); y1 = r->y0; }
+        if (y2 >= r->y1) { if (dx) x2 += scale(r->y1-1-y2,dx,dy); y2 = r->y1-1; }
     }
     else
     {
         if ((y2 >= r->y1) || (y1 < r->y0)) return;
-        if (y2 < r->y0) { if (dx) x2 += scale(r->y0-y2,dx,dy); y2 = r->y0; if (x2 < r->x0) x2 = r->x0; }
-        if (y1 >= r->y1) { if (dx) x1 += scale(r->y1-1-y1,dx,dy); y1 = r->y1-1; if (x1 < r->x0) x1 = r->x0; }
+        if (y2 < r->y0) { if (dx) x2 += scale(r->y0-y2,dx,dy); y2 = r->y0; }
+        if (y1 >= r->y1) { if (dx) x1 += scale(r->y1-1-y1,dx,dy); y1 = r->y1-1; }
     }
-
+    
+    x1 = ClipRange(x1, r->x0, r->x1-1);
+    y1 = ClipRange(y1, r->y0, r->y1-1);
+    x2 = ClipRange(x2, r->x0, r->x1-1);
+    y2 = ClipRange(y2, r->y0, r->y1-1);
+    
+    dx = klabs(x2-x1)+1;
+    dy = klabs(y2-y1)+1;
+    if (dx <= 1 && dy <= 1)
+        return;
+    
+    drawpat = (drawlinepat != kPatNormal) ? drawlinepat : 0;
+    c = i = 0;
+    
     if (!drawpat)
     {
         if (x1 == x2)
@@ -337,11 +348,7 @@ void gfxLine(int x1, int y1, int x2, int y2)
             return;
         }
     }
-
-    dx = klabs(dx)+1;
-    dy = klabs(dy)+1;
-
-
+    
     if (dx >= dy)
     {
         if (x2 < x1)
@@ -438,10 +445,10 @@ void gfxFillBoxTrans(int x1, int y1, int x2, int y2, char color, char transLev)
 
 void gfxSetClip(int x0, int y0, int x1, int y1)
 {
-    clipRect.x0 = x0;
-    clipRect.y0 = y0;
-    clipRect.x1 = x1;
-    clipRect.y1 = y1;
+    clipRect.x0 = ClipRange(x0, 0, xdim-1);
+    clipRect.y0 = ClipRange(y0, 0, ydim-1);
+    clipRect.x1 = ClipRange(x1, 0, xdim-1);
+    clipRect.y1 = ClipRange(y1, 0, ydim-1);
 }
 
 void gfxBackupClip()

@@ -479,7 +479,7 @@ void warpInit(void)
         }
     }
 
-    if (gPreviewMode && gModernMap)
+    if (gPreviewMode)
     {
         i = numwalls;
         while(--i >= 0)

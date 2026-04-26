@@ -80,7 +80,4 @@ resource "TGA\EYE2.TGA" as 9;
 resource "TGA\EYE3.TGA" as 10;
 resource "TGA\EYE4.TGA" as 11;
 resource "TGA\RTARROW.TGA" as 12;
-// inverse table for creating PLUs
-///////////////////////////////////
-resource "DAT\INVERSE1.DAT" as 0;
 ;

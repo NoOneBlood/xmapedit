@@ -719,8 +719,10 @@ void CleanUpMisc() {
 
     if (gPreviewMode)
         return;
-
-    int i, j;
+    
+    char rorStat;
+    int i, j, t;
+    
     for (i = 0; i < numsectors; i++)
     {
         sectortype* pSector = &sector[i];
@@ -757,10 +759,17 @@ void CleanUpMisc() {
 
         cleanUpSectWalls(i);
 
+        rorStat = 0;
         for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
         {
             spritetype* pSprite =& sprite[j];
-
+            
+            if (rorStat != 0x03 && (t = IsRorMarker(pSprite->type)) > 0)
+            {
+                if ((rorStat & 0x01) == 0 && t == 1)  rorStat |= 0x01;
+                if ((rorStat & 0x02) == 0 && t == 2)  rorStat |= 0x02;
+            }
+            
             // useless x-sprites check
             if (pSprite->statnum == kMaxStatus) continue;
             else if (!pSprite->type && pSprite->extra > 0 && obsoleteXObject(OBJ_SPRITE, pSprite->extra))
@@ -796,6 +805,8 @@ void CleanUpMisc() {
                 }
             }
         }
+        if ((rorStat & 0x01) == 0)  sectCstatRem(i, kSectTranslucR, OBJ_CEILING);
+        if ((rorStat & 0x02) == 0)  sectCstatRem(i, kSectTranslucR, OBJ_FLOOR);
     }
 }
 

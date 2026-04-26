@@ -330,10 +330,10 @@ void SCREEN2D::DrawAngLine(int nScale, int nAng, int x1, int y1, char c, char b)
 void SCREEN2D::DrawCircle(int x, int y, int r, char c, char b, int drawPat)
 {
     int a, x1 = x + r, y1 = y, x2, y2;
-    for (a = kAng5; a <= kAng360; a += kAng5)
+    for (a = 0; a <= kAng360; a += 32)
     {
-        x2 = x + mulscale30(Cos(a), r);
-        y2 = y + mulscale30(Sin(a), r);
+        x2 = x + mulscale30r(Cos(a), r);
+        y2 = y + mulscale30r(Sin(a), r);
         DrawLine(x1, y1, x2, y2, c, b, drawPat);
 
         x1 = x2;
@@ -1029,7 +1029,7 @@ void SCREEN2D::ScreenDraw(void)
 
 
     if (!prefs.showVertex)          vertexSize = 0;
-    else if (data.zoom  <= 512)     vertexSize = 2;
+    else if (data.zoom  <= 512)     vertexSize = 4;
     else if (data.zoom  <= 1024)    vertexSize = 4;
     else                            vertexSize = 6;
 
@@ -1197,9 +1197,9 @@ void SCREEN2D::ScreenDraw(void)
 
     /* draw highlight sector walls that's gonna be detached */
     ////////////////////////////
-    fc = ColorGet(kColorYellow);
-    if (highlightsectorcnt > 0)
+    if (rngok(highlightsectorcnt, 1, numsectors))
     {
+        fc = ColorGet(kColorYellow);
         i = highlightsectorcnt;
         while(--i >= 0)
         {
@@ -1557,10 +1557,11 @@ void SCREEN2D::DrawSpritePathMarker(void)
 void SCREEN2D::DrawSprite(spritetype* pSprite)
 {
     int i = 0, dx[4], dy[4];
+    char thickness = 0;
 
     pSpr    = pSprite;
     pXSpr   = GetXSpr(pSpr);
-    THICK   = (pSpr->cstat & kSprBlock);
+    THICK   = (pSpr->cstat & kSprBlock) != 0;
     x1      = cscalex(pSpr->x);
     y1      = cscaley(pSpr->y);
 
@@ -1585,12 +1586,15 @@ void SCREEN2D::DrawSprite(spritetype* pSprite)
 
     if (tilesizx[pSpr->picnum])
     {
+        if (THICK)
+            thickness = 2;
+        
         switch(pSpr->cstat & kSprRelMask)
         {
             case kSprWall:
                 GetSpriteExtents(pSpr, &dx[0], &dy[0], &dx[1], &dy[1], NULL, NULL, 0x0);
                 ScalePoints(&dx[0], &dy[0], &dx[1], &dy[1]);
-                DrawLine(dx[0], dy[0], dx[1], dy[1], color, THICK, kPatDotted);
+                DrawLine(dx[0], dy[0], dx[1], dy[1], color, thickness, kPatDotted);
                 break;
             case kSprFloor:
             case kSprSloped:
@@ -1600,10 +1604,10 @@ void SCREEN2D::DrawSprite(spritetype* pSprite)
                     ScalePoints(&dx[0], &dy[0], &dx[1], &dy[1]);
                     ScalePoints(&dx[2], &dy[2], &dx[3], &dy[3]);
 
-                    DrawLine(dx[0], dy[0], dx[1], dy[1], color, THICK, kPatDotted2); // T
-                    DrawLine(dx[1], dy[1], dx[2], dy[2], color, THICK, kPatDotted2); // R
-                    DrawLine(dx[2], dy[2], dx[3], dy[3], color, THICK, kPatDotted2); // B
-                    DrawLine(dx[3], dy[3], dx[0], dy[0], color, THICK, kPatDotted2); // L
+                    DrawLine(dx[0], dy[0], dx[1], dy[1], color, thickness, kPatDotted2); // T
+                    DrawLine(dx[1], dy[1], dx[2], dy[2], color, thickness, kPatDotted2); // R
+                    DrawLine(dx[2], dy[2], dx[3], dy[3], color, thickness, kPatDotted2); // B
+                    DrawLine(dx[3], dy[3], dx[0], dy[0], color, thickness, kPatDotted2); // L
 
                     if (HOVER)
                     {
@@ -1852,10 +1856,12 @@ void SCREEN2D::DrawGrid()
     GetPoint(view.wx2, view.wy2, &xp2, &yp2, 1);
 
     doGridCorrection(&xp1, &yp1, data.grid);
-    doGridCorrection(&xp2, &yp2, data.grid);
 
-    x1 = cscalex(xp1);  y1 = cscaley(yp1);
-    x2 = cscalex(xp2);  y2 = cscaley(yp2);
+    x1 = cscalex(ClipLow(xp1-dst, -boardWidth));
+    y1 = cscaley(ClipLow(yp1-dst, -boardHeight));
+    
+    x2 = cscalex(ClipHigh(xp2+dst, +boardWidth));
+    y2 = cscaley(ClipHigh(yp2+dst, +boardHeight));
 
     if (gridSize > 1)
     {

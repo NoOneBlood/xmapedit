@@ -51,9 +51,6 @@ class QAVEDIT
     #pragma pack(pop)
 
     QAV        *pQav;
-    FRAMEINFO  *pFrame;
-    TILE_FRAME *pLayer;
-    SOUNDINFO  *pSound;
     CLIPBOARD   cpbrd;
     TIME time;
     POINT2D origin;

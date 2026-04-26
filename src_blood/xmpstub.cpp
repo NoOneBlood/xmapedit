@@ -87,17 +87,11 @@ SNAPSHOT_MANAGER gMapSnapshot(boardSnapshotMake, boardSnapshotLoad);
 OBJECT_LIST gModernTypes;
 BITARRAY01 gModernTypesMap;
 
-struct COMPAT_STRING
+NAMED_TYPE gCompatString[] =
 {
-    unsigned char tcol;
-    unsigned char bcol;
-    char* text;
-};
-
-COMPAT_STRING gCompatString[] =
-{
-    {kColorGrey16, kColorGreen, "VANILLA MAP"},
-    {kColorLightMagenta, kColorRed, "MODERN MAP"},
+    { kColorGrey16,          "VANILLA MAP" },
+    { kColorLightMagenta,    "MODERN FEATURES" },
+    { kColorYellow,          "MODERN LIMITS" },
 };
 
 char *gCaptionStyleNames[] =
@@ -300,6 +294,7 @@ NAMED_TYPE gGameNames[5] =
     {4,                     "All"},
 };
 
+static int OSDFUNC_TestGotsector(const osdfuncparm_t *arg);
 static int OSDFUNC_ShiftSysStatnum(const osdfuncparm_t *arg);
 static int OSDFUNC_PathChop(const osdfuncparm_t *arg);
 
@@ -322,6 +317,12 @@ OSDFUNC gOsdFuncList[] =
         "pathchop",
         "pathchop <delta ang>: optimize path of patrol dudes by removing unnecessary markers\n",
         OSDFUNC_PathChop
+    },
+    
+    {
+        "testgotsect",
+        "testgotsect [sect ID]: test if a sector in camera view\n",
+        OSDFUNC_TestGotsector
     },
     
     {
@@ -941,6 +942,8 @@ void ExtCheckKeys( void )
     h = (totalclock & kHClock) ? 8 : 0;
     updateClocks();
 
+    getHighlightedObject();
+
     if (ED3D)
         viewRotateWallTiles(0);
 
@@ -960,14 +963,14 @@ void ExtCheckKeys( void )
         {
             case OBJ_FLOOR:
             case OBJ_CEILING:
-                ShowSectorData(object.index, !ctrl, fullLayout);
+                ShowSectorData(object.index, !ctrl || !shift, fullLayout);
                 break;
             case OBJ_MASKED:
             case OBJ_WALL:
-                ShowWallData(object.index,   !ctrl, fullLayout);
+                ShowWallData(object.index,   !ctrl || !shift, fullLayout);
                 break;
             case OBJ_SPRITE:
-                ShowSpriteData(object.index, !ctrl, fullLayout);
+                ShowSpriteData(object.index, !ctrl || !shift, fullLayout);
                 break;
             default:
                 gMapedHud.SetTile();
@@ -985,12 +988,12 @@ void ExtCheckKeys( void )
             CleanUp();
         }
 
-        if (irngok(asksave, 1, 2))
+        if (irngok(asksave, 1, 2) && !gMouse.buttons)
         {
-            if (!gMouse.buttons)
+            l = LENGTH(keystatus);
+            while(--l >= 0)
             {
-                l = LENGTH(keystatus);
-                while(--l >= 0)
+                if (keystatus[l])
                 {
                     switch(l)
                     {
@@ -1002,17 +1005,13 @@ void ExtCheckKeys( void )
                         case KEY_RALT:
                             continue;
                     }
-
-                    if (keystatus[l])
-                        break;
-                }
-
-                if (l < 0)
-                {
-                    gMapSnapshot.Make(asksave == 1);
-                    asksave = 3;
+                    
+                    break;
                 }
             }
+
+            if (l < 0)
+                gMapSnapshot.Make(asksave == 1), asksave = 3;
         }
 
 
@@ -1038,17 +1037,17 @@ void ExtCheckKeys( void )
         if (gCompat.indicate)
         {
             pFont = qFonts[0];
-            COMPAT_STRING* pStr;
-
+            NAMED_TYPE* pStr;
+            
             if (totalclock > gTimers.compatCheck)
             {
                 gTimers.compatCheck = totalclock+256;
-                compatStat = (isModernMap() > 0);
+                compatStat = isModernMap();
             }
 
             pStr = &gCompatString[compatStat];
-            l = gfxGetTextLen(pStr->text, pFont);
-            gfxDrawText(xdim-l-4, 4, clr2std(pStr->tcol), pStr->text, pFont);
+            l = gfxGetTextLen(pStr->name, pFont);
+            gfxPrinTextShadow(xdim-l-4, 4, clr2std(pStr->id), pStr->name, pFont);
             FPSy+=12;
         }
     }
@@ -1069,8 +1068,6 @@ void ExtCheckKeys( void )
     scrDisplayMessage();
     CalcFrameRate();
     processMove();
-
-    getHighlightedObject();
 
     if (ED3D)
     {
@@ -1099,14 +1096,27 @@ void ExtCheckKeys( void )
     gfxPrinTextShadow(xdim-l-4, FPSy, clr2std((gFrameRate<30) ? kColorLightRed : kColorWhite), buffer, pFont);
 }
 
+char dlgConfirmModernFeatures(void)
+{
+    return Confirm
+    (
+        "Modern compatible maps still playable in vanilla, hovewer may operate incorrectly!\n"
+        "Use this option only when maps supposed to have modern features\n"
+        "which is supported by such source ports as NBlood.\n\n"
+        "Enable this feature now?"
+    );
+}
+
 char dlgMapSettings()
 {
-    const int kPad1 = 6, bw = 80, bh = 24;
+    #define AFTERH(a, b) (a->left+a->width+b)
+    #define AFTERV(a, b) (a->top+a->height+b)
+    
     char* skyTilesNames[] = { "Auto", "01", "02", "04", "08", "16", "32" };
     char* skyTypeNames[]  = { "Static", "Stretch", "Wrap" };
     char tmp[256], *p = tmp, *skyTilesRepeat[34];
 
-    int dw, dx1, dy1, dx2, dy2, dwh, dhg, i, t;
+    int dwh, dhg, i, t;
     int nSkyTilesRepeat = Sky::tileRepeatCount;
     int nSkyType = parallaxtype;
     int nSkyTiles = 0;
@@ -1134,54 +1144,44 @@ char dlgMapSettings()
     skyTilesRepeat[t] = ++p; sprintf(p, "Never");
     nSkyTilesRepeat = ClipHigh(nSkyTilesRepeat, t);
 
-    Window dialog(0, 0, 320, 200, "Map properties");
-    dialog.getEdges(&dx1, &dy1, &dx2, &dy2);
+    Window dialog(0, 0, 320, 240, "Map properties");
     dialog.getSize(&dwh, &dhg);
 
-    int enw = pFont->width  << 3;
-    int enh = pFont->height << 1;
+    FieldSet* fBSize        = new FieldSet(4, 4, dwh-4, 32, "2D BOARD SIZE", kColorGrey28, kColorDarkGray);
+    EditNumber* eW          = new EditNumber(8, 8, 60, 18, PIX2MET(boardWidth), 'm', 10, 10000);
+    Label* lX               = new Label(AFTERH(eW, 4), 13, "X");
+    EditNumber* eH          = new EditNumber(AFTERH(lX, 6), 8, 60, 18, PIX2MET(boardHeight), 'm', 10, 10000);
+    Label* lDesc            = new Label(AFTERH(eH, 8), 14, "1m = 512 pixels", kColorDarkGray);
 
-    FieldSet* fBSize        = new FieldSet(dx1+2, dy1+2, dwh-kPad1, enh<<1, "2D BOARD SIZE", kColorDarkGray, kColorDarkGray);
-    int cy = (fBSize->height >> 1) - (enh>>1);
-    EditNumber* eW          = new EditNumber(kPad1, cy, enw, enh, PIX2MET(boardWidth), 'm', 10, 10000);
-    Label* lX               = new Label(eW->left + eW->width + kPad1, cy + (pFont->height>>1), "X");
-    EditNumber* eH          = new EditNumber(lX->left + lX->width + kPad1 + 1, cy, enw, enh, PIX2MET(boardHeight), 'm', 10, 10000);
-    Label* lDesc            = new Label(eH->left + eW->width + kPad1, cy + (pFont->height>>1), "1m = 512 pixels", kColorDarkGray);
-
-    Panel* pButtons         = new Panel(dx1, dy2-bh-1, dwh, bh);
-    TextButton* bOk         = new TextButton(0, 0, bw, bh, "Confirm", mrOk);
-    bOk->fontColor          = kColorBlue;
-    TextButton* bCancel     = new TextButton(bOk->left + bOk->width + 4, 0, bw, bh, "Cancel", mrCancel);
-    bCancel->fontColor      = kColorRed;
-
-    dy1 += fBSize->height + 16;
-    FieldSet* fVis          = new FieldSet(dx1+2, dy1, dwh-kPad1, enh<<1, "GLOBAL VISIBILITY", kColorDarkGray, kColorDarkGray);
-    EditNumber* eVis        = new EditNumber(kPad1, cy, enw, enh, visibility, '\0', 0, kMaxVisibility);
-    Checkbox* cFog          = new Checkbox(eVis->left+eVis->width+kPad1, (fVis->height>>1)-(pFont->height>>1)-1, gFogMode, "Enable fog");
-
-
-    dy1 += fVis->height + 16;
-    FieldSet* fSky          = new FieldSet(dx1+2, dy1, dwh-kPad1, enh*3, "PARALLAX SETUP", kColorDarkGray, kColorDarkGray);
-
-    Label* lSkyTiles        = new Label(4, 6, "Amount of tiles:");
-    TextButton* bSkyTiles   = new TextButton(lSkyTiles->left+lSkyTiles->width+8, 1, 40, 18, skyTilesNames[nSkyTiles], 1000);
+    FieldSet* fVis          = new FieldSet(4, AFTERV(fBSize, 12), dwh-4, 32, "GLOBAL VISIBILITY", kColorGrey28, kColorDarkGray);
+    EditNumber* eVis        = new EditNumber(8, 8, 80, 18, visibility, '\0', 0, kMaxVisibility);
+    Checkbox* cFog          = new Checkbox(AFTERH(eVis, 4), 12, gFogMode, "Enable fog");
+    
+    FieldSet* fSky          = new FieldSet(4, AFTERV(fVis, 12), dwh-4, 48, "PARALLAX SETUP", kColorGrey28, kColorDarkGray);
+    Label* lSkyTiles        = new Label(8, 10, "Amount of tiles:");
+    TextButton* bSkyTiles   = new TextButton(AFTERH(lSkyTiles, 8), 4, 40, 20, skyTilesNames[nSkyTiles], 1000);
     bSkyTiles->font         = qFonts[1];
     bSkyTiles->fontColor    = kColorBlue;
 
-    Label* lSkyType         = new Label(4, 6, "Parallax type:");
-    TextButton* bSkyType    = new TextButton(lSkyType->left+lSkyType->width+8, 1, 44, 18, skyTypeNames[nSkyType], 1001);
+    Label* lSkyType         = new Label(AFTERH(bSkyTiles, 10), 10, "Parallax type:");
+    TextButton* bSkyType    = new TextButton(AFTERH(lSkyType, 8), 4, 44, 20, skyTypeNames[nSkyType], 1001);
     bSkyType->font          = qFonts[1];
     bSkyType->fontColor     = kColorBlue;
 
-    Label* lSkyRepeat       = new Label(4, 6, "Repeat amount:");
-    TextButton* bSkyRepeat  = new TextButton(bSkyTiles->left, 1, 40, 18, skyTilesRepeat[nSkyTilesRepeat], 1002);
+    Label* lSkyRepeat       = new Label(8, AFTERV(bSkyTiles, 8), "Repeat amount:");
+    TextButton* bSkyRepeat  = new TextButton(AFTERH(lSkyTiles, 8), AFTERV(bSkyTiles, 2), 40, 20, skyTilesRepeat[nSkyTilesRepeat], 1002);
     bSkyRepeat->font        = qFonts[1];
     bSkyRepeat->fontColor   = kColorBlue;
-
-    Panel* pSkyTiles        = new Panel(kPad1, cy, lSkyTiles->width+bSkyTiles->width+14, 20, 0, 0, 0);
-    Panel* pSkyType         = new Panel(pSkyTiles->left+pSkyTiles->width+2, cy, lSkyType->width+bSkyType->width+14, 20, 0, 0, 0);
-    Panel* pSkyRepeat       = new Panel(kPad1, 28, lSkyRepeat->width+bSkyRepeat->width, 20, 0, 0, 0);
-
+    
+    FieldSet* fModern       = new FieldSet(4, AFTERV(fSky, 12), dwh-4, 28, "MODERN FEATURES", kColorGrey28, kColorDarkGray);
+    Checkbox* cModern       = new Checkbox(8, 9, gModernMap || gCompat.modernMap, "Enable use of the modern features", 1003);
+    cModern->disabled       = (gCompat.modernMap > 0);
+    
+    TextButton* bOk         = new TextButton(4, AFTERV(fModern, 12), 80, 24, "Confirm", mrOk);
+    bOk->fontColor          = kColorBlue;
+    TextButton* bCancel     = new TextButton(AFTERH(bOk, 4), AFTERV(fModern, 12), 80, 24, "Cancel", mrCancel);
+    bCancel->fontColor      = kColorRed;
+    
     fBSize->Insert(eW);
     fBSize->Insert(lX);
     fBSize->Insert(eH);
@@ -1190,27 +1190,23 @@ char dlgMapSettings()
     fVis->Insert(eVis);
     fVis->Insert(cFog);
 
-    pSkyTiles->Insert(lSkyTiles);
-    pSkyTiles->Insert(bSkyTiles);
-    fSky->Insert(pSkyTiles);
-
-    pSkyType->Insert(lSkyType);
-    pSkyType->Insert(bSkyType);
-    fSky->Insert(pSkyType);
-
-    pSkyRepeat->Insert(lSkyRepeat);
-    pSkyRepeat->Insert(bSkyRepeat);
-    fSky->Insert(pSkyRepeat);
-
-
-    pButtons->Insert(bOk);
-    pButtons->Insert(bCancel);
-
+    fSky->Insert(lSkyTiles);
+    fSky->Insert(bSkyTiles);
+    
+    fSky->Insert(lSkyType);
+    fSky->Insert(bSkyType);
+    
+    fSky->Insert(lSkyRepeat);
+    fSky->Insert(bSkyRepeat);
+    
+    fModern->Insert(cModern);
+    
     dialog.Insert(fBSize);
     dialog.Insert(fVis);
     dialog.Insert(fSky);
-
-    dialog.Insert(pButtons);
+    dialog.Insert(fModern);
+    dialog.Insert(bOk);
+    dialog.Insert(bCancel);
 
     while( 1 )
     {
@@ -1228,7 +1224,7 @@ char dlgMapSettings()
                 boardHeight             = MET2PIX(eH->value);
                 visibility              = eVis->value;
                 gFogMode                = cFog->checked;
-
+                parallaxtype            = nSkyType;
                 scrLoadPLUs();
 
                 if (nSkyTilesRepeat < LENGTH(skyTilesRepeat)-1)
@@ -1266,10 +1262,18 @@ char dlgMapSettings()
                         break;
                     }
                 }
-
-                parallaxtype = nSkyType;
+                
+                gModernMap = cModern->checked;
+                setupModernFeaturesState(gModernMap);
+                
+                if (gModernMap && gMisc.showTypes != MO)
+                {
+                    gMisc.showTypes = MO;
+                    initNames();
+                    userItemsInit();
+                }
+                gMisc.showTypes = (gModernMap) ? MO : VA;
                 asksave = 1;
-
                 return true;
             case 1000:
                 if ((i = showButtons(skyTilesNames, LENGTH(skyTilesNames), "Select") - mrUser) >= 0)
@@ -1291,6 +1295,10 @@ char dlgMapSettings()
                     bSkyRepeat->text = skyTilesRepeat[i];
                     nSkyTilesRepeat = i;
                 }
+                continue;
+            case 1003:
+                if (cModern->checked && !dlgConfirmModernFeatures())
+                    cModern->checked = 0;
                 continue;
         }
 
@@ -1325,11 +1333,7 @@ int ExtInit(int argc, char const * const argv[])
     onquiteventcallback = dlgSaveAndOrQuit;
     HookReplaceFunctions();
     initcrc32table();
-    
-    wm_setapptitle("XMAPEDIT");
-    buildsetlogfile(kLogFile);
-    buildprintf("XMAPEDIT BUILD %s\n", build_date);
-    
+        
     // the OSX app bundle, or on Windows the directory where the EXE was launched
     if ((tmp = Bgetappdir()) != NULL)
     {
@@ -1347,6 +1351,10 @@ int ExtInit(int argc, char const * const argv[])
     {
         ThrowError("Failed to get app directory.");
     }
+
+    wm_setapptitle("XMAPEDIT");
+    buildsetlogfile(kLogFile);
+    buildprintf("XMAPEDIT BUILD %s\n", build_date);
 
     // ---------------------------------------------------------------------------
     // setup timers
@@ -1586,9 +1594,9 @@ int ExtInit(int argc, char const * const argv[])
             break;
         case kToolMapEdit:
             boardStartNew();
-            strcpy(gPaths.maps,
-                (!isempty(filename) && boardLoad(filename) == 0) ? filename : kDefaultMapName);
-
+            strcpy(gPaths.maps, isempty(filename) ? kDefaultMapName : filename);
+            if (boardLoad(filename) != 0) strcpy(gPaths.maps, kDefaultMapName);
+            
             formatMapInfo(gMapInfoStr);
             ChangeExtension(gPaths.maps, getExt(kMap));
             gMapLoaded = 1;
@@ -1652,6 +1660,7 @@ void ExtUnInit(void)
         gImportPrefs.Save(MapEditINI,   "ImportWizard");
         gDirBroPrefs.Save(MapEditINI,   "FileBrowser");
         gLightBomb.Save(MapEditINI,     "LightBomb");
+        gCompat.Save(MapEditINI,        "Compatibility");
         MapEditINI->Save(kCoreIniName);
     }
 }
@@ -2389,17 +2398,7 @@ void xmpOptions(void)
                 }
                 continue;
             case 104:
-                if
-                (
-                    cSaveAsModern->checked &&
-                    Confirm
-                    (
-                        "Modern compatible maps still playable in vanilla, hovewer will operate incorrectly!\n"
-                        "Use this option only when maps supposed to have modern features\n"
-                        "which is supported by such source ports as NBlood.\n\n"
-                        "Enable this feature now?"
-                    )
-                )
+                if (cSaveAsModern->checked && dlgConfirmModernFeatures())
                 {
                     gCompat.modernMap = 1;
                     gMisc.showTypes = MO;
@@ -2802,8 +2801,11 @@ int xmpMenuProcess() {
                     result = mrMenu;
                     break;
                 }
-
+                
+                i = gModernMap;
                 boardStartNew();
+                gModernMap = i;
+                
                 strcpy(gPaths.maps, kDefaultMapName);
                 scrSetMessage("New board started.");
                 return result;
@@ -2812,7 +2814,8 @@ int xmpMenuProcess() {
                 if ((len = strlen(gPaths.maps)) <= 0) strcpy(gPaths.maps, kDefaultMapName), result = mrSaveAs;
                 switch (result) {
                     case mrSave:
-
+                        setupModernFeaturesState(gModernMap || gCompat.modernMap);
+                        
                         // erase user's secrets counter and set editor's.
                         if (gMisc.autoSecrets) setupSecrets();
                         CleanUpMisc(); // obsolete xobject checkings and misc stuff
@@ -3272,7 +3275,7 @@ void processMove() {
 
 int getClosestSector(int x, int y)
 {
-    int nDist = 0x80000000, nSect = -1;
+    int nDist = 0x7FFFFFFF, nSect = -1;
     int i, d, s, e, x1, y1;
 
     i = numsectors;
@@ -3301,7 +3304,10 @@ void setStartPos(int x, int y, int z, int ang, char forceEditorPos)
 
     if ((nSect = startsectnum) >= 0 && FindSector(x, y, z, &nSect)) startsectnum = nSect;
     else if (startsectnum < 0 && (startsectnum = getClosestSector(x, y)) >= 0)
-        avePointSector(startsectnum, &x, &y);
+    {
+        getWallCoords(sector[startsectnum].wallptr, &x, &y);
+        doWallCorrection(sector[startsectnum].wallptr, &x, &y);
+    }
 
     z = (startsectnum >= 0) ? getflorzofslope(startsectnum, x, y) : 0;
 
@@ -3326,46 +3332,43 @@ void setStartPos(int x, int y, int z, int ang, char forceEditorPos)
 
 void boardPreloadTiles()
 {
-    int i, j, swal, ewal;
-    for (i = 0; i < numsectors; i++)
+    int i = numsectors;
+    int s, e;
+    
+    while(--i >= 0)
     {
         tilePreloadTile(sector[i].ceilingpicnum);
         tilePreloadTile(sector[i].floorpicnum);
-
-        getSectorWalls(i, &swal, &ewal);
-        for (j = swal; j <= ewal; j++)
+        
+        getSectorWalls(i, &s, &e);
+        while(s <= e)
         {
-            tilePreloadTile(wall[i].picnum);
-            if ((wall[i].cstat & kWallMasked) && wall[i].overpicnum >= 0)
-                tilePreloadTile(wall[i].overpicnum);
+            tilePreloadTile(wall[s].picnum);
+            if (wall[s].overpicnum >= 0)
+                tilePreloadTile(wall[s].overpicnum);
+            
+            s++;
         }
-
-        for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
-            tilePreloadTile(sprite[i].picnum);
+        
+        for (s = headspritesect[i]; s >= 0; s = nextspritesect[s])
+            tilePreloadTile(sprite[s].picnum);
     }
 }
 
 int boardLoad(char *filename)
 {
-    VOIDLIST *bspr, *bxspr, *bwal, *bxwal, *bsec, *bxsec;
-    BYTE* pData = NULL; IOBuffer* pIo; CHECKMAPINFO info;
-    spritetype* pLSpr, *pLMrk; XSPRITE* pLXSpr;
-    sectortype* pLSect; XSECTOR* pLXSect;
-    walltype* pLWall; XWALL* pLXWall;
-
-    char mapname[_MAX_PATH];
-    char fog = gFogMode;
-
-    int  nSect, nSize, nXObj, nSpr;
-    int i, j, s, e;
-
+    BYTE* pData = NULL; CHECKMAPINFO info; SECTORSAVE* pSave = NULL;
+    int nSize, i, j, numsc = 0, numsp = 0, numwl = 0;
+    char mapname[_MAX_PATH], fog = gFogMode;
+    
     keyClear();
-    strcpy(mapname, filename); ChangeExtension(mapname, getExt(kMap));
+    strcpy(mapname, filename);
+    ChangeExtension(mapname, getExt(kMap));
     if ((nSize = fileLoadHelper(mapname, &pData)) <= 0)
         return -1;
 
-    pIo = new IOBuffer(nSize, pData);
-    dbCheckMap(pIo, &info, gSuppMapVersions);
+    IOBuffer io(nSize, pData);
+    dbCheckMap(&io, &info, gSuppMapVersions);
 
     if (info.type == kMapTypeUNK)
     {
@@ -3376,7 +3379,7 @@ int boardLoad(char *filename)
     else if (info.type == kMapTypeBUILD)
     {
         IMPORT_WIZARD_MAP_ARG mapArg;
-        mapArg.filepath = mapname;          mapArg.pIo = pIo;
+        mapArg.filepath = mapname;          mapArg.pIo = &io;
         mapArg.version  = info.version;     mapArg.blood = 0;
         mapArg.allowSel = 0;
 
@@ -3388,215 +3391,50 @@ int boardLoad(char *filename)
 
     sprintf(buffer3, "Loading the %s", mapname);
     splashScreen(buffer3);
-
-
+    
     if (highlightsectorcnt > 0)
     {
-
-        // save all the highlighted stuff before loading other map
-        bspr = new VOIDLIST(sizeof(spritetype));    bxspr = new VOIDLIST(sizeof(XSPRITE));
-        bwal = new VOIDLIST(sizeof(walltype));      bxwal = new VOIDLIST(sizeof(XWALL));
-        bsec = new VOIDLIST(sizeof(sectortype));    bxsec = new VOIDLIST(sizeof(XSECTOR));
-
-        for(i = 0; i < highlightsectorcnt; i++)
+        i = highlightsectorcnt;
+        pSave = new SECTORSAVE[i];
+        
+        if (pSave)
         {
-            nSect = highlightsector[i];
-
-            // sectors
-            bsec->Add(&sector[nSect]);
-            if (sector[nSect].extra > 0)
+            while(--i >= 0)
             {
-                XSECTOR* pXSect = &xsector[sector[nSect].extra];
-
-                // markers that sector own can be outside highlight so we have to
-                // add it by just changing sectnum since it doesn't really
-                // matter for markers
-                if (pXSect->marker0 >= 0) ChangeSpriteSect(pXSect->marker0, nSect);
-                if (pXSect->marker1 >= 0) ChangeSpriteSect(pXSect->marker1, nSect);
-
-                bxsec->Add(pXSect);
+                if (pSave[numsc].Save(highlightsector[i]) >= 0)
+                {
+                    numsp += pSave[i].NumSprites();
+                    numwl += pSave[i].NumWalls();
+                    numsc ++;
+                }
             }
-
-            // walls
-            getSectorWalls(nSect, &s, &e);
-            while(s <= e)
+            
+            switch (YesNoCancel("Import %d sectors with %d walls and %d sprites in \"%s\" map?", numsc, numwl, numsp, mapname))
             {
-                bwal->Add(&wall[s]);
-                if (wall[s].extra > 0)
-                    bxwal->Add(&xwall[wall[s].extra]);
-
-                s++;
-            }
-
-            // sprites of sectors
-            for (s = headspritesect[nSect]; s >= 0; s = nextspritesect[s])
-            {
-                bspr->Add(&sprite[s]);
-                if (sprite[s].extra > 0)
-                    bxspr->Add(&xsprite[sprite[s].extra]);
+                case mrCancel:
+                    return -1;
+                case mrNo:
+                    DELETE_ARR_AND_NULL(pSave);
+                    break;
             }
         }
-
-        getFilename(mapname, buffer3);
-        switch (YesNoCancel("Import %d sectors with %d walls and %d sprites in \"%s\" map?", bsec->Length(), bwal->Length(), bspr->Length(), buffer3))
-        {
-            case mrCancel:
-                return -1;
-            case mrNo:
-                highlightsectorcnt = -1;
-                break;
-            default:
-                splashScreen("Importing objects...");
-                break;
-        }
     }
-
-    boardReset(kHgltPoint | kHgltGradient);
-
-    switch(info.type)
-    {
-        case kMapTypeBLOOD:
-            dbLoadMap(pIo, (gCmtPrefs.enabled) ? mapname : NULL);
-            break;
-    }
-
+    
+    boardReset();
+    dbLoadMap(&io, (gCmtPrefs.enabled) ? mapname : NULL);
     free(pData);
-
-    if (highlightsectorcnt > 0)
+    
+    if (pSave)
     {
-        // restore highlight stuff after
-        // loading another map
-
-        pLSect  = (sectortype*)bsec->First();
-        pLXSect = (XSECTOR*)bxsec->First();
-
-        pLWall  = (walltype*)bwal->First();
-        pLXWall = (XWALL*)bxwal->First();
-
-        pLSpr  = (spritetype*)bspr->First();
-        pLXSpr = (XSPRITE*)bxspr->First();
-
-        // just copy all of it with same order that it was added
-        for (i = 0; i < highlightsectorcnt; i++, numsectors++, pLSect++)
-        {
-            if ((numsectors >= kMaxSectors)
-                || (numwalls+pLSect->wallnum) >= kMaxWalls)
-                        break;
-
-            nSect = highlightsector[i], highlightsector[i] = numsectors;
-            memcpy(&sector[numsectors], pLSect, sizeof(sectortype));
-            sector[numsectors].wallptr = numwalls;
-
-            if (pLSect->extra > 0)
-            {
-                if (numxsectors < kMaxXSectors)
-                {
-                    // copy & fix xsector
-                    nXObj = dbInsertXSector(numsectors);
-                    memcpy(&xsector[nXObj], pLXSect, sizeof(XSECTOR));
-                    xsector[nXObj].reference = numsectors;
-
-                    if (pLXSect->marker0 >= 0 || pLXSect->marker1 >= 0)
-                    {
-                        // find & fix it's markers
-                        pLMrk = (spritetype*)bspr->First();
-                        for (j = 0; j < bspr->Length() && numsprites < kMaxSprites; j++, pLMrk++)
-                        {
-                            if (pLMrk->statnum == kStatMarker && pLMrk->owner == nSect)
-                            {
-                                nSpr = InsertSprite(numsectors, kStatMarker);
-                                memcpy(&sprite[nSpr], pLMrk, sizeof(spritetype));
-                                sprite[nSpr].sectnum = sprite[nSpr].owner = numsectors;
-                                sprite[nSpr].index = nSpr;
-
-                                if (pLXSect->marker0 == pLMrk->index)
-                                {
-                                    xsector[nXObj].marker0 = nSpr;
-                                }
-                                else
-                                {
-                                    xsector[nXObj].marker1 = nSpr;
-                                }
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    // erase xsector
-                    sector[numsectors].extra    = -1;
-                    sector[numsectors].type     =  0;
-                }
-
-                pLXSect++;
-            }
-
-            // copy walls
-            for (j = 0; j < pLSect->wallnum; j++, numwalls++, pLWall++)
-            {
-                memcpy(&wall[numwalls], pLWall, sizeof(walltype));
-                wall[numwalls].point2 += (numwalls-j-pLSect->wallptr);
-                wall[numwalls].nextsector = wall[numwalls].nextwall = -1;
-
-                if (pLWall->extra > 0)
-                {
-                    if (numxwalls < kMaxXWalls)
-                    {
-                        // copy & fix xwall
-                        nXObj = dbInsertXWall(numwalls);
-                        memcpy(&xwall[nXObj], pLXWall, sizeof(XWALL));
-                        xwall[nXObj].reference = numwalls;
-                    }
-                    else
-                    {
-                        // erase xwall
-                        wall[numwalls].extra = -1;
-                        wall[numwalls].type  =  0;
-                    }
-
-                    pLXWall++;
-                }
-            }
-
-            // copy sprites
-            while(numsprites < kMaxSprites && pLSpr->sectnum == nSect)
-            {
-                if (pLSpr->statnum != kStatMarker)
-                {
-                    nSpr = InsertSprite(numsectors, pLSpr->statnum);
-                    memcpy(&sprite[nSpr], pLSpr, sizeof(spritetype));
-                    sprite[nSpr].sectnum = numsectors;
-                    sprite[nSpr].index = nSpr;
-
-                    if (pLSpr->extra > 0)
-                    {
-                        if (numxsprites < kMaxXSprites)
-                        {
-                            // copy & fix xsprite
-                            nXObj = dbInsertXSprite(nSpr);
-                            memcpy(&xsprite[nXObj], pLXSpr, sizeof(XSPRITE));
-                            xsprite[nXObj].reference = nSpr;
-                        }
-                        else
-                        {
-                            // erase xsprite
-                            sprite[nSpr].extra = -1;
-                            sprite[nSpr].type  =  0;
-                        }
-
-                        pLXSpr++;
-                    }
-                }
-
-                pLSpr++;
-            }
-        }
-
-        highlightsectorcnt = i;
-        for (i = 0; i < highlightsectorcnt; i++)
-            sectAttach(highlightsector[i]);
+        splashScreen("Importing objects...");
+        for (i = 0; i < numsc; i++)
+            if ((j = pSave[i].Load()) >= 0)
+                hgltAdd(OBJ_FLOOR, j);
+        
+        DELETE_ARR_AND_NULL(pSave);
+        hgltSectAttach(1);
     }
-
+    
     if (fog != gFogMode)
         scrLoadPLUs();
 
@@ -3609,9 +3447,10 @@ int boardLoad(char *filename)
 
     for (i = 0; i < kMaxWalls; i++)
         gNextWall[i] = -1;
-
+    
     formatMapInfo(gMapInfoStr);
-    gMapLoaded = TRUE;
+    
+    fixWallLoops();
     boardPreloadTiles();
     AutoAdjustSprites();
     CleanUpMisc();
@@ -3626,6 +3465,7 @@ int boardLoad(char *filename)
     oldnumsectors = numsectors;
     oldnumsprites = numsprites;
     oldnumwalls = numwalls;
+    gMapLoaded = TRUE;
 
     return 0;
 }
@@ -3677,7 +3517,7 @@ void boardReset(int hgltreset)
     oldnumsprites = oldnumsectors = oldnumwalls = 0;
     numsprites  = numsectors = numwalls     = 0;
     numxsectors = numxwalls  = numxsprites  = 0;
-    gModernMap  = (BOOL)gCompat.modernMap;
+    gModernMap  = gCompat.modernMap;
 
     asksave    = 0;
     horiz      = 100;
@@ -4308,7 +4148,7 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     oldnumsprites   = numsprites;
 
     updatesector(posx, posy, &cursectnum);
-    sectorToolDisableAll(1);
+    //sectorToolDisableAll(1);
     gJoinSector = -1;
     CleanUp();
 
@@ -4767,6 +4607,52 @@ char* GetHoverName()
         return gSearchStatNames[searchstat];
 
     return gSearchStatNames[nMax-1];
+}
+
+static int OSDFUNC_TestGotsector(const osdfuncparm_t *arg)
+{
+    spritetype* pSpr;
+    int nDone, nTotal = gStatCount[kStatPathMarker];
+    int nVal = -1;
+    int i, j;
+    
+    if (gMapLoaded)
+    {
+        switch(arg->numparms)
+        {
+            case 0:
+                break;
+            case 1:
+                nVal = Bstrtol(arg->parms[0], NULL, 10);
+                if (rngok(nVal, 0, numsectors)) break;
+                // no break
+            default:
+                return OSDCMD_SHOWHELP;
+        }
+    }
+    else
+    {
+        buildprintf("No map loaded!\n");
+        return OSDCMD_OK;
+    }
+    
+    buildprintf("\n>>>> Camera: s:%d, x:%d, y:%d, z:%d, a:%d, h:%d\n", cursectnum, posx, posy, posz, ang, horiz);
+    if (nVal < 0)
+    {
+        buildprintf("List of sectors in view:\n");
+        
+        for (i = 0; i < numsectors; i++)
+        {
+            if (TestBitString(gotsector, i))
+                buildprintf("%d\n", i);
+        }
+    }
+    else
+    {
+        buildprintf("Sector #%d %s in view\n", nVal, isNot(TestBitString(gotsector, nVal)));
+    }
+    
+    return OSDCMD_OK;
 }
 
 static int OSDFUNC_PathChop(const osdfuncparm_t *arg)

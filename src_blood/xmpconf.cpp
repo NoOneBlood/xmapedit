@@ -189,6 +189,11 @@ void COMPATIBILITY::Init(IniFile* pIni, char* section)
     }
 }
 
+void COMPATIBILITY::Save(IniFile* pIni, char* section)
+{
+    pIni->PutKeyInt(section, "SaveAsModernMap", modernMap);
+}
+
 void EXTERNAL_APPS::Init(IniFile* pIni, char* section)
 {
     char *key, *val, *qs, *qe; int nNode = -1;

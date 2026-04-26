@@ -69,7 +69,7 @@ static PREVIEW_MODE_KEYS gPreviewKeys[] = {
 void PREVIEW_MODE::Start()
 {
     spritetype* pSpr; XSPRITE* pXSpr;
-    int i;
+    int nFlags, i;
     
     AutoAdjustSprites();
     CleanUp();
@@ -121,6 +121,8 @@ void PREVIEW_MODE::Start()
             DeleteSprite(pSpr->index);
             continue;
         }
+        
+        nFlags = pSpr->flags;
         
         if (mode <= kGameModeFlags)
         {
@@ -219,6 +221,9 @@ void PREVIEW_MODE::Start()
             if (pSpr->flags & kPhysGravity)
                 pSpr->flags |= kPhysFalling;
         }
+        
+        if (nFlags & kHitagNoModel)
+            pSpr->flags |= kHitagNoModel;
     }
     
     if (gModernMap) nnExtInitModernStuff();

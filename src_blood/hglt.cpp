@@ -1215,10 +1215,10 @@ void hgltSectDetach()
     }
 }
 
-void hgltSectAttach()
+void hgltSectAttach(char inHgltRange)
 {
     int i = highlightsectorcnt;
-    int n, t, s, e;
+    int n, t, s, e, s2, e2;
 
     while(--i >= 0)
     {
@@ -1226,12 +1226,35 @@ void hgltSectAttach()
         getSectorWalls(t, &s, &e);
         while(s <= e)
         {
-            if (wall[s].nextwall < 0 && (n = findNextWall(s)) >= 0)
+            if (inHgltRange)
             {
-                if (wall[n].nextwall < 0)
+                t = highlightsectorcnt;
+                while(--t >= 0)
                 {
-                    wallAttach(s, sectorofwall(n), n);
-                    wallAttach(n, t, s);
+                    n = highlightsector[t];
+                    getSectorWalls(n, &s2, &e2);
+                    while(s2 <= e2)
+                    {
+                        if (wall[s2].nextwall < 0 && isNextWallOf(s, s2))
+                        {
+                            wallAttach(s, s2);
+                            wallAttach(s2, s);
+                            break;
+                        }
+                        
+                        s2++;
+                    }
+                }
+            }
+            else
+            {
+                if (wall[s].nextwall < 0 && (n = findNextWall(s)) >= 0)
+                {
+                    if (wall[n].nextwall < 0)
+                    {
+                        wallAttach(s, sectorofwall(n), n);
+                        wallAttach(n, t, s);
+                    }
                 }
             }
 
@@ -1738,10 +1761,12 @@ void sectChgZ(int nSect, int bz, int a2, int flags, int a4)
     pSect->floorz       += bz;
     pSect->ceilingz     += bz;
 
-    if (pXSect && (pXSect->onFloorZ || pXSect->offFloorZ))
+    if (pXSect)
     {
         pXSect->onFloorZ    += bz;
         pXSect->offFloorZ   += bz;
+        pXSect->onCeilZ     += bz;
+        pXSect->offCeilZ    += bz;
     }
 
     for (s = headspritesect[nSect]; s >= 0; s = nextspritesect[s])
@@ -1846,40 +1871,39 @@ void sprDelete(spritetype* pSprite, int) {
 
 }
 
-void sprSetXRepeat(spritetype* pSprite, int val) {
-
-    pSprite->xrepeat += val;
-
-}
-
-void sprSetYRepeat(spritetype* pSprite, int val) {
-
-    pSprite->yrepeat += val;
-
-}
-
-/* void sectFXChgFreq(int nSect, int nVal)
+void sectFXSetShadeFlags(int nSect, int, int, int, int)
 {
-    int nXSect = sector[nSect].extra;
-    if (nXSect > 0)
-        xsector[nXSect].freq = ClipRange(xsector[nXSect].freq + nVal, 0, 255);
+    XSECTOR* pXSect = &xsector[GetXSector(nSect)];
+    if (!pXSect->shadeFloor && !pXSect->shadeCeiling && !pXSect->shadeWalls)
+    {
+        pXSect->shadeFloor      = (isSkySector(nSect, OBJ_FLOOR) == 0);
+        pXSect->shadeCeiling    = (isSkySector(nSect, OBJ_CEILING) == 0);
+        pXSect->shadeWalls      = 1;
+        pXSect->shadeAlways     = 1;
+    }
 }
 
-void sectFXChgPhase(int nSect, int nVal)
+void sectFXChgFreq(int nSect, int nVal, int, int, int)
 {
     int nXSect = GetXSector(nSect);
-    xsector[nXSect].phase = ClipRange(xsector[nXSect].phase + nVal, 0, 255);
+    xsector[nXSect].shadeFreq = ClipRange(xsector[nXSect].shadeFreq + nVal, 0, 255);
 }
 
-void sectFXChgAmplitude(int nSect, int nVal)
+void sectFXChgPhase(int nSect, int nVal, int, int, int)
+{
+    int nXSect = GetXSector(nSect);
+    xsector[nXSect].shadePhase = ClipRange(xsector[nXSect].shadePhase + nVal, 0, 255);
+}
+
+void sectFXChgAmplitude(int nSect, int nVal, int, int, int)
 {
     int nXSect = GetXSector(nSect);
     xsector[nXSect].amplitude = ClipRange(xsector[nXSect].amplitude + nVal, -128, 127);
-} */
+}
 
 void sectChgVisibility(int nSect, int nVis)
 {
-    sector[nSect].visibility = ClipRange(sector[nSect].visibility + nVis, 0, 239);
+    sector[nSect].visibility += nVis; //= ClipRange(sector[nSect].visibility + nVis, 0, 255);
 }
 
 void sectChgShade(int nSect, int nOf, int nShade, int, int)
@@ -1890,6 +1914,33 @@ void sectChgShade(int nSect, int nOf, int nShade, int, int)
 void sectDelete(int nSector, int arg1, int arg2, int arg3, int arg4)
 {
     int i;
+    
+    for (i = headspritesect[nSector]; i >= 0;)
+    {
+        spritetype* pSpr = &sprite[i];
+        if (pSpr->statnum == kStatMarker && pSpr->owner != nSector)
+        {
+            if (rngok(pSpr->owner, 0, numsectors))
+            {
+                ChangeSpriteSect(pSpr->index, pSpr->owner);
+                i = headspritesect[nSector];
+                continue;
+            }
+        }
+        
+        #if 0
+        int t = IncRotate(nSector, numsectors);
+        if (!inside(pSpr->x, pSpr->y, nSector))
+        {
+            ChangeSpriteSect(pSpr->index, t);
+            i = headspritesect[nSector];
+            continue;
+        }
+        #endif
+        
+        i = nextspritesect[i];
+    }
+    
     deletesector(nSector);
     if (highlightsectorcnt > 0)
     {

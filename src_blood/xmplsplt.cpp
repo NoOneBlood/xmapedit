@@ -195,7 +195,7 @@ int LOOPSPLIT::Insert()
                     insertPoint(dst.w, sp[1].x, sp[1].y);
                 }
 
-                if (!sectSplit(src.s, sp, LENGTH(sp)))
+                if (sectSplit(src.s, sp, LENGTH(sp)) < 0)
                     continue;
             }
 

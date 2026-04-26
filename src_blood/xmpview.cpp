@@ -748,18 +748,28 @@ void viewProcessSprites(int x, int y, int z, int a) {
 
         if (nView >= kSprViewVox)
         {
-            if (isExternalModel(nTile))
+            if ((pTSpr->flags & kHitagNoModel) == 0)
             {
-                if (gPreviewMode || gMisc.externalModels == 1)
-                    voxType = kVoxTypeExternal;
+                spriteext[nSpr].flags &= ~SPREXT_NOTMD;
+                
+                if (isExternalModel(nTile))
+                {
+                    if (gPreviewMode || gMisc.externalModels == 1)
+                        voxType = kVoxTypeExternal;
+                }
+                else if (rngok(voxelIndex[nTile], 0, kMaxVoxels))
+                {
+                    voxType = kVoxTypeInternal;
+                }
+                
+                if (!voxType)
+                    nView = (viewType[nTile] < kSprViewVox) ? viewType[nTile] : kSprViewSingle;
             }
-            else if (rngok(voxelIndex[nTile], 0, kMaxVoxels))
+            else
             {
-                voxType = kVoxTypeInternal;
+                spriteext[nSpr].flags |= SPREXT_NOTMD;
+                nView = kSprViewSingle;
             }
-
-            if (!voxType)
-                nView = (viewType[nTile] < kSprViewVox) ? viewType[nTile] : kSprViewSingle;
         }
 
         if (!gPreviewMode)
@@ -892,8 +902,14 @@ void viewProcessSprites(int x, int y, int z, int a) {
 
 void viewRotateWallTiles(char enable)
 {
+    static char state = 255;
     static int i;
-
+    
+    if (state == enable)
+        return;
+    
+    state = enable;
+    
     i = numwalls;
     while(--i >= 0)
     {

@@ -154,7 +154,7 @@ void Delay(int time);
 void splashScreen(char* text = NULL);
 inline void plsWait() { splashScreen("Please, wait"); }
 
-BOOL isModernMap();
+char isModernMap();
 
 int getDataOf(int nData, int nType, int nID);
 char setDataOf(int nData, int nVal, int nType, int nID);
@@ -183,6 +183,7 @@ void hit2sector(int *rtsect, int* rtx, int* rty, int* rtz, int gridCorrection, i
 void findSectorMarker(int nSect, int *nIdx1, int *nIdx2);
 void doAutoGrid();
 int setupSecrets();
+int setupModernFeaturesState(char state);
 char* array2str(NAMED_TYPE* in, int inLen, char* out, int outLen);
 
 void resortFree();
@@ -253,8 +254,6 @@ BOOL testXSectorForLighting(int nXSect);
 
 void collectUsedChannels(unsigned char used[1024]);
 char isIslandSector(int nSect);
-char isNextWallOf(int nSrc, int nDest);
-int findNextWall(int nWall, char forceSearch = 0);
 int findNamedID(const char* str, NAMED_TYPE* pDb, int nLen);
 spritetype* findPlayerStart(int nPlayer);
 int words2flags(const char* str, NAMED_TYPE* pDb, int nLen);

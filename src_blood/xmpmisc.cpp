@@ -542,10 +542,18 @@ BOOL obsoleteXObject(int otype, int oxindex) {
             return FALSE;
 
         XSECTOR pXModel; memset(&pXModel, 0, sizeof(XSECTOR));
-        pXModel.reference = xsector[oxindex].reference;
-        pXModel.marker0   = xsector[oxindex].marker0;
-        pXModel.marker1   = xsector[oxindex].marker1;
-
+        pXModel.reference       = xsector[oxindex].reference;
+        pXModel.marker0         = xsector[oxindex].marker0;
+        pXModel.marker1         = xsector[oxindex].marker1;
+        pXModel.onFloorZ        = xsector[oxindex].onFloorZ;
+        pXModel.offFloorZ       = xsector[oxindex].offFloorZ;
+        pXModel.onCeilZ         = xsector[oxindex].onCeilZ;
+        pXModel.offCeilZ        = xsector[oxindex].offCeilZ;
+        pXModel.ceilXPanFrac    = xsector[oxindex].ceilXPanFrac;
+        pXModel.ceilYPanFrac    = xsector[oxindex].ceilYPanFrac;
+        pXModel.floorXPanFrac   = xsector[oxindex].floorXPanFrac;
+        pXModel.floorYPanFrac   = xsector[oxindex].floorYPanFrac;
+        
         return (memcmp(&pXModel, &xsector[oxindex], sizeof(XSECTOR)) == 0);
     }
 
@@ -976,14 +984,13 @@ void hit2sector(int *rtsect, int* rtx, int* rty, int* rtz, int gridCorrection, i
 
 
 
-BOOL isModernMap() {
-
-    if (gCompat.modernMap || gModernMap) return TRUE;
-    if (numsprites >= kVanillaMaxSprites || numxsprites >= kVanillaMaxXSprites) return TRUE;
-    if (numsectors >= kVanillaMaxSectors || numxsectors >= kVanillaMaxXSectors) return TRUE;
-    if (numwalls   >= kVanillaMaxWalls   || numxwalls   >= kVanillaMaxXWalls)   return TRUE;
-    return FALSE;
-
+char isModernMap()
+{
+    if (gModernMap) return 1;
+    if (numsprites >= kVanillaMaxSprites || numxsprites >= kVanillaMaxXSprites) return 2;
+    if (numsectors >= kVanillaMaxSectors || numxsectors >= kVanillaMaxXSectors) return 2;
+    if (numwalls   >= kVanillaMaxWalls   || numxwalls   >= kVanillaMaxXWalls)   return 2;
+    return 0;
 }
 
 BOOL isMultiTx(short nSpr) {
@@ -1215,6 +1222,68 @@ int setupSecrets() {
     }
 
     return secrets;
+}
+
+int setupModernFeaturesState(char state)
+{
+    spritetype* pSpr; XSPRITE* pXSpr;
+    int i = numsectors;
+    int t = -1, s;
+    
+    while(--i >= 0)
+    {
+        for (s = headspritesect[i]; s >= 0; s = nextspritesect[s])
+        {
+            pSpr = &sprite[s], pXSpr = NULL;
+            
+            if (pSpr->extra > 0)
+            {
+                pXSpr = &xsprite[pSpr->extra];
+                if (pXSpr->txID == pXSpr->rxID && pXSpr->rxID == 60 && pXSpr->command == 100)
+                {
+                    if (state)
+                        return s; // found magic sprite, no need to create new!
+                    
+                    // Do not delete sprite. Just erase
+                    // magic because it could be the
+                    // actual decoration.
+                    
+                    pXSpr->command = 0;
+                    pXSpr->txID    = 0;
+                    pXSpr->rxID    = 0;
+                }
+            }
+            
+            if ((t < 0 && pSpr->type == 0)
+                && (pXSpr == NULL || (pXSpr->txID == 0 && pXSpr->rxID == 0)))
+                    t = s; // fits for magic info
+        }
+    }
+    
+    // Setting up the modern features
+    // magic for sprite...
+    
+    if (state && numsectors > 0)
+    {
+        s = t;
+        if (s < 0 && (s = InsertSprite(0, 0)) >= 0)
+        {
+            pSpr = &sprite[s];
+            pSpr->x = wall[sector[0].wallptr].x;
+            pSpr->y = wall[sector[0].wallptr].y;
+            pSpr->cstat |= kSprInvisible;
+        }
+        
+        if (s >= 0)
+        {
+            pXSpr = &xsprite[GetXSprite(s)];
+            pXSpr->rxID = pXSpr->txID = 60;
+            pXSpr->command = 100;
+            return s;
+        }
+    }
+    
+    return -1;
 }
 
 char* array2str(NAMED_TYPE* in, int inLen, char* out, int outLen) {
@@ -2245,43 +2314,6 @@ char isIslandSector(int nSect)
     nParent = wall[s].nextsector;
     while(s <= e && wall[s++].nextsector == nParent);
     return (s > e);
-}
-
-char isNextWallOf(int nSrc, int nDest)
-{
-    int x1, y1, x2, y2, x3, y3, x4, y4;
-    getWallCoords(nSrc, &x1, &y1, &x2, &y2);
-    getWallCoords(nDest, &x3, &y3, &x4, &y4);
-
-    return (x3 == x2 && y3 == y2 && x4 == x1 && y4 == y1);
-}
-
-int findNextWall(int nWall, char forceSearch)
-{
-    int i;
-    if (!forceSearch && wall[nWall].nextwall >= 0)
-        return wall[nWall].nextwall;
-
-    int nSect = sectorofwall(nWall);
-    int s, e;
-
-    i = numsectors;
-    while(--i >= 0)
-    {
-        if (i == nSect)
-            continue;
-
-        getSectorWalls(i, &s, &e);
-        while(s <= e)
-        {
-            if (isNextWallOf(nWall, s))
-                return s;
-
-            s++;
-        }
-    }
-
-    return -1;
 }
 
 void posChg(int* x, int* y, int bx, int by, char chgRel)

@@ -373,8 +373,8 @@ void getclosestpointonwall(int x, int y, int nWall, int *nx, int *ny)
         }
 
         i=((i<<15)/j)<<15;
-        *nx = x1 + mulscale30(dx,i);
-        *ny = y1 + mulscale30(dy,i);
+        *nx = x1 + mulscale30r(dx,i);
+        *ny = y1 + mulscale30r(dy,i);
     }
 }
 
@@ -568,7 +568,8 @@ void ProcessInput2D( void )
 
     if (!gPreviewMode && pointhighlight >= 0 && (pointhighlight & 0x4000) != 0)
     {
-        gScreen2D.data.sprUnderCursor = countSpritesAt(sprite[searchwall].x, sprite[searchwall].y);
+        j = pointhighlight & 0x3FFF;
+        gScreen2D.data.sprUnderCursor = countSpritesAt(sprite[j].x, sprite[j].y);
         if (gScreen2D.data.sprUnderCursor > 1)
         {
             if (alt && gMouse.wheel)
@@ -577,7 +578,7 @@ void ProcessInput2D( void )
                 {
                     while( 1 )
                     {
-                        if ((i = nextSpriteAt(sprite[searchwall].x, sprite[searchwall].y, &spridx)) >= 0)
+                        if ((i = nextSpriteAt(sprite[j].x, sprite[j].y, &spridx)) >= 0)
                         {
                             scrSetMessage("Focus on sprite #%d at X=%d, Y=%d", sprite[i].index, sprite[i].x, sprite[i].y);
                             ChangeSpriteSect(sprite[i].index, sprite[i].sectnum); // put sprite in bottom of the spritesect array
@@ -640,7 +641,6 @@ void ProcessInput2D( void )
                 if (!capstat)
                 {
                     pGLShape->Start(sectorhighlight, x, y);
-                    pGLShape->StatusSet(1); // started
                     capstat = 1;
                 }
             }
@@ -899,12 +899,7 @@ void ProcessInput2D( void )
         {
             capstat = 0;
 
-            if (pGLShape)
-            {
-                if (pGLShape->StatusGet() == 1)
-                    pGLShape->StatusSet(2); // finished drawing
-            }
-            else
+            if (pGLShape == NULL)
             {
                 if (highlightsectorcnt > 0)
                     hgltSectAttach(), asksave = 1;
@@ -924,33 +919,20 @@ void ProcessInput2D( void )
                     if (wall[j].nextwall < 0 && (j = sectorofwall(j)) >= 0)
                         sectAttach(j);
 
+                    IDLIST node(1); // fix repeats for walls
+                    collectWallsOfNode(&node, pointdrag, 0x01);
+                    for (int32_t* p = node.First(); *p >= 0; p++)
+                    {
+                        if ((wall[*p].cstat & kWallMoveMask) == 0) // skip kinetic motion marked
+                            fixrepeats(*p);
+                    }
+
                     i = numwalls;
                     while(--i >= 0)
                     {
                         getWallCoords(i, &x1, &y1, &x2, &y2);
                         if ((x1 == x2 && y1 == y2) && ((x3 == x1 && y3 == y1) || (x3 == x2 && y3 == y2)))
                             deletePoint(i);
-                    }
-
-                    // fix repeats for walls
-                    for (i = 0; i < numwalls; i++)
-                    {
-                        k = wall[i].point2;
-                        getWallCoords(i, &x1, &y1, &x2, &y2);
-
-                        // current wall
-                        if (!(wall[i].cstat & kWallMoveMask)) // skip kinetic motion marked
-                        {
-                            if (x1 == x3 && y1 == y3)
-                                fixrepeats(i); // must be i here!
-                        }
-
-                        // wall that connects to current one
-                        if (!(wall[k].cstat & kWallMoveMask))  // skip kinetic motion marked
-                        {
-                            if (x2 == x3 && y2 == y3)
-                                fixrepeats(i); // must be i here!
-                        }
                     }
                 }
 
@@ -1022,27 +1004,40 @@ void ProcessInput2D( void )
 
             helperDoGridCorrection(&x, &y);
 
-            if (shift
-                && pointhighlight >= 0 && (pointhighlight & 0xc000) == 0)
+            if (shift)
+            {
+                if (pointhighlight >= 0 && (pointhighlight & 0xc000) == 0)
                     getWallCoords(pointhighlight, &x, &y);
-
+                else if (linehighlight >= 0)
+                    getclosestpointonwall(x, y, linehighlight, &x, &y);
+            }
+            
             pGLBuild->Setup(x, y);
             if ((nStat = pGLBuild->StatusGet()) >= 0)
             {
                 msg+=sprintf(msg, " Press SPACE to");
+                
+                if (ctrl
+                    && (irngok(nStat, 1, 2) || nStat == 8))
+                        nStat = 0;
+                
                 switch(nStat)
                 {
                     case 0:
                         gMapedHud.SetMsgImp(16, "%s insert or BACKSPACE to remove a point", buffer);
                         break;
                     case 1:
-                        gMapedHud.SetMsgImp(16, "%s split sector", buffer);
+                    case 10:
+                        gMapedHud.SetMsgImp(16, "%s split one or more sectors", buffer);
                         break;
                     case 2:
-                        gMapedHud.SetMsgImp(16, "%s create a split line", buffer);
+                        gMapedHud.SetMsgImp(16, "%s insert points on walls", buffer);
+                        break;
+                    case 8:
+                        gMapedHud.SetMsgImp(16, "%s split one or more sectors and insert points", buffer);
                         break;
                     case 3:
-                        gMapedHud.SetMsgImp(16, "%s insert walls", buffer);
+                        gMapedHud.SetMsgImp(16, "%s insert solid wall loop", buffer);
                         break;
                     case 4:
                     case 5:
@@ -1082,35 +1077,37 @@ void ProcessInput2D( void )
         }
         else if (pGLShape)
         {
-            nStat = pGLShape->StatusGet();
-            sprintf(buffer, "Loop shape");
+            msg = buffer;
+            msg+=sprintf(buffer, "Loop shape:");
 
             OBJECT obj;
             obj.type = somethingintab; obj.index = tempidx;
             if (pGLShape->SectorGet() >= 0 && sectorhighlight >= 0)
                 obj.type = OBJ_FLOOR, obj.index = sectorhighlight;
 
-            if (capstat)
-                pGLShape->Setup(x, y, &obj);
-
-            if (nStat >= 0 || (msg = retnCodeCheck(nStat, gLoopShapeErrors)) == NULL)
+            (capstat) ? pGLShape->Setup(x, y, &obj) : pGLShape->Setup(&obj);
+            
+            if ((nStat = pGLShape->StatusGet()) >= 0)
             {
-                if (nStat)
-                {
-                    if (nStat == 1)
-                        gMapedHud.SetMsgImp(16, "%s: width: %d, height: %d, points: %d", buffer, pGLShape->Width(), pGLShape->Height(), pGLShape->NumPoints());
-
-                    if (nStat == 2)
-                        gMapedHud.SetMsgImp(16, "%s: Press SPACE to insert loop", buffer);
-                }
+                if (nStat == 0)
+                    gMapedHud.SetMsgImp(16, "%s Hold LEFT MOUSE and move to draw shape", buffer);
+                else if (capstat)
+                    gMapedHud.SetMsgImp(16, "%s width: %d, height: %d", buffer, pGLShape->Width(), pGLShape->Height());
                 else
                 {
-                    gMapedHud.SetMsgImp(16, "%s: Hold LEFT MOUSE and move to draw shape", buffer);
+                    msg+=sprintf(msg, " Press SPACE to");
+                    
+                    switch(nStat)
+                    {
+                        case 1: gMapedHud.SetMsgImp(16, "%s insert loop", buffer);      break;
+                        case 2: gMapedHud.SetMsgImp(16, "%s create sector", buffer);    break;
+                        case 3: gMapedHud.SetMsgImp(16, "%s split sector(s)", buffer);  break;
+                    }
                 }
             }
-            else
+            else if ((msg = retnCodeCheck(nStat, gLoopShapeErrors)) != NULL)
             {
-                gMapedHud.SetMsgImp(16, "%s error: %s", buffer, msg);
+                gMapedHud.SetMsgImp(16, "%s %s", buffer, msg);
             }
 
 
@@ -1128,7 +1125,7 @@ void ProcessInput2D( void )
                             {
                                 if (Beep(nStat > 0))
                                 {
-                                    pGLShape->Insert(); pGLShape->StatusSet(0);
+                                    pGLShape->Insert(); pGLShape->Reset();
                                     updatesector(posx, posy, &cursectnum);
                                 }
                             }
@@ -1462,7 +1459,8 @@ void ProcessInput2D( void )
 
         if (r & PROC_BEEP)
             Beep(r & PROC_OK);
-
-        keyClear();
     }
+    
+    if (key)
+        keyClear();
 }

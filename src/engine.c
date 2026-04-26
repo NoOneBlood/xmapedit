@@ -3635,9 +3635,9 @@ void drawsprite(int snum)
 
 	if ((cstat&48)==48) vtilenum = tilenum;	// if the game wants voxels, it gets voxels
 	else if ((cstat & 48) < 16 && (usevoxels) && (tiletovox[tilenum] != -1)
-#if USE_POLYMOST && USE_OPENGL
+//#if USE_POLYMOST && USE_OPENGL
 		 && (!(spriteext[tspr->owner].flags&SPREXT_NOTMD))
-#endif
+//#endif
 	   ) {
 		vtilenum = tiletovox[tilenum];
 		cstat |= 48;
@@ -5217,7 +5217,7 @@ static void fillpolygon(int npoints, int scrX, int scrY)
 		zz = xb1[z];
 		y1 = ry1[z]; day1 = (y1>>12);
 		y2 = ry1[zz]; day2 = (y2>>12);
-		if (day1 != day2)
+		if (day1 != day2 && day1 >= 0 && day2 >= 0)
 		{
 			x1 = rx1[z]; x2 = rx1[zz];
 			xinc = divscale12(x2-x1,y2-y1);
@@ -5258,6 +5258,13 @@ static void fillpolygon(int npoints, int scrX, int scrY)
 			x1 = ptr[day1]; ptr[day1] = ptr[z];
 			x2 = ptr2[day2]-1; ptr2[day2] = ptr2[z];
 			if (x1 > x2) continue;
+            
+            if (x1 < 0 || x2 < 0)
+                continue;
+            
+            cnt = x2-x1;
+            if (cnt < 0 || cnt >= xdim)
+                continue;
 
 			if (globalpolytype < 1)
 			{

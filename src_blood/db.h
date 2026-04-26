@@ -37,6 +37,7 @@
 #define kXMPHeadSig             "XmP"
 #define kXMPHeadVer1            1
 #define kXMPHeadVer2            2
+#define kXMPHeadVer3            3
 
 #define kMonoCopyriteCRC        0x77443AF8
 #define kMonoCopyriteLength     57
@@ -105,8 +106,9 @@ struct BLMHEADER_EXTRA
     int16_t xmpBoardHeight;     // 2D board size
     int8_t  xmpPalette;         // global screen palette
     int8_t  xmpSkyRepeatCnt;    // how many times to repeat sky tiles (0 = auto)
+    int32_t xmpSkyVisibility;   // parallaxvisibility variable value
     // ------------------
-    char  pad2[41];
+    char  pad2[37];
 };
 
 struct XSPRITE {
@@ -467,7 +469,7 @@ struct SPRITE6 {
 
 extern int gMapRev;
 extern int gSuppMapVersions[7];
-extern bool gModernMap;
+extern char gModernMap;
 extern unsigned short gStatCount[kMaxStatus + 1];
 extern short numxsprites, numxwalls, numxsectors;
 

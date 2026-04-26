@@ -24,6 +24,7 @@ static char helperPickEnemyTile(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 static char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 static char helperSetFlags(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 static char helperXSectorSetData(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key);
+static char helperFindNextSide(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key);
 
 static int dlgCountItems(DIALOG_ITEM* pDlg)
 {
@@ -44,11 +45,12 @@ struct DIALOG_INFO
 };
 #pragma pack(pop)
 
+DIALOG_ITEM* FindItem(DIALOG_ITEM* dialog, int nID);
 DIALOG_INFO* GetDialogInfo(DIALOG_ITEM* pDlg, int nID);
 
 DIALOG_ITEM dlgXSprite[] =
 {
-    { NO,   1,      0,  0,  1,  LIST,           "Type %4d: %-18.18s", 0, 1023, gSpriteNames },
+    { NO,   1,      0,  0,  1,  LIST,           "Type %4d: %-18.18s", 0, 1023, gSpriteNames, NULL,               NO_DEFVAL },
     { NO,   1,      0,  1,  2,  NUMBER,         "RX ID: %-4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  2,  3,  NUMBER,         "TX ID: %-4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  3,  4,  LIST,           "State  %1d: %-3s", 0, 1, gBoolNames },
@@ -73,15 +75,15 @@ DIALOG_ITEM dlgXSprite[] =
     { MO,   1,      39, 8,  19, CHECKBOX,       "Aim" },
 
     { NO,   1,      21, 9,  0,  HEADER,         "Launch 1 2 3 4 5 S B C T" },
-    { NO,   1,      28, 10, 20, CHECKBOX,       "" },
-    { NO,   1,      30, 10, 21, CHECKBOX,       "" },
-    { NO,   1,      32, 10, 22, CHECKBOX,       "" },
-    { NO,   1,      34, 10, 23, CHECKBOX,       "" },
-    { NO,   1,      36, 10, 24, CHECKBOX,       "" },
-    { NO,   1,      38, 10, 25, CHECKBOX,       "" },
-    { NO,   1,      40, 10, 26, CHECKBOX,       "" },
-    { NO,   1,      42, 10, 27, CHECKBOX,       "" },
-    { NO,   1,      44, 10, 28, CHECKBOX,       "" },
+    { NO,   1,      28, 10, 20, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      30, 10, 21, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      32, 10, 22, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      34, 10, 23, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      36, 10, 24, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      38, 10, 25, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      40, 10, 26, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      42, 10, 27, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      44, 10, 28, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
 
     { NO,   1,      46, 0,  0,  HEADER,         "Trigger Flags:  " },
     { NO,   1,      46, 1,  29, CHECKBOX,       "Decoupled" },
@@ -119,42 +121,42 @@ DIALOG_ITEM dlgXSprite[] =
 DIALOG_ITEM dlgSprite[] =
 {
     { NO,   1,      0,  0,  0,  HEADER,         "General:" },
-    { NO,   1,      0,  1,  1,  NUMBER,         "X-coordinate..: %d",       -kDefaultBoardSize, kDefaultBoardSize,  NULL,   NULL},
-    { NO,   1,      0,  2,  2,  NUMBER,         "Y-coordinate..: %d",       -kDefaultBoardSize, kDefaultBoardSize,  NULL,   NULL},
-    { NO,   1,      0,  3,  3,  NUMBER,         "Z-coordinate..: %d",       -13421721,          13421722,           NULL,   NULL},
-    { NO,   0,      0,  4,  4,  NUMBER,         "Sectnum.......: %d",       0,                  kMaxSectors-1,      NULL,   NULL},
-    { NO,   1,      0,  5,  5,  NUMBER,         "Statnum.......: %d",       0,                  kMaxStatus,         NULL,   NULL},
-    { NO,   1,      0,  6,  6,  NUMBER,         "Hi-tag........: %d",       -32768,             32767,              NULL,   helperSetFlags},
-    { NO,   1,      0,  7,  7,  NUMBER,         "Lo-tag........: %d",       -32768,             32767,              NULL,   NULL},
-    { NO,   1,      0,  8,  8,  NUMBER,         "Clipdist......: %d",       0,                  255,                NULL,   NULL},
-    { NO,   0,      0,  9,  9,  NUMBER,         "Extra.........: %d",       -1,                 kMaxXSprites - 1,   NULL,   NULL},
+    { NO,   1,      0,  1,  1,  NUMBER,         "X-coordinate..: %d",       -13421721,          13421722,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      0,  2,  2,  NUMBER,         "Y-coordinate..: %d",       -13421721,          13421722,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      0,  3,  3,  NUMBER,         "Z-coordinate..: %d",       -13421721,          13421722,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   0,      0,  4,  4,  NUMBER,         "Sectnum.......: %d",       0,                  kMaxSectors-1,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      0,  5,  5,  NUMBER,         "Statnum.......: %d",       0,                  kMaxStatus-1,       NULL,   NULL,               0         },
+    { NO,   1,      0,  6,  6,  NUMBER,         "Hi-tag........: %d",       -32768,             32767,              NULL,   helperSetFlags,     0         },
+    { NO,   1,      0,  7,  7,  NUMBER,         "Lo-tag........: %d",       -32768,             32767,              NULL,   NULL,               0         },
+    { NO,   1,      0,  8,  8,  NUMBER,         "Clipdist......: %d",       0,                  255,                NULL,   NULL,               32        },
+    { NO,   0,      0,  9,  9,  NUMBER,         "Extra.........: %d",       -1,                 kMaxXSprites - 1,   NULL,   NULL,               -1        },
 
 
     { NO,   1,      24, 1,  0,  HEADER,         "Appearance:" },
-    { NO,   1,      24, 2,  10, NUMBER,         "Tilenum.......: %d",       0,                  kMaxTiles - 1,      NULL,   NULL},
-    { NO,   1,      24, 3,  11, NUMBER,         "Shade.........: %d",       -127,               128,                    NULL,   NULL},
-    { NO,   1,      24, 4,  12, NUMBER,         "Palookup......: %d",       0,                  kPluMax - 1,        NULL,   NULL},
-    { NO,   1,      24, 5,  13, NUMBER,         "X-repeat......: %d",       0,                  255,                NULL,   NULL},
-    { NO,   1,      24, 6,  14, NUMBER,         "Y-repeat......: %d",       0,                  255,                NULL,   NULL},
-    { NO,   1,      24, 7,  15, NUMBER,         "X-offset......: %d",       -128,               127,                NULL,   NULL},
-    { NO,   1,      24, 8,  16, NUMBER,         "Y-offset......: %d",       -128,               127,                NULL,   NULL},
-    { NO,   1,      24, 9,  17, NUMBER,         "Slope.........: %d",       -32768,             32767,              NULL,   NULL},
+    { NO,   1,      24, 2,  10, NUMBER,         "Tilenum.......: %d",       0,                  kMaxTiles - 1,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      24, 3,  11, NUMBER,         "Shade.........: %d",       -127,               128,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      24, 4,  12, NUMBER,         "Palookup......: %d",       0,                  kPluMax - 1,        NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      24, 5,  13, NUMBER,         "X-repeat......: %d",       0,                  255,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      24, 6,  14, NUMBER,         "Y-repeat......: %d",       0,                  255,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      24, 7,  15, NUMBER,         "X-offset......: %d",       -128,               127,                NULL,   NULL,               0 },
+    { NO,   1,      24, 8,  16, NUMBER,         "Y-offset......: %d",       -128,               127,                NULL,   NULL,               0 },
+    { NO,   1,      24, 9,  17, NUMBER,         "Slope.........: %d",       -32768,             32767,              NULL,   NULL,               0 },
 
     { NO,   1,      46, 1,  0,  HEADER,         "Miscellaneous:" },
-    { NO,   1,      46, 2,  18, NUMBER_HEX,     "Cstat flags:....: 0x%0X", -32768,              32767,              NULL,   helperSetFlags},
-    { NO,   1,      46, 3,  19, NUMBER,         "Detail..........: %d",     0,                  4,                  NULL,   NULL},
-    { NO,   1,      46, 4,  20, NUMBER,         "Angle...........: %d",     -32768,             32767,              NULL,   NULL},
-    { NO,   0,      46, 5,  21, NUMBER,         "X-velocity......: %d",     -13421721,          13421728,           NULL,   NULL},
-    { NO,   0,      46, 6,  22, NUMBER,         "Y-velocity......: %d",     -13421721,          13421728,           NULL,   NULL},
-    { NO,   0,      46, 7,  23, NUMBER,         "Z-velocity......: %d",     -13421721,          13421728,           NULL,   NULL},
-    { NO,   0,      46, 8,  24, NUMBER,         "Owner...........: %d",     -32768,             32767,              NULL,   NULL},
+    { NO,   1,      46, 2,  18, NUMBER_HEX,     "Cstat flags:....: 0x%0X", -32768,              32767,              NULL,   helperSetFlags,     kSprOrigin },
+    { NO,   1,      46, 3,  19, NUMBER,         "Detail..........: %d",     0,                  4,                  NULL,   NULL,               0 },
+    { NO,   1,      46, 4,  20, NUMBER,         "Angle...........: %d",     -32768,             32767,              NULL,   NULL,               NO_DEFVAL },
+    { NO,   0,      46, 5,  21, NUMBER,         "X-velocity......: %d",     -13421721,          13421728,           NULL,   NULL,               -1 },
+    { NO,   0,      46, 6,  22, NUMBER,         "Y-velocity......: %d",     -13421721,          13421728,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   0,      46, 7,  23, NUMBER,         "Z-velocity......: %d",     -13421721,          13421728,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   0,      46, 8,  24, NUMBER,         "Owner...........: %d",     -32768,             32767,              NULL,   NULL,               -1 },
 
     { NO,   1,      0,  0,  0,  CONTROL_END },
 };
 
 DIALOG_ITEM dlgXWall[] =
 {
-    { NO,   1,      0,  0,  kWallType,          LIST,       "Type %4d: %-18.18s", 0, 1023, gWallNames },
+    { NO,   1,      0,  0,  kWallType,          LIST,       "Type %4d: %-18.18s", 0, 1023, gWallNames, NULL,               NO_DEFVAL },
     { NO,   1,      0,  1,  kWallRX,            NUMBER,     "RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  2,  kWallTX,            NUMBER,     "TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  3,  kWallState,         LIST,       "State %1d: %-3.3s", 0, 1, gBoolNames },
@@ -194,32 +196,32 @@ DIALOG_ITEM dlgXWall[] =
 DIALOG_ITEM dlgWall[] =
 {
     { NO,   1,      0,  0,  0,  HEADER,         "General:" },
-    { NO,   0,      0,  1,  1,  NUMBER,         "X-coordinate: %d",         -kDefaultBoardSize,     kDefaultBoardSize,  NULL,   NULL},
-    { NO,   0,      0,  2,  2,  NUMBER,         "Y-coordinate: %d",         -kDefaultBoardSize,     kDefaultBoardSize,  NULL,   NULL},
-    { NO,   0,      0,  3,  3,  NUMBER,         "Point2......: %d",         0,                      kMaxWalls - 1,      NULL,   NULL},
-    { NO,   0,      0,  4,  4,  NUMBER,         "Sector......: %d",         0,                      kMaxSectors - 1,    NULL,   NULL},
-    { NO,   0,      0,  5,  5,  NUMBER,         "Next wall...: %d",         -1,                     kMaxWalls - 1,      NULL,   NULL},
-    { NO,   0,      0,  6,  6,  NUMBER,         "Next sector.: %d",         -1,                     kMaxSectors - 1,    NULL,   NULL},
-    { NO,   1,      0,  7,  7,  NUMBER,         "Hi-tag......: %d",         -32768,                 32767,              NULL,   helperSetFlags},
-    { NO,   1,      0,  8,  8,  NUMBER,         "Lo-tag......: %d",         -32768,                 32767,              NULL,   NULL},
-    { NO,   0,      0,  9,  9,  NUMBER,         "Extra.......: %d",         -32768,                 kMaxXWalls - 1,     NULL,   NULL},
+    { NO,   0,      0,  1,  1,  NUMBER,         "X-coordinate: %d",         -13421721,              13421722,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   0,      0,  2,  2,  NUMBER,         "Y-coordinate: %d",         -13421721,              13421722,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   0,      0,  3,  3,  NUMBER,         "Point2......: %d",         0,                      kMaxWalls - 1,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   0,      0,  4,  4,  NUMBER,         "Sector......: %d",         0,                      kMaxSectors - 1,    NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      0,  5,  5,  NUMBER,         "Next wall...: %d",         -1,                     kMaxWalls - 1,      NULL,   helperFindNextSide, NO_DEFVAL },
+    { NO,   1,      0,  6,  6,  NUMBER,         "Next sector.: %d",         -1,                     kMaxSectors - 1,    NULL,   helperFindNextSide, NO_DEFVAL },
+    { NO,   1,      0,  7,  7,  NUMBER,         "Hi-tag......: %d",         -32768,                 32767,              NULL,   helperSetFlags,     0 },
+    { NO,   1,      0,  8,  8,  NUMBER,         "Lo-tag......: %d",         -32768,                 32767,              NULL,   NULL,               0 },
+    { NO,   0,      0,  9,  9,  NUMBER,         "Extra.......: %d",         -32768,                 kMaxXWalls - 1,     NULL,   NULL,              -1 },
 
     { NO,   1,      22, 1,  0,  HEADER,         "Appearance:" },
-    { NO,   1,      22, 2,  10, NUMBER,         "Tilenum.....: %d",         0,                      kMaxTiles - 1,      NULL,   NULL},
-    { NO,   1,      22, 3,  11, NUMBER,         "Mask tilenum: %d",         0,                      kMaxTiles - 1,      NULL,   NULL},
-    { NO,   1,      22, 4,  12, NUMBER,         "Shade.......: %d",         -128,                   127,                NULL,   NULL},
-    { NO,   1,      22, 5,  13, NUMBER,         "Palookup....: %d",         0,                      kPluMax - 1,        NULL,   NULL},
-    { NO,   1,      22, 6,  14, NUMBER,         "X-repeat....: %d",         0,                      255,                NULL,   NULL},
-    { NO,   1,      22, 7,  15, NUMBER,         "Y-repeat....: %d",         0,                      255,                NULL,   NULL},
-    { NO,   1,      22, 8,  16, NUMBER,         "X-panning...: %d",         0,                      255,                NULL,   NULL},
-    { NO,   1,      22, 9,  17, NUMBER,         "Y-panning...: %d",         0,                      255,                NULL,   NULL},
+    { NO,   1,      22, 2,  10, NUMBER,         "Tilenum.....: %d",         0,                      kMaxTiles - 1,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 3,  11, NUMBER,         "Mask tilenum: %d",         0,                      kMaxTiles - 1,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 4,  12, NUMBER,         "Shade.......: %d",         -128,                   127,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 5,  13, NUMBER,         "Palookup....: %d",         0,                      kPluMax - 1,        NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 6,  14, NUMBER,         "X-repeat....: %d",         0,                      255,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 7,  15, NUMBER,         "Y-repeat....: %d",         0,                      255,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 8,  16, NUMBER,         "X-panning...: %d",         0,                      255,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 9,  17, NUMBER,         "Y-panning...: %d",         0,                      255,                NULL,   NULL,               NO_DEFVAL },
 
 
     { NO,   1,      46, 1,  0,  HEADER,         "Miscellaneous:" },
-    { NO,   1,      46, 2,  18, NUMBER_HEX,     "Cstat flags:....: 0x%0X",  -32768,         32767,              NULL,   helperSetFlags},
-    { NO,   0,      46, 3,  19, NUMBER,         "Angle...........: %d",     0,              2048,               NULL,   NULL},
-    { NO,   0,      46, 4,  20, NUMBER,         "Pixel length....: %d",     0,              0x800000,           NULL,   NULL},
-    { NO,   0,      46, 5,  21, NUMBER,         "Pixel height....: %d",     0,              0x800000,           NULL,   NULL},
+    { NO,   1,      46, 2,  18, NUMBER_HEX,     "Cstat flags:....: 0x%0X",  -32768,         32767,              NULL,   helperSetFlags,             0 },
+    { NO,   0,      46, 3,  19, NUMBER,         "Angle...........: %d",     0,              2048,               NULL,   NULL,                       NO_DEFVAL },
+    { NO,   0,      46, 4,  20, NUMBER,         "Pixel length....: %d",     0,              0x800000,           NULL,   NULL,                       NO_DEFVAL },
+    { NO,   0,      46, 5,  21, NUMBER,         "Pixel height....: %d",     0,              0x800000,           NULL,   NULL,                       NO_DEFVAL },
 
     { NO,   1,      0,  0,  0,  CONTROL_END },
 };
@@ -269,7 +271,7 @@ DIALOG_ITEM dlgXSectorFX[] =
 
 DIALOG_ITEM dlgXSector[] =
 {
-    { NO,   1,      0,  0,  kSectType,          LIST,       "Type %4d: %-16.16s", 0, 1023, gSectorNames },
+    { NO,   1,      0,  0,  kSectType,          LIST,       "Type %4d: %-16.16s", 0, 1023, gSectorNames, NULL,               NO_DEFVAL },
     { NO,   1,      0,  1,  kSectRX,            NUMBER,     "RX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  2,  kSectTX,            NUMBER,     "TX ID: %4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  3,  kSectState,         LIST,       "State %1d: %-3.3s", 0, 1, gBoolNames },
@@ -322,61 +324,61 @@ DIALOG_ITEM dlgXSector[] =
 DIALOG_ITEM dlgSector[] =
 {
     { NO,   1,      0,  0,  0,  HEADER,         "General:" },
-    { NO,   0,      0,  1,  1,  NUMBER,         "Total walls..: %d",        0,                  kMaxWalls - 1,      NULL,   NULL},
-    { NO,   1,      0,  2,  2,  NUMBER,         "First wall...: %d",        0,                  kMaxWalls - 1,      NULL,   NULL},
-    { NO,   0,      0,  3,  3,  NUMBER,         "Total sprites: %d",        0,                  kMaxSprites - 1,    NULL,   NULL},
-    { NO,   0,      0,  4,  4,  NUMBER,         "First sprite : %d",        -1,                 kMaxSprites - 1,    NULL,   NULL},
-    { NO,   1,      0,  5,  5,  NUMBER,         "Hi-tag.......: %d",        -32768,             32767,              NULL,   helperSetFlags},
-    { NO,   1,      0,  6,  6,  NUMBER,         "Lo-tag.......: %d",        -32768,             32767,              NULL,   NULL},
-    { NO,   1,      0,  7,  7,  NUMBER,         "Visibility...: %d",        0,                  255,                NULL,   NULL},
-    { NO,   0,      0,  8,  8,  NUMBER,         "Extra........: %d",        -32768,             kMaxXSectors - 1,   NULL,   NULL},
+    { NO,   0,      0,  1,  1,  NUMBER,         "Total walls..: %d",        0,                  kMaxWalls - 1,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      0,  2,  2,  NUMBER,         "First wall...: %d",        0,                  kMaxWalls - 1,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   0,      0,  3,  3,  NUMBER,         "Total sprites: %d",        0,                  kMaxSprites - 1,    NULL,   NULL,               NO_DEFVAL },
+    { NO,   0,      0,  4,  4,  NUMBER,         "First sprite : %d",        -1,                 kMaxSprites - 1,    NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      0,  5,  5,  NUMBER,         "Hi-tag.......: %d",        -32768,             32767,              NULL,   helperSetFlags,     0 },
+    { NO,   1,      0,  6,  6,  NUMBER,         "Lo-tag.......: %d",        -32768,             32767,              NULL,   NULL,               0 },
+    { NO,   1,      0,  7,  7,  NUMBER,         "Visibility...: %d",        0,                  255,                NULL,   NULL,               0 },
+    { NO,   0,      0,  8,  8,  NUMBER,         "Extra........: %d",        -32768,             kMaxXSectors - 1,   NULL,   NULL,              -1 },
 
     { NO,   1,      22, 1,  0,  HEADER,         "Ceiling settings:" },
-    { NO,   1,      22, 2,  9,  NUMBER,         "Tilenum......: %d",        0,                  kMaxTiles - 1,      NULL,   NULL},
-    { NO,   1,      22, 3,  10, NUMBER,         "Shade........: %d",        -128,               127,                NULL,   NULL},
-    { NO,   1,      22, 4,  11, NUMBER,         "Palookup.....: %d",        0,                  kPluMax - 1,        NULL,   NULL},
-    { NO,   1,      22, 5,  12, NUMBER,         "X-panning....: %d",        0,                  255,                NULL,   NULL},
-    { NO,   1,      22, 6,  13, NUMBER,         "Y-panning....: %d",        0,                  255,                NULL,   NULL},
-    { NO,   1,      22, 7,  14, NUMBER,         "Slope........: %d",        -32768,             32767,              NULL,   NULL},
-    { NO,   1,      22, 8,  15, NUMBER,         "Z-coordinate.: %d",        -13421721,          13421722,           NULL,   NULL},
-    { NO,   1,      22, 9,  16, NUMBER_HEX,     "Cstat flags:.: 0x%0X",     -32768,             32767,              NULL,   helperSetFlags},
+    { NO,   1,      22, 2,  9,  NUMBER,         "Tilenum......: %d",        0,                  kMaxTiles - 1,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 3,  10, NUMBER,         "Shade........: %d",        -128,               127,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 4,  11, NUMBER,         "Palookup.....: %d",        0,                  kPluMax - 1,        NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 5,  12, NUMBER,         "X-panning....: %d",        0,                  255,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 6,  13, NUMBER,         "Y-panning....: %d",        0,                  255,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 7,  14, NUMBER,         "Slope........: %d",        -32768,             32767,              NULL,   NULL,               0 },
+    { NO,   1,      22, 8,  15, NUMBER,         "Z-coordinate.: %d",        -13421721,          13421722,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      22, 9,  16, NUMBER_HEX,     "Cstat flags:.: 0x%0X",     -32768,             32767,              NULL,   helperSetFlags,     0 },
 
 
     { NO,   1,      48, 1,  0,  HEADER,         "Floor settings:" },
-    { NO,   1,      48, 2,  17, NUMBER,         "Tilenum......: %d",        0,                  kMaxTiles - 1,      NULL,   NULL},
-    { NO,   1,      48, 3,  18, NUMBER,         "Shade........: %d",        -128,               127,                NULL,   NULL},
-    { NO,   1,      48, 4,  19, NUMBER,         "Palookup.....: %d",        0,                  kPluMax - 1,        NULL,   NULL},
-    { NO,   1,      48, 5,  20, NUMBER,         "X-panning....: %d",        0,                  255,                NULL,   NULL},
-    { NO,   1,      48, 6,  21, NUMBER,         "Y-panning....: %d",        0,                  255,                NULL,   NULL},
-    { NO,   1,      48, 7,  22, NUMBER,         "Slope........: %d",        -32768,             32767,              NULL,   NULL},
-    { NO,   1,      48, 8,  23, NUMBER,         "Z-coordinate.: %d",        -13421721,          13421722,           NULL,   NULL},
-    { NO,   1,      48, 9,  24, NUMBER_HEX,     "Cstat flags:.: 0x%0X",     -32768,             32767,              NULL,   helperSetFlags},
+    { NO,   1,      48, 2,  17, NUMBER,         "Tilenum......: %d",        0,                  kMaxTiles - 1,      NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      48, 3,  18, NUMBER,         "Shade........: %d",        -128,               127,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      48, 4,  19, NUMBER,         "Palookup.....: %d",        0,                  kPluMax - 1,        NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      48, 5,  20, NUMBER,         "X-panning....: %d",        0,                  255,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      48, 6,  21, NUMBER,         "Y-panning....: %d",        0,                  255,                NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      48, 7,  22, NUMBER,         "Slope........: %d",        -32768,             32767,              NULL,   NULL,               0 },
+    { NO,   1,      48, 8,  23, NUMBER,         "Z-coordinate.: %d",        -13421721,          13421722,           NULL,   NULL,               NO_DEFVAL },
+    { NO,   1,      48, 9,  24, NUMBER_HEX,     "Cstat flags:.: 0x%0X",     -32768,             32767,              NULL,   helperSetFlags,     0 },
 
     { NO,   1,      0,  0,  0,  CONTROL_END },
 };
 
 DIALOG_ITEM dlgFlagsPicker[] =
 {
-    { NO,   1,      1,  0,  0,  HEADER,         "Flags picker",             0,          1,          NULL,               NULL, },
-    { NO,   1,      1,  2,  1,  CHECKBOX,       "0x0001 (1)",               0,          1,          NULL,               NULL, },
-    { NO,   1,      1,  3,  2,  CHECKBOX,       "0x0002 (2)",               0,          1,          NULL,               NULL, },
-    { NO,   1,      1,  4,  3,  CHECKBOX,       "0x0004 (4)",               0,          1,          NULL,               NULL, },
-    { NO,   1,      1,  6,  4,  CHECKBOX,       "0x0008 (8)",               0,          1,          NULL,               NULL, },
-    { NO,   1,      1,  7,  5,  CHECKBOX,       "0x0010 (16)",              0,          1,          NULL,               NULL, },
-    { NO,   1,      1,  8,  6,  CHECKBOX,       "0x0020 (32)",              0,          1,          NULL,               NULL, },
+    { NO,   1,      1,  0,  0,  HEADER,         "Flags picker",             0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      1,  2,  1,  CHECKBOX,       "0x0001 (1)",               0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      1,  3,  2,  CHECKBOX,       "0x0002 (2)",               0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      1,  4,  3,  CHECKBOX,       "0x0004 (4)",               0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      1,  6,  4,  CHECKBOX,       "0x0008 (8)",               0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      1,  7,  5,  CHECKBOX,       "0x0010 (16)",              0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      1,  8,  6,  CHECKBOX,       "0x0020 (32)",              0,          1,          NULL,               NULL,               NO_DEFVAL },
 
-    { NO,   1,      20, 2,  7,  CHECKBOX,       "0x0040 (64)",              0,          1,          NULL,               NULL, },
-    { NO,   1,      20, 3,  8,  CHECKBOX,       "0x0080 (128)",             0,          1,          NULL,               NULL, },
-    { NO,   1,      20, 4,  9,  CHECKBOX,       "0x0100 (256)",             0,          1,          NULL,               NULL, },
+    { NO,   1,      20, 2,  7,  CHECKBOX,       "0x0040 (64)",              0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      20, 3,  8,  CHECKBOX,       "0x0080 (128)",             0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      20, 4,  9,  CHECKBOX,       "0x0100 (256)",             0,          1,          NULL,               NULL,               NO_DEFVAL },
 
-    { NO,   1,      20, 6,  10, CHECKBOX,       "0x0200 (512)",             0,          1,          NULL,               NULL, },
-    { NO,   1,      20, 7,  11, CHECKBOX,       "0x0400 (1024)",            0,          1,          NULL,               NULL, },
-    { NO,   1,      20, 8,  12, CHECKBOX,       "0x0800 (2048)",            0,          1,          NULL,               NULL, },
+    { NO,   1,      20, 6,  10, CHECKBOX,       "0x0200 (512)",             0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      20, 7,  11, CHECKBOX,       "0x0400 (1024)",            0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      20, 8,  12, CHECKBOX,       "0x0800 (2048)",            0,          1,          NULL,               NULL,               NO_DEFVAL },
 
-    { NO,   1,      40, 2,  13, CHECKBOX,       "0x1000 (4096)",            0,          1,          NULL,               NULL, },
-    { NO,   1,      40, 3,  14, CHECKBOX,       "0x2000 (8192)",            0,          1,          NULL,               NULL, },
-    { NO,   1,      40, 4,  15, CHECKBOX,       "0x4000 (16384)",           0,          1,          NULL,               NULL, },
-    { NO,   1,      40, 6,  16, CHECKBOX,       "0x8000 (32768)",           0,          1,          NULL,               NULL, },
+    { NO,   1,      40, 2,  13, CHECKBOX,       "0x1000 (4096)",            0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      40, 3,  14, CHECKBOX,       "0x2000 (8192)",            0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      40, 4,  15, CHECKBOX,       "0x4000 (16384)",           0,          1,          NULL,               NULL,               NO_DEFVAL },
+    { NO,   1,      40, 6,  16, CHECKBOX,       "0x8000 (32768)",           0,          1,          NULL,               NULL,               NO_DEFVAL },
     { NO,   1,      0,  0,  0,  CONTROL_END },
 
 };
@@ -459,14 +461,16 @@ void DIALOG_HANDLER::Paint(DIALOG_ITEM* pItem, char focus)
 {
     unsigned char fc = clr2std(kColorLightCyan);
     short bc = -1;
-
+    
+    if (pItem->defValue != NO_DEFVAL
+        && pItem->value != pItem->defValue)
+            fc = colorShade(clr2std(kColorYellow), 8);
+    
     if (focus)
     {
-        if (pItem->type != DIALOG && pItem->pHelpFunc)
-            fc = clr2std(kColorWhite);
-        else
-            fc = clr2std(kColorYellow);
-
+        if (pItem->type == ELT_SELECTOR && pItem->selected)         fc = clr2std(kColorLightMagenta);
+        else if (pItem->pHelpFunc)                                  fc = clr2std(kColorWhite);
+        else                                                        fc = clr2std(kColorYellow);
 
         bc = clr2std(kColorBlack);
 
@@ -853,9 +857,18 @@ char DIALOG_HANDLER::Edit()
                         nVal = atoi(tmp);
                         break;
                     case KEY_BACKSPACE:
-                        if ((i = sprintf(tmp, "%d", nVal)) > 1) tmp[i-1] = 0;
-                        else tmp[0] = '\0';
-                        nVal = atoi(tmp);
+                        if (pCur->type == NUMBER_HEX)
+                        {
+                            if ((i = sprintf(tmp, "%x", nVal)) > 1) tmp[i-1] = '\0';
+                            else tmp[0] = '\0';
+                            nVal = strtol(tmp, NULL, 16);
+                        }
+                        else
+                        {
+                            if ((i = sprintf(tmp, "%d", nVal)) > 1) tmp[i-1] = '\0';
+                            else tmp[0] = '\0';
+                            nVal = atoi(tmp);
+                        }
                         break;
                     default:
                         key = toupper(keyAscii[key]);
@@ -1139,6 +1152,17 @@ int DIALOG_HANDLER::GetValue(int nGroup)
         pItem++;
 
     return pItem->value;
+}
+
+DIALOG_ITEM* FindItem(DIALOG_ITEM* dialog, int nID)
+{
+    for (DIALOG_ITEM* p = dialog; p->type != CONTROL_END; p++)
+    {
+        if (p->tabGroup == nID)
+            return p;
+    }
+    
+    return NULL;
 }
 
 void ShowSectorData(int nSector, BOOL xFirst, BOOL showDialog)
@@ -1809,7 +1833,56 @@ char helperPickIniMessage(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
         delete(pEpisode);
 
     return key;
+}
 
+static char helperFindNextSide(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
+{
+    char setNextSect = (control->tabGroup == 6);
+    int nWall, nSect, i, s, e;
+    DIALOG_ITEM* p;
+    
+    if ((key == KEY_F10 || key == KEY_SPACE) && (p = FindItem(dialog, 3)) != NULL)
+    {
+        nWall = lastwall(p->value); // get wall index from point2
+        nSect = sectorofwall(nWall);
+        
+        i = numsectors;
+        while(--i >= 0)
+        {
+            if (i == nSect)
+                continue;
+
+            getSectorWalls(i, &s, &e);
+            while(s <= e)
+            {
+                if (isNextWallOf(nWall, s))
+                {
+                    if (setNextSect)
+                    {
+                        control->value = i;
+                        if ((p = FindItem(dialog, 5)) != NULL)
+                            p->value = s; // auto set nextwall
+                    }
+                    else
+                    {
+                        control->value = s;
+                        if ((p = FindItem(dialog, 6)) != NULL)
+                            p->value = i; // auto set nextsector
+                    }
+                    
+                    BeepOk();
+                    return key;
+                }
+                
+                s++;
+            }
+        }
+        
+        BeepFail();
+        Alert("Next %s not found for wall %d!", (setNextSect) ? "sector" : "wall", nWall);
+    }
+
+    return key;
 }
 
 void dlgFlagsToDialog(DIALOG_HANDLER* pHandle, int nVal)
@@ -2026,14 +2099,14 @@ void dlgWallToDialog(DIALOG_HANDLER* pHandle, int nWall)
 void dlgDialogToWall(DIALOG_HANDLER* pHandle, int nWall)
 {
     dassert(nWall >= 0 && nWall < kMaxWalls);
-    walltype* pWall =&wall[nWall];
+    walltype* pWall = &wall[nWall];
 
     pWall->x            = pHandle->GetValue(1);
     pWall->y            = pHandle->GetValue(2);
     pWall->point2       = pHandle->GetValue(3);
     // 4
-    pWall->nextwall     = pHandle->GetValue(5);
-    pWall->nextsector   = pHandle->GetValue(6);
+    pWall->nextwall     = ClipRange(pHandle->GetValue(5), -1, numwalls);
+    pWall->nextsector   = ClipRange(pHandle->GetValue(6), -1, numsectors);
     pWall->hitag        = pHandle->GetValue(7);
     pWall->type         = pHandle->GetValue(8);
     pWall->extra        = pHandle->GetValue(9);
@@ -2307,7 +2380,12 @@ void dlgDialogToXSprite(DIALOG_HANDLER* pHandle, int nSprite)
     sprite[nSprite].flags       = pHandle->GetValue(46);
     pXSprite->lockMsg           = pHandle->GetValue(47);
     pXSprite->dropItem          = pHandle->GetValue(48);
-
+    
+    if (!gModernMap
+        && pXSprite->command == 100
+            && pXSprite->txID == 60 && pXSprite->txID == pXSprite->rxID)
+                gModernMap = 1;
+    
 }
 
 void dlgDialogToSprite(DIALOG_HANDLER* pHandle, int nSprite)

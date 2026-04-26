@@ -24,6 +24,7 @@
 
 #include "screen.h"
 #include "xmpconf.h"
+#include "xmpsky.h"
 
 PALETTE gamepal;
 RGB baseDAC[256];
@@ -91,7 +92,7 @@ void gSetDacRange(int start, int end, RGB *pPal)
 
 void scrLoadPLUs(void)
 {
-    parallaxvisibility = 512;
+    parallaxvisibility = Sky::visibility;
     int i; RESHANDLE hFile = NULL;
 
     if (gFogMode)

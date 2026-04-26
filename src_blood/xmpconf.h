@@ -121,6 +121,7 @@ class COMPATIBILITY {
     unsigned int modernMap          : 1;
     unsigned int maxTiles           : 2;
     void Init(IniFile* pIni, char* section);
+    void Save(IniFile* pIni, char* section);
 };
 
 class COMMENT_SYS_PREFS {

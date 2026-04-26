@@ -1185,9 +1185,8 @@ void OffsetRoomZ(int nSector, int dz)
 
 void SetWave( int nSector, int nWave )
 {
-    int nXSector = sector[nSector].extra;
-    if ( nXSector > 0 )
-        xsector[nXSector].shadeWave = nWave;
+    int nXSect = GetXSector(nSector);
+    xsector[nXSect].shadeWave = nWave;
 }
 
 
@@ -1841,7 +1840,8 @@ void ProcessInput3D( void )
 
         if (r & PROC_BEEP)
             Beep(r & PROC_OK);
-
-        keyClear();
     }
+    
+    if (key)
+        keyClear();
 }

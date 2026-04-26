@@ -1,3 +1,26 @@
+/**********************************************************************************
+///////////////////////////////////////////////////////////////////////////////////
+// Copyright (C) 2026: Originally written by NoOne.
+// Functions for editing the maps.
+//
+// This file is part of XMAPEDIT.
+//
+// XMAPEDIT is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License version 2
+// as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+//
+// See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+////////////////////////////////////////////////////////////////////////////////////
+***********************************************************************************/
+
 #include "xmpmaped.h"
 #include "aadjust.h"
 #include "preview.h"
@@ -194,6 +217,36 @@ void loopFlip(int s, int e, int cx, int cy, int flags)
     }
 }
 
+void loopAttach(int nWall)
+{
+    int i = nWall;
+    int n;
+    
+    do
+    {
+        if ((n = findNextWall(i)) >= 0)
+            wallAttach(i, n), wallAttach(n, i);
+        
+        i = wall[i].point2;
+    }
+    while(i != nWall);
+}
+
+void loopDetach(int nWall)
+{
+    int i = nWall;
+    
+    do
+    {
+        if (wall[i].nextwall >= 0)
+            wallDetach(wall[i].nextwall);
+        
+        wallDetach(i);
+        i = wall[i].point2;
+    }
+    while(i != nWall);
+}
+
 void loopDelete(int nWall)
 {
     int x1, y1, x2, y2, x3, y3;
@@ -217,78 +270,6 @@ void loopDelete(int nWall)
     }
 }
 
-char loopLocalIsEmpty(int nWall)
-{
-    int i, s, e, ls, le;
-    int nSect;
-
-    if (wall[nWall].nextwall >= 0)
-        return 0;
-
-    nSect = sectorofwall(nWall);
-    getSectorWalls(nSect, &s, &e);
-    loopGetWalls(nWall, &ls, &le);
-
-    if (ls == s && le == e)
-        return 0;
-
-    for (i = ls; i <= le; i++)
-    {
-        if (wall[i].nextwall >= 0)
-            return 0;
-    }
-
-    return 1;
-}
-
-int loopIsEmpty(int nWall)
-{
-    IDLIST* pList = new IDLIST(1);
-    int ix, iy, x1, y1, x2, y2; int32_t* p;
-    int n = numwalls;
-    char stop = 0;
-
-    getWallCoords(nWall, &ix, &iy);
-    x1 = ix, y1 = iy;
-
-    do
-    {
-        pList = new IDLIST(1);
-        collectWallsOfNode(pList, nWall);
-        for (p = pList->GetPtr(); *p >= 0; p++)
-        {
-            getWallCoords(*p, NULL, NULL, &x2, &y2);
-            if (*p == nWall || x2 != x1 || y2 != y1)
-                continue;
-
-            nWall = *p;
-            if (wall[nWall].nextwall < 0)
-            {
-                memcpy(&wall[n], &wall[nWall], sizeof(walltype));
-
-                wall[n].point2 = ++n;
-                if (wall[n].x == ix && wall[n].y == iy)
-                    wall[n].point2 = numwalls, stop = 1;
-            }
-            else
-            {
-                stop = 2;
-            }
-
-            break;
-        }
-
-        delete(pList);
-    }
-    while(!stop && *p >=0);
-
-    if (stop == 1
-        && clockdir(numwalls) == 1)
-            return n - numwalls;
-
-    return 0;
-}
-
 int loopTransfer(int nWall, int nSect, char flags)
 {
     VOIDLIST wl(sizeof(walltype));
@@ -305,7 +286,7 @@ int loopTransfer(int nWall, int nSect, char flags)
     if (flags & 0x01)
         loopDelete(nWall);
 
-    if ((i = insertLoop(nSect, (walltype*)wl.First(), wl.Length(), NULL)) >= 0)
+    if ((i = insertLoopEx(nSect, (walltype*)wl.First(), wl.Length(), ILOOP_DIR_FW|ILOOP_NO_FLIP, NULL)) >= 0)
     {
         if (flags & 0x02)
         {
@@ -396,7 +377,7 @@ void sectFlip(int nSect, int cx, int cy, int flags, int)
     for (i = s; i <= e; i++)
     {
         if (wall[i].nextwall >= 0
-            && (t = findNextWall(i, 1)) >= 0)
+            && (t = findNextWall(i)) >= 0)
             {
                 // forces sectorofwall() to
                 // actually *search* the
@@ -436,555 +417,527 @@ void sectFlip(int nSect, int cx, int cy, int flags, int)
     }
 }
 
-int sectSplit(int nSect, int nWallA, int nWallB, POINT2D* points, int nPoints)
+int sectSplit(int nSectA, int nWallA, int nWallB, POINT2D* p, int c)
 {
-    int nSectOld, nLoopNumA, nLoopNumB;
-    int nWall, nWallOther, nWallNum;
-    int i, j, k, f, s, e, ls, le;
-    int x1, y1, x2, y2;
-    int x3, y3, x4, y4;
-    int nRetn = 0;
-
-    if (nWallA < 0 || nWallB < 0)
-        return -1;
-
-    if (nWallA == nWallB)
-        return -2;
+    #define OLD_LOOP_POS    0x7ffffff
+    #define ILOOP_FLAGS     ILOOP_DIR_FW|ILOOP_NO_FLIP
     
-    nSectOld = -1;
+    //Alert("%d / %d", nWallA, nWallB);
+    //return sectSplitOLD(nSectA, nWallA, nWallB, p, c);
     
-#if 0
-    if (sectCountParts(nSect) > 1)
+    int nSectB = -1, lA = 0, lB, s, e, n;
+    walltype *pA, *pB, *w, wmodel;
+    VOIDLIST wl(sizeof(wmodel));
+    
+    if (nWallA < 0 || nWallB < 0)               return -1;
+    if (nWallA == nWallB)                       return -2;
+    if (numwalls + c >= kMaxWalls)              return -3;
+    if (numsectors + 1 >= kMaxSectors)          return -4;
+    
+    memcpy(&wmodel, &wall[nWallA], sizeof(wmodel));
+    loopGetWalls(nWallA, &s, &e);
+    wmodel.cstat = 0;
+    
+    for (n = lA = 0; n < c-1; n++, lA++)
     {
-        // This is a multipart sector, so we have to
-        // find the part we are trying to split and
-        // turn it into new standalone sector.
-        //
-        // Unlike normal loops, the "part"
-        // must have clockwise walls
-        // direction.
-        
-        avePointWall(nWallA, &x1, &y1); avePointWall(nWallB, &x2, &y2);
-        offsetPos(0, 8, 0, (GetWallAngle(nWallA) + kAng90) & kAngMask, &x1, &y1, NULL);
-        offsetPos(0, 8, 0, (GetWallAngle(nWallB) + kAng90) & kAngMask, &x2, &y2, NULL);
-        getSectorWalls(nSect, &s, &e);
-        
-        while(s <= e)
-        {
-            loopGetWalls(s, &ls, &le);
-            if (clockdir(ls) == 0 && loopInside(x1, y1, ls) && loopInside(x2, y2, ls))
-            {
-                if (loopnumofsector(nSect, nWallA) == loopnumofsector(nSect, nWallB))
-                {
-                    if (numsectors + 2 >= kMaxSectors)
-                        return -4;
-                    
-                    sectortype model = sector[nSect];
-                    VOIDLIST wls(sizeof(walltype));
-                    
-                    getWallCoords(nWallA, &x1, &y1, &x2, &y2);
-                    getWallCoords(nWallB, &x3, &y3, &x4, &y4);
-                    
-                    for (i = ls; i <= le; i++) wls.Add(&wall[i]);
-                    
-                    // Remove the part loop and re-insert it as a
-                    // new sector, then move any normal loops
-                    // that was inside of an old sector
-                    // to new.
-                    
-                    loopDelete(ls);
-                    i = insertLoop(-1, (walltype*)wls.First(), wls.Length(), &model);
-                    i = sectorofwall(i); sectLoopTransfer(nSect, i);
-                    
-                    // Refresh info and continue split.
-                    
-                    nSectOld    = nSect, nSect = i;
-                    nWallA      = findWallAtPos(nSect, x1, y1, x2, y2);
-                    nWallB      = findWallAtPos(nSect, x3, y3, x4, y4);
-                }
-                
-                break;
-            }
-            
-            s = ++le;
-        }
-        
-        // If no parts found, don't allow to
-        // split it to avoid walls
-        // corruption.
-        
-        if (s > e)
-            return -5;
+        wmodel.x = p[n].x, wmodel.y = p[n].y;
+        wl.Add(&wmodel);
     }
-#endif
-
-    nLoopNumA   = loopnumofsector(nSect, nWallA);
-    nLoopNumB   = loopnumofsector(nSect, nWallB);
-    nWall       = nWallNum = numwalls+nPoints-1; // where to add more walls
-
-    if (nLoopNumA == nLoopNumB)
+    
+    if (irngok(nWallB, s, e))
     {
-        if (numwalls + (nPoints<<1) >= kMaxWalls)   return -3;
-        else if (numsectors + 1 >= kMaxSectors)     return -4;
-    }
-    else if (numwalls + nPoints >= kMaxWalls)   return -3;
-    else if (numsectors >= kMaxSectors)         return -4;
-
-
-    getSectorWalls(nSect, &s, &e);
-
-    /* first fix up the new walls
-    ---------------------------------------------*/
-    for (i = numwalls, j = 0; i <= nWallNum; i++, j++)
-    {
-        wall[i].x           = points[j].x;
-        wall[i].y           = points[j].y;
-
-        wall[i].cstat       = wall[s].cstat;
-        wall[i].shade       = wall[s].shade;
-        wall[i].xrepeat     = wall[s].xrepeat;
-        wall[i].yrepeat     = wall[s].yrepeat;
-        wall[i].picnum      = wall[s].picnum;
-        wall[i].overpicnum  = wall[s].overpicnum;
-        wall[i].point2      = i+1;
-        wallDetach(i);
-    }
-
-    for (i = numwalls; i <= nWallNum; i++)
-        fixrepeats(i);
-
-    if (nLoopNumA == nLoopNumB)
-    {
-        /** NORMAL SPLIT
-        //////////////////////////////////*/
-
-
-        /* copy rest of loop next
-        ---------------------------------------------*/
-        for (i = nWallB; i != nWallA; i = wall[i].point2)
+        // Splitting sector in two
+        
+        for (n = nWallB; n != nWallA; n = wall[n].point2, lA++)
         {
-            memcpy(&wall[nWall], &wall[i], sizeof(walltype));
-            wall[nWall].point2 = nWall+1;
-            nWall++;
+            wl.Add(&wall[n]);
         }
-        wall[nWall-1].point2 = numwalls;
-
-        /* add other loops for 1st sector
-        ---------------------------------------------*/
-
-        for (i = nLoopNumA, j = s; j <= e; j++)
+        
+        for (n = c-1; n > 0; n--)
         {
-            if ((k = loopnumofsector(nSect, j)) != i && k != nLoopNumA)
-            {
-                i = k;
-                if (insideLoop(wall[j].x, wall[j].y, numwalls))
-                {
-                    k = nWall;
-                    f = j;
-                    do
-                    {
-                        memcpy(&wall[nWall], &wall[f], sizeof(walltype));
-                        wall[nWall].point2 = nWall+1;
-                        f = wall[f].point2;
-                        nWall++;
-                    }
-                    while(f != j);
-                    wall[nWall-1].point2 = k;
-                }
-            }
+            wmodel.x = p[n].x, wmodel.y = p[n].y;
+            wl.Add(&wmodel);
         }
-
-        nWallOther = nWall;
-
-        /* copy split points for other sector backwards
-        ---------------------------------------------*/
-        for(i = nWallNum; i > numwalls; i--)
+        
+        for (n = nWallA; n != nWallB; n = wall[n].point2)
         {
-            memcpy(&wall[nWall], &wall[i], sizeof(walltype));
-            wall[nWall].point2 = nWall+1;
-            wallDetach(nWall);
-            nWall++;
+            wl.Add(&wall[n]);
         }
-
-        /* copy rest of loop next
-        ---------------------------------------------*/
-        for (i = nWallA; i != nWallB; i = wall[i].point2)
+        
+        wall[nWallA].x = OLD_LOOP_POS;
+        wall[nWallA].y = OLD_LOOP_POS;
+        
+        pA = (walltype*)wl.First();
+        pB = (walltype*)wl.Ptr(lA);
+        lB = wl.Length() - lA;
+        
+        if (isClockDir(pA, lA) != 0)
         {
-            memcpy(&wall[nWall], &wall[i], sizeof(walltype));
-            wall[nWall].point2 = nWall+1;
-            nWall++;
+            w = pA, pA = pB, pB = w;
+            n = lA, lA = lB, lB = n;
         }
-        wall[nWall-1].point2 = nWallOther;
-
-        /* add other loops for 2nd sector
-        ---------------------------------------------*/
-        for(i = nLoopNumA, j = s; j <= e; j++)
-        {
-            if ((k = loopnumofsector(nSect, j)) != i && k != nLoopNumA)
-            {
-                i = k;
-                if (insideLoop(wall[j].x, wall[j].y, nWallOther))
-                {
-                    f = j;
-                    k = nWall;
-                    do
-                    {
-                        memcpy(&wall[nWall], &wall[f], sizeof(walltype));
-                        wall[nWall].point2 = nWall+1;
-                        f = wall[f].point2;
-                        nWall++;
-                    }
-                    while(f != j);
-                    wall[nWall-1].point2 = k;
-                }
-            }
-        }
-
-        /* fix all next pointers on old sector line
-        ---------------------------------------------*/
-        for (i = numwalls; i < nWall; i++)
-        {
-            if (wall[i].nextwall >= 0)
-            {
-                j = (i < nWallOther);
-                wall[wall[i].nextwall].nextwall = i;
-                wall[wall[i].nextwall].nextsector = numsectors+j;
-            }
-        }
-
-        /* set all next pointers on split
-        ---------------------------------------------*/
-        for(i = numwalls; i < nWallNum; i++)
-        {
-            j = nWallOther + (nWallNum - 1 - i);
-            wall[i].nextwall = j;
-            wall[i].nextsector = numsectors+1;
-            wall[j].nextwall = i;
-            wall[j].nextsector = numsectors;
-        }
-
-        /* copy sector attributes & fix wall pointers
-        ---------------------------------------------*/
-        sector[nSect].alignto = 0;
-
-        memcpy(&sector[numsectors], &sector[nSect], sizeof(sectortype));
-        sector[numsectors+0].wallnum = nWallOther - numwalls;
-        sector[numsectors+0].wallptr = numwalls;
-
-        memcpy(&sector[numsectors+1], &sector[nSect], sizeof(sectortype));
-        sector[numsectors+1].wallnum = nWall - nWallOther;
-        sector[numsectors+1].wallptr = nWallOther;
-
-
-        /* fix sector of sprites
-        ---------------------------------------------*/
-        while((i = headspritesect[nSect]) >= 0)
-        {
-            if (insideLoop(sprite[i].x, sprite[i].y, numwalls) == 0)
-            {
-                ChangeSpriteSect(i, numsectors+1);
-            }
-            else
-            {
-                ChangeSpriteSect(i, numsectors);
-            }
-        }
-
-        j = nWall - numwalls;
-        numwalls = nWall;
-        numsectors += 2;
-
-        /* detach old walls for safe deletesector
-        ---------------------------------------------*/
-        for (i = s; i <= e; i++)
-        {
-            if (wall[i].nextwall >= 0)
-                wallDetach(wall[i].nextwall);
-
-            wallDetach(i);
-        }
-        deletesector(nSect);
-
-        /* check pointers
-        ---------------------------------------------*/
-        for(i = numwalls - j; i < numwalls; i++)
-        {
-            if (wall[i].nextwall >= 0)
-                checksectorpointer(wall[i].nextwall, wall[i].nextsector);
-
-            checksectorpointer(i, sectorofwall(i));
-        }
-
-        nRetn = 1;
+        
+        n = insertLoopEx(-1, pA, lA, ILOOP_FLAGS, &sector[nSectA]);
+        
+        if ((nSectB = sectorofwall(n)) >= 0)
+            sectContentsTransfer(nSectA, nSectB);
+        
+        insertLoopEx(nSectA, pB, lB, ILOOP_FLAGS, &sector[nSectA]);
     }
     else
     {
-        /** LOOP JOINING
-        //////////////////////////////////*/
-
-
-        /* copy rest of loop next
-        ---------------------------------------------*/
-        i = nWallB;
+        // Creating a split line between
+        // two loops (merging two loops)
+        
+        n = nWallB;
         do
         {
-            memcpy(&wall[nWall], &wall[i], sizeof(walltype));
-            wall[nWall].point2 = nWall+1;
-            i = wall[i].point2;
-            nWall++;
+            wl.Add(&wall[n]);
+            n = wall[n].point2;
         }
-        while(i != nWallB);
-
-        /* copy split points for other sector backwards
-        ---------------------------------------------*/
-        for(i = nWallNum; i > numwalls; i--)
+        while(n != nWallB);
+        
+        for (n = c-1; n > 0; n--)
         {
-            memcpy(&wall[nWall], &wall[i], sizeof(walltype));
-            wall[nWall].point2 = nWall+1;
-            wallDetach(nWall);
-            nWall++;
+            wmodel.x = p[n].x, wmodel.y = p[n].y;
+            wl.Add(&wmodel);
         }
-
-        /* copy rest of loop next
-        ---------------------------------------------*/
-        i = nWallA;
+        
+        n = nWallA;
         do
         {
-            memcpy(&wall[nWall], &wall[i], sizeof(walltype));
-            wall[nWall].point2 = nWall+1;
-            i = wall[i].point2;
-            nWall++;
+            wl.Add(&wall[n]);
+            n = wall[n].point2;
         }
-        while(i != nWallA);
-        wall[nWall-1].point2 = numwalls;
+        while(n != nWallA);
 
+        wall[nWallB].x = OLD_LOOP_POS;
+        wall[nWallB].y = OLD_LOOP_POS;
 
-        /* add other loops for sector
-        ---------------------------------------------*/
-        for (i = nLoopNumA, j = s; j <= e; j++)
-        {
-            if ((k = loopnumofsector(nSect, j)) == i) continue;
-            else if (k == nLoopNumA || k == nLoopNumB)
-                continue;
-
-            i = k;
-            f = j; k = nWall; //copy loop
-            do
-            {
-                memcpy(&wall[nWall], &wall[f], sizeof(walltype));
-                wall[nWall].point2 = nWall+1;
-                f = wall[f].point2;
-                nWall++;
-            }
-            while(f != j);
-            wall[nWall-1].point2 = k;
-        }
-
-        /* fix all next pointers on old sector line
-        ---------------------------------------------*/
-        for (i = numwalls; i < nWall; i++)
-        {
-            if (wall[i].nextwall >= 0)
-            {
-                wall[wall[i].nextwall].nextwall = i;
-                wall[wall[i].nextwall].nextsector = numsectors;
-            }
-        }
-
-        /* copy sector attributes & fix wall pointers
-        ---------------------------------------------*/
-        sector[numsectors] = sector[nSect];
-        sector[numsectors].wallptr = numwalls;
-        sector[numsectors].wallnum = nWall - numwalls;
-
-
-        /* fix sector of sprites
-        ---------------------------------------------*/
-        while((i = headspritesect[nSect]) >= 0)
-            ChangeSpriteSect(i, numsectors);
-
-        j = nWall - numwalls;
-        numwalls = nWall;
-        numsectors++;
-
-        /* detach old walls for safe deletesector
-        ---------------------------------------------*/
-        for (i = s; i <= e; i++)
-        {
-            if (wall[i].nextwall >= 0)
-                wallDetach(wall[i].nextwall);
-
-            wallDetach(i);
-        }
-        deletesector(nSect);
-
-        /* check pointers
-        ---------------------------------------------*/
-        for(i = numwalls - j; i < numwalls; i++)
-        {
-            if (wall[i].nextwall >= 0)
-                checksectorpointer(wall[i].nextwall, wall[i].nextsector);
-
-            checksectorpointer(i, numsectors-1);
-        }
-
-        nRetn = 2;
+        loopDelete(nWallA);
+        insertLoopEx(nSectA, (walltype*)wl.First(), wl.Length(), ILOOP_FLAGS, &sector[nSectA]);
     }
-
-    if (nRetn > 0)
+    
+    if ((n = findWallAtPos(nSectA, OLD_LOOP_POS, OLD_LOOP_POS)) >= 0)
+        loopDelete(n);
+    
+    if ((n = findWallAtPos(p[0].x, p[0].y, p[1].x, p[1].y)) >= 0)
     {
-        for(i = numwalls - j; i < numwalls; i++)
+        if ((s = sectorofwall(n)) >= 0)
         {
-            if(!wallVisible(i))
+            sectAttach(s);
+            if (wall[n].nextsector >= 0)
+                sectAttach(wall[n].nextsector);
+        }
+        
+        for (s = n; c >= 0; s = wall[s].point2, c--)
+        {
+            fixrepeats(s);
+            if (wall[s].nextwall >= 0)
+                fixrepeats(wall[s].nextwall);
+        }
+    }
+    
+    return n;
+}
+
+int sectSplit(int nSect, POINT2D* p, int c)
+{
+    if (c < 2)
+        return -5;
+    
+    int nWallA = findSplitWall(nSect, -1, p[0].x,   p[0].y,   p[1].x,   p[1].y);
+    int nWallB = findSplitWall(nSect, -1, p[c-1].x, p[c-1].y, p[c-2].x, p[c-2].y);
+    return sectSplit(nSect, nWallA, nWallB, p, c);
+}
+
+int intersectSplit(ISPLITPARAM* pParam)
+{
+    #define LT 2
+    #define AT 8
+    
+    int nLeng = 0, nDist = 0, oSect = -1, oWall = -1;
+    int x1, x2, y1, y2, x3, y3, x4, y4, tx, ty;
+    int i, j, c, t, sw, ew, d, d1, d2, *p2;
+    char collect, solid, loopSplit;
+    
+    VOIDLIST plist(sizeof(POINT2D));
+    ISPLITENTRY e; ISPLITOUT* pOut;
+    IDLIST wlist(1), slist(1);
+    POINT2D tmp, *p;
+    LINE2D saved;
+    
+    pOut = &pParam->out;
+    pOut->numsectors = 0;
+    pOut->numwalls   = 0;
+    
+    loopSplit = pParam->isloop;
+    collect = pParam->collect;
+    c = pParam->numpoints;
+    
+    e.s     = pParam->startSect;
+    e.w     = -1;
+    e.type  = 0;
+    e.skip  = 0;
+    
+    p = pParam->points;
+    for (i = 0; i < c; i++) plist.Add(&pParam->points[i]);
+    
+    oWall = findSplitWall(e.s, -1, p[0].x, p[0].y, p[1].x, p[1].y);
+    getSectorWalls(e.s, &sw, &ew);
+    slist.Add(e.s);
+    
+    while(sw <= ew)
+    {
+        if ((t = wall[sw].nextsector) >= 0 && !slist.Exists(t)) slist.Add(t);
+        if (oWall < 0 && pointOnWallLine(sw, p[0].x, p[0].y)) oWall = sw;
+        sw++;
+    }
+    
+    if (oWall < 0 || loopSplit)
+    {
+        if (loopSplit && (p[0].x != p[c-1].x || p[0].y != p[c-1].y))
+            plist.Add(&p[0]), c++;
+        
+        if (!collect)
+            e.skip = 2;
+    }
+    
+    p = (POINT2D*)plist.First();
+    saved.x1 = 0x7FFFFFFF;
+    i = 0;
+    while(i < c-1)
+    {
+        x3 = p[i].x; x4 = p[i+1].x;
+        y3 = p[i].y; y4 = p[i+1].y;
+        solid = 0;
+        
+        if (e.w >= 0)
+        {
+            oWall = e.w;
+            
+            if ((t = findWallAtPos(e.s, x3, y3)) >= 0) e.w = t;
+            else if (!collect)
+                return -3;
+            
+            slist.Clear(), wlist.Clear();
+            collectWallsOfNode(&wlist, e.w, 0x01);
+            getSectorWalls(e.s, &sw, &ew);
+            while(sw <= ew)
             {
-                fixrepeats(i);
-                if (wall[i].nextwall >= 0 && !wallVisible(wall[i].nextwall))
-                    fixrepeats(wall[i].nextwall);
+                if ((t = wall[sw].nextwall) >= 0) wlist.Add(t);
+                else solid = 1;
+                sw++;
+            }
+
+            tx = x3; ty = y3;
+            t = getangle(x4-tx, y4-ty) & kAngMask;
+            if (exactDist(x4-tx, y4-ty) > 0)
+                offsetPos(0, 8, 0, t, &tx, &ty, NULL);
+            
+            j = 0;
+            for (p2 = wlist.First(); *p2 >= 0; p2++)
+            {
+                if ((t = sectorofwall(*p2)) >= 0 && !slist.Exists(t))
+                {
+                    if (ED32_Inside(tx, ty, t))
+                        slist.Add(t, *slist.First(), 0), j = 1; // put it on top
+                    else
+                        slist.Add(t);
+                }
+            }
+            
+            if (solid && j) solid = 0;
+            
+            nLeng = 0;
+            e.skip  = 0;
+        }
+        
+        e.w = -1;
+        for (p2 = slist.First(); *p2 >= 0 && e.w < 0; p2++)
+        {
+            nDist = 0x7FFFFFFF, e.type = 0;
+            getSectorWalls(*p2, &sw, &ew);
+            
+            for (j = sw; j <= ew && !solid; j++)
+            {
+                getWallCoords(j, &x1, &y1, &x2, &y2);
+                t = klabs(getangle(x4-x3, y4-y3) - getangle(x2-x1, y2-y1));
+                if (irngok(t, 0, AT) || irngok(t, kAng180-AT, kAng180+AT))
+                    continue;
+                
+                if ((x1 == x3 && y1 == y3) || (x2 == x3 && y2 == y3)) continue;
+                else if (pointOnLine(x1, y1, x3, y3, x4, y4, LT) == 3) tx = x1, ty = y1, t  = 1;
+                else if (kintersection(x1, y1, x2, y2, x3, y3, x4, y4, &tx, &ty)) t = 1;
+                else if (kintersection(x2, y2, x1, y1, x3, y3, x4, y4, &tx, &ty)) t = 1;
+                else continue;
+                
+                if ((d = exactDist(x3-tx, y3-ty)) < nDist)
+                {
+                    if (collect)
+                    {
+                        if ((d <= 4) && (oWall >= 0 && (j == oWall || j == wall[oWall].nextwall)))
+                            continue;
+                        
+                        ISPLITENTRY* et = (ISPLITENTRY*)pOut->entries->First();
+                        while(et->type && exactDist(et->x-tx, et->y-ty) > 2) et++;
+                        if (et->type)
+                            continue;
+                    }
+
+                    nDist = d, e.w = j, e.s = *p2;
+                    e.x = tx, e.y = ty;
+                    e.type = t;
+                }
+            }
+            
+            tx = ty = 0x7FFFFFFF;
+            for (j = sw; j <= ew; j++)
+            {
+                getWallCoords(j, &x1, &y1, &x2, &y2);
+                if (exactDist(x2-x1, y2-y1) <= 0 || exactDist(x3-x4, y3-y4) <= 0)
+                    continue;
+                
+                d1 = exactDist(x3-x1, y3-y1);
+                d2 = exactDist(x3-x2, y3-y2);
+                d  = (d1 < d2) ? d1 : d2;
+                
+                if (nDist < d)
+                    continue;
+                
+                char l1 = pointOnLine(x1, y1, x3, y3, x4, y4, LT);
+                char l2 = pointOnLine(x2, y2, x3, y3, x4, y4, LT);
+                char l3 = pointOnLine(x3, y3, x1, y1, x2, y2, LT);
+                char l4 = pointOnLine(x4, y4, x1, y1, x2, y2, LT);
+                
+                char cover1 = (l1 && l2);
+                char cover2 = (l3 == 3 && (l1 || l2 || irngok(l4, 1, 2)));
+                
+                t = -1;
+                if (nDist == d)
+                    t = ((e.type == 1 || e.type == 2) && cover2);
+
+                if ((t == 1) || (t == -1 && (cover1 || cover2)))
+                {
+                    if (exactDist(x1-x4, y1-y4) < exactDist(x2-x4, y2-y4))
+                        e.x = x1, e.y = y1;
+                    else
+                        e.x = x2, e.y = y2;
+                    
+                    nDist = d, e.w = j, e.s = *p2;
+                    tx = x4, ty = y4;
+                    e.type = 3;
+                    continue;
+                }
+                
+                if (t == -1)
+                {
+                    if (l4 == 3 && l3)
+                    {
+                        nDist = d, e.w = j, e.s = *p2;
+                        e.x = x4, e.y = y4;
+                        e.type = 4;
+                        continue;
+                    }
+                    
+                    if (!solid && l4 && !l3 && l1 != 3 && l2 != 3)
+                    {
+                        if (tx == x4 && ty == y4)
+                            continue;
+                        
+                        nDist = d, e.w = j, e.s = *p2;
+                        e.x = x4, e.y = y4;
+                        e.type = 2;
+                        continue;
+                    }
+                }
             }
         }
         
-        //if (nSectOld >= 0)
-            //redSectorMerge(numsectors-3, numsectors-2);
-    }
-
-    return nRetn;
-}
-
-int sectSplit(int nSect, POINT2D* points, int nPoints)
-{
-    POINT2D *first = &points[0], *last = &points[nPoints-1];
-    int nWallA = -1, nWallB = -1;
-    int i, s, e;
-
-    getSectorWalls(nSect, &s, &e);
-    for (i = s; i <= e; i++)
-    {
-        if (nWallA < 0)
+        if (irngok(e.type, 1, 2))
+            pOut->numwalls += (i+2); // always worst case
+        
+        if (e.type != 3)
+            pOut->numwalls++;
+        
+        if (numwalls+pOut->numwalls >= kMaxWalls-1)         return -1;
+        if (numsectors+pOut->numsectors >= kMaxSectors-1)   return -2;
+        if (solid && e.w < 0)                               return -4;
+        
+        if (e.w >= 0)
         {
-            if (wall[i].x == first->x && wall[i].y == first->y)
-                nWallA = i;
-        }
-
-        if (nWallB < 0)
-        {
-            if (wall[i].x == last->x && wall[i].y == last->y)
-                nWallB = i;
-        }
-
-        if (nWallA >= 0 && nWallB >= 0)
-            break;
-    }
-
-    return sectSplit(nSect, nWallA, nWallB, points, nPoints);
-}
-
-int sectCloneMarker(XSECTOR* pXOwner, spritetype* pWich)
-{
-    int nSpr; spritetype* pSpr;
-    if ((nSpr = InsertSprite(pWich->sectnum, kStatMarker)) < 0)
-        return -1;
-
-    pSpr = &sprite[nSpr];
-    memcpy(pSpr, pWich, sizeof(spritetype));
-    pSpr->owner = pXOwner->reference;
-    pSpr->index = nSpr;
-    pSpr->extra = -1;
-
-    switch(pSpr->type)
-    {
-        case kMarkerWarpDest:
-        case kMarkerAxis:
-        case kMarkerOff:
-            pXOwner->marker0 = nSpr;
-            break;
-        case kMarkerOn:
-            pXOwner->marker1 = nSpr;
-            break;
-    }
-
-    return nSpr;
-}
-
-char sectClone(int nSrc, int nDstS, int nDstW, int flags)
-{
-    int i, s, e, nWall = nDstW;
-    XSECTOR* pXSect;
-
-    // clone walls
-    getSectorWalls(nSrc, &s, &e);
-    for (i = s; i <= e; i++, nWall++)
-    {
-        wall[nWall] = wall[i];
-        if (flags & 0x04)
-            fixXWall(nWall);
-
-        wall[nWall].point2 += nDstW-s;
-        if (wall[nWall].nextwall >= 0)
-        {
-            wall[nWall].nextsector  += nDstS-nSrc;
-            wall[nWall].nextwall    += nDstW-s;
-        }
-    }
-
-    if (nWall > nDstW)
-    {
-        // clone sector
-        sector[nDstS]           = sector[nSrc];
-        sector[nDstS].wallnum   = nWall-nDstW;
-        sector[nDstS].wallptr   = nDstW;
-
-        if (sector[nDstS].extra > 0) // fix xsector
-        {
-            if (flags & 0x04)
-                fixXSector(nDstS);
-
-            pXSect = &xsector[sector[nDstS].extra];
-
-            if (flags & 0x03) // fix marker(s)
+            getWallCoords(e.w, &x1, &y1, &x2, &y2);
+            
+            if (e.type != 3)
             {
-                if (pXSect->marker0 >= 0 && sprite[pXSect->marker0].statnum == kStatMarker)
+                d1 = exactDist(x1 - e.x, y1 - e.y);
+                d2 = exactDist(x2 - e.x, y2 - e.y);
+                d = (d1 < d2) ? d1 : d2;
+                e.onpoint = 1;
+                oSect = e.s;
+                
+                if (d > LT)
                 {
-                    if ((i = sectCloneMarker(pXSect, &sprite[pXSect->marker0])) >= 0 && (flags & 0x02))
-                    {
-                        if (inside(sprite[pXSect->marker0].x, sprite[pXSect->marker0].y, nDstS))
-                            ChangeSpriteSect(i, nDstS);
-                    }
+                    tx = e.x, ty = e.y;
+                    e.onpoint = 0;
+                    
+                    doGridCorrection(&e.x, &e.y, 10);
+                    getclosestpointonwall(e.x, e.y, e.w, &e.x, &e.y);
+                    doGridCorrection(&e.x, &e.y, 10);
+                    
+                    if (!ED32_Inside(e.x, e.y, e.s))
+                        e.x = tx, e.y = ty;
+                    
+                    if (!collect)
+                        insertPoint(e.w, e.x, e.y);
+                    
+                    pOut->numwalls++;
+                    if (wall[e.w].nextwall >= 0)
+                        pOut->numwalls++;
                 }
-
-                if (pXSect->marker1 >= 0 && sprite[pXSect->marker1].statnum == kStatMarker)
+                else
                 {
-                    if ((i = sectCloneMarker(pXSect, &sprite[pXSect->marker1])) >= 0 && (flags & 0x02))
+                    // avoid ridiculously short walls and/or thin sectors?
+                    (d1 < d2) ? (e.x = x1, e.y = y1) : (e.x = x2, e.y = y2);
+                }
+                
+                nLeng += exactDist(x3-e.x, y3-e.y);
+                if (e.skip != 2 && e.type == 1 && nLeng <= 32)
+                    e.skip = 1;
+                
+                // Sync points and real coords,
+                // so sectSplit can find the
+                // wall b
+                
+                p[i+1].x = e.x;
+                p[i+1].y = e.y;
+                
+                if (irngok(e.type, 1, 2) && oWall >= 0)
+                {
+                   int nWallA = -1;
+                   int nWallB = -1;
+                   
+                   getSectorWalls(e.s, &sw, &ew);
+                   while(sw <= ew && (nWallA < 0 || nWallB < 0))
+                   {
+                       if (nWallA < 0 && pointOnWallLine(sw, p[0].x, p[0].y, LT))       nWallA = sw;
+                       if (nWallB < 0 && pointOnWallLine(sw, p[i+1].x, p[i+1].y, LT))   nWallB = sw;
+                       sw++;
+                   }
+                   
+                   if (nWallA < 0 || nWallB < 0)
+                       return -5;
+                }
+                
+                if (e.type == 1)
+                {
+                    if (!e.skip)
                     {
-                        if (inside(sprite[pXSect->marker1].x, sprite[pXSect->marker1].y, nDstS))
-                            ChangeSpriteSect(i, nDstS);
+                       if (!collect
+                            && (j = sectSplit(e.s, p, i+2)) >= 0 && (e.s = sectorofwall(j)) < 0)
+                                return -6;
+                        
+                        pOut->numsectors++; // always worst case
+                    }
+                    
+                    p[i+1].x = x4;
+                    p[i+1].y = y4;
+                    
+                    p[i+0].x = e.x;
+                    p[i+0].y = e.y;
+                }
+                else 
+                {
+                    if (!e.skip && e.type == 2)
+                    {
+                       
+                       if (!collect
+                            && (j = sectSplit(e.s, p, i+2)) >= 0 && (e.s = sectorofwall(j)) < 0)
+                                return -6;
+                        
+                        pOut->numsectors++; // always worst case
+                    }
+                    
+                    p[i].x = e.x;
+                    p[i].y = e.y;
+                    i++;
+                }
+                
+                if (e.type <= 2)
+                {
+                    if (sector[oSect].wallnum <= 2)     t = oSect;
+                    else if (sector[e.s].wallnum <= 2)  t = e.s;
+                    else                                t = -1;
+                    
+                    if (t >= 0)
+                    {
+                        getWallCoords(j, &x1, &y1, &x2, &y2);
+                        
+                        deletesector(t);
+                        j = numsectors;
+                        while(--j >= t)
+                            sectAttach(j);
+                        
+                        if ((j = findWallAtPos(x1, y1, x2, y2)) >= 0)
+                            e.s = sectorofwall(j);
+                    }
+                    
+                    if (e.skip == 2)
+                    {
+                        j = i;
+                        if (e.type != 1)
+                            j--;
+                        
+                        plist.Remove(plist.Last());
+                        for (t = 0; t < j; t++) plist.Add(plist.Ptr(t));
+
+                        tmp.x = x3;  tmp.y = y3;  plist.Add(&tmp);
+                        tmp.x = e.x; tmp.y = e.y; plist.Add(&tmp);
+                        p = (POINT2D*)plist.First();
+                        c += (j+1);
                     }
                 }
             }
-        }
-
-        if (flags & 0x01)
-        {
-            // clone sprites
-            for (i = headspritesect[nSrc]; i >= 0; i = nextspritesect[i])
+            else
             {
-                // ignore these in this loop (even if don't own it)
-                if (sprite[i].statnum == kStatMarker)
-                    continue;
-
-                if ((s = InsertSprite(nDstS, sprite[i].statnum)) < 0)
-                    break;
-
-                sprite[s]           = sprite[i];
-                sprite[s].sectnum   = nDstS;
-                sprite[s].index     = s;
-
-                if (flags & 0x04)
-                    fixXSprite(s);
+                p[i].x = e.x;
+                p[i].y = e.y;
+                e.onpoint = 1;
+                
+                if (e.x == x4 && e.y == y4)
+                    i++;
             }
+            
+            if (saved.x1 == 0x7FFFFFFF)
+            {
+                saved.x1 = x3,  saved.y1 = y3;
+                saved.x2 = e.x, saved.y2 = e.y;
+            }
+            
+            if (pOut->entries)
+                pOut->entries->Add(&e);
+            
+            p = &p[i];
+            c -= i;
+            i = 0;
+            
+            continue;
         }
+        
+        nLeng += exactDist(x4-x3, y4-y3);
+        i++;
     }
+    
+    if (!collect)
+    {
+        if ((i = findWallAtPos(saved.x1, saved.y1, saved.x2, saved.y2)) >= 0)
+            return i;
 
-    return 1;
+        return -5;
+    }
+    
+    p = (POINT2D*)plist.Last();
+    return (e.x == p->x && e.y == p->y);
 }
 
 short sectCstatAdd(int nSect, short cstat, int objType)
@@ -1132,7 +1085,7 @@ int sectCountParts(int nSect)
     while(s <= e)
     {
         loopGetWalls(s, &ls, &le);
-        if (clockdir(ls) == 0)
+        if (isClockDir(&wall[ls], le-ls+1) == 0)
             c++;
 
         s = ++le;
@@ -1141,45 +1094,35 @@ int sectCountParts(int nSect)
     return c;
 }
 
-char pointOnLine(int x, int y, int x1, int y1, int x2, int y2)
+char pointOnLine(int x, int y, int x1, int y1, int x2, int y2, int d)
 {
+    if (x == x1 && y == y1) return 1;
+    if (x == x2 && y == y2) return 2;
+    
+    if (d > 0)
+    {
+        int lx = x2 - x1;
+        int ly = y2 - y1;
+        int qx = x - x1;
+        int qy = y - y1;
+        
+        int num = dmulscale4(qx, lx, qy, ly);
+        int den = dmulscale4(lx, lx, ly, ly);
+
+        if (num <= 0 || num >= den)
+            return 0;
+        
+        int xi = x1 + scale(lx, num, den);
+        int yi = y1 + scale(ly, num, den);
+        
+        return (exactDist(xi - x, yi - y) <= d) ? 3 : 0;
+    }
+    
     if ((x1 <= x && x <= x2) || (x2 <= x && x <= x1))
         if ((y1 <= y && y <= y2) || (y2 <= y && y <= y1))
             if ((x-x1)*(y2-y1) == (y-y1)*(x2-x1))
-                return 1;
-
-    return 0;
-}
-
-char pointOnWallLine(int nWall, int x, int y)
-{
-    int x1, y1, x2, y2;
-    getWallCoords(nWall, &x1, &y1, &x2, &y2);
-
-    if (x1 == x && y1 == y) return 1;
-    if (x2 == x && y2 == y) return 2;
-    if (pointOnLine(x, y, x1, y1, x2, y2))
-        return 3;
-
-    return 0;
-}
-
-char pointOnWallLine(int x, int y, int* out)
-{
-    int i = numwalls;
-    char r;
-
-    while(--i >= 0)
-    {
-        if ((r = pointOnWallLine(i, x, y)) > 0)
-        {
-            if (out)
-                *out = i;
-
-            return r;
-        }
-    }
-
+                return 3;
+    
     return 0;
 }
 
@@ -1247,6 +1190,124 @@ int findWallAtPos(int nSect, int x1, int y1, int x2, int y2)
     return -1;
 }
 
+int findSplitWall(int nSect, int nWall, int x3, int y3, int x4, int y4)
+{
+    int wx, wy, s, e, ls, le;
+    getSectorWalls(nSect, &s, &e);
+    SCANWALL src, dst;
+    char found = 0;
+    
+    // First try to get a proper loop to split.
+    // Usually we want to do it for a room
+    // and not the door that could be
+    // placed on it's walls. 
+    
+    while(s <= e)
+    {
+        if (wall[s].x == x3 && wall[s].y == y3)
+        {
+            nWall = s;
+            loopGetWalls(s, &ls, &le);
+            if (clockdir(ls) == 0)
+                break; // room is priority!
+            
+            s = le;
+        }
+        
+        s++;
+    }
+    
+    if (nWall < 0)
+        return -1;
+    
+    if (x3 == x4 && y3 == y4)
+        return nWall;
+
+    // Now try to get a proper wall in same loop
+    // so the new loop gets correct direction
+    // and no intersection. Useful when
+    // creating split lines between
+    // two loops.
+    
+    // For now have to use hitscan which is
+    // not 100% safe, until a better idea
+    // comes in my mind...
+    
+    getWallCoords(nWall, &wx, &wy);
+    
+    src.pos.a = getangle(x4-x3, y4-y3);
+    src.pos.x = x3;
+    src.pos.y = y3;
+    
+    src.s = nSect;
+    src.w = -1;
+    
+    src.pos.Turn(kAng180);
+    src.pos.Backward(48); // for enough space in the corners
+    src.pos.Left(2);      // strafe a bit to hit wall line and not point
+    
+    // only if 2 or more walls at nWall point found
+    for (s = wall[nWall].point2; s != nWall; s = wall[s].point2)
+    {
+        if (wall[s].x == wx && wall[s].y == wy)
+        {
+            found = (scanWallOfSector(&src, &dst) && wall[dst.w].x == wx && wall[dst.w].y == wy);
+            
+            if (!found)
+            {
+                src.pos.Right(4); // try other side
+                found = (scanWallOfSector(&src, &dst) && wall[dst.w].x == wx && wall[dst.w].y == wy);
+            }
+            
+            if (found)
+            {
+                //Alert("FOUND WALL %d", dst.w);
+                return dst.w;
+            }
+            
+            break;
+        }
+    }
+    
+    return nWall;
+}
+
+char isNextWallOf(int s, int d)
+{
+    if (wall[d].x == wall[wall[s].point2].x && wall[d].y == wall[wall[s].point2].y)
+        return (wall[wall[d].point2].x == wall[s].x && wall[wall[d].point2].y == wall[s].y);
+    
+    return 0;
+}
+
+int findNextWall(int nWall)
+{
+    int i, s, e;
+    if (wall[nWall].nextwall >= 0
+        && isNextWallOf(nWall, wall[nWall].nextwall))
+            return wall[nWall].nextwall;
+
+    int nSect = sectorofwall(nWall);
+    
+    i = numsectors;
+    while(--i >= 0)
+    {
+        if (i == nSect)
+            continue;
+
+        getSectorWalls(i, &s, &e);
+        while(s <= e)
+        {
+            if (wall[s].nextwall < 0 && isNextWallOf(nWall, s))
+                return s;
+
+            s++;
+        }
+    }
+
+    return -1;
+}
+
 void insertPoint_OneSide(int nWall, int x, int y)
 {
     int nSect;
@@ -1275,7 +1336,22 @@ void insertPoint_OneSide(int nWall, int x, int y)
 int insertPoint(int nWall, int x, int y)
 {
     int i, j;
-
+    if (wall[nWall].nextwall < 0)
+    {
+        // check if inserting on split wall
+        for (j = wall[nWall].point2; j != nWall; j = wall[j].point2)
+        {
+            if (isNextWallOf(j, nWall))
+            {
+                insertPoint_OneSide(j, x, y);
+                if (j < nWall)
+                    nWall++;
+                
+                break;
+            }
+        }
+    }
+    
     insertPoint_OneSide(nWall, x, y);
     if (wall[nWall].nextwall >= 0)
     {
@@ -1498,7 +1574,7 @@ void wallRotateTile(int nWall, char enable)
         }
         while(i >= 0);
     }
-    else if (gRotTile[nTile] && gRotTile[nTile] < nTile)
+    else if (gRotTile[nTile] < nTile)
     {
         pWall->picnum = gRotTile[nTile];
         return;
@@ -1557,7 +1633,7 @@ char setAligntoWall(int nSect, int nWall)
 
 void setFirstWall(int nSect, int nWall)
 {
-    #if 1   
+    #if 0   
         // this one breaks point2 order
         int start, length, shift;
         int i, j, k;
@@ -1619,7 +1695,21 @@ void setFirstWall(int nSect, int nWall)
         }
         
     #else
+        
+        sectortype* pSect = &sector[nSect];
+        int aWall = pSect->wallptr + pSect->alignto;
+        int ax, ay;
+        
+        getWallCoords(aWall, &ax, &ay);
+        
         setfirstwall(nSect, nWall);
+        
+        if (pSect->alignto)
+        {
+            if ((aWall = findWallAtPos(nSect, ax, ay)) >= 0)
+                pSect->alignto = aWall - pSect->wallptr; 
+        }
+        
     #endif
     CleanUp();
 }
@@ -1736,40 +1826,33 @@ char insidePoints(int x, int y, POINT2D* point, int c)
     return ((cnt >> 31) > 0);
 }
 
-char sectWallsInsidePoints(int nSect, POINT2D* point, int c)
-{
-    int s, e;
-
-    // make sure all points inside a sector
-    ///////////////////////
-
-    if (loopInside(nSect, point, c, 1))
-    {
-        // make sure points didn't cover island walls
-        ///////////////////////
-
-        getSectorWalls(nSect, &s, &e);
-        while(s <= e)
-        {
-            if (insidePoints(wall[s].x, wall[s].y, point, c) == 1)
-                return 1;
-
-            s++;
-        }
-
-        return 0;
-    }
-
-    return 1;
-}
-
-int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectortype* pSModel)
+int insertLoopEx(int nSect, walltype* pWalls, int nCount, char flags, sectortype* pSModel)
 {
     walltype* pWall; sectortype* pSect;
     int nStartWall = (nSect >= 0) ? sector[nSect].wallptr : numwalls;
-    int nWall = nStartWall, i = 0; char insertInside = (nSect >= 0);
-    int t;
-
+    int nWall = nStartWall;
+    int i;
+    
+    char insertInside = (nSect >= 0);
+    char loopdir;
+    
+    switch(flags & ILOOP_DIR_ASIS)
+    {
+        case ILOOP_DIR_FW:
+            loopdir = 1;
+            break;
+        case ILOOP_DIR_BW:
+            loopdir = 0;
+            break;
+        case ILOOP_DIR_ASIS:
+            flags |= ILOOP_NO_FLIP;
+            loopdir = 1;
+            break;
+        default:
+            loopdir = !insertInside;
+            break;
+    }
+    
     if (!insertInside)
     {
         // create new white sector
@@ -1792,121 +1875,101 @@ int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectort
         pSect->wallnum  = nCount;
         nSect = numsectors++;
     }
-
+    
     movewalls(nWall, nCount); // increases numwalls automatically
-
-    while(i < nCount)
+    i = (loopdir == 0) ? nCount - 1 : 0;
+    
+    while( 1 )
     {
         pWall = &wall[nWall];
-
-        if (pWModel)
-        {
-            memcpy(pWall, pWModel, sizeof(walltype));
-        }
-        else
-        {
-            memset(pWall, 0, sizeof(walltype));
-            pWall->xrepeat = pWall->yrepeat = 8;
-            pWall->extra = -1;
-        }
-
+        memcpy(pWall, &pWalls[i], sizeof(walltype));
+        
         pWall->point2       = ++nWall;
         pWall->nextwall     = -1;
         pWall->nextsector   = -1;
-
-        pWall->x            = pInfo[i].x;
-        pWall->y            = pInfo[i].y;
-        i++;
+        
+        if ((loopdir && ++i >= nCount) || (!loopdir && --i < 0))
+            break;
     }
-
+    
     pWall->point2 = nStartWall;
-
-    if (clockdir(nStartWall) == 1)
-        flipwalls(nStartWall, nStartWall + nCount);
-
+    
     if (insertInside)
     {
-        t = nSect;
-        sector[t].wallnum += nCount;
-        while(t++ < numsectors)
-            sector[t].wallptr += nCount;
-
-        if (clockdir(nStartWall) == 0)
-            flipwalls(nStartWall, nStartWall + nCount);
-
-        setFirstWall(nSect, nStartWall + nCount); // fix wallptr, so slope dir won't change
-        nStartWall+=(sector[nSect].wallnum-nCount);
+        i = nSect;
+        sector[i].wallnum += nCount;
+        while(i++ < numsectors) sector[i].wallptr += nCount;
         
-        for (i = 0; i < kMaxSprites; i++)
+        if ((flags & ILOOP_NO_FLIP) == 0)
         {
-            spritetype* pSpr = &sprite[i];
-            if (pSpr->statnum >= kMaxStatus || nSect != pSpr->sectnum)
-                continue;
-            
-            sprFixSector(pSpr);
+            if (clockdir(nStartWall) == 0)
+                flipwalls(nStartWall, nStartWall + nCount);
+        }
+        
+        if ((flags & ILOOP_NO_SET_FW) == 0)
+        {
+            setFirstWall(nSect, nStartWall + nCount); // fix wallptr, so slope dir won't change
+            nStartWall += (sector[nSect].wallnum-nCount);
         }
     }
-
-    if (!pWModel)
+    else if ((flags & ILOOP_NO_FLIP) == 0)
     {
-        nWall = nStartWall;
-        do
-        {
-            fixrepeats(nWall);
-            nWall = wall[nWall].point2;
-        }
-        while(nWall != nStartWall);
+        if (clockdir(nStartWall) == 1)
+            flipwalls(nStartWall, nStartWall + nCount);
     }
-
-
+    
     return nStartWall;
 }
 
 int insertLoop(int nSect, walltype* pWalls, int nCount, sectortype* pSModel)
 {
-    VOIDLIST point(sizeof(POINT2D));
-    POINT2D buf; int n, i, j, k;
+    return insertLoopEx(nSect, pWalls, nCount, ILOOP_AUTO, pSModel);
+}
 
+int insertLoopEx(int nSect, POINT2D* pInfo, int nCount, char flags, walltype* pWModel, sectortype* pSModel)
+{
+    int i, j;
+    walltype buf;
+    VOIDLIST list(sizeof(buf));
+    
+    if (pWModel)
+    {
+        memcpy(&buf, pWModel, sizeof(buf));
+    }
+    else
+    {
+        memset(&buf, 0, sizeof(buf));
+        buf.xrepeat = buf.yrepeat = 8;
+        buf.extra = -1;
+    }
+    
     for (i = 0; i < nCount; i++)
     {
-        buf.x = pWalls[i].x;
-        buf.y = pWalls[i].y;
-        point.Add(&buf);
+        buf.x = pInfo[i].x;
+        buf.y = pInfo[i].y;
+        list.Add(&buf);
     }
-
-    if ((n = insertLoop(nSect, (POINT2D*)point.First(), nCount, pWalls, pSModel)) >= 0)
+    
+    if ((i = insertLoopEx(nSect, (walltype*)list.First(), nCount, flags, pSModel)) >= 0)
     {
-        i = n;
-        j = 0;
-
-        do
+        if ((flags & ILOOP_NO_FIX_REP) == 0 && !pWModel)
         {
-            k = j; // flipped walls check
-            while(pWalls[k].x != wall[i].x || pWalls[k].y != wall[i].y)
-                k = DecRotate(k, nCount);
-            
-            wall[i].picnum      = pWalls[k].picnum;
-            wall[i].overpicnum  = pWalls[k].overpicnum;
-            wall[i].shade       = pWalls[k].shade;
-            wall[i].pal         = pWalls[k].pal;
-            wall[i].xrepeat     = pWalls[k].xrepeat;
-            wall[i].yrepeat     = pWalls[k].yrepeat;
-            wall[i].xpanning    = pWalls[k].xpanning;
-            wall[i].ypanning    = pWalls[k].ypanning;
-            wall[i].lotag       = pWalls[k].lotag;
-            wall[i].hitag       = pWalls[k].hitag;
-            wall[i].cstat       = pWalls[k].cstat;
-            wall[i].extra       = pWalls[k].extra;
-            wall[i].nextwall    = -1;
-            wall[i].nextsector  = -1;
-
-            j = IncRotate(j, nCount);
-            i = wall[i].point2;
+            j = i;
+            do
+            {
+                fixrepeats(j);
+                j = wall[j].point2;
+            }
+            while(j != i);
         }
-        while(i != n);
     }
+    
+    return i;
+}
 
-    return n;
+int insertLoop(int nSect, POINT2D* pInfo, int nCount, walltype* pWModel, sectortype* pSModel)
+{
+    return insertLoopEx(nSect, pInfo, nCount, ILOOP_AUTO, pWModel, pSModel);
 }
 
 void insertPoints(WALLPOINT_INFO* pInfo, int nCount)
@@ -1934,17 +1997,6 @@ int makeSquareSector(int ax, int ay, int area)
     }
 
     return (nWall >= 0) ? sectorofwall(nWall) : nWall;
-}
-
-int redSectorCanMake(int nStartWall)
-{
-
-    int addwalls = -1;
-    if (wall[nStartWall].nextwall >= 0) return -1;
-    else if (numsectors >= kMaxSectors) return -4;
-    else if ((addwalls = whitelinescan(nStartWall)) < numwalls) return -2;
-    else if (addwalls >= kMaxWalls) return -3;
-    else return addwalls;
 }
 
 char collectOuterWalls(int nWall, IDLIST* pLoop)
@@ -2007,35 +2059,49 @@ void sectLoopMain(int nSect, int* s, int* e)
     loopGetWalls(i, s, e);
 }
 
-
-int sectLoopTransfer(int nSectA, int nSectB, char flags)
+int sectContentsTransfer(int nSectA, int nSectB, char flags)
 {
-    int s, e, ls, le;
-    int done = 0;
+    typedef int (*INSIDEFUNC)(int x, int y, short nSect);
+    INSIDEFUNC pInside = (flags & 0x08) ? ED32_Inside : inside;
+    int s, e, ls, le, done = 0;
     
-    if (nSectA != nSectB)
+    if (nSectA == nSectB)
+        return 0;
+    
+    if (flags & 0x01)
     {
         getSectorWalls(nSectA, &s, &e);
         while(e >= s)
         {
             loopGetWalls(e, &ls, &le);
-            
             if (clockdir(ls) == 1)
             {
-                if (flags & 0x04)
-                {
-                    while (le >= ls && inside(wall[le].x, wall[le].y, nSectB)) le--;
-                    if (le < ls && loopTransfer(ls, nSectB, flags) >= 0)
-                        done++;
-                }
-                else if (loopTransfer(ls, nSectB, flags) >= 0)
+                while (le >= ls && pInside(wall[le].x, wall[le].y, nSectB)) le--;
+                if (le < ls && loopTransfer(ls, nSectB) >= 0)
                     done++;
             }
-            
+
             e = --ls;
         }
     }
     
+    if (flags & 0x04)
+    {
+        for (s = headspritesect[nSectA]; s >= 0;)
+        {
+            if (pInside(sprite[s].x, sprite[s].y, nSectB))
+            {
+                ChangeSpriteSect(s, nSectB);
+                s = headspritesect[nSectA];
+                done++;
+                
+                continue;
+            }
+            
+            s = nextspritesect[s];
+        }
+    }
+ 
     return done;
 }
 
@@ -2043,7 +2109,7 @@ int redSectorMake(int nWall)
 {
     POINT2D buf; VOIDLIST point(sizeof(buf)); IDLIST list(true);
     int nSect = sectorofwall(nWall), nOSect = nSect, nNext;
-    int32_t c, s, e, r = -5, *p;
+    int32_t c, s, e, r = -5, *p, x;
 
     if (wall[nWall].nextwall >= 0)              return -1;
     if (nSect < 0)                              return -5;
@@ -2370,6 +2436,150 @@ char fixXWall(int nID)
     return 0;
 }
 
+int fixWallLoops(void)
+{
+    char* errMsgFmt = "%s found at: Wall=%d, Point2=%d, Next=%d, Sector=%d!\n";
+    int onumwalls = numwalls, onumsectors = numsectors;
+    int totalFound = 0, totalFixed = 0;
+    int nSect, i, j, n, t, x, y;
+    char bad;
+    
+    i = numwalls;
+    while(--i >= 0)
+    {
+        if (getWallLength(i) > 0)
+        {
+            if ((n = wall[i].nextwall) >= 0 && !isNextWallOf(n, i))
+            {
+                totalFound++, totalFixed++;
+                buildprintf(errMsgFmt, "Bad next wall", i, wall[i].point2, wall[i].nextwall, sectorofwall(i));
+                
+                wallDetach(n), wallDetach(i);
+                if ((n = findNextWall(i)) >= 0)
+                    wallAttach(i, n), wallAttach(n, i);
+            }
+        }
+        else
+        {
+            totalFound++, totalFixed++;
+            buildprintf(errMsgFmt, "Zero length wall", i, wall[i].point2, wall[i].nextwall, sectorofwall(i));
+            deletePoint(i);
+        }
+    }
+    
+    i = numwalls;
+    while(--i >= 0)
+    {
+        bad = 0;
+        j = i;
+        t = 0;
+        do
+        {
+            // 0, 1, 2, 3, 0 = ok
+            // 0, 1, 3, 2, 0 = wrong
+            
+            if (wall[j].point2 - j > 1)
+            {
+                bad = 1;
+                break;
+            }
+            
+            j = wall[j].point2;
+            t++;
+        }
+        while(i != j && t < numwalls);
+        
+        if (bad)
+        {
+            nSect = sectorofwall(i);
+            buildprintf(errMsgFmt, "Bad wall order", j, wall[j].point2, wall[j].nextwall, nSect);
+            totalFound++;
+            
+            if (nSect >= 0)
+            {
+                getWallCoords(sector[nSect].wallptr, &x, &y);
+                VOIDLIST loop(sizeof(wall[0]));
+                j = i;
+                do
+                {
+                    loop.Add(&wall[j]);
+                    j = wall[j].point2;
+                }
+                while(i != j);
+                
+                loopDetach(j), loopDelete(i);
+                j = insertLoopEx(nSect, (walltype*)loop.First(), loop.Length(), ILOOP_DIR_FW|ILOOP_NO_FLIP, &sector[nSect]);
+                loopAttach(j), totalFixed++;
+                
+                if ((j = findWallAtPos(nSect, x, y)) >= 0)
+                    setFirstWall(nSect, j); // for slope
+                
+                i = numwalls;
+            }
+        }
+    }
+    
+#if 0
+    i = numwalls;
+    while(--i >= 0)
+    {
+        if ((n = wall[i].nextwall) >= 0)
+        {
+            j = i;
+            while(--j >= 0)
+            {
+                if (j != i && wall[j].nextwall == n)
+                {
+                    if ((nSect = sectorofwall(j)) >= 0)
+                    {
+                        getWallCoords(sector[nSect].wallptr, &x, &y), t = numsectors;
+                        if (headspritesect[nSect] >= 0)
+                            sectContentsTransfer(nSect, IncRotate(nSect, numsectors), 0x04);
+                    }
+                    
+                    totalFound++, totalFixed++;
+                    buildprintf(errMsgFmt, "Loop copy", j, wall[j].point2, wall[j].nextwall, nSect);
+                    loopDetach(j);
+                    loopDelete(j);
+
+                    if (nSect >= 0 && t == numsectors
+                        && (j = findWallAtPos(nSect, x, y)) >= 0)
+                            setFirstWall(nSect, j); // for slope
+                    
+                    break;
+                }
+            }
+        }
+    }
+#endif
+
+    i = numsectors;
+    while(--i >= 0)
+    {
+        if (sector[i].wallptr >= 0 && sector[i].wallnum > 0)
+            continue;
+
+        for (j = i; j < numsectors-1; j++) sector[j] = sector[j+1];
+        buildprintf(errMsgFmt, "Bad sector", -1, -1, -1, i);
+        totalFound++, totalFixed++;
+        numsectors--;
+    }
+    
+    if (totalFound)
+    {
+        sprintf(buffer, "%d / %d wall issues has been fixed in '%s'.\n", totalFixed, totalFound, gPaths.maps);
+        buildprintf("%s", buffer);
+        
+        buildprintf("Sectors deleted: %d, Walls deleted: %d\n\n", onumsectors-numsectors, onumwalls-numwalls);
+        scrSetMessage(buffer);
+        
+        BeepFail();
+        CleanUp();
+    }
+    
+    return totalFound;
+}
+
 int worldSprCallFunc(HSPRITEFUNC pFunc, int nData)
 {
     int i, c = 0;
@@ -2399,6 +2609,10 @@ int collectWallsOfNode(IDLIST* pList, int nWall, char flags)
         if (wall[t].nextwall >= 0)
         {
             t = wall[wall[t].nextwall].point2;
+            if (pList->Exists(t))
+                break;
+            
+            
             pList->Add(t);
         }
         else
@@ -2410,6 +2624,9 @@ int collectWallsOfNode(IDLIST* pList, int nWall, char flags)
                 if (wall[n].nextwall >= 0)
                 {
                     t = wall[n].nextwall;
+                    if (pList->Exists(t))
+                        break;
+                    
                     pList->Add(t);
                 }
                 else
@@ -2466,6 +2683,73 @@ int isClockDir(POINT2D* p, int c)
         if (p[j].x < minx)
         {
             minx = p[j].x;
+            themin = i;
+        }
+    }
+    while (j != 0);
+
+    j = themin;
+    x0 = p[j].x;
+    y0 = p[j].y;
+
+    j = IncRotate(j, c);
+    x1 = p[j].x;
+    y1 = p[j].y;
+
+    j = IncRotate(j, c);
+    x2 = p[j].x;
+    y2 = p[j].y;
+
+    if ((y1 >= y2) && (y1 <= y0)) return 0;
+    if ((y1 >= y0) && (y1 <= y2)) return 1;
+
+    templong = (x0-x1)*(y2-y1) - (x2-x1)*(y0-y1);
+    if (templong < 0)
+        return 0;
+    else
+        return 1;
+}
+
+int isClockDir(walltype* p, int c, char dragit)
+{
+    int minx, x0, x1, x2, y0, y1, y2, dx;
+    int i, themin; int64_t templong;
+    int j;
+
+    minx = 0x7fffffff;
+    themin = -1;
+
+
+    i = -1;
+    j = IncRotate(i, c);
+
+    do
+    {
+        i = IncRotate(i, c);
+        j = IncRotate(j, c);
+        x2 = p[j].x;
+        
+        if (dragit)
+        {
+            // help it to get proper direction
+            // when some point on another
+            // point or line...?
+            
+/*             x1 = p[i].x;
+            y1 = p[i].y;
+            
+            y2 = p[j].y;
+            
+            int a = (getangle(x2 - x1, y2 - y1) + kAng90) & kAngMask;
+            offsetPos(0, 4, 0, a, &x2, &y2, NULL); */
+            
+            dx = x2-p[i].x;
+            x2 += ((dx < 0) ? -1 : (dx > 0) ? +1 : 0);
+        }
+        
+        if (x2 < minx)
+        {
+            minx = x2;
             themin = i;
         }
     }
@@ -2860,6 +3144,62 @@ int32_t ED32_AutoAlignWalls(IDLIST* pDone, int w0, char flags, int32_t nrecurs)
     }
 
     return numaligned;
+}
+
+int ED32_Inside(int x, int y, short nSect)
+{
+	uint32_t cnt1 = 0, cnt2 = 0;
+
+	walltype* wal = &wall[sector[nSect].wallptr];
+	int wallsleft = sector[nSect].wallnum;
+
+	do
+	{
+		// Get the x and y components of the [tested point]-->[wall
+		// point{1,2}] vectors.
+		
+		int x1 = wal->x - x, y1 = wal->y - y;
+		
+		walltype* wal2 = &wall[wal->point2];
+		int x2 = wal2->x - x;
+		int y2 = wal2->y - y;
+		
+
+		// First, test if the point is EXACTLY_ON_WALL_POINT.
+		if ((x1|y1) == 0 || (x2|y2)==0)
+			return 1;
+
+		// If their signs differ[*], ...
+		//
+		// [*] where '-' corresponds to <0 and '+' corresponds to >=0.
+		// Equivalently, the branch is taken iff
+		//   y1 != y2 AND y_m <= y < y_M,
+		// where y_m := min(y1, y2) and y_M := max(y1, y2).
+		if ((y1^y2) < 0)
+			cnt1 ^= (((x1^x2) >= 0) ? x1 : (x1*y2-x2*y1)^y2);
+
+		y1--;
+		y2--;
+
+		// Now, do the same comparisons, but with the interval half-open on
+		// the other side! That is, take the branch iff
+		//   y1 != y2 AND y_m < y <= y_M,
+		// For a rectangular sector, without EXACTLY_ON_WALL_POINT, this
+		// would still leave the lower left and upper right points
+		// "outside" the sector.
+		if ((y1^y2) < 0)
+		{
+			x1--;
+			x2--;
+
+			cnt2 ^= (((x1^x2) >= 0) ? x1 : (x1*y2-x2*y1)^y2);
+		}
+
+		wal++;
+	}
+	while (--wallsleft);
+
+	return (cnt1|cnt2)>>31;
 }
 
 int AutoAlignWalls(int nWall0, char flags)

@@ -65,8 +65,6 @@ void deletepoint(short point);
 int deletesector(short sucksect);
 int checksectorpointer(short i, short sectnum);
 void fixrepeats(short i);
-short whitelinescan(short dalinehighlight);
-void copysector(short soursector, short destsector, short deststartwall, unsigned char copystat);
 
 int movewalls(int start, int offs);
 void updatenumsprites(void);
@@ -509,58 +507,6 @@ void fixrepeats(short i)
 	dist = ksqrt(dax*dax+day*day);
 	dax = wall[i].xrepeat; day = wall[i].yrepeat;
 	wall[i].xrepeat = (unsigned char)min(max(mulscale10(dist,day),1),255);
-}
-
-short whitelinescan(short dalinehighlight)
-{
-	int i, j, k;
-	short sucksect, newnumwalls;
-
-	sucksect = sectorofwall(dalinehighlight);
-
-	Bmemcpy(&sector[numsectors],&sector[sucksect],sizeof(sectortype));
-	sector[numsectors].wallptr = numwalls;
-	sector[numsectors].wallnum = 0;
-	i = dalinehighlight;
-	newnumwalls = numwalls;
-	do
-	{
-		j = lastwall((short)i);
-		if (wall[j].nextwall >= 0)
-		{
-			j = wall[j].point2;
-			for(k=0;k<numwalls;k++)
-			{
-				if (wall[wall[k].point2].x == wall[j].x)
-					if (wall[wall[k].point2].y == wall[j].y)
-						if (wall[k].nextwall == -1)
-						{
-							j = k;
-							break;
-						}
-			}
-		}
-
-		Bmemcpy(&wall[newnumwalls],&wall[i],sizeof(walltype));
-
-		wall[newnumwalls].nextwall = j;
-		wall[newnumwalls].nextsector = sectorofwall((short)j);
-
-		newnumwalls++;
-		sector[numsectors].wallnum++;
-
-		i = j;
-	}
-	while (i != dalinehighlight);
-
-	for(i=numwalls;i<newnumwalls-1;i++)
-		wall[i].point2 = i+1;
-	wall[newnumwalls-1].point2 = numwalls;
-
-	if (clockdir(numwalls) == 1)
-		return(-1);
-	else
-		return(newnumwalls);
 }
 
 void updatenumsprites(void)

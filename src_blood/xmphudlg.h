@@ -5,6 +5,8 @@
 
 struct MAPEDIT_HUD;
 
+#define NO_DEFVAL           0x7FFFFFFF
+
 #pragma pack(push, 1)
 struct DIALOG_ITEM
 {
@@ -19,9 +21,10 @@ struct DIALOG_ITEM
     int maxValue;
     char **names;
     char (*pHelpFunc)(DIALOG_ITEM* pRoot, DIALOG_ITEM* pItem, BYTE key);
+    int defValue;
+    int value;
     char *readyLabel;
     int readyLabelLen;
-    int value;
     unsigned int selected           : 1;
 };
 #pragma pack(pop)

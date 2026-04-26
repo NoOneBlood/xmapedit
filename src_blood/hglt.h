@@ -47,13 +47,15 @@ void sprPalSet(spritetype* pSprite, int value);
 void sprShadeSet(spritetype* pSprite, int value);
 void sprShadeIterate(spritetype* pSprite, int step);
 void sprClone(spritetype* pSprite, int);
-void sprSetXRepeat(spritetype* pSprite, int val);
-void sprSetYRepeat(spritetype* pSprite, int val);
 int hgltSprCallFunc(HSPRITEFUNC SpriteFunc,  int nData = 0);
 int hgltSprCount();
 
 
 void sectChgVisibility(int nSect, int nVis);
+void sectFXSetShadeFlags(int nSect, int, int, int, int);
+void sectFXChgFreq(int nSect, int nVal, int, int, int);
+void sectFXChgPhase(int nSect, int nVal, int, int, int);
+void sectFXChgAmplitude(int nSect, int nVal, int, int, int);
 void sectChgShade(int nSect, int nOf, int nShade, int a3=0, int a4=0);
 void sectDelete(int nSector, int a1=0, int a2=0, int a3=0, int a4=0);
 void sectChgXY(int nSector, int bx, int by, int a3=0, int a4=0);
@@ -116,7 +118,7 @@ int hgltWallCount(int* whicnt = NULL, int* redcnt = NULL);
 int hgltWallsCheckStat(int nStat, int which = 0x03, int nMask = 0x0);
 
 void hgltSectDetach();
-void hgltSectAttach();
+void hgltSectAttach(char inHgltRange = 0);
 void hgltSectGetBox(int* x1, int* y1, int* x2, int *y2);
 void hgltSectMidPoint(int* ax, int* ay);
 char hgltSectInsideBox(int x, int y);

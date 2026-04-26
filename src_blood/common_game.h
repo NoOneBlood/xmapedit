@@ -142,6 +142,7 @@ typedef uint8_t BITARRAY04[(4096+7)>>3];
 typedef uint8_t BITARRAY01[(1024+7)>>3];
 typedef uint8_t BITSECTOR[(kMaxSectors+7)>>3];
 typedef uint8_t BITSPRITE[(kMaxSprites+7)>>3];
+typedef uint8_t BITWALL[(kMaxWalls+7)>>3];
 
 #define kSEQSig                 "SEQ\x1A"
 #define kQavSig                 "QAV\x1A"
@@ -155,6 +156,7 @@ typedef uint8_t BITSPRITE[(kMaxSprites+7)>>3];
 #define GRD2PIX(n)              (2048 >> n)
 #define IVAL2PERC(val, full)    ((val * 100) / full)
 #define DELETE_AND_NULL(x)      delete(x), x = NULL;
+#define DELETE_ARR_AND_NULL(x)  delete [] x, x = NULL;
 #define FREE_AND_NULL(x)        free(x), x = NULL;
 #define MIDPOINT(a, b)          (a+((b-a)>>1))
 #define QSETMODE(x, y)          qsetmode = ((x<<16)|(y&0xffff))
@@ -402,6 +404,8 @@ kHitagAutoAim               = 0x0008,
 kHitagRespawn               = 0x0010,
 kHitagFree                  = 0x0020,
 kHitagSmoke                 = 0x0100,
+
+kHitagNoModel               = 0x8000,
 };
 
 // game types /////////////////////////////////////////////////////
@@ -1029,6 +1033,13 @@ int GL_swapInterval2Fps(int interval);
 int GL_fps2SwapInterval(int fps);
 #endif
 
+inline char colorShade(char c, signed char s)
+{
+    if (!s) return c;
+    BYTE* pPlu = (palookup[0] + shgetpalookup(0, s));
+    return pPlu[c];
+}
+
 BYTE countBestColor(PALETTE in, int r, int g, int b, int wR = 1, int wG = 1, int wB = 1);
 
 class VOIDLIST
@@ -1207,6 +1218,7 @@ class IDLIST : public VOIDLIST
     public:
         IDLIST(int32_t dummy, int32_t eol = -1)     : VOIDLIST(sizeof(eol), &eol) { }
         inline int Add(int nID)                     { return VOIDLIST::Add(&nID);                           }
+        inline int Add(int nID, int nID2, char a)   { return VOIDLIST::Add(&nID, &nID2, a);                 }
         inline int Remove(int nID)                  { return VOIDLIST::Remove(&nID);                        }
         inline char Exists(int nID)                 { return VOIDLIST::Exists(&nID);                        }
         inline int32_t* First(void)                 { return (int32_t*)VOIDLIST::First();                   }

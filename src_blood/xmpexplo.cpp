@@ -114,16 +114,22 @@ enum
 class ThumbCache
 {
     private:
-        struct CACHE_INFO
+        struct ENTRY
         {
             uint32_t id;
             uint16_t wh;
             uint16_t hg;
         };
+        
+        struct INFO
+        {
+            uint32_t id;
+            int32_t  offset;
+        };
         unsigned int operable       : 1;
         unsigned int permanent      : 1;
         char filename[BMAX_PATH];
-        IDLIST *offset, *id;
+        VOIDLIST* offsList;
         int hFile, maxSize;
     public:
         ThumbCache(char* filepath = NULL, int flags = 0x0, int nMaxSize = 128 * 1024 * 1024);
@@ -139,10 +145,11 @@ class ThumbCache
 
 ThumbCache::ThumbCache(char* file, int flags, int nMaxSize)
 {
+    INFO eol = {0, -1};
+    
+    offsList        = new VOIDLIST(sizeof(eol), &eol);
     permanent       = (!isempty(file) && (flags & CACHE_PRM) > 0);
     maxSize         = nMaxSize;
-    offset          = new IDLIST(true);
-    id              = new IDLIST(true);
     hFile           = -1;
     operable        = 0;
 
@@ -178,8 +185,7 @@ ThumbCache::~ThumbCache(void)
     if (!permanent)
         unlink(filename);
 
-    delete(offset);
-    delete(id);
+    delete(offsList);
 }
 
 // simple read/write test just to be sure
@@ -190,7 +196,7 @@ char ThumbCache::Test()
     const int kSiz          = sizeof(kTestValue);
     int nTest               = kTestValue;
     int pos;
-
+    
     if (hFile >= 0 && (pos = lseek(hFile, 0, SEEK_END)) >= 0)
     {
         if (write(hFile, &nTest, kSiz) == kSiz && lseek(hFile, -kSiz, SEEK_CUR) == pos)
@@ -212,16 +218,17 @@ char ThumbCache::Load()
 {
     int nOfs = lseek(hFile, 0, SEEK_SET);
     int nLen = filelength(hFile);
-    CACHE_INFO inf;
+    INFO inf; ENTRY entry;
 
     while(nOfs < nLen)
     {
-        if (read(hFile, &inf, sizeof(inf)) == sizeof(inf))
+        if (read(hFile, &entry, sizeof(entry)) == sizeof(entry))
         {
-            id->Add(inf.id);
-            offset->Add(nOfs);
-
-            nOfs+=sizeof(inf)+(inf.wh*inf.hg);
+            inf.id = entry.id;
+            inf.offset = nOfs;
+            offsList->Add(&inf);
+            
+            nOfs+=sizeof(entry)+(entry.wh*entry.hg);
             if (lseek(hFile, nOfs, SEEK_SET) == nOfs)
                 continue;
         }
@@ -239,10 +246,12 @@ char ThumbCache::Offset(uint32_t nID)
     if (operable)
     {
         int32_t i, numItems, nTop, nBot;
-        int32_t* pOffs  = offset->GetPtr();
-        int32_t* pID    = id->GetPtr();
+        INFO* p = (INFO*)offsList->First();
+        
+        //int32_t* pOffs  = offset->GetPtr();
+        //int32_t* pID    = id->GetPtr();
 
-        numItems = offset->GetLength();
+        numItems = offsList->Length();
         nTop = nBot = numItems >> 1;
         i = numItems;
 
@@ -250,15 +259,15 @@ char ThumbCache::Offset(uint32_t nID)
         {
             if (nBot < numItems && ((i % 2) || nTop < 0))
             {
-                if (pID[nBot] == (int32_t)nID)
-                    return (lseek(hFile, pOffs[nBot], SEEK_SET) == pOffs[nBot]);
+                if (p[nBot].id == (int32_t)nID)
+                    return (lseek(hFile, p[nBot].offset, SEEK_SET) == p[nBot].offset);
 
                 nBot++;
             }
             else if (--nTop >= 0)
             {
-                if (pID[nTop] == (int32_t)nID)
-                    return (lseek(hFile, pOffs[nTop], SEEK_SET) == pOffs[nTop]);
+                if (p[nTop].id == (int32_t)nID)
+                    return (lseek(hFile, p[nTop].offset, SEEK_SET) == p[nTop].offset);
             }
         }
     }
@@ -287,10 +296,8 @@ void ThumbCache::Erase(void)
 {
     if (operable)
         chsize(hFile, 0);
-
-    delete(offset); delete(id);
-    offset  = new IDLIST(true);
-    id      = new IDLIST(true);
+    
+    offsList->Clear();
 }
 
 // append a new cache content
@@ -302,19 +309,20 @@ char ThumbCache::Add(uint32_t nID, int nTile)
         if (maxSize && filelength(hFile) >= maxSize)
             Erase();
 
-        CACHE_INFO inf;
+        ENTRY entry; INFO inf;
         int nPos, t;
 
-        inf.id  = nID;
-        inf.wh  = tilesizx[nTile];
-        inf.hg  = tilesizy[nTile];
+        entry.id  = nID;
+        entry.wh  = tilesizx[nTile];
+        entry.hg  = tilesizy[nTile];
 
-        t = inf.wh*inf.hg;
+        t = entry.wh*entry.hg;
         nPos = lseek(hFile, 0, SEEK_END);
-        if (write(hFile, &inf, sizeof(inf)) == sizeof(inf) && write(hFile, (void*)waloff[nTile], t) == t)
+        if (write(hFile, &entry, sizeof(entry)) == sizeof(entry) && write(hFile, (void*)waloff[nTile], t) == t)
         {
-            id->Add(inf.id);
-            offset->Add(nPos);
+            inf.id = entry.id;
+            inf.offset = nPos;
+            offsList->Add(&inf);
             return 1;
         }
 
@@ -2856,8 +2864,10 @@ static char getThumbnail_QAV(char* filepath, int nTile, int wh, int hg, int bg)
                 pQav->Preload();
                 helperAllocThumb(nTile, wh, hg, bg);
                 setviewtotile(nTile, hg, wh);
-
-                DrawFrame(pQav->x, pQav->y, pTFrame, 0x02, 0, 0);
+                
+                // draw all tiles of the frame!!!
+                for (j = 0; j < LENGTH(pFrame->tiles); j++)
+                    DrawFrame(pQav->x, pQav->y, &pFrame->tiles[j], 0x02, 0, 0);
 
                 setviewback();
                 artedRotateTile(nTile);

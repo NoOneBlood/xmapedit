@@ -27,7 +27,7 @@
 #include "xmpsky.h"
 
 int gSuppMapVersions[] = { 4, 5, 6, 7, 8, 9, -1, };
-bool gModernMap = false;
+char gModernMap = 0;
 int gMapRev = 0;
 
 unsigned short gStatCount[kMaxStatus + 1];
@@ -1150,7 +1150,8 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
     numwalls        = B_LITTLE16(header.numwalls);
     numsprites      = B_LITTLE16(header.numsprites);
     parallaxtype    = header.skyType;
-
+    
+    Sky::visibility = parallaxvisibility = 512;
     Sky::pieces     = ClipHigh(1 << pskybits, MAXPSKYTILES);
     nSkySize        = Sky::pieces*sizeof(tpskyoff[0]);
     boardWidth      = MET2PIX(384);
@@ -1165,7 +1166,7 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
         // XMAPEDIT specific info
         if (memcmp(kXMPHeadSig, extra.xmpsign, sizeof(kXMPHeadSig)-1) == 0)
         {
-            if (irngok(extra.xmpheadver, kXMPHeadVer1, kXMPHeadVer2))
+            if (irngok(extra.xmpheadver, kXMPHeadVer1, kXMPHeadVer3))
             {
                 Sky::customBitsFlag = (bool)(extra.xmpMapFlags & kXmpFlagCustomSkyBits);
                 if (extra.xmpMapFlags & kXmpFlagFog)
@@ -1177,6 +1178,9 @@ int dbLoadMap(IOBuffer* pIo, char* cmtpath)
                     boardHeight = MET2PIX(extra.xmpBoardHeight);
                     Sky::tileRepeatCount = extra.xmpSkyRepeatCnt;
                 }
+                
+                if (extra.xmpheadver >= kXMPHeadVer3)
+                    Sky::visibility = parallaxvisibility = extra.xmpSkyVisibility;
             }
         }
 
@@ -1520,7 +1524,12 @@ int dbSaveMap(char *filename, BOOL ver7)
     pIo = new IOBuffer(nBytes, pBytes);
     // -----------------------------------------------------------------------
     sprintf(magic.sign, kBloodMapSig);
-    magic.version       = (ver7) ? ((gCompat.modernMap) ? 0x701 : 0x700) : 0x603;
+    #if 0
+        // Refreshed Supply doesn't ignore minor version change, so abandon :(
+        magic.version       = (ver7) ? ((gCompat.modernMap) ? 0x701 : 0x700) : 0x603;
+    #else
+        magic.version       = (ver7) ? 0x700 : 0x603;
+    #endif
     // -----------------------------------------------------------------------
     header.startX       = B_LITTLE32(startposx);
     header.startY       = B_LITTLE32(startposy);
@@ -1538,7 +1547,7 @@ int dbSaveMap(char *filename, BOOL ver7)
     // -----------------------------------------------------------------------
     // add some XMAPEDIT specific info
     sprintf(extra.xmpsign, kXMPHeadSig);
-    extra.xmpheadver    = kXMPHeadVer2;
+    extra.xmpheadver    = kXMPHeadVer3;
     if (Sky::customBitsFlag)
         extra.xmpMapFlags |= kXmpFlagCustomSkyBits;
     if (gFogMode)
@@ -1548,6 +1557,7 @@ int dbSaveMap(char *filename, BOOL ver7)
     extra.xmpBoardHeight    = PIX2MET(boardHeight);
     extra.xmpPalette        = 0;
     extra.xmpSkyRepeatCnt   = Sky::tileRepeatCount;
+    extra.xmpSkyVisibility  = parallaxvisibility;
 
     // -----------------------------------------------------------------------
     extra.xsprSiz       = kXSpriteDiskSize;
