@@ -45,25 +45,23 @@ typedef void (*EDITLOOPPROCESS_FUNC)(void);
 
 char h = 0;
 BYTE key, ctrl, alt, shift;
-short gHighSpr = -1, gHovSpr = -1;
-short gHovWall = -1, gHovStat = -1;
+short gHovSpr, gHovWall = -1, gHovStat = -1;
 short gJoinSector = -1;
 int bpsx, bpsy, bpsz, bang, bhorz;
-//int bsrcwall, bsrcsector, bsrcstat, bsrchit;
+int bsrcwall, bsrcsector, bsrcstat, bsrchit;
+char bhovstat = 0;
 
 static int oldnumwalls = 0, oldnumsectors = 0, oldnumsprites = 0;
-short temptype = 0, tempslope = 0, tempidx = -1;
-char tempvisibility = 0;
-short tempang = 0;
+short temptype = 0, tempidx = -1;
 
-spritetype cpysprite[kMaxSprites + 1];
-XSPRITE cpyxsprite[kMaxXSprites + 1];
+spritetype cpysprite;
+XSPRITE cpyxsprite;
 
-sectortype cpysector[kMaxSectors + 1];
-XSECTOR cpyxsector[kMaxXSectors + 1];
+sectortype cpysector;
+XSECTOR cpyxsector;
 
-walltype cpywall[kMaxWalls + 1];
-XWALL cpyxwall[kMaxXWalls + 1];
+walltype cpywall;
+XWALL cpyxwall;
 
 char *gSpriteNames[1024];
 char *gSpriteCaptions[1024];
@@ -263,16 +261,17 @@ NAMED_TYPE gToolNames[] =
 
 NAMED_TYPE gGameObjectGroupNames[] =
 {
-    { kOGrpNone,    "None" },
-    { kOGrpModern,  "Modern" },
-    { kOGrpDude,    "Enemy" },
-    { kOGrpWeapon,  "Weapon" },
-    { kOGrpAmmo,    "Ammo" },
-    { kOGrpAmmoMix, "Mixed ammo" },
-    { kOGrpItem,    "Item" },
-    { kOGrpHazard,  "Hazard" },
-    { kOGrpMisc,    "Misc" },
-    { kOGrpMarker,  "Marker" },
+    { kOGrpNone,        "None" },
+    { kOGrpModern,      "Modern" },
+    { kOGrpDude,        "Enemy" },
+    { kOGrpWeapon,      "Weapon" },
+    { kOGrpAmmo,        "Ammo" },
+    { kOGrpAmmoMix,     "Mixed ammo" },
+    { kOGrpItem,        "Item" },
+    { kOGrpHazard,      "Hazard" },
+    { kOGrpMisc,        "Misc" },
+    { kOGrpMarker,      "Marker" },
+    { kOGrpDudeSpawn,   "Respawn"},
 };
 
 NAMED_TYPE gDifficNames[6] =
@@ -360,7 +359,10 @@ const char *ExtGetSectorCaption(short nSect, char captStyle)
     if (captStyle == kCaptionStyleMapedit && pSect->extra > 0)
     {
         XSECTOR* pXSect = &xsector[pSect->extra];
-
+        
+        if (pXSect->locked)
+            p += sprintf(p, "%c", '*');
+        
         if (pXSect->rxID > 0)
             p += sprintf(p, "%d: ", pXSect->rxID);
 
@@ -413,6 +415,9 @@ const char *ExtGetWallCaption(short nWall, char captStyle)
     if (captStyle == kCaptionStyleMapedit && pWall->extra > 0)
     {
         XWALL* pXWall = &xwall[pWall->extra];
+
+        if (pXWall->locked)
+            p += sprintf(p, "%c", '*');
 
         if (pXWall->rxID > 0)
             p += sprintf(p, "%d: ", pXWall->rxID);
@@ -484,6 +489,9 @@ const char *ExtGetSpriteCaption(short nSprite, char captStyle)
 
     XSPRITE *pXSpr = &xsprite[pSpr->extra];
     
+    if (pXSpr->locked)
+        p += sprintf(p, "%c", '*');
+    
     if (pXSpr->txID)
     {
         switch (pXSpr->txID)
@@ -509,7 +517,7 @@ const char *ExtGetSpriteCaption(short nSprite, char captStyle)
         case kDudeModernCustom:
             if (pXSpr->sysData4 >= 2)
             {
-                if (gCustomDudeNames[pSpr->index][0])
+                if (gCustomDudeNames[pSpr->index])
                     strcpy(name, gCustomDudeNames[pSpr->index]);
             }
             break;
@@ -587,8 +595,11 @@ void faketimerhandler( void )
 void ExtPreCheckKeys(void)
 {
     if (TestBitString(gotpic, 2342))
+    {
         FireProcess();  // animate dynamic fire
-
+        ClearBitString(gotpic, 2342);
+    }
+    
     DoSectorLighting(); // animate sector lighting
     if (gMisc.pan && totalclock >= gTimers.pan)
     {
@@ -626,6 +637,7 @@ void ExtAnalyzeSprites(void)
         DrawMirrors(posx, posy, posz, ang, horiz);
         drawrooms(posx, posy, posz, ang, horiz, cursectnum);
         viewProcessSprites(posx, posy, posz, ang);
+        BackupHover();
 
         // restore position after drawrooms
         posx = bpsx, posy = bpsy, posz = bpsz;
@@ -942,6 +954,13 @@ void ExtCheckKeys( void )
     h = (totalclock & kHClock) ? 8 : 0;
     updateClocks();
 
+    if (gPreviewMode && searchstat == OBJ_SPRITE)
+    {
+        spritetype* pSpr = &sprite[searchwall];
+        if (pSpr->extra <= 0 && !irngok(pSpr->statnum, kStatItem, kStatDude))
+            RestoreHover(); // make searchstat non-sensitive to common sprites
+    }
+
     getHighlightedObject();
 
     if (ED3D)
@@ -953,7 +972,7 @@ void ExtCheckKeys( void )
         {
             gTimers.hudObjectInfo   = totalclock + 32;
             object.type             = searchstat;
-            object.index            = searchindex;
+            object.index            = GetHoverID();
         }
 
         fullLayout = (gMapedHud.layout == kHudLayoutFull);
@@ -1538,8 +1557,9 @@ int ExtInit(int argc, char const * const argv[])
     trigInit(gSysRes);      FireInit();
     hgltReset();            eraseExtra();
     initNames();            dbInit();
-    gObjectLock.Init();     gBeep.Init();
+    gBeep.Init();
     AutoAdjustSpritesInit();
+    customDudeInfoInit();
     userItemsInit();
     editInputInit();
 
@@ -3176,49 +3196,77 @@ void processMove() {
 
     if (!in2d && cursectnum >= 0)
     {
-        int omedium = gMisc.palette;
+        char oldPal = gMisc.palette;
 
-        if (gUpperLink[cursectnum] >= 0 || gLowerLink[cursectnum] >= 0)
+        if ((gUpperLink[cursectnum] >= 0) | (gLowerLink[cursectnum] >= 0))
         {
             int val = (zmode == 0) ? kensplayerheight : 2048;
-            int legs = posz + val;
-            int nSect = cursectnum, nLink = 0;
-
-            if ((zmode || gPreviewMode) || (!zmode && (MOVEUP|MOVEDN) && !ctrl && !shift))
+            int nSect = cursectnum, px, py, pz;
+            int cz, fz;
+            
+            char up = ((MOVEUP) | (gPreviewMode && zmode == 0 && hvel < 0));
+            char dn = ((MOVEDN) | (gPreviewMode && zmode == 0 && hvel > 0));
+            
+            px = posx;
+            py = posy;
+            pz = posz;
+            
+            if (up | dn)
             {
-                if ((nLink = CheckLinkCamera(&posx, &posy, &legs, &nSect, 0)) == 0)
-                {
-                    legs = posz - val;
-                    if ((zmode == 0 && MOVEUP) || zmode != 0)
-                        nLink = CheckLinkCamera(&posx, &posy, &legs, &nSect, 0);
-                }
+                pz = (up) ? posz - val : posz + val;
             }
-
-            if (nLink > 0)
+            else if (zmode == 3)
             {
-                scrSetMessage("Moving through stack!");
-
-                switch (nLink)
+                getzsofslope(nSect, px, py, &cz, &fz);
+                if (posz+val >= fz)      pz = posz + val, dn = 1;
+                else if (posz-val <= cz) pz = posz - val, up = 1;
+            }
+            
+            if (up | dn)
+            {
+                switch(CheckLinkCamera(&px, &py, &pz, &nSect, 0))
                 {
+                    case 0:
+                        break;
                     case kMarkerLowLink:
                     case kMarkerLowWater:
                     case kMarkerLowStack:
                     case kMarkerLowGoo:
-                        cursectnum = nSect;
-                        if (gPreviewMode)
-                            gMisc.palette = kPal0;
-                        posz = getflorzofslope(nSect, posx, posy) - val - 1024;
+                        if (up)
+                        {
+                            posx = px;
+                            posy = py;
+                            posz = pz - val;
+                            cursectnum = nSect;
+                            
+                            if (gPreviewMode)
+                                gMisc.palette = kPal0;
+                        }
                         break;
                     default:
-                        cursectnum = nSect;
-                        posz = getceilzofslope(nSect, posx, posy) + val + 1024;
-                        if (gPreviewMode && cursectnum >= 0 && isUnderwaterSector(cursectnum))
+                        if (dn)
                         {
-                            if (nLink == kMarkerUpWater)    gMisc.palette = kPal1;
-                            else if (nLink == kMarkerUpGoo) gMisc.palette = kPal3;
-
-                            if (zmode == 0)
-                                zmode = (gMouseLook.mode) ? 3 : 2;
+                            posx = px;
+                            posy = py;
+                            posz = pz + val;
+                            
+                            if (gPreviewMode)
+                            {
+                                if (isUnderwaterSector(nSect))
+                                {
+                                    spritetype* pSpr = &sprite[gUpperLink[cursectnum]];
+                                    XSPRITE* pXSpr   = &xsprite[pSpr->extra];
+                                    
+                                    if (gModernMap && pXSpr->data2 > 0)     gMisc.palette = pXSpr->data2;
+                                    else if (pSpr->type == kMarkerUpWater)  gMisc.palette = kPal1;
+                                    else if (pSpr->type == kMarkerUpGoo)    gMisc.palette = kPal3;
+                                    
+                                    if (zmode == 0)
+                                        zmode = (gMouseLook.mode) ? 3 : 2;
+                                }
+                            }
+                            
+                            cursectnum = nSect;
                         }
                         break;
                 }
@@ -3227,12 +3275,12 @@ void processMove() {
 
         if (gPreviewMode)
         {
-            BOOL water = isUnderwaterSector(cursectnum);
-            if (!water && gMisc.palette != kPal0) gMisc.palette = kPal0;
-            else if (water && gMisc.palette == kPal0)
+            if (!isUnderwaterSector(cursectnum))
+                gMisc.palette = kPal0;
+            else if (gMisc.palette == kPal0)
                 gMisc.palette = kPal1;
 
-            if (omedium != gMisc.palette)
+            if (oldPal != gMisc.palette)
                 scrSetPalette(gMisc.palette);
         }
     }
@@ -3568,9 +3616,9 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
     sectortype* pSect; XSECTOR* pXSect; walltype* pWall; XWALL* pXWall;
     MAPSNAPEXTRA extra; spritetype* pSpr;
 
-    int totalsiz = 0, miscsiz = 0, curofs, miscofs, t, i, j;
+    int cs, fs, cc, fc, totalsiz = 0, miscsiz = 0, curofs, miscofs, t, i, j;
     short numcomments = gCommentMgr.commentsCount;
-    uint8_t pana[4], panb[4];
+    uint8_t pana[4], panb[4]; char inhglt;
     uint8_t restore;
 
     // Count size of everything
@@ -3594,9 +3642,9 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
 
     totalsiz += sizeof(pskyoff[0]) * Sky::pieces;
     totalsiz += sizeof(MAP_COMMENT) * numcomments;
-    totalsiz += sizeof(walltype)    * numwalls;
-    totalsiz += sizeof(sectortype)  * numsectors;
-    totalsiz += sizeof(spritetype)  * numsprites;
+    totalsiz += (sizeof(walltype)   + sizeof(inhglt))  * numwalls;
+    totalsiz += (sizeof(sectortype) + sizeof(inhglt))  * numsectors;
+    totalsiz += (sizeof(spritetype) + sizeof(inhglt))  * numsprites;
 
 
     i = numsectors;
@@ -3729,22 +3777,24 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
             }
         }
         
-        
-        if (hgltCheck(OBJ_FLOOR, i) < 0)
+        if (pSect->alignto)
         {
-            // Normal write into object offset
+            // Clear out auto slope for proper crc
             
-            Io.write(pSect, sizeof(sectortype));
+            cs = pSect->ceilingslope,   pSect->ceilingslope = 0;
+            fs = pSect->floorslope,     pSect->floorslope   = 0;
+            cc = pSect->ceilingstat,    pSect->ceilingstat &= ~kSectSloped;
+            fc = pSect->floorstat,      pSect->floorstat   &= ~kSectSloped;
         }
-        else
+        
+        Io.write(pSect, sizeof(sectortype));
+        inhglt = hgltCheck(OBJ_FLOOR, i) >= 0;
+        Io.write(&inhglt, sizeof(inhglt));
+        
+        if (pSect->alignto)
         {
-           // Negate picnum to indicate this
-           // sector supposed to be in
-           // highlight on load.
-            
-            pSect->floorpicnum = -pSect->floorpicnum;
-            Io.write(pSect, sizeof(sectortype));
-            pSect->floorpicnum = klabs(pSect->floorpicnum);
+            pSect->ceilingslope = cs, pSect->ceilingstat = cc;
+            pSect->floorslope   = fs, pSect->floorstat   = fc;
         }
         
         
@@ -3824,25 +3874,10 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
             }
         }
         
+        Io.write(pWall, sizeof(walltype));
+        inhglt = hgltCheck(OBJ_WALL, i) >= 0;
+        Io.write(&inhglt, sizeof(inhglt));
         
-        if (hgltCheck(OBJ_WALL, i) < 0)
-        {
-            // Normal write into current offset
-            
-            Io.write(pWall, sizeof(walltype));
-        }
-        else
-        {
-           // Negate picnum to indicate this
-           // wall supposed to be in
-           // highlight on load.
-            
-            pWall->picnum = -pWall->picnum;
-            Io.write(pWall, sizeof(walltype));
-            pWall->picnum = klabs(pWall->picnum);
-        }
-        
-
         if (pXWall)
         {
             // Write into current offset
@@ -3868,22 +3903,9 @@ int boardSnapshotMake(BYTE** pData, int* crcSiz)
         
         if (pSpr->statnum < kMaxStatus)
         {
-            if (!TestBitString(hgltspri, i))
-            {
-                // Normal writing
-                
-                Io.write(pSpr, sizeof(spritetype));
-            }
-            else
-            {
-               // Negate picnum to indicate this
-               // sprite supposed to be in
-               // highlight on load.
-               
-               pSpr->picnum = -pSpr->picnum;
-               Io.write(pSpr, sizeof(spritetype));
-               pSpr->picnum = klabs(pSpr->picnum);
-            }
+            Io.write(pSpr, sizeof(spritetype));
+            inhglt = hgltCheck(OBJ_SPRITE, i) >= 0;
+            Io.write(&inhglt, sizeof(inhglt));
             
             if (pSpr->extra > 0)
                 Io.write(&xsprite[sprite[i].extra], sizeof(XSPRITE));
@@ -3919,7 +3941,7 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
 {
     sectortype *pSect; XSECTOR *pXSect; walltype *pWall; XWALL *pXWall;
     spritetype *pSpr, tspr;  MAP_COMMENT cmt; MAPSNAPEXTRA extra;
-    int NumSprites, miscofs, curofs, i, j, k;
+    int NumSprites, miscofs, curofs, i, j, k; char inhglt;
     short numcomments;
     uint8_t pan[4];
 
@@ -3967,9 +3989,10 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     {
         pSect = &sector[i];
         Io.read(pSect, sizeof(sectortype));
+        Io.read(&inhglt, sizeof(inhglt));
         
-        if (pSect->floorpicnum < 0) // Means sector is highlighted
-            hgltAdd(OBJ_FLOOR, i), pSect->floorpicnum = klabs(pSect->floorpicnum);
+        if (inhglt)
+            hgltAdd(OBJ_FLOOR, i);
         
         if (pSect->extra > 0)
         {
@@ -4017,9 +4040,10 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     {
         pWall = &wall[i];
         Io.read(pWall, sizeof(walltype));
-
-        if (pWall->picnum < 0) // Means wall is highlighted
-            hgltAdd(OBJ_WALL, i), pWall->picnum = klabs(pWall->picnum);
+        Io.read(&inhglt, sizeof(inhglt));
+        
+        if (inhglt)
+            hgltAdd(OBJ_WALL, i);
 
         if (pWall->extra > 0)
         {
@@ -4062,15 +4086,16 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     for (i = 0; i < NumSprites; i++)
     {
         Io.read(&tspr, sizeof(spritetype));
-
+        Io.read(&inhglt, sizeof(inhglt));
+        
         if ((j = InsertSprite(tspr.sectnum, tspr.statnum)) >= 0)
         {
             pSpr = &sprite[j];
             memcpy(pSpr, &tspr, sizeof(spritetype));
             pSpr->index = j;
             
-            if (pSpr->picnum < 0) // Means sprite is highlighted
-                hgltAdd(OBJ_SPRITE, pSpr->index), pSpr->picnum = klabs(pSpr->picnum);
+            if (inhglt)
+                hgltAdd(OBJ_SPRITE, pSpr->index);
 
             if (numcomments && tspr.index != j)
                 gCommentMgr.RebindMatching(OBJ_SPRITE, tspr.index, OBJ_SPRITE, j, 1);
@@ -4146,9 +4171,9 @@ int boardSnapshotLoad(BYTE* pData, int nLen, char isRedo)
     oldnumsectors   = numsectors;
     oldnumwalls     = numwalls;
     oldnumsprites   = numsprites;
+    asksave         = 0;
 
     updatesector(posx, posy, &cursectnum);
-    //sectorToolDisableAll(1);
     gJoinSector = -1;
     CleanUp();
 
@@ -4571,7 +4596,6 @@ void xmpCreateToolTestMap(char withSprite)
 
         searchstat      = OBJ_SPRITE;
         searchwall      = pSpr->index;
-        searchindex     = pSpr->index;
         searchsector    = 1;
 
         pointhighlight  = (pSpr->index + 16384);
@@ -4581,7 +4605,6 @@ void xmpCreateToolTestMap(char withSprite)
     else
     {
         searchstat      = OBJ_FLOOR;
-        searchindex     = 1;
         searchsector    = 1;
     }
 
@@ -4607,6 +4630,30 @@ char* GetHoverName()
         return gSearchStatNames[searchstat];
 
     return gSearchStatNames[nMax-1];
+}
+
+void BackupHover()
+{
+    if (bhovstat == 0)
+    {
+        bsrcsector = searchsector;
+        bsrcwall = searchwall;
+        bsrcstat = searchstat;
+        bsrchit  = searchit;
+        bhovstat = 1;
+    }
+}
+
+void RestoreHover()
+{
+    if (bhovstat == 1)
+    {
+        searchsector = bsrcsector;
+        searchwall = bsrcwall;
+        searchstat = bsrcstat;
+        searchit = bsrchit;
+        bhovstat = 0;
+    }
 }
 
 static int OSDFUNC_TestGotsector(const osdfuncparm_t *arg)

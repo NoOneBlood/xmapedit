@@ -56,4 +56,6 @@ void SetupLightBomb(void);
 BOOL F9Menu(void);
 
 char dlgSpriteText();
+int helperFillUserDudesList(VOIDLIST* pList);
+char helperGetDataForCustomDude(SELITEM* e, int data[3]);
 #endif

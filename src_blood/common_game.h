@@ -143,6 +143,7 @@ typedef uint8_t BITARRAY01[(1024+7)>>3];
 typedef uint8_t BITSECTOR[(kMaxSectors+7)>>3];
 typedef uint8_t BITSPRITE[(kMaxSprites+7)>>3];
 typedef uint8_t BITWALL[(kMaxWalls+7)>>3];
+typedef int(QSORTFUNC)(const void*,const void*);
 
 #define kSEQSig                 "SEQ\x1A"
 #define kQavSig                 "QAV\x1A"
@@ -366,6 +367,7 @@ kSprBlock                   = 0x0001,
 kSprTransluc1               = 0x0002,
 kSprFlipX                   = 0x0004,
 kSprFlipY                   = 0x0008,
+kSprFlipMask                = 0x000C,
 kSprFace                    = 0x0000,
 kSprWall                    = 0x0010,
 kSprFloor                   = 0x0020,

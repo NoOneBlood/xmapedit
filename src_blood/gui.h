@@ -477,6 +477,50 @@ public:
     void ClipStart();
 };
 
+struct SELITEM
+{
+    uint32_t id;
+    uint32_t index;
+    uint32_t group;
+    int16_t  picnum;
+    int8_t   shade;
+    uint8_t  pal;
+    char name[32];
+    int32_t data1;
+    int32_t data2;
+    int32_t data3;
+};
+
+struct ITEMPICK_PREFS
+{
+    unsigned int nCols          : 10;
+    unsigned int nRows          : 10;
+    unsigned int nID;
+    
+    char (*pFunc)(GEVENT* event, Widget* w, SELITEM* p);
+    
+    SELITEM* list;
+    unsigned int length;
+};
+
+class ItemPick : public Widget
+{
+    public:
+        uint16_t nRows, nCols;
+        uint16_t colHg, colWh;
+        int32_t  nStart;
+        int32_t  nCursor;
+        int32_t  value;
+        ITEMPICK_PREFS* pPrefs;
+        
+        ItemPick(int left, int top, int width, int height, ITEMPICK_PREFS* pPrefs);
+        virtual void Paint(int x, int y, BOOL hasFocus);
+        void PaintScroll(int x, int y, BOOL hasFocus);
+        virtual void HandleEvent(GEVENT *event);
+        void SetCursor(int nValue);
+        void ClipStart();
+};
+
 class EditText : public Widget
 {
 public:
@@ -536,6 +580,7 @@ struct CHECKBOX_LIST {
 
 int createCheckboxList(CHECKBOX_LIST_P* array, int len, char* title, BOOL buttons = TRUE);
 int createCheckboxList(CHECKBOX_LIST* array, int len, char* title, BOOL buttons = TRUE);
+SELITEM* selectItem(SELITEM* pItems, int nLength, int nFocus = -1, char* titleArg = "Select");
 
 char fade(int rate = 120);
 void GUIInit();

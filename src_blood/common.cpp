@@ -107,8 +107,8 @@ int GL_fps2SwapInterval(int fps)
 
 void GetSpriteExtents(spritetype* pSpr, int *top, int *bot)
 {
-   int nTile, nSizeY, nYoff;
-
+    int nTile, nSizeY, nYoff;
+    
     *top = *bot = pSpr->z;
     if ((pSpr->cstat & kSprRelMask) == kSprFloor)
         return;
@@ -116,8 +116,12 @@ void GetSpriteExtents(spritetype* pSpr, int *top, int *bot)
     nTile = pSpr->picnum; nSizeY = tilesizy[nTile];
 
     nYoff = panm[nTile].ycenter;
-    if ((pSpr->cstat & kSprFlipY) && (pSpr->cstat & kSprRelMask) == kSprWall)
-        nYoff = -nYoff;
+    if ((pSpr->cstat & kSprRelMask) <= kSprWall)
+        nYoff += pSpr->yoffset;
+
+    if ((pSpr->cstat & kSprFlipY)
+        && (pSpr->cstat & kSprRelMask) == kSprWall)
+            nYoff = -nYoff;
 
     *bot = pSpr->z - ((nYoff * pSpr->yrepeat) << 2);
     if (pSpr->cstat & kSprOrigin)

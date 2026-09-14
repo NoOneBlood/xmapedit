@@ -279,50 +279,44 @@ int hgltAdd(int type, int idx) {
 
 }
 
-short hglt2dAddInXYRange(int hgltType, int x1, int y1, int x2, int y2) {
-
-    int i, j; int swal, ewal, cnt = 0;
+short hglt2dAddInXYRange(int hgltType, int x1, int y1, int x2, int y2)
+{
+    int i, s, e, c = 0;
+    
     for (i = 0; i < numsectors; i++)
     {
-        if (hgltType & kHgltPoint)
+        if (hgltType & kHgltWall)
         {
-            getSectorWalls(i, &swal, &ewal);
-            for (j = swal; j <= ewal; j++)
+            getSectorWalls(i, &s, &e);
+            while(s <= e)
             {
-                if (wall[j].x < x1 || wall[j].x > x2) continue;
-                else if (wall[j].y < y1 || wall[j].y > y2) continue;
-                else hgltAdd(OBJ_WALL, j);
-                cnt++;
+                if (irngok(wall[s].x, x1, x2) && irngok(wall[s].y, y1, y2))
+                    hgltAdd(OBJ_WALL, s), c++;
+                
+                s++;
             }
-
-            for (j = headspritesect[i]; j >= 0; j = nextspritesect[j])
+        }
+        
+        if (hgltType & kHgltSprite)
+        {
+            for (s = headspritesect[i]; s >= 0; s = nextspritesect[s])
             {
-                if (sprite[j].statnum >= kMaxStatus) continue;
-                else if (sprite[j].x < x1 || sprite[j].x > x2) continue;
-                else if (sprite[j].y < y1 || sprite[j].y > y2) continue;
-                else hgltAdd(OBJ_SPRITE, j);
-                cnt++;
+                if (irngok(sprite[s].x, x1, x2) && irngok(sprite[s].y, y1, y2))
+                    hgltAdd(OBJ_SPRITE, s), c++;
             }
         }
 
         if (hgltType & kHgltSector)
         {
-            getSectorWalls(i, &swal, &ewal);
-            for (j = swal; j <= ewal; j++)
-            {
-                if (wall[j].x < x1 || wall[j].x > x2) break;
-                else if (wall[j].y < y1 || wall[j].y > y2) break;
-            }
+            getSectorWalls(i, &s, &e);
+            while(s <= e && irngok(wall[s].x, x1, x2) && irngok(wall[s].y, y1, y2)) s++;
 
-            if (j >= ewal + 1)
-            {
-                hgltAdd(OBJ_SECTOR, i);
-                cnt++;
-            }
+            if (s > e)
+                hgltAdd(OBJ_SECTOR, i), c++;
         }
     }
 
-    return cnt;
+    return c;
 
 }
 
@@ -414,27 +408,38 @@ short hglt2dRemove(int type, int idx) {
     return cnt;
 }
 
-void hgltReset(int which) {
-
+void hgltReset(int which)
+{
     int i;
-    if ((which & kHgltPoint) && highlightcnt > 0) {
-
-        for (i = highlightcnt - 1; i >= 0; i--) {
-            if ((highlight[i] & 0xC000) == 0) hgltRemove(OBJ_WALL, highlight[i]);
-            else hgltRemove(OBJ_SPRITE, highlight[i] & 0x3FFF);
-
+    if ((which & kHgltPoint) && highlightcnt >= 0)
+    {
+        i = highlightcnt;
+        switch(which & kHgltPoint)
+        {
+            case kHgltSprite:
+                while(--i >= 0)
+                {
+                   if ((highlight[i] & 0xC000) != 0)
+                       hgltRemove(OBJ_SPRITE, highlight[i] & 0x3FFF);
+                }
+                break;
+            case kHgltWall:
+                while(--i >= 0)
+                {
+                   if ((highlight[i] & 0xC000) == 0)
+                       hgltRemove(OBJ_WALL, highlight[i]);
+                }
+                break;
+            default:
+                memset(hgltspri, 0, sizeof(hgltspri));
+                memset(hgltwall, 0, sizeof(hgltwall));
+                highlightcnt = -1;
+                break;
         }
-
-        highlightcnt = -1;
-
     }
 
-    if ((which & kHgltSector) && highlightsectorcnt > 0) {
-        for (i = highlightsectorcnt - 1; i >= 0; i--)
-            hgltRemove(OBJ_FLOOR, highlightsector[i]);
-
+    if ((which & kHgltSector) && highlightsectorcnt >= 0)
         highlightsectorcnt = -1;
-    }
 
     if (which & kHgltGradient)
         gListGrd.Clear(); // clear out 3d mode highlights
@@ -507,21 +512,19 @@ void hgltSprGetZEdgeSpr(short* lowest, short* highest) {
 }
 
 
-void hgltSprAvePoint(int* dax, int* day, int* daz) {
-
-    short ls = -1, rs = -1, bs = -1, ts = -1, zbs = -1, zts = -1;
-    hgltSprGetEdgeSpr(&ls, &rs, &ts, &bs, &zts, &zbs);
-
-
-    *dax = sprite[ls].x + ((sprite[rs].x - sprite[ls].x) >> 1);
-    *day = sprite[ts].y + ((sprite[bs].y - sprite[ts].y) >> 1);
-    if (daz != NULL)
-        *daz = sprite[zts].z + ((sprite[zbs].z - sprite[zts].z) >> 1);
-
+void hgltSprAvePoint(int* dax, int* day, int* daz)
+{
+    int lt, rt, tp, bt, zt, zb;
+    hgltSprGetEdges(&lt, &rt, &tp, &bt, &zt, &zb);
+    
+    *dax = MIDPOINT(lt, rt);
+    *day = MIDPOINT(tp, bt);
+    if (daz)
+        *daz = MIDPOINT(zb, zt);
 }
 
-void hgltSprGetEdges(int* left, int* right, int* top, int* bot, int* ztop, int* zbot, int* ztofs, int* zbofs) {
-
+void hgltSprGetEdges(int* left, int* right, int* top, int* bot, int* ztop, int* zbot)
+{
     int zTop = 0, zBot = 0;
     short ls = -1, rs = -1, bs = -1, ts = -1, zbs = -1, zts = -1;
     hgltSprGetEdgeSpr(&ls, &rs, &ts, &bs, &zts, &zbs);
@@ -531,81 +534,150 @@ void hgltSprGetEdges(int* left, int* right, int* top, int* bot, int* ztop, int* 
     *left = sprite[ls].x;   *right = sprite[rs].x;
     *top  = sprite[ts].y;   *bot   = sprite[bs].y;
     *ztop = sprite[zts].z;  *zbot  = sprite[zbs].z;
-
-    if (ztofs) {
-
-        *ztofs = 0;
-        GetSpriteExtents(&sprite[zts], &zTop, &zBot);
-        if (zTop <= sector[sprite[zts].sectnum].ceilingz)
-            *ztofs = sector[sprite[zts].sectnum].ceilingz - zTop;
-
-    }
-
-    if (zbofs) {
-
-        *zbofs = 0;
-        GetSpriteExtents(&sprite[zbs], &zTop, &zBot);
-        if (zBot >= sector[sprite[zbs].sectnum].floorz)
-            *zbofs = zBot - sector[sprite[zbs].sectnum].floorz;
-
-    }
-
-
 }
 
-void sprGetZOffsets(short idx, int* ztofs, int* zbofs) {
+void hgltSprGetZEdges(int* ztop, int* zbot)
+{
+    short zts, zbs; int zt, zb;
+    hgltSprGetZEdgeSpr(&zts, &zbs);
+    
+    GetSpriteExtents(&sprite[zts], &zt, &zb); *ztop = zt;
+    GetSpriteExtents(&sprite[zbs], &zt, &zb); *zbot = zb;
+}
 
-    int left = 0, right = 0, top = 0, bottom = 0, ztop = 0, zbottom = 0, ztofs2 = 0, zbofs2 = 0;
-    if (!sprInHglt(idx)) {
-
-        int zTop, zBot;
-        spritetype* pSprite = &sprite[idx];
-
-        GetSpriteExtents(pSprite, &zTop, &zBot);
-        if (zTop <= sector[pSprite->sectnum].ceilingz)
-            ztofs2 = sector[pSprite->sectnum].ceilingz - zTop;
-
-        if (zBot >= sector[pSprite->sectnum].floorz)
-            zbofs2 = zBot - sector[pSprite->sectnum].floorz;
-
-
-    } else {
-
-        hgltSprGetEdges(&left, &right, &top, &bottom, &ztop, &zbottom, &ztofs2, &zbofs2);
-
-    }
-
-    *ztofs = ztofs2;
-    *zbofs = zbofs2;
-    return;
-
+void hgltSprGetZOffsets(int* zto, int* zbo)
+{
+    short ls, rs, bs, ts, zbs, zts;
+    hgltSprGetEdgeSpr(&ls, &rs, &ts, &bs, &zts, &zbs);
+    sprGetZOffsets(zts, zto, NULL);
+    sprGetZOffsets(zbs, NULL, zbo);
 }
 
 // don't allow to go through floors or ceiling keeping the shape
-void hgltSprClamp(int ofsAboveCeil, int ofsBelowFloor, int which) {
-
-
+void hgltSprClamp(int ofsAboveCeil, int ofsBelowFloor, int which)
+{
     short hg = -1, lw = -1;
-    int zTop, zBot, value = 0, nz = 0, oz = 0;
+
     hgltSprGetZEdgeSpr(&lw, &hg);
+    
+    int hzt, hzb, lzt, lzb;
+    GetSpriteExtents(&sprite[hg], &hzt, &hzb);
+    GetSpriteExtents(&sprite[lw], &lzt, &lzb);
 
-    if (which & 0x0001) {
-
-        GetSpriteExtents(&sprite[hg], &zTop, &zBot);
-        if (zTop <= getceilzofslope(sprite[hg].sectnum, sprite[hg].x, sprite[hg].y))
-            hgltSprPutOnCeiling(ofsAboveCeil);
-
-    }
-
-
-    if (which & 0x0002) {
-
-        GetSpriteExtents(&sprite[lw], &zTop, &zBot);
-        if (zBot >= getflorzofslope(sprite[lw].sectnum, sprite[lw].x, sprite[lw].y))
+    if (which & 0x01)
+    {
+        if (lzb >= getflorzofslope(sprite[lw].sectnum, sprite[lw].x, sprite[lw].y) + ofsBelowFloor)
             hgltSprPutOnFloor(ofsBelowFloor);
-
+    }
+    
+    if (which & 0x02)
+    {
+        if (hzt <= getceilzofslope(sprite[hg].sectnum, sprite[hg].x, sprite[hg].y) - ofsAboveCeil)
+            hgltSprPutOnCeiling(ofsAboveCeil);
     }
 
+}
+
+void hgltSprClamp3D(int nSect, char which, int zto, int zbo)
+{
+    spritetype* pSpr;
+    int nAng, zt, zb, nfz, ncz, tfz, tcz;
+    int x1, y1, x2, y2, ix, iy, ex[4], ey[4];
+    int sw, ew, i, j, k, t, e;
+    
+    int x, y;
+    
+    if (which & 0x04)
+    {
+        getSectorWalls(nSect, &sw, &ew);
+        hgltSprClamp(zto, zbo, which);
+        
+        while(sw <= ew)
+        {
+            getWallCoords(sw, &x1, &y1, &x2, &y2);
+            nAng = (getangle(x2-x1, y2-y1) + kAng90) & kAngMask;
+
+            for (i = 0; i < highlightcnt; i++)
+            {
+                if ((highlight[i] & 0xC000) == 0)
+                    continue;
+
+                j = highlight[i] & 16383;
+                
+                pSpr = &sprite[j];
+                GetSpriteExtents(pSpr, &zt, &zb);
+        
+                e = 0;
+                while(e >= 0)
+                {
+                    x = pSpr->x;
+                    y = pSpr->y;
+                    
+                    switch(pSpr->cstat & kSprRelMask)
+                    {
+                        case kSprSloped:
+                        case kSprFloor:
+                            GetSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3]);
+                            e = 4;
+                            break;
+                        case kSprWall:
+                            GetSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1]);
+                            x = ex[0];
+                            y = ey[0];
+                            e = 2;
+                            break;
+                        default:
+                            if (!GetVoxSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3]))
+                            {
+                                ex[0] = pSpr->x; ey[0] = pSpr->y;
+                                getclosestpointonwall(pSpr->x, pSpr->y, sw, &ix, &iy);
+                                t = getangle(ix - pSpr->x, iy - pSpr->y);
+                                offsetPos(0, 16, 0, t, &ex[0], &ey[0], NULL);
+                                e = 1;
+                                break;
+                            }
+                            e = 4;
+                            break;
+                    }
+                
+
+                    while(--e >= 0)
+                    {
+                        // don't know how to make it better
+                        if (kintersection(x, y, ex[e], ey[e], x1, y1, x2, y2, &ix, &iy))
+                        {
+                            if ((t = wall[sw].nextsector) >= 0)
+                            {
+                                getzsofslope(t, ix, iy, &ncz, &nfz);
+                                getzsofslope(pSpr->sectnum, ix, iy, &tcz, &tfz);
+                                
+                                if (zt >= sector[t].ceilingz + zto && zb <= sector[t].floorz + zbo)
+                                    continue;
+                            }
+                            
+                            for (k = 0; k < highlightcnt; k++)
+                            {
+                                if ((highlight[k] & 0xC000) == 0)
+                                    continue;
+
+                                // j is safe for use
+                                j = highlight[k] & 16383;
+                                offsetPos(0, 12, 0, nAng,
+                                            &sprite[j].x, &sprite[j].y, NULL);
+                            }
+
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            sw++;
+        }
+    }
+
+    hgltSprCallFunc(sprFixSector);
+    hgltSprClamp(zto, zbo, which);
 }
 
 void hglt2List(OBJECT_LIST* pList, char asX, char which)
@@ -913,7 +985,8 @@ void hgltSprSetXYZ(int x, int y, int z) {
 void hgltSprChgXYZ(int xstep, int ystep, int zstep) {
 
     int i, j;
-    for (i = 0; i < highlightcnt; i++) {
+    for (i = 0; i < highlightcnt; i++)
+    {
         if ((highlight[i] & 0xC000) == 0)
             continue;
 
@@ -1028,9 +1101,16 @@ void hgltSprPutOnWall(int nwall, int x, int y)
                     e = 2;
                     break;
                 default:
-                    ex[0] = pSpr->x;
-                    ey[0] = pSpr->y;
-                    e = 1;
+                    if (GetVoxSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3]))
+                    {
+                        e = 4;
+                    }
+                    else
+                    {
+                        ex[0] = pSpr->x;
+                        ey[0] = pSpr->y;
+                        e = 1;
+                    }
                     break;
             }
 
@@ -1913,7 +1993,7 @@ void sectChgShade(int nSect, int nOf, int nShade, int, int)
 
 void sectDelete(int nSector, int arg1, int arg2, int arg3, int arg4)
 {
-    int i;
+    int i, s, e;
     
     for (i = headspritesect[nSector]; i >= 0;)
     {
@@ -1939,6 +2019,18 @@ void sectDelete(int nSector, int arg1, int arg2, int arg3, int arg4)
         #endif
         
         i = nextspritesect[i];
+    }
+    
+    if (highlightcnt > 0)
+    {
+        getSectorWalls(nSector, &s, &e);
+        while(s <= e)
+        {
+            if (hgltCheck(OBJ_WALL, s) >= 0)
+                hgltRemove(OBJ_WALL, s);
+            
+            s++;
+        }
     }
     
     deletesector(nSector);

@@ -119,6 +119,7 @@ struct ARTEDIT {
     unsigned int modeMin    : 4;
     unsigned int modeMax    : 4;
     unsigned int standalone : 1;
+    unsigned int showPal    : 1;
 };
 #pragma pack(pop)
 

@@ -478,16 +478,16 @@ int getClosestId(Resource* pIn, int nId, int nRange, char* nType, char dir)
     return nId;
 }
 
-void clampSprite(spritetype* pSprite, int which) {
+void clampSprite(spritetype* pSprite, int which, int zto, int zbo) {
 
     int zTop, zBot;
     if (pSprite->sectnum >= 0 && pSprite->sectnum < kMaxSectors)
     {
         GetSpriteExtents(pSprite, &zTop, &zBot);
         if (which & 0x01)
-            pSprite->z += ClipHigh(getflorzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zBot, 0);
+            pSprite->z += ClipHigh(getflorzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zBot + zbo, 0);
         if (which & 0x02)
-            pSprite->z += ClipLow(getceilzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zTop, 0);
+            pSprite->z += ClipLow(getceilzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zTop - zto, 0);
     }
 
 }
@@ -775,27 +775,23 @@ int getHighlightedObject() {
         {
             searchstat      = OBJ_SPRITE;
             searchwall      = (short) (pointhighlight & 16383);
-            searchindex     = searchwall;
             return 200;
         }
 
         searchstat          = OBJ_WALL;
         searchwall          = (linehighlight >= 0) ? linehighlight : pointhighlight;
-        searchindex         = searchwall;
         return 100;
     }
     else if (linehighlight >= 0)
     {
         searchstat      = OBJ_WALL;
         searchwall      = linehighlight;
-        searchindex     = searchwall;
         return 100;
     }
     else if (sectorhighlight >= 0)
     {
         searchstat      = OBJ_FLOOR;
         searchsector    = sectorhighlight;
-        searchindex     = searchsector;
         return 300;
     }
     else
@@ -1339,12 +1335,11 @@ void TranslateWallToSector( void )
             if ((nSect = wall[searchwall2].nextsector) >= 0)
             {
                 searchstat = (searchwallcf) ? OBJ_FLOOR : OBJ_CEILING;
-                searchsector = searchindex = nSect;
+                searchsector = nSect;
                 break;
             }
             // no break
         case OBJ_MASKED:
-            searchindex = searchsector;
             searchstat = OBJ_CEILING;
     }
 }
@@ -1387,44 +1382,22 @@ char* retnCodeCheck(int retnCode, NAMED_TYPE* errMsg) {
 
 }
 
-BOOL tmpFileMake(char* out) {
-
-//#if 0
-
-    // tmpnam makes file for read only wtf :(((
-    int i, j, hFile = -1, retries = 1000;
-    char pth[BMAX_PATH];
-
-    while (retries--)
+char tmpFileMake(char* out)
+{
+    int hFile;
+    
+    *out = '.', tmpnam(&out[1]);
+    if ((hFile = open(out, O_RDWR|O_CREAT|O_TRUNC|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
     {
-        i = 0;
-        j = sprintf(pth, kTempFileBase);
-        while(i < 3)
-        {
-            pth[j++] = (char)(65 + Random(25));
-            i++;
-        }
-
-        sprintf(&pth[j], "%d.tmp",  Random(99));
-        if (fileExists(pth) <= 0)
-        {
-            if ((hFile = open(pth, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, S_IWRITE)) >= 0) close(hFile);
-            sprintf(out, pth);
-            break;
-        }
+        close(hFile);
+        return 1;
     }
-
-    return (hFile >= 0);
-
-//#else
-    //tmpnam(out);
-    //return (fileExists(out) && fileAttrSetWrite(out));
-//#endif
-
-
+    
+    return 0;
 }
 
-int replaceByte(BYTE* buf, int len, BYTE valueA, BYTE valueB) {
+int replaceByte(BYTE* buf, int len, BYTE valueA, BYTE valueB)
+{
 
     BYTE* pBuf = buf;
     int i = 0, rpc = 0;

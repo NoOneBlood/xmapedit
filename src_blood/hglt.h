@@ -32,8 +32,10 @@ typedef void HSPRITEFUNC(spritetype *pSprite, int nData);
 
 enum {
 kHgltSector         = 0x0001,
-kHgltPoint          = 0x0002,
-kHgltGradient       = 0x0004,
+kHgltWall           = 0x0002,
+kHgltSprite         = 0x0004,
+kHgltPoint          = 0x0006,
+kHgltGradient       = 0x0008,
 };
 
 
@@ -90,9 +92,12 @@ void hgltSprPutOnCeiling(int ofs = 0);
 void hgltSprPutOnFloor(int ofs = 0);
 void hgltSprPutOnZ(int z, int which, int tofs = 0, int bofs = 0);
 void hgltSprGetZEdgeSpr(short* lowest, short* highest);
-void hgltSprGetEdges(int* left, int* right, int* top, int* bot, int* ztop, int* zbot, int* ztofs = NULL, int* zbofs = NULL);
+void hgltSprGetZEdges(int* ztop, int* zbot);
+void hgltSprGetZOffsets(int* zto, int* zbo);
+void hgltSprGetEdges(int* left, int* right, int* top, int* bot, int* ztop, int* zbot);
 void hgltSprGetEdgeSpr(short* ls, short* rs, short* ts, short* bs, short* zts, short* zbs);
 void hgltSprClamp(int ofsAboveCeil = 0, int ofsBelowFloor = 0, int which = 0x0003);
+void hgltSprClamp3D(int nSect, char which, int zto, int zbo);
 void hgltSprRotate(int step);
 inline char hgltSprIsFine(int nSprite)
 {

@@ -43,7 +43,6 @@ MAPEDIT_HUD_SETTINGS gHudPrefs;
 MISC_PREFS gMisc;
 MOUSE_PREFS gMousePrefs;
 MOUSE_LOOK  gMouseLook;
-OBJECT_LOCK gObjectLock;
 PATHS gPaths;
 PLUPICKER gPluPrefs;
 ROTATION gRotateOpts;
@@ -79,6 +78,7 @@ void AUTOADJUST::Init(IniFile* pIni, char* section)
         setHitscan          = pIni->GetKeyBool(section, "SetHitscan",           TRUE);
         setStatnum          = pIni->GetKeyBool(section, "SetStatnum",           TRUE);
         setStatnumThings    = pIni->GetKeyBool(section, "SetStatnumForThings",  TRUE);
+        setClipdist         = pIni->GetKeyInt(section,  "SetClipdist",          1);
     }
 }
 

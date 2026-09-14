@@ -467,29 +467,6 @@ int getpointhighlight(int nTresh, int x, int y, int nZoom)
     return n;
 }
 
-void clampsprite_TEMP(short nspr) {
-
-    spritetype* pspr = &sprite[nspr];
-    int templong = ((tilesizy[pspr->picnum]*pspr->yrepeat)<<2);
-    int cz = getceilzofslope(pspr->sectnum,pspr->x,pspr->y);
-    int fz = getflorzofslope(pspr->sectnum,pspr->x,pspr->y);
-
-    pspr->z = min(pspr->z, fz);
-    if (!(pspr->cstat & 0x0020))
-    {
-        if (pspr->z + templong < cz)
-            pspr->z = max(pspr->z, cz + templong);
-
-        if (pspr->z > fz)
-            pspr->z = min(pspr->z, fz);
-    }
-    else
-    {
-        pspr->z = max(pspr->z, cz);
-        pspr->z = min(pspr->z, fz);
-    }
-}
-
 int getSectOf(int nType, int nID)
 {
     switch(nType)
@@ -508,12 +485,40 @@ int getSectOf(int nType, int nID)
     return -1;
 }
 
+void sprFixSector2(spritetype* pSpr, int nSect)
+{
+    int s = (nSect >= 0) ? nSect : pSpr->sectnum;
+    if (FindSector(pSpr->x, pSpr->y, pSpr->z, &s))
+    {
+        if (s != pSpr->sectnum)
+            ChangeSpriteSect(pSpr->index, s);
+        
+        return;
+    }
+    
+    s = pSpr->sectnum;
+    if (FindSector(pSpr->x, pSpr->y, &s))
+    {
+        if (s != pSpr->sectnum)
+            ChangeSpriteSect(pSpr->index, s);
+        
+        return;
+    }
+}
+
 void ProcessInput2D( void )
 {
     static int capstat = 0, capx = 0, capy = 0, spridx = -1;
-    int x, y, j = 0, k = 0, i = 0, sect = -1;
-    int nStat, nThick, swal, ewal; char* msg;
+    int x, y, j = 0, k = 0, i = 0, nSect = -1;
+    int nStat, nThick, s, e; char* msg;
     int r;
+    
+    static int zto = 0x80000000, zbo = 0x80000000;
+    static int zt, zb, hg;
+    char cSpr, fSpr;
+    
+    static int hgltType2 = 0;
+    static TIMER hgltCtrlTime;
 
     INPUTPROC* pInput;
 
@@ -635,165 +640,232 @@ void ProcessInput2D( void )
         {
             helperDoGridCorrection(&x, &y);
 
-            // create shape loop
-            if (pGLShape)
+            if (pGLShape == NULL)
             {
-                if (!capstat)
+                pointdrag = -1;
+                if (pointhighlight >= 0 && !irngok(capstat, 1, 2))
                 {
-                    pGLShape->Start(sectorhighlight, x, y);
-                    capstat = 1;
-                }
-            }
-            // drag highlight sectors
-            else if (highlightsectorcnt > 0)
-            {
-                if (!capstat) // capture mouse coords first
-                {
-                    for (i = 0; i < highlightsectorcnt; i++)
+                    int x1, y1, x2, y2;
+                    char gotit = 0;
+                    
+                    if ((pointhighlight & 0xc000) == 0)
                     {
-                        // check mouse coords because sectorhighlight could be wrong (ROR is a fine example)
-                        if (inside(x, y, highlightsector[i]) <= 0) continue;
-                        capx = x, capy = y;
-                        capstat = 1;
-                        break;
-                    }
-                }
-                else // drag
-                {
-                    // a hack to keep sectors panning correctly
-                    // see fixupPan() function to understand it
-                    if (!shift && (!gridlock || !grid || grid > 6))
-                        doGridCorrection(&x, &y, 6);
-
-                    x-=capx, y-=capy; capx+=x, capy+=y;
-                    hgltSectCallFunc(sectChgXY, x, y, (shift) ? 0x02 : 0x03);
-                    if (capstat == 1)
-                    {
-                        hgltSectDetach();
-                        capstat++;
-                    }
-
-                    if (hgltCheck(OBJ_SECTOR, startsectnum) >= 0)
-                        startposx+=x, startposy+=y;
-                }
-            }
-            else if (pointhighlight >= 0)
-            {
-                if ((pointhighlight & 0xc000) == 0)
-                {
-                    searchstat = OBJ_WALL;
-                    searchwall = pointhighlight;
-                }
-                else
-                {
-                    searchstat = OBJ_SPRITE;
-                    searchwall = pointhighlight & 16383;
-                }
-
-                pointdrag = pointhighlight;
-
-                if (hgltCheck(searchstat, searchwall) >= 0)
-                {
-                    if (searchstat == OBJ_SPRITE)
-                    {
-                        x -= sprite[searchwall].x;
-                        y -= sprite[searchwall].y;
+                        searchstat = OBJ_WALL;
+                        searchwall = pointhighlight;
+                        j = sectorofwall(searchwall);
+                        
+                        x1 = wall[searchwall].x;
+                        y1 = wall[searchwall].y;
                     }
                     else
                     {
-                        x -= wall[searchwall].x;
-                        y -= wall[searchwall].y;
+                        searchstat = OBJ_SPRITE;
+                        searchwall = pointhighlight & 16383;
+                        j = sprite[searchwall].sectnum;
+                        
+                        x1 = sprite[searchwall].x;
+                        y1 = sprite[searchwall].y;
                     }
-
-                    if (!shift && hgltWallCount() > 0)
+                    
+                    // Don't allow to drag points that are
+                    // too close to the highlighted
+                    // sectors
+                    
+                    for (i = 0; i < highlightsectorcnt && !gotit; i++)
                     {
-                        i = numsectors;
-                        while(--i >= 0)
+                        nSect = highlightsector[i];
+                        gotit = (nSect == j);
+                        
+                        if (capstat == 3)
+                            continue; // already dragging point
+                        
+                        gotit = ED32_Inside(x, y, nSect);
+                        
+                        getSectorWalls(nSect, &s, &e);
+                        while(s <= e && !gotit)
                         {
-                            if (allWallsOfSectorInHglt(i))
-                            {
-                                // a hack to keep sectors panning correctly
-                                // see fixupPan() function to understand it
-                                if (!gridlock || !grid || grid > 6)
-                                    doGridCorrection(&x, &y, 6);
-
-                                for (j = 0; j <= i; j++)
-                                {
-                                    if (allWallsOfSectorInHglt(j))
-                                        sectChgXY(j, x, y, 0x01);
-                                }
-
-                                break;
-                            }
+                            getclosestpointonwall(x1, y1, s, &x2, &y2);
+                            gotit = (approxDist(x2-x1, y2-y1) <= 80);
+                            s++;
                         }
+                        
+                        for (s = headspritesect[nSect]; s >= 0 && !gotit; s = nextspritesect[s])
+                            gotit = (approxDist(sprite[s].x-x1, sprite[s].y-y1) <= 80);
                     }
+                    
+                    if (!gotit)
+                        pointdrag = searchwall, capstat = 3;
+                }
 
-                    for (i = 0; i < highlightcnt; i++)
+                if (pointdrag >= 0)
+                {
+                    if (hgltCheck(searchstat, searchwall) >= 0)
                     {
-                        j = highlight[i];
-                        if ((j & 0xc000) == 0)
+                        if (searchstat == OBJ_SPRITE)
                         {
-                            sect = sectorofwall(j);
-                            if (shift || (!shift && !allWallsOfSectorInHglt(sect)))
-                            {
-                                wall[j].x += x;
-                                wall[j].y += y;
-                            }
+                            x -= sprite[searchwall].x;
+                            y -= sprite[searchwall].y;
                         }
                         else
                         {
-                            j = (j & 0x3FFF);
-                            spritetype* pSpr =& sprite[j];
-
-                            if (pSpr->statnum < kMaxStatus)
+                            x -= wall[searchwall].x;
+                            y -= wall[searchwall].y;
+                        }
+                        
+                        if (hgltWallCount())
+                        {
+                            if (!shift)
                             {
-                                pSpr->x += x, pSpr->y += y;
-
-                                sect = pSpr->sectnum;
-                                if (FindSector(pSpr->x, pSpr->y, pSpr->z, &sect) || FindSector(pSpr->x, pSpr->y, &sect))
+                                i = numsectors;
+                                while(--i >= 0)
                                 {
-                                    if (sect != pSpr->sectnum)
-                                        ChangeSpriteSect(pSpr->index, sect);
+                                    if (!allWallsOfSectorInHglt(i))
+                                        continue;
+                                    
+                                    // a hack to keep sectors panning correctly
+                                    // see fixupPan() function to understand it
+                                    if (!gridlock || !irngok(grid, 1, 6))
+                                        doGridCorrection(&x, &y, 6);
+                                    
+                                    for (j = 0; j <= i; j++)
+                                        if (allWallsOfSectorInHglt(j))
+                                            sectChgXY(j, x, y, 0x01);
+                                        
+                                    break;
+                                }
+                            }
+                            
+                            for (i = 0; i < highlightcnt; i++)
+                            {
+                                j = highlight[i];
+                                if ((j & 0xc000) == 0)
+                                {
+                                    if (shift
+                                        || (!shift && !allWallsOfSectorInHglt(sectorofwall(j))))
+                                            wall[j].x += x, wall[j].y += y;
                                 }
                             }
                         }
+                        
+                        if (hgltSprCount())
+                        {
+                            if (zto == 0x80000000)
+                            {
+                                hgltSprGetZOffsets(&zto, &zbo); // keep z-offsets
+                                hgltSprGetZEdges(&zt, &zb);
+                                hg = klabs(zb-zt);
+                            }
+                            
+                            for (i = 0; i < highlightcnt; i++)
+                            {
+                                if ((highlight[i] & 0xC000) != 0)
+                                {
+                                    j = highlight[i] & 0x3FFF;
+                                    sprite[j].x += x, sprite[j].y += y;
+                                    sprFixSector2(&sprite[j], sectorhighlight);
+                                }
+                                else
+                                    hg = -1; // do not change z of sprites
+                            }
+                            
+                            if (hg >= 0)
+                            {
+                                fSpr = ((hg == 0 || klabs(zbo) < hg) && zbo >= -256);
+                                cSpr = ((hg == 0 || klabs(zto) < hg) && zto <= +256);
+                                
+                                if ((fSpr && cSpr) || (!fSpr && !cSpr))
+                                {
+                                    j = ClipLow(hg>>2, 128);
+                                    hgltSprClamp(-j, j, 0x03);
+                                }
+                                else if (fSpr)      hgltSprPutOnFloor(zbo);
+                                else if (cSpr)      hgltSprPutOnCeiling(klabs(zto));
+                            }
+                        }
                     }
-                }
-                else if (searchstat == OBJ_SPRITE)
-                {
-                    spritetype* pSpr =& sprite[searchwall];
-                    pSpr->x = x, pSpr->y = y;
-
-                    sect = ClipLow((sectorhighlight >= 0) ? sectorhighlight : pSpr->sectnum, 0);
-                    if (FindSector(pSpr->x, pSpr->y, pSpr->z, &sect) || FindSector(pSpr->x, pSpr->y, &sect))
+                    else if (searchstat == OBJ_SPRITE)
                     {
-                        if (sect != pSpr->sectnum)
-                            ChangeSpriteSect(pSpr->index, sect);
+                        spritetype* pSpr =& sprite[searchwall];
+
+                        if (zto == 0x80000000)
+                        {
+                            sprGetZOffsets(pSpr->index, &zto, &zbo); // keep z-offsets
+                            GetSpriteExtents(pSpr, &zt, &zb);
+                            hg = klabs(zb-zt);
+                        }
+
+                        pSpr->x = x;
+                        pSpr->y = y;
+                        
+                        sprFixSector2(pSpr, sectorhighlight);
+                        
+                        fSpr = ((hg == 0 || klabs(zbo) < hg) && zbo >= -256);
+                        cSpr = ((hg == 0 || klabs(zto) < hg) && zto <= +256);
+                        
+                        if ((fSpr && cSpr) || (!fSpr && !cSpr))
+                        {
+                            j = ClipLow(hg>>2, 128);
+                            clampSprite(pSpr, 0x03, -j, j);
+                        }
+                        else if (fSpr)      PutSpriteOnFloor(pSpr, zbo);
+                        else if (cSpr)      PutSpriteOnCeiling(pSpr, klabs(zto));
+
+                        if (linehighlight >= 0 && alt)
+                        {
+                            getclosestpointonwall(pSpr->x, pSpr->y, linehighlight, &x, &y);
+                            if (sectorofwall(linehighlight) == pSpr->sectnum)
+                                pSpr->ang = (GetWallAngle(linehighlight) + kAng90) & kAngMask;
+                        }
                     }
-
-                    clampsprite_TEMP(searchwall);
-
-                    if (linehighlight >= 0 && alt)
+                    else if (shift & 0x01)
                     {
-                        int x1, y1;
-                        getclosestpointonwall(pSpr->x, pSpr->y, linehighlight, &x1, &y1);
-                        if (sectorofwall(linehighlight) == pSpr->sectnum)
-                            pSpr->ang = (GetWallAngle(linehighlight) + kAng90) & kAngMask;
+                         wall[searchwall].x = x;
+                         wall[searchwall].y = y;
+                    }
+                    else // drag all wall points at same xy
+                    {
+                        dragpoint(searchwall, x, y);
                     }
                 }
-                else if (shift & 0x01)
+                else if (highlightsectorcnt > 0)
                 {
-                     wall[searchwall].x = x;
-                     wall[searchwall].y = y;
+                    if (!capstat) // capture mouse coords first
+                    {
+                        for (i = 0; i < highlightsectorcnt; i++)
+                        {
+                            // check mouse coords because sectorhighlight could be wrong (ROR is a fine example)
+                            if (ED32_Inside(mousxplc, mousyplc, highlightsector[i]) <= 0) continue;
+                            capx = x, capy = y;
+                            capstat = 1;
+                            break;
+                        }
+                    }
+                    else if (irngok(capstat, 1, 2)) // drag
+                    {
+                        // a hack to keep sectors panning correctly
+                        // see fixupPan() function to understand it
+                        if (!shift && (!gridlock || !grid || grid > 6))
+                            doGridCorrection(&x, &y, 6);
+
+                        x-=capx, y-=capy; capx+=x, capy+=y;
+                        hgltSectCallFunc(sectChgXY, x, y, (shift) ? 0x02 : 0x03);
+                        if (capstat == 1)
+                            hgltSectDetach(), capstat++;
+
+                        if (hgltCheck(OBJ_SECTOR, startsectnum) >= 0)
+                            startposx+=x, startposy+=y;
+                    }
                 }
-                else // drag all wall points at same xy
+                else if (!capstat && highlightcnt <= 0 && !(alt & 0x02)) // highlight walls/sprites
                 {
-                    dragpoint(searchwall, x, y);
+                    shift |= 0x02;
                 }
             }
-            else if (highlightcnt <= 0 && !(alt & 0x02)) // highlight walls/sprites
+            else if (!capstat)
             {
-                shift |= 0x02;
+                // create shape loop
+                pGLShape->Start(sectorhighlight, x, y);
+                capstat = 1;
             }
         }
         else if (gMouse.press & 4)
@@ -855,13 +927,13 @@ void ProcessInput2D( void )
                     {
                         case OBJ_WALL:
                             sectLoopMain(nSect, &ms, &me);
-                            if (irngok(idx, ms, me))    getSectorWalls(nSect, &swal, &ewal);
-                            else                        loopGetWalls(idx, &swal, &ewal);
+                            if (irngok(idx, ms, me))    getSectorWalls(nSect, &s, &e);
+                            else                        loopGetWalls(idx, &s, &e);
 
-                            for (i = swal; i <= ewal && hgltCheck(searchstat, i) >= 0; i++);
+                            for (i = s; i <= e && hgltCheck(searchstat, i) >= 0; i++);
 
-                            ACTION = (i <= ewal);
-                            for (i = swal; i <= ewal; i++)
+                            ACTION = (i <= e);
+                            for (i = s; i <= e; i++)
                                 cnt += ((ACTION) ? hglt2dAdd(searchstat, i) : hglt2dRemove(searchstat, i));
 
                             break;
@@ -892,6 +964,7 @@ void ProcessInput2D( void )
                     scrSetMessage("%d %s(s) was removed from a highlight.", cnt, gSearchStatNames[searchstat]);
                 }
 
+                asksave = 1;
                 Beep(cnt);
             }
         }
@@ -936,6 +1009,7 @@ void ProcessInput2D( void )
                     }
                 }
 
+                zto = 0x80000000, zbo = 0x80000000;
                 pointdrag = -1;
             }
         }
@@ -954,21 +1028,34 @@ void ProcessInput2D( void )
                 hgltReset(kHgltSector);
                 hgltType = keyhold = 0;
                 if (!vel)
-                    hgltType = kHgltPoint, keyhold = 1;
+                {
+                    if (ctrl)
+                    {
+                        if (hgltCtrlTime.Pass())
+                            hgltType2 = IncRotate(hgltType2, 3), BeepOk();
+                        
+                        hgltCtrlTime.Set(4);
+                    }
+
+                    switch(hgltType2)
+                    {
+                        case 0: hgltType = kHgltPoint;  break;
+                        case 1: hgltType = kHgltSprite; break;
+                        case 2: hgltType = kHgltWall;   break;
+                    }
+                    
+                    keyhold = 1;
+                }
             }
         }
 
         if (hgltType)
         {
-            switch(hgltType)
-            {
-                case kHgltPoint:
-                    hgltcntptr =& highlightcnt;
-                    break;
-                default:
-                    hgltcntptr =& highlightsectorcnt;
-                    break;
-            }
+            msg = buffer;
+            strcpy(msg, "Ranged highlight: ");
+                
+            hgltcntptr = (hgltType & kHgltPoint)
+                    ? &highlightcnt : &highlightsectorcnt;
 
             if (keyhold)
             {
@@ -983,16 +1070,40 @@ void ProcessInput2D( void )
                     hgltx1 = mousxplc, hglty1 = mousyplc;
                     *hgltcntptr = 0;
                 }
+                
+                if (hgltType & kHgltPoint)
+                {
+                    if (hgltType & kHgltSprite)
+                        strcat(msg, "sprites");
+                    
+                    if (hgltType & kHgltWall)
+                    {
+                        if (hgltType & kHgltSprite)
+                            strcat(msg, " and ");
+                        
+                        strcat(msg, "walls");
+                    }
+                }
+                else
+                    strcat(msg, "sectors");
+                
+                gMapedHud.SetMsgImp(16, "%s (X1:%d, Y1:%d, X2:%d, Y2:%d).", msg, hgltx1, hglty1, hgltx2, hglty2);
             }
             else if (*hgltcntptr == 0)
             {
                 if (hgltx1 > hgltx2) swapValues(&hgltx1, &hgltx2);
                 if (hglty1 > hglty2) swapValues(&hglty1, &hglty2);
 
-                hglt2dAddInXYRange(hgltType, hgltx1, hglty1, hgltx2, hglty2);
+                if ((i = hglt2dAddInXYRange(hgltType, hgltx1, hglty1, hgltx2, hglty2)) > 0)
+                {
+                    gMapedHud.SetMsgImp(128, "%s %d objects were highlighted.", msg, i);
+                    BeepOk();
+                }
+                
                 hgltType = 0;
-
-                if (*hgltcntptr <= 0)
+                asksave = 1;
+                
+                if (i == 0)
                     *hgltcntptr = -1;
             }
         }

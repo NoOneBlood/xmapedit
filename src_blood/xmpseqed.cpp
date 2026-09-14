@@ -179,7 +179,7 @@ void SEQEDIT::Start(char* filename)
 
                         searchstat      = OBJ_SPRITE;
                         searchsector    = cursectnum;
-                        searchwall      = searchindex = nSpr;
+                        searchwall      = nSpr;
                         offsetPos(0, -1024, 0, ang, &posx, &posy, NULL);
                         break;
                     }

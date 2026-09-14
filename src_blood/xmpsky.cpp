@@ -55,7 +55,7 @@ int Sky::MakeSimilar(int nSect, int nFor, BOOL global)
     collected.AddIfNot(nSect);
 
     // search for the rest most used properties in global scope
-    got = GetMostUsed(nSect, nFor, TRUE, &nPic, &nPal, &nShd, &nPny);
+    got = GetMostUsed(nSect, nFor, global, &nPic, &nPal, &nShd, &nPny);
 
     // parallax all possible non-parallaxed sectors with same tile and assimilate the sky
     pDb = collected.GetPtr();

@@ -29,12 +29,6 @@
 #include "edit3d.h"
 
 #define kPlayerRadius       32
-#define kTabWall  kMaxWalls
-#define kTabXWall kMaxXWalls
-#define kTabSpr  kMaxSprites
-#define kTabXSpr kMaxXSprites
-#define kTabSect  kMaxSectors
-#define kTabXSect kMaxXSectors
 #define kHClock 32
 
 #define ED2D (qsetmode != 200)
@@ -44,10 +38,6 @@
 
 extern OBJECT_LIST gModernTypes;
 extern BITARRAY01 gModernTypesMap;
-
-enum {
-kDetailSpriteNoVoxel1       = 0x0008,
-};
 
 #define kBufferSize         256
 extern char buffer[kBufferSize];
@@ -67,21 +57,18 @@ extern SPECIAL_DATA_NAMES pCtrlDataNames[32];
 
 extern char h;
 extern BYTE key, ctrl, alt, shift;
-extern short gHighSpr, gHovSpr;
-extern short gHovWall, gHovStat;
+extern short gHovSpr, gHovWall, gHovStat;
 extern short gJoinSector;
 extern short temptype, tempidx;
-extern char tempvisibility;
-extern short tempang, tempslope;
 
-extern spritetype cpysprite[kMaxSprites + 1];
-extern XSPRITE cpyxsprite[kMaxXSprites + 1];
+extern spritetype cpysprite;
+extern XSPRITE cpyxsprite;
 
-extern sectortype cpysector[kMaxSectors + 1];
-extern XSECTOR cpyxsector[kMaxXSectors + 1];
+extern sectortype cpysector;
+extern XSECTOR cpyxsector;
 
-extern walltype cpywall[kMaxWalls + 1];
-extern XWALL cpyxwall[kMaxXWalls + 1];
+extern walltype cpywall;
+extern XWALL cpyxwall;
 
 extern char *gSpriteNames[1024];
 extern char *gSpriteCaptions[1024];
@@ -104,7 +91,7 @@ extern char *gZModeNames[4];
 extern char* gDepthNames[8];
 extern NAMED_TYPE gDifficNames[6];
 extern NAMED_TYPE gGameNames[5];
-extern NAMED_TYPE gGameObjectGroupNames[10];
+extern NAMED_TYPE gGameObjectGroupNames[11];
 
 enum {
 kCaptionStyleNone           = 0,
@@ -182,6 +169,7 @@ kOGrpHazard                     = 0x0040,
 kOGrpMisc                       = 0x0080,
 kOGrpMarker                     = 0x0100,
 kOGrpItemUser                   = 0x0200,
+kOGrpDudeSpawn                  = 0x0400,
 };
 
 /// !!!
@@ -239,5 +227,24 @@ const char *ExtGetSpriteCaption(short spritenum, char captStyle);
 char IsHoverSector();
 char IsHoverWall();
 char* GetHoverName();
+
+void BackupHover();
+void RestoreHover();
+
+static short* sstat2ID [OBJ_SECTOR - OBJ_WALL + 1] =
+{
+    &searchwall,        // OBJ_WALL
+	&searchsector,		// OBJ_CEILING
+	&searchsector,		// OBJ_FLOOR
+	&searchwall,		// OBJ_SPRITE
+    &searchwall,        // OBJ_MASKED
+	&searchwall,		// OBJ_FLATSPRITE
+	&searchsector,		// OBJ_SECTOR
+};
+
+inline short GetHoverID(void)
+{
+	return (irngok(searchstat, OBJ_WALL, OBJ_SECTOR)) ? *sstat2ID[searchstat] : -1;
+}
 
 #endif

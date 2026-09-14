@@ -26,26 +26,19 @@
 #ifndef __XMPROR
 #define __XMPROR
 
-#define kMaxROR 16
-#define kMirrorPic 504
+#define kMaxROR 128
+#define kMirrorTile 504
 
-struct MIRROR
-{
-    unsigned int type       : 3;
-    unsigned int id         : 16;
-    unsigned int basePic    : 16;
-    POINT3D point;
-};
-extern MIRROR mirror[kMaxROR];
-extern short mirrorcnt;
+extern uint16_t mirrorPicStart;
+extern uint16_t mirrorPicEnd;
+extern uint16_t mirrorcnt;
+
 extern BYTE gStackDB[4][2];
 
 void InitMirrors(void);
-bool DrawMirrors(int x, int y, int z, int a, int horiz);
+char DrawMirrors(int x, int y, int z, int a, int horiz);
 char IsRorSector(int nSect, int stat);
 char IsRorMarker(int nType);
-bool IsLinkCorrect(spritetype* pSpr);
-char IsMirrorPic(int nPic);
 void RestoreMirrorPic();
 void ClearMirrorPic();
 //---------------------------------------------------

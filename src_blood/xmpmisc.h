@@ -163,7 +163,7 @@ inline int getClosestId(int nId, int nRange, char* nType, char dir)
 {
     return getClosestId(&gSysRes, nId, nRange, nType, dir);
 }
-void clampSprite(spritetype* pSprite, int which = 0x03);
+void clampSprite(spritetype* pSprite, int which = 0x03, int zto = 0, int zbo = 0);
 void clampSpriteZ(spritetype* pSprite, int z, int which);
 void clampCamera();
 BOOL obsoleteXObject(int otype, int oxindex);
@@ -194,7 +194,7 @@ BOOL markerIsNode(int idx, int goal);
 
 BOOL getSeqPrefs(int nSeq, short* pic, short* xr, short* yr, short* plu);
 char* retnCodeCheck(int retnCode, NAMED_TYPE* errMsg);
-BOOL tmpFileMake(char* out);
+char tmpFileMake(char* out);
 int replaceByte(BYTE* buf, int len, BYTE valueA, BYTE valueB);
 
 BOOL isMultiTx(short nSpr);

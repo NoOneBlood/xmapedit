@@ -67,6 +67,7 @@ struct XMPTOOL {
     QFONT* pFont;
     ushort hudPixels;
     ushort centerPixels;
+    char paletteSize;
     int nOctant;
     int tileZoom;
     int zTop;
@@ -132,18 +133,16 @@ void toolDrawPixels(int dist = 2, int color = 8);
 void toolDrawCenter(POINT2D* origin, int nColor, int xrng = 6, int yrng = 6, int skip = 4);
 void toolDrawCenterHUD(POINT2D* origin, int nTile, int nVTile, int scrYofs, int nOctant, int nColor);
 void toolSetOrigin(POINT2D* origin, int x, int y );
+void toolDrawPalette(int nPlu);
 void toolDrawWindow(int x1, int y1, int x2, int y2, char* title, char textColor);
 int toolGetViewTile(int nTile, int nOctant, char *flags, int *ang);
 BOOL toolLoadAs(char* path, char* ext, char* title = "Load file");
 BOOL toolSaveAs(char* path, char* ext);
 
 int toolExploderSeq();
-int toolGibTool(int nGib, int type = -1);
 int toolXWalls2XSprites();
 
 int updViewAngle(spritetype* pSprite);
-void chgSpriteZ(spritetype* pSprite, int zVal);
-
 
 int toolChannelCleaner(char* logfile = NULL);
 int toolMapArtGrabber(ARTFILE* files, int nFiles, PALETTE pal, int nStartTile, int skyTiles, int flags, int grabFrom = kGrabAll);

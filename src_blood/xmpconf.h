@@ -86,7 +86,7 @@ class AUTOADJUST {
     unsigned int setSize            : 1;
     unsigned int setPlu             : 1;
     unsigned int setHitscan         : 1;
-    unsigned int correctedSprites   : 16;
+    unsigned int setClipdist        : 2;
     unsigned int setStatnumThings   : 1;
     void Init(IniFile* pIni, char* section);
 };
@@ -385,7 +385,6 @@ extern MAPEDIT_HUD_SETTINGS gHudPrefs;
 extern MISC_PREFS gMisc;
 extern MOUSE_PREFS gMousePrefs;
 extern MOUSE_LOOK  gMouseLook;
-extern OBJECT_LOCK gObjectLock;
 extern PATHS gPaths;
 extern PLUPICKER gPluPrefs;
 extern ROTATION gRotateOpts;

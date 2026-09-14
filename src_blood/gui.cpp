@@ -809,8 +809,8 @@ void TitleBar::HandleEvent( GEVENT *event )
 
 Window::Window( int left, int top, int width, int height, char *title) : Panel(left, top, width, height, 1, 1, -1)
 {
-    titleBar = new TitleBar(3, 3, width - 6, 12, title);
-    client = new Container(3, 15, width - 6, height - 18);
+    titleBar = new TitleBar(3, 3, width - 6, 14, title);
+    client = new Container(3, 17, width - 6, height - 22);
 
     Container::Insert(titleBar);
     Container::Insert(client);
@@ -820,7 +820,7 @@ Window::Window( int left, int top, int width, int height, char *title) : Panel(l
 void Window::getEdges(int *x1, int *y1, int *x2, int *y2)
 {
     *x1 = 3,  *x2 = *x1 + width - 12;
-    *y1 = 3,  *y2 = *y1 + height - 23;
+    *y1 = 3,  *y2 = *y1 + height - 25;
 }
 
 void Window::getSize(int *wh, int *hg)
@@ -1452,6 +1452,271 @@ void PluPick::ClipStart()
     while (nStart + nRows * nCols <= nCursor)
         nStart += nCols;
 }
+
+
+ItemPick::ItemPick(int left, int top, int width, int height, ITEMPICK_PREFS* pArg) : Widget(left, top, width, height)
+{
+    this->pPrefs    = pArg;
+
+    this->canFocus  = TRUE;
+    this->nCursor   = 0;
+    this->nStart    = 0;
+    this->nCols     = pPrefs->nCols;
+    this->nRows     = pPrefs->nRows;
+    this->value     = pPrefs->nID;
+
+    this->colWh = (width-16) / pPrefs->nCols;
+    this->colHg = height / pPrefs->nRows;
+
+    SetCursor(this->value);
+}
+
+void ItemPick::Paint(int x, int y, BOOL hasFocus)
+{
+    QFONT* const pFont = qFonts[(colWh <= 80) ? 3 : 1];
+    Rect r1, r2, *pR = &r2; 
+    SELITEM* e;
+    
+    int const fh = pFont->height;
+    int dx, dy, wh, hg, colWhRem, colHgRem;
+    int curItem, i, j, k, t;
+    char bc;
+    
+    wh = width - 16;
+    hg = height;
+  
+    dx = x, dy = y;
+    gfxSetColor(clr2std(kColorGrey25));
+    gfxFillBox(dx, dy, dx+wh, dy+hg);
+    
+    colHgRem = hg % nRows;
+    for (i = 0, k = 0; i < nRows; i++)
+    {
+        dx = x;
+        gfxSetColor(clr2std(kColorGrey26));
+        gfxHLine(dy, dx, dx+wh-1);
+
+        colWhRem = wh % nCols;
+        for (j = 0; j < nCols; j++, k++)
+        {
+            gfxSetColor(clr2std(kColorGrey26));
+            gfxVLine(dx, dy, dy + colHg);
+            
+            if ((curItem = nStart + k) < pPrefs->length)
+            {
+                bc = clr2std((curItem == nCursor) ? kColorGrey23 : kColorGrey26);
+                r1.set(dx, dy, dx+colWh, dy+colHg); r1.scale(-4, -4);
+                gfxSetColor(bc);
+
+                e = &pPrefs->list[curItem];
+                sprintf(buffer, "#%d", e->id);
+                
+                if (e->picnum >= 0 && tileLoadTile(e->picnum))
+                {
+                    r2.set(r1.x0, r1.y1 - perc2val(150, fh), r1.x1, r1.y1);
+
+                    gfxTranslucency(1); gfxFillBox(&r2); gfxTranslucency(0); r2.scale(-4, 0);
+                    gfxDrawTextRect(&r2, ALG_MIDDLE|ALG_CENTER|kTextShadow, clr2std(kColorYellow), e->name, pFont, 1);
+                    
+                    r2.set(r1.x0, r1.y0, r1.x1, r2.y0 - ClipLow(fh >> 2, 1));
+                    
+                    gfxSetColor(bc);
+                    gfxTranslucency(1); gfxFillBox(&r2); gfxTranslucency(0);
+                    
+                    r2.scale(-4, -4);
+                    gfxDrawTextRect(&r2, ALG_TOP|ALG_LEFT|kTextShadow, clr2std(kColorYellow), buffer, pFont, 1);
+                    
+                    r2.scale(-perc2val(10, colWh), -perc2val(10, colHg));
+                    tileDrawTileRect(&pR, ALG_CENTER|ALG_MIDDLE, e->picnum, -1, e->pal, e->shade, 0x02);
+                }
+                else
+                {
+                    gfxTranslucency(1); gfxFillBox(&r1); gfxTranslucency(0);
+                    
+                    r2 = r1;
+                    r2.scale(-4, -4);
+                    gfxDrawTextRect(&r2, ALG_TOP|ALG_LEFT|kTextShadow, clr2std(kColorYellow), buffer, pFont, 1);
+                    
+                    gfxSetColor(clr2std(kColorGrey27));
+                    r2.scale(-perc2val(10, colWh), -perc2val(10, colHg));
+                    gfxTranslucency(1);
+                    
+                    //gfxFillBox(&r2);
+                    
+                    r2.scale(-4, -4);
+                    gfxSetColor(clr2std(kColorGrey28));
+                    gfxLine(r2.x0, r2.y0, r2.x1, r2.y1);
+                    gfxLine(r2.x1, r2.y0, r2.x0, r2.y1);
+                    
+                    gfxTranslucency(0);
+                    
+                    gfxDrawTextRect(&r2, ALG_MIDDLE|ALG_CENTER|kTextShadow, clr2std(kColorYellow), e->name, pFont, r2.height() / fh);
+                }
+                
+                if (hasFocus && curItem == nCursor)
+                {
+                    gfxSetColor(fade());
+                    gfxTranslucency(1); gfxRect(&r1); gfxTranslucency(0);
+                }
+            }
+
+            dx+=colWh;
+            if (--colWhRem >= 0)
+                dx++;
+        }
+
+        dy+=colHg;
+        if (--colHgRem >= 0)
+            dy++;
+    }
+    
+    PaintScroll(x+wh, y, hasFocus);
+}
+
+void ItemPick::PaintScroll(int x, int y, BOOL hasFocus)
+{
+    int const s = 16;
+    int mx, my;
+    int n;
+    
+    int scrlTotRows = ClipLow(pPrefs->length / nCols, 1);
+    if (pPrefs->length % nCols)
+        scrlTotRows++;
+
+    int const startRow    = nStart / nCols;
+    int const seeRows     = ClipHigh(nRows, scrlTotRows);
+    int const scrollerHg  = ClipLow(perc2val(height, IVAL2PERC(seeRows, scrlTotRows)), s>>1);
+    
+    Rect r(x, y, x+s, y+height); QBITMAP* pPic;
+    gfxSetColor(clr2std(22));
+    gfxFillBox(&r);
+    
+    gfxSetColor(clr2std((hasFocus) ? 20 : 21));
+    n = perc2val(height, IVAL2PERC(startRow, scrlTotRows));
+    gfxFillBox(x+1, y+s+n, x+s-1, y+s+n+scrollerHg);
+    
+    // buttons
+    ///////////////////////////////
+    pPic = pBitmaps[6]; gfxSetColor(clr2std(20));
+    r.set(x+1, y, x+s-1, y+s);
+    gfxFillBox(&r);
+    gfxRect(&r);
+
+    mx = r.x0+((r.width()>>1)-(pPic->width>>1));
+    my = r.y0+((r.height()>>1)-(pPic->height>>1));
+    gfxDrawBitmap(pPic, mx, my);
+
+    pPic = pBitmaps[7];
+    r.set(x+1, y+height-s, x+s-1, y+height);
+    gfxFillBox(&r);
+
+    mx = r.x0+((r.width()>>1)-(pPic->width>>1));
+    my = r.y0+((r.height()>>1)-(pPic->height>>1));
+    gfxDrawBitmap(pPic, mx, my);
+}
+
+void ItemPick::HandleEvent(GEVENT *event)
+{
+    Container* pCont = (Container*)owner;
+    if (pCont->focus != this)
+        return;
+    
+    if (event->type & evMouse)
+    {
+        if (event->mouse.wheel)
+        {
+            if (event->mouse.wheel > 0)
+            {
+                int t = nCols * nRows;
+                if (pPrefs->length > t && nStart + t < pPrefs->length)
+                    nStart += nCols;
+            }
+            else
+                nStart = ClipLow(nStart - nCols, 0);
+        }
+        
+        if ((event->type == evMouseMove) || (event->type == evMouseUp && event->mouse.button == 0))
+        {
+            int x1 = left; int x2 = x1+width-16;
+            int y1 = top;  int y2 = y1+height;
+            int nCol, nRow;
+            
+            if (rngok(event->mouse.x, x1, x2) && rngok(event->mouse.y, y1, y2))
+            {
+                nCol = ClipRange(event->mouse.x/colWh, 0, nCols-1);
+                nRow = ClipRange(event->mouse.y/colHg, 0, nRows-1);
+                nCursor = ClipRange((nRow*nCols) + nStart + nCol, nStart, pPrefs->length);
+                if (event->type == evMouseUp && nCursor < pPrefs->length)
+                {
+                    value = nCursor + mrUser;
+                    if (!pPrefs->pFunc || !pPrefs->pFunc(event, this, &pPrefs->list[nCursor]))
+                        EndModal(value);
+                }
+            }
+        }
+
+        event->Clear();
+    }
+    else if (event->type == evKeyDown)
+    {
+        switch (event->key.make)
+        {
+            case KEY_UP:
+                if (nCursor - nCols >= 0) nCursor -= nCols;
+                event->Clear();
+                break;
+            case KEY_DOWN:
+                nCursor = ClipHigh(nCursor + nCols, pPrefs->length-1);
+                event->Clear();
+                break;
+            case KEY_LEFT:
+                if (nCols < 1) break;
+                else if (nCursor - 1 >= 0) nCursor--;
+                event->Clear();
+                break;
+            case KEY_RIGHT:
+                if (nCols < 1) break;
+                else if (nCursor + 1 < pPrefs->length) nCursor++;
+                event->Clear();
+                break;
+            case KEY_HOME:
+                nCursor = 0;
+                event->Clear();
+                break;
+            case KEY_END:
+                nCursor = ClipLow(pPrefs->length - 1, 0);
+                event->Clear();
+                break;
+        }
+        
+        ClipStart();
+    }
+}
+
+void ItemPick::SetCursor(int nID)
+{
+    int i = pPrefs->length;
+    while(--i >= 0)
+    {
+        if (pPrefs->list[i].id == nID)
+        {
+            nCursor = i;
+            break;
+        }
+    }
+
+    ClipStart();
+}
+
+void ItemPick::ClipStart()
+{
+    if (nCursor < 0)
+        nCursor = ClipLow(nCols - abs(nCursor), 0);
+
+    while (nCursor < nStart) nStart -= nCols;
+    while (nStart + nRows * nCols <= nCursor)
+        nStart += nCols;
+} 
 
 EditText::EditText( int left, int top, int width, int height, char *s, int flags) : Widget(left, top, width, height)
 {
@@ -2270,6 +2535,207 @@ int createCheckboxList(CHECKBOX_LIST_P* array, int len, char* title, BOOL button
     return i;
 }
 
+static int itemPickQSortByID(SELITEM* ref1, SELITEM* ref2)      { return ref1->id - ref2->id; }
+static int itemPickQSortByName(SELITEM* ref1, SELITEM* ref2)    { return Bstrcasecmp(ref1->name, ref2->name); }
+static int itemPickQSortByGroup(SELITEM* ref1, SELITEM* ref2)   { return ref1->group - ref2->group; }
+
+static char itemPickCallbackPlaySound(GEVENT* event, Widget* pWidget, SELITEM* p)
+{
+    ItemPick* pPick = (ItemPick*)pWidget;
+    auditSound(p->id, kSoundPlayer);
+    return 1;
+}
+
+SELITEM* selectItem(SELITEM* pItems, int nLength, int nFocus, char* titleArg)
+{
+    #define kBotHeight1         32
+    #define kBotHeight2         16
+    #define kWindowSize         74
+
+    #define AFTERH(a, b) (a->left+a->width+b)
+    #define AFTERV(a, b) (a->top+a->height+b)
+    
+    static int (*sortFunc[4])(SELITEM* ref1, SELITEM* ref2) = { NULL, itemPickQSortByID, itemPickQSortByName, itemPickQSortByGroup };
+    static char *sortNames[] = { "None", "Id", "Name", "Group" }, sortType = 0;
+    char tmp[64]; ITEMPICK_PREFS arg;
+    int nCode, i, j, t, r, wh, hg;
+    
+    VOIDLIST list(sizeof(SELITEM));
+    Panel *pBot1, *pBot2; TextButton *pFindB, *pSortB, *pQuitB;
+    ItemPick* pPicker; EditText* pFindE; Label *pResultL, *pSortL;
+    Container* pFocus;
+    
+    for (i = 0; i < nLength; i++)
+        pItems[i].index = i, list.Add(&pItems[i]);
+    
+
+    arg.nCols = (widescreen) ? 8 : 7;
+    arg.nRows = (widescreen || !tallscreen) ? 4 : 5;
+    arg.pFunc = NULL;//itemPickCallbackPlaySound;
+    
+    
+    arg.nID = ClipLow(nFocus, 0);
+    arg.list = (SELITEM*)list.First();
+    arg.length = nLength;
+    
+    if (sortType > 0)
+        qsort(arg.list, arg.length, sizeof(arg.list[0]), (QSORTFUNC*)sortFunc[sortType]);
+    
+    Window dlg(0, 0, ClipLow(perc2val(kWindowSize, xdim), 512), ClipLow(perc2val(kWindowSize, ydim), 384), titleArg);
+    
+    pPicker             = new ItemPick(dlg.left, dlg.top, dlg.client->width, dlg.client->height-kBotHeight1-kBotHeight2, &arg);
+    pBot1               = new Panel(dlg.left, AFTERV(pPicker, 0), pPicker->width, kBotHeight1, 1, 1, 0);
+    pBot2               = new Panel(dlg.left, AFTERV(pBot1, 0), dlg.client->width, kBotHeight2, 1, 1, 0);
+
+    wh = pBot1->width; hg = pBot1->height;
+
+    pFindB              = new TextButton(0, 0, 100, 26, "Search", mrOk);
+    pFindB->left        = 4;
+    pFindB->top         = (hg>>1)-(pFindB->height>>1);
+    pFindB->fontColor   = kColorBlue;
+    
+    sprintf(tmp,        "%d", arg.nID);
+    pFindE              = new EditText(0, 0, 150, 20, tmp);
+    pFindE->left        = AFTERH(pFindB, 4);
+    pFindE->top         = (hg>>1)-(pFindE->height>>1);
+    
+    pQuitB              = new TextButton(0, 0, 70, 26, "Quit", mrCancel);
+    pQuitB->left        = pBot1->left+wh-pQuitB->width-4;
+    pQuitB->top         = (hg>>1)-(pQuitB->height>>1);
+    pQuitB->fontColor   = kColorRed;
+    
+    pSortB              = new TextButton(0, 0, 70, 26, sortNames[sortType], mrOk);
+    pSortB->left        = pQuitB->left-pSortB->width;
+    pSortB->top         = (hg>>1)-(pSortB->height>>1);
+    pSortB->fontColor   = kColorBlue;
+    
+    strcpy(tmp,        "Order: ");
+    pSortL              = new Label(0, 0, tmp, kColorGrey27);
+    pSortL->left        = pSortB->left-pSortL->width-4;
+    pSortL->top         = (hg>>1)-(pSortL->height>>1);
+    
+    sprintf(tmp,        "%d elements are available in total", arg.length);
+    pResultL            = new Label(0, 0, tmp, kColorBlack);
+    pResultL->left      = (pBot2->width>>1)-(pResultL->width>>1);
+    pResultL->top       = (pBot2->height>>1)-(pResultL->height>>1);
+
+    pBot1->Insert(pFindB);
+    pBot1->Insert(pFindE);
+    pBot1->Insert(pSortB);
+    pBot1->Insert(pQuitB);
+    pBot1->Insert(pSortL);
+
+    pBot2->Insert(pResultL);
+
+    dlg.Insert(pPicker);
+    dlg.Insert(pBot1);
+    dlg.Insert(pBot2);
+
+    while( 1 )
+    {
+        r = -1;
+        dlg.ClearFocus();
+        if ((nCode = ShowModal(&dlg)) == mrCancel)
+            break;
+        
+        if (pBot1->focus != &pBot1->head)   pFocus = (Container*)pBot1->focus;
+        else if (dlg.focus != &dlg.head)    pFocus = (Container*)dlg.focus;
+        else continue;
+        
+        if (pPicker == (ItemPick*)pFocus->focus)
+        {
+            if (nCode == mrOk)                                  r = pPicker->nCursor;
+            else if (rngok(pPicker->nCursor, 0, arg.length))    r = pPicker->value - mrUser;
+            else
+            {
+                pPicker->nCursor = pPicker->value = 0;
+                pPicker->ClipStart();
+                continue;
+            }
+            
+            break;
+        }
+        else if ((pFindB == (TextButton*)pFocus) || (pFindE == (EditText*)pFocus))
+        {
+            if (*pFindE->string)
+            {
+                char *st1 = pFindE->string, *st2;
+                int l1, l2;
+                int k;
+                
+                // search by name (exact match)
+                for (i = j = 0; i < arg.length && j < 2; i++)
+                {
+                    st2 = arg.list[i].name;
+                    if (Bstrcasecmp(st2, st1) != 0) continue;
+                    if (r < 0) r = i;
+                    j++;
+                }
+                
+                if (r < 0)
+                {
+                    // search by name (closest match)
+                    l1 = strlen(st1);
+                    for (i = j = 0; i < arg.length && j < 2; i++)
+                    {
+                        st2 = arg.list[i].name, l2 = strlen(st2);
+                        k = (l1 < l2) ? l1 : l2;
+                        
+                        while(--k >= 0
+                            && toupper(st2[k]) == toupper(st1[k]));
+                        
+                        if (k >= 0) continue;
+                        if (r < 0) r = i;
+                        j++;
+                    }
+                }
+                
+                if (r < 0 && isufix(st1))
+                {
+                    t = atoi(st1); // try by id
+                    for (i = j = 0; i < arg.length && j < 2; i++)
+                    {
+                        if (arg.list[i].id != t) continue;
+                        if (r < 0) r = i;
+                        j++;
+                    }
+                }
+                
+                if (r >= 0)
+                {
+                    // Return if only one entry found,
+                    // otherwise focus on first
+                    // entry.
+                    
+                    pPicker->nCursor = pPicker->value = r;
+                    pPicker->ClipStart();
+                    
+                    if (j == 1)
+                        break;
+                }
+                else
+                {
+                    Alert("Entry '%s' not found!", pFindE->string);
+                }
+            }
+        }
+        else if ((pSortB == (TextButton*)pFocus))
+        {
+            if ((i = showButtons(sortNames, LENGTH(sortNames), "Select") - mrUser) >= 0)
+            {
+                if (i == 0) memcpy(list.First(), pItems, sizeof(pItems[0]) * nLength);
+                else qsort(arg.list, arg.length, sizeof(arg.list[0]), (QSORTFUNC*)sortFunc[i]);
+                pSortB->text = sortNames[i];
+                sortType = i;
+                
+                pPicker->nCursor = pPicker->value = 0;
+                pPicker->ClipStart();
+            }
+        }
+    }
+    
+    return (r >= 0) ? &pItems[arg.list[r].index] : NULL;
+}
 
 int showStandardWindow(char* text, char* buttons, char* caption = "")
 {

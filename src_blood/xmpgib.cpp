@@ -187,37 +187,37 @@ GIBTHING gibAxeZombieHead[] = {
 };
 
 GIBLIST gibList[] = {
-    { gibFxGlassT, 2, NULL, 0, 300 },
-    { gibFxGlassS, 1, NULL, 0, 300 },
-    { gibFxBurnShard, 1, NULL, 0, 0 },
-    { gibFxWoodShard, 1, NULL, 0, 0 },
-    { gibFxMetalShard, 1, NULL, 0, 0 },
-    { gibFxFireSpark, 1, NULL, 0, 0 },
-    { gibFxShockSpark, 1, NULL, 0, 0 },
-    { gibFxBloodChunks, 1, NULL, 0, 0 },
-    { gibFxBubblesS, 1, NULL, 0, 0 },
-    { gibFxBubblesM, 1, NULL, 0, 0 },
-    { gibFxBubblesL, 1, NULL, 0, 0 },
-    { gibFxIcicles, 1, NULL, 0, 0 },
-    { gibFxGlassCombo1, 2, NULL, 0, 300 },
-    { gibFxGlassCombo2, 5, NULL, 0, 300 },
-    { gibFxWoodCombo, 3, NULL, 0, 0 },
-    { NULL, 0, gibHuman, 7, 0 },
-    { gibFxMedicCombo, 4, NULL, 0, 0 },
-    { gibFxFlareSpark, 1, NULL, 0, 0 },
-    { gibFxBloodBits, 1, NULL, 0, 0 },
-    { gibFxRockShards, 2, NULL, 0, 0 },
-    { gibFxPaperCombo1, 2, NULL, 0, 0 },
-    { gibFxPlantCombo1, 3, NULL, 0, 0 },
-    { gibFx13BBA8, 1, NULL, 0, 0 },
-    { gibFx13BBC0, 1, NULL, 0, 0 },
-    { gibFx13BBD8, 2, NULL, 0, 0 },
-    { gibFx13BC04, 1, NULL, 0, 0 },
-    { gibFx13BC1C, 1, NULL, 0, 0 },
-    { NULL, 0, gibAxeZombieHead, 1, 0 },
-    { NULL, 0, gibMime, 6, 0 },
-    { NULL, 0, gibHound, 4, 0 },
-    { NULL, 0, gibFleshGargoyle, 5, 0 },
+    { gibFxGlassT, 2, NULL, 0, 300,         "Glass (transparent)",      0},     // 0
+    { gibFxGlassS, 1, NULL, 0, 300,         "Glass (stained)",          0},     // 1
+    { gibFxBurnShard, 1, NULL, 0, 0,        "Burn shard",               1},     // 2
+    { gibFxWoodShard, 1, NULL, 0, 0,        "Wood shard",               1},     // 3
+    { gibFxMetalShard, 1, NULL, 0, 0,       "Metal shard",              2},     // 4
+    { gibFxFireSpark, 1, NULL, 0, 0,        "Fire spark",               3},     // 5
+    { gibFxShockSpark, 1, NULL, 0, 0,       "Electric spark",           3},     // 6
+    { gibFxBloodChunks, 1, NULL, 0, 0,      "Blood chunks",             4},     // 7
+    { gibFxBubblesS, 1, NULL, 0, 0,         "Bubbles (small)",          5},     // 8
+    { gibFxBubblesM, 1, NULL, 0, 0,         "Bubbles (medium)",         5},     // 9
+    { gibFxBubblesL, 1, NULL, 0, 0,         "Bubbles (large)",          5},     // 10
+    { gibFxIcicles, 1, NULL, 0, 0,          "Icicles",                  6},     // 11
+    { gibFxGlassCombo1, 2, NULL, 0, 300,    "Glass combo 1",            0},     // 12
+    { gibFxGlassCombo2, 5, NULL, 0, 300,    "Glass combo 2",            0},     // 13
+    { gibFxWoodCombo, 3, NULL, 0, 0,        "Wood combo",               1},     // 14
+    { NULL, 0, gibHuman, 7, 0,              "Human body parts",         9},     // 15
+    { gibFxMedicCombo, 4, NULL, 0, 0,       "Mixed combo",              9},     // 16
+    { gibFxFlareSpark, 1, NULL, 0, 0,       "Flare spark",              3},     // 17
+    { gibFxBloodBits, 1, NULL, 0, 0,        "Blood bits",               4},     // 18
+    { gibFxRockShards, 2, NULL, 0, 0,       "Rock shard",               6},     // 19
+    { gibFxPaperCombo1, 2, NULL, 0, 0,      "Paper combo",              6},     // 20
+    { gibFxPlantCombo1, 3, NULL, 0, 0,      "Plant combo",              6},     // 21
+    { gibFx13BBA8, 1, NULL, 0, 0,           "Tesla gibs 1",             7},     // 22
+    { gibFx13BBC0, 1, NULL, 0, 0,           "Tesla gibs (floor)",       7},     // 23
+    { gibFx13BBD8, 2, NULL, 0, 0,           "Tesla gibs 3",             7},     // 24
+    { gibFx13BC04, 1, NULL, 0, 0,           "Flames 1",                 8},     // 25
+    { gibFx13BC1C, 1, NULL, 0, 0,           "Flames 2",                 8},     // 26
+    { NULL, 0, gibAxeZombieHead, 1, 0,      "Axe zombie head",          9},     // 27
+    { NULL, 0, gibMime, 6, 0,               "Mime body parts",          9},     // 28
+    { NULL, 0, gibHound, 4, 0,              "Hound body parts",         9},     // 29
+    { NULL, 0, gibFleshGargoyle, 5, 0,      "Gargoyle body parts",      9},     // 30
 };
 
 void gibCalcWallArea(int a1, int &a2, int &a3, int &a4, int &a5, int &a6, int &a7, int &a8)

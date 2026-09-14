@@ -225,6 +225,43 @@ char IniFile::Save(char* saveName)
 
 }
 
+void IniFile::Merge(IniFile* pIni)
+{
+    ININODE *pNode = pIni->node;
+    char* pGroup;
+    int i = 0;
+    
+    while(i < pIni->numnodes)
+    {
+        if (pNode->type == kIniNodeSection)
+        {
+            pGroup = pNode->hiWord;
+            
+            do
+            {
+                switch(pNode->type)
+                {
+                    case kIniNodeSection:
+                        SectionAdd(pGroup);
+                        break;
+                    case kIniNodeKeySep:
+                    case kIniNodeKeyStr:
+                        KeyAdd(pGroup, pNode->hiWord, pNode->loWord);
+                        break;
+                }
+                
+                pNode++;
+                i++;
+            }
+            while(i < pIni->numnodes && pNode->type != kIniNodeSection);
+            continue;
+        }
+        
+        pNode++;
+        i++;
+    }
+}
+
 char* IniFile::GetKeyString(char* section, char *key, char* defValue)
 {
     int nID;

@@ -42,6 +42,9 @@ IDLIST gImpactSpritesList(false);   // list of additional sprites which can be t
 IDLIST gPhysSpritesList(false);     // list of additional sprites which can be affected by physics
 SPRITEMASS gSpriteMass[];           // cache for getSpriteMassBySize();
 
+VOIDLIST gCustomDudeInfo(sizeof(CDUINFO));
+char* gCustomDudeNames[kMaxSprites];
+
 LASER* gLaser[kMaxLasers];
 int gNumLasers = 0;
 
@@ -708,7 +711,8 @@ bool modernTypeOperateSprite(int nSprite, spritetype* pSprite, XSPRITE* pXSprite
             case kCmdOn:
                 evKill(nSprite, 3); // queue overflow protect
                 if (pXSprite->state == 0) SetSpriteState(nSprite, pXSprite, 1);
-                if (pSprite->type == kModernSeqSpawner) seqSpawnerOffSameTx(pXSprite);
+                if (pSprite->type == kModernSeqSpawner && pXSprite->txID >= kChannelUser
+                    && (pSprite->flags & kModernTypeFlag16) == 0) seqSpawnerOffSameTx(pXSprite);
                 fallthrough__;
             case kCmdRepeat:
                 if (pXSprite->txID > 0) modernTypeSendCommand(nSprite, pXSprite->txID, (COMMAND_ID)pXSprite->command);
@@ -1028,54 +1032,12 @@ void cdTransform(spritetype* pSprite) {
     adjSpriteByType(pSprite);
 }
 
-IniFile* cdDescriptLoad(int nID)
-{
-    DICTNODE* hFil;
-    IniFile* pIni = NULL;
-
-    char tmp[BMAX_PATH]; BYTE* pRawIni = NULL;
-    const char* fname = kCdudeFileNamePrefix;
-    const char* fext = kCdudeFileExt;
-
-    if (rngok(nID, 0, 10000))
-    {
-        Bsprintf(tmp, "%s%d", fname, nID);
-        if ((hFil = nnExtResFileSearch(&gSysRes, tmp, fext)) == NULL) // name not found
-            hFil = nnExtResFileSearch(&gSysRes, nID, fext); // try by ID
-
-        if (hFil && (pRawIni = (BYTE*)gSysRes.Load(hFil)) != NULL)
-            pIni = new IniFile((BYTE*)pRawIni, hFil->size);
-    }
-
-    return pIni;
-}
-
 #define kParamMax 255
 
-#pragma pack(push, 1)
 struct PARAM
 {
     unsigned int id             : 8;
     const char* text;
-};
-#pragma pack(pop)
-
-enum enum_CDUD_POSTURE {
-kCdudePosture                   = 0,
-kCdudePostureL                  = kCdudePosture,
-kCdudePostureC,
-kCdudePostureW,
-kCdudePostureF,
-kCdudePostureMax,
-};
-
-enum enum_CDUD_STATUS {
-kCdudeStatusNormal              = 0x00,
-kCdudeStatusAwaked              = 0x01,
-kCdudeStatusForceCrouch         = 0x02,
-kCdudeStatusSleep               = 0x04,
-kCdudeStatusMorph               = 0x08,
-kCdudeStatusRespawn             = 0x10,
 };
 
 PARAM gParamPosture[] =
@@ -1086,8 +1048,6 @@ PARAM gParamPosture[] =
     {kCdudePostureF,        "Fly"    },
     {kParamMax, NULL},
 };
-
-char gCustomDudeNames[kMaxSprites][32];
 
 int cdParseFindParam(const char* str, PARAM* pDb)
 {
@@ -1170,57 +1130,107 @@ void nnExtSprScaleSet(spritetype* pSpr, int nScale)
     pSpr->yrepeat = ClipRange(mulscale8(pSpr->yrepeat, nScale), 0, 255);
 }
 
+void customDudeInfoInit()
+{
+    CDUINFO buf; BYTE* pRaw; DICTNODE* p;
+    Resource* pRes = &gSysRes;
+    char *pGroup, *pValue, *s;
+    int range[2], nID;
+    int i;
 
+    gCustomDudeInfo.Clear();
+    
+    i = pRes->count;
+    while(--i >= 0)
+    {
+        p = &pRes->dict[i];
+        if (Bstrcasecmp(p->type, "CDU") != 0)
+            continue;
+        
+        if ((s = Bstrchr(p->name, '_')) != NULL) *s = '\0';
+        nID = -1; isIdKeyword(p->name, "CDUD", &nID);
+        if (s) *s = '_';
+        
+        if (nID < 0
+            || (pRaw = (BYTE*)pRes->Load(p)) == NULL)
+                continue;
+        
+        IniFile ini(pRaw, pRes->Size(p)); memset(&buf, 0, sizeof(buf));
+        if ((buf.version = ini.GetKeyInt("General", "Version", 0)) == 0)
+            continue;
+        
+        buf.id = nID;
+        
+        pGroup = "Animation";
+        pValue = ini.GetKeyString(pGroup, "IdleSleep", NULL);
+        if (!isempty(pValue))
+            cdParseAnimation(pValue, buf.anim.sleep);
+        
+        pValue = ini.GetKeyString(pGroup, "Idle", NULL);
+        if (!isempty(pValue))
+            cdParseAnimation(pValue, buf.anim.idle);
+        
+        
+        range[0] = 0, range[1] = 1024;
+        pValue = ini.GetKeyString(pGroup, "Scale", NULL);
+        switch(cdParseRange(pValue, range, 256))
+        {
+            case 1:
+            case 2:
+                buf.anim.scale = range[0];
+                break;
+            default:
+                buf.anim.scale = 256;
+                break;
+        }
+        
+        pValue = ini.GetKeyString("General", "Name", "Custom Dude");
+        sprintf(buf.name, "%0.31s", pValue);
+        gCustomDudeInfo.Add(&buf);
+    }
+}
 
-void cdGetSeq(spritetype* pSpr) {
-
-    dassert(xspriRangeIsFine(pSpr->extra));
+void cdGetSeq(spritetype* pSpr)
+{
+    if (!xspriRangeIsFine(pSpr->extra))
+        return;
+    
+    CDUINFO* p;
     XSPRITE* pXSpr = &xsprite[pSpr->extra];
-    IniFile* pIni = cdDescriptLoad(pXSpr->data1);
-    char respawnMarker = (pSpr->type == kModernCustomDudeSpawn);
-    int nSeq = 11520, nScale = 256;
-    short pic, xr, yr, pal;
-
-    if (pIni && pIni->GetKeyInt("General", "Version", 0) == 2)
+    int nSeq, nScale; short pic, xr, yr, pal;
+    uint32_t* anim;
+    
+    for (p = (CDUINFO*)gCustomDudeInfo.First(); p->version && p->id != pXSpr->data1; p++);
+    gCustomDudeNames[pSpr->index] = "Custom Dude";
+    nSeq = 11520, nScale = 256;
+    
+    if (p->version == 2)
     {
         // cdude v2
-        unsigned int anim[kCdudePostureMax];
-        memset(anim, 0, sizeof(anim));
-
-        char* group         = "Animation";
-        char* paramIdle     = "Idle";
-        char* paramSleep    = "IdleSleep";
-        char* paramScale    = "Scale";
-        const char* pValue  = NULL;
-
+        
+        anim = p->anim.idle;
         if (!(pXSpr->data2 & kCdudeStatusAwaked))
-            pValue = pIni->GetKeyString(group, paramSleep, NULL);
-
-        if (isempty(pValue))
-            pValue = pIni->GetKeyString(group, paramIdle, NULL);
-
-        if (cdParseAnimation(pValue, anim))
+            anim = p->anim.sleep;
+        
+        while( 1 )
         {
             if (isUnderwaterSector(pSpr->sectnum) && anim[kCdudePostureW])              nSeq = anim[kCdudePostureW];
             else if ((pXSpr->data2 & kCdudeStatusForceCrouch) && anim[kCdudePostureC])  nSeq = anim[kCdudePostureC];
             else if (anim[kCdudePostureL])                                              nSeq = anim[kCdudePostureL];
             else if (anim[kCdudePostureF])                                              nSeq = anim[kCdudePostureF];
+            else if (anim[kCdudePostureW])                                              nSeq = anim[kCdudePostureW];
+            else if (anim == p->anim.sleep)
+            {
+                anim = p->anim.idle;
+                continue;
+            }
+            
+            break;
         }
-
-        int range[2] = {0, 1024};
-        pValue = pIni->GetKeyString(group, paramScale, NULL);
-        switch(cdParseRange(pValue, range, 256))
-        {
-            case 1:
-            case 2:
-                nScale = range[0];
-                break;
-        }
-
-        pValue = pIni->GetKeyString("General", "Name", "Custom Dude");
-        sprintf(gCustomDudeNames[pSpr->index], "%0.31s", pValue);
+        
+        gCustomDudeNames[pSpr->index] = p->name;
+        nScale = p->anim.scale;
         pXSpr->sysData4 = 2;
-        delete(pIni);
     }
     else
     {
@@ -1230,7 +1240,7 @@ void cdGetSeq(spritetype* pSpr) {
             nSeq = pXSpr->data2;
     }
 
-    if (!respawnMarker)
+    if (pSpr->type != kModernCustomDudeSpawn)
     {
         if (getSeqPrefs(nSeq, &pic, &xr, &yr, &pal))
         {
@@ -1247,6 +1257,7 @@ void cdGetSeq(spritetype* pSpr) {
     }
     else if (getSeqPrefs(nSeq, &pic, &xr, &yr, &pal))
     {
+        // this is for view
         if (pic >= 0) pXSpr->sysData1 = pic;
         if (pal >= 0) pSpr->pal = (BYTE)pal;
     }
@@ -3941,7 +3952,7 @@ void seqSpawnerOffSameTx(XSPRITE* pXSource) {
                 continue;
 
             pXSpr = (xspriRangeIsFine(pSpr->extra)) ? &xsprite[pSpr->extra] : NULL;
-            if (!pXSpr || pXSpr->reference == pXSource->reference || !pXSpr->state)
+            if (!pXSpr || pXSpr->reference == pXSource->reference || !pXSpr->state || pXSpr->txID != pXSource->txID)
                 continue;
 
             evKill(j, EVOBJ_SPRITE);

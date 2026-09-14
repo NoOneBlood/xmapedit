@@ -48,10 +48,12 @@ struct GIBTHING
 struct GIBLIST
 {
     GIBFX *at0;
-    int at4;
+    uint8_t at4;
     GIBTHING *at8;
-    int atc;
-    int at10;
+    uint8_t atc;
+    uint16_t at10;
+    const char* name;
+    uint8_t group;
 };
 
 enum GIBTYPE {

@@ -36,12 +36,12 @@
 
 XMPTOOL gTool;
 
-int toolRestable[][5] = {
+int toolRestable[][6] = { 
 
-    {200,   2,  4,  3,  0x08B00},
-    {480,   4,  6,  1,  0x15500},
-    {600,   6,  8,  5,  0x17500},
-    {768,   8,  10, 5,  0x22000},
+    {200,   2,  4,  3,  0x08B00,   8},
+    {480,   4,  6,  1,  0x15500,   8},
+    {600,   6,  8,  5,  0x17500,   10},
+    {768,   8,  10, 5,  0x22000,   10},
 
 };
 
@@ -164,25 +164,32 @@ int toolLoadAsMulti(char* path, char* ext, char* title)
     return i;
 }
 
-void toolGetResTableValues() {
-
+void toolGetResTableValues()
+{
     // use restable for hud properties
-    for (int i = LENGTH(toolRestable) - 1; i >= 0; i--) {
-        if (ydim < toolRestable[i][0]) continue;
-        gTool.hudPixels     = (ushort)toolRestable[i][1];
-        gTool.centerPixels  = (ushort)toolRestable[i][2];
-        gTool.pFont         = qFonts[toolRestable[i][3]];
-        gTool.tileZoom      = toolRestable[i][4];
-        break;
+    int i = LENGTH(toolRestable);
+    while(--i >= 0)
+    {
+        if (ydim >= toolRestable[i][0])
+        {
+            gTool.hudPixels     = (ushort)toolRestable[i][1];
+            gTool.centerPixels  = (ushort)toolRestable[i][2];
+            gTool.pFont         = qFonts[toolRestable[i][3]];
+            gTool.tileZoom      = toolRestable[i][4];
+            gTool.paletteSize   = toolRestable[i][5];
+            break;
+        }
     }
 }
 
-
-int toolGetDefTileZoom() {
-
-    for (int i = LENGTH(toolRestable) - 1; i >= 0; i--) {
-        if (ydim < toolRestable[i][0]) continue;
-        return toolRestable[i][4];
+int toolGetDefTileZoom()
+{
+    int i = LENGTH(toolRestable);
+    
+    while(--i >= 0)
+    {
+        if (ydim >= toolRestable[i][0])
+            return toolRestable[i][4];
     }
 
     return 0x10000;
@@ -208,6 +215,38 @@ int toolGetViewTile(int nTile, int nOctant, char *flags, int *ang) {
     }
 
     return nTileView;
+}
+
+void toolDrawPalette(int nPlu)
+{
+    if (!rngok(nPlu, 0, kPluMax))
+        nPlu = 0; 
+    
+	int cellSize = gTool.paletteSize;
+    int size = 16 * cellSize;
+    int x = xdim - size - 14;
+    int y = ydim - size - 45;
+    
+    BYTE* pPlu = palookup[nPlu];
+    if (!pPlu)
+    {
+        pPlu = palookup[0];
+        if (!pPlu)
+            return;
+    }
+    
+    for (int i = 0; i < 256; i++)
+    {
+        int cx = x + (i % 16) * cellSize;
+        int cy = y + (i / 16) * cellSize;
+        int color = pPlu[i];
+        
+        gfxSetColor(color);
+        gfxFillBox(cx, cy, cx + cellSize - 1, cy + cellSize - 1);
+    }
+    
+    gfxSetColor(clr2std(kColorGrey22));
+    gfxRect(x - 1, y - 1, x + size + 1, y + size + 1);
 }
 
 void toolDrawWindow(int x1, int y1, int x2, int y2, char* title, char textColor) {
@@ -314,218 +353,6 @@ void toolDisplayMessage(short nColor, int x, int y, QFONT* pFont)
     if (totalclock < gScreen.msg[0].time)
         gfxPrinTextShadow(x, y, nColor, strupr(gScreen.msg[0].text), pFont);
 }
-
-NAMED_TYPE gibNames[] = {
-
-    {0,  "Glass (transparent)"},
-    {1,  "Glass (stained)"},
-    {12, "Glass combo 1"},
-    {13, "Glass combo 2"},
-    {2,  "Burn shard"},
-    {3,  "Wood shard"},
-    {14, "Wood combo"},
-    {4,  "Metal shard"},
-    {5,  "Fire spark"},
-    {6,  "Electric spark"},
-    {17, "Flare spark"},
-    {7,  "Blood chunks"},
-    {18, "Blood bits"},
-    {8,  "Bubbles (small)"},
-    {9,  "Bubbles (medium)"},
-    {10, "Bubbles (large)"},
-    {11, "Icicles"},
-    {19, "Rock shard"},
-    {20, "Paper combo"},
-    {21, "Plant combo"},
-    {16, "Mixed combo"},
-    {22, "Eletric gibs 1"},
-    {23, "Electric gibs (floor)"},
-    {24, "Electric gibs 3"},
-    {25, "Flames 1"},
-    {26, "Flames 2"},
-    {27, "Axe zombie head"},
-    {15, "Human body parts"},
-    {28, "Mime body parts"},
-    {29, "Hound body parts"},
-    {30, "Gargoyle body parts"},
-};
-
-
-
-int toolGibTool(int nGib, int type) {
-
-    nGib = 0;
-    const int listLen = LENGTH(gibNames); char ids[listLen][4], even = 0;
-    memset(ids, 0, 4*listLen);
-
-    short tile, xr, yr, plu;
-    int i, j, x, y, tx, ty, len, start;
-    int tsize = 28, boxsize = tsize - 4, dwidth = 250, dheigh = 390, page = 0, perpage = 8;
-    int shapew = dwidth - 14, shapeh = pFont->height + tsize + 4;
-    int bsize = shapeh - 4;
-
-    i = listLen / perpage; int pages = (i * perpage < listLen) ? i + 1 : i;
-    while ( 1 ) {
-
-        start = page*perpage;
-        x = 4, y = 4, tx = 4, ty = 4;
-
-        Window dialog(0, 0, dwidth, ydim - 1, "Gib list");
-        dialog.height = dheigh = ((shapeh)*perpage) + (4 * perpage) + 8;
-
-        for (i = start; i < start + perpage; i++) {
-
-            x = 4;
-            dialog.Insert(new Shape(x, y, shapew, shapeh, gStdColor[8])); // border
-            dialog.Insert(new Shape(x + 1, y + 1, shapew - 2, shapeh - 2, gStdColor[20 + (even^=1)])); // fill
-            dialog.Insert(new Shape(x + bsize + 3, y, 1, shapeh, gStdColor[8])); // separator
-            y += 4;
-
-            TextButton* pData = NULL; Label* pName = NULL;
-
-            if (i < listLen) {
-
-                GIBFX* gf = NULL; GIBTHING* gt = NULL;
-                GIBLIST* gib = &gibList[gibNames[i].id];
-
-                len = 0;
-                if (gib->at0)
-                {
-                    gf = gib->at0;
-                    len = gib->at4;
-                }
-                else if (type != OBJ_WALL && gib->at8)
-                {
-                    gt = gib->at8;
-                    len = gib->atc;
-                }
-
-                if (len) {
-
-                    // button with data value
-                    j = gibNames[i].id + 1; sprintf(ids[i], "%02d", j);
-                    pData = new TextButton(x + 2, y - 2, bsize, bsize, ids[i], mrUser + j);
-                    pData->fontColor = 1;
-
-                    // gib name
-                    pName = new Label(x + bsize + 6, y, gibNames[i].name);
-                    pName->font = qFonts[1];
-                    pName->fontColor = 28;
-                    dialog.Insert(pName);
-
-                    tx = x + bsize + 6, ty += pFont->height + 5;
-
-
-                    for (j = 0; j < len; j++, tile = plu = 0) {
-
-                        if (type != OBJ_WALL && gt)
-                        {
-                            if (gt->at4)
-                                tile = gt->at4;
-                            gt++;
-
-                        }
-                        else if (gf && gf->at0 >= 0 && gf->at0 < kFXMax)
-                        {
-                            FXDATA* pFx = &gFXData[gf->at0];
-
-                            if (pFx->at2)
-                            {
-                                getSeqPrefs(pFx->at2, &tile, &xr, &yr, &plu);
-                            }
-                            else if (pFx->at12 > 0)
-                            {
-                                tile = pFx->at12;
-                                plu  = pFx->at19;
-                            }
-
-                            gf++;
-                        }
-
-                        if (!tile)
-                            continue;
-
-                        int width, height, mx, my, tsize2 = boxsize - 4;
-                        tileDrawGetSize(tile, tsize2, &width, &height);
-
-                        // allow draw full size if tile is smaller than box
-                        BOOL orig = (width < tsize2 && height < tsize2);
-
-                        mx = tx + ((boxsize - width) >> 1);
-                        my = ty + ((boxsize - height) >> 1);
-
-                        char col = (char)(tileGetMostUsedColor(tile) ^ 16);
-                        dialog.Insert(new Shape(tx, ty, boxsize, boxsize, gStdColor[8])); // border
-                        dialog.Insert(new Shape(tx + 1, ty + 1, boxsize - 2, boxsize - 2, col)); // fill
-                        dialog.Insert(new Tile(mx, my, tile, (orig) ? 0 : tsize2, tsize2, (short)ClipLow(plu, 0), 0x02));
-
-                        tx+=boxsize+1;
-                        if (tx >= shapew - (bsize + 6))
-                            break;
-
-                    }
-
-                }
-            }
-
-            if (i >= listLen || (!len && type == OBJ_WALL)) {
-
-                // button with data value (disabled)
-                pData = new TextButton(x + 2, y - 2, bsize, bsize, "--", mrUser);
-                pData->disabled = TRUE;
-                pData->canFocus = !pData->disabled;
-                pData->fontColor = 7;
-
-            }
-
-            pData->font = qFonts[1];
-            dialog.Insert(pData);
-
-            y+=(shapeh-2), ty = y;
-
-        }
-
-        i = 34, x = 4, j = ClipLow(i, 4);
-        dialog.height += j + 4, y += ((j >> 2) - 6);
-        BitButton2* prevPage = new BitButton2(x, y, i, i, pBitmaps[2], -1); x += i + 4; prevPage->hotKey = '1';
-        BitButton2* nextPage = new BitButton2(x, y, i, i, pBitmaps[3], -2); x += i + 4; nextPage->hotKey = '2';
-
-        sprintf(buffer, "Page %d of %d", page + 1, ClipLow(pages, 1));
-        Label* pPage = new Label(x, (y + (i >> 1)) - (pFont->height >> 1), strupr(buffer));
-        pPage->font = qFonts[1];
-
-        sprintf(buffer, "Reset"); len = gfxGetTextLen(strupr(buffer), pFont) << 1; j = 20;
-        TextButton* pNone = new TextButton(dwidth - len - 8, (y + (i >> 1)) - (j >> 1), len, j, buffer, mrUser);
-        pNone->font = qFonts[1];
-
-
-        dialog.Insert(prevPage);
-        dialog.Insert(nextPage);
-        dialog.Insert(pPage);
-        dialog.Insert(pNone);
-
-        ShowModal(&dialog);
-        if (dialog.endState == mrCancel)
-            break;
-
-        switch (dialog.endState) {
-            case -1: // prev page
-                if (page-- <= 0) page = ClipLow(pages - 1, 0);
-                continue;
-            case -2: // next page
-                if (++page >= pages) page = 0;
-                continue;
-            default:
-                if (dialog.endState < mrUser) continue;
-                return dialog.endState - mrUser;
-        }
-    }
-
-    return -1;
-}
-
-
-
 
 int toolExploderSeq() {
 
@@ -692,16 +519,6 @@ int updViewAngle(spritetype* pSprite) {
     return nOctant;
 
 }
-
-void chgSpriteZ(spritetype* pSprite, int zVal) {
-
-    if (pSprite == NULL)
-        return;
-
-    pSprite->z = zVal;
-    clampSprite(pSprite);
-}
-
 
 int toolChannelCleaner(char* logfile)
 {

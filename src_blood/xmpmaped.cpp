@@ -801,9 +801,9 @@ int intersectSplit(ISPLITPARAM* pParam)
                     (d1 < d2) ? (e.x = x1, e.y = y1) : (e.x = x2, e.y = y2);
                 }
                 
-                nLeng += exactDist(x3-e.x, y3-e.y);
-                if (e.skip != 2 && e.type == 1 && nLeng <= 32)
-                    e.skip = 1;
+                //nLeng += exactDist(x3-e.x, y3-e.y);
+                //if (e.skip != 2 && e.type == 1 && nLeng <= 32)
+                    //e.skip = 1;
                 
                 // Sync points and real coords,
                 // so sectSplit can find the
@@ -1092,6 +1092,18 @@ int sectCountParts(int nSect)
     }
     
     return c;
+}
+
+void sprGetZOffsets(short idx, int* zto, int* zbo)
+{
+    spritetype* pSpr = &sprite[idx];
+    int cz, fz, zt, zb;
+    
+    getzsofslope(pSpr->sectnum, pSpr->x, pSpr->y, &cz, &fz);
+    GetSpriteExtents(pSpr, &zt, &zb);
+    
+    if (zto) *zto = (cz > zt) ? -(cz - zt) : klabs(zt - cz); // neg is above ceil
+    if (zbo) *zbo = (zb > fz) ? klabs(zb - fz) : -(fz - zb); // neg is above floor
 }
 
 char pointOnLine(int x, int y, int x1, int y1, int x2, int y2, int d)
@@ -1527,46 +1539,47 @@ char wallVisible(int nWall)
 
 void wallRotateTile(int nWall, char enable)
 {
-    walltype* pWall = &wall[nWall];
-    int nTile = pWall->picnum;
+    walltype* pWall = &wall[nWall]; PICANM* pnm;
+    int nTile = pWall->picnum; char back;
+    int nTemp, i;
     
     if (enable)
     {
-        if (gRotTile[nTile] > pWall->picnum)
+        if (gRotTile[nTile] > pWall->picnum && tilesizx[gRotTile[nTile]] > 0)
         {
             pWall->picnum = gRotTile[nTile];
             return;
         }
         
-        PICANM* pnm = &panm[pWall->picnum];
-        int nBlank = tileSearchFreeRange(pnm->frames);
-        char backward = (pnm->type == 3);
-        int i = pnm->frames;
+        pnm = &panm[pWall->picnum];
+        nTemp = tileSearchFreeRange(pnm->frames);
+        back = (pnm->type == 3);
+        i = pnm->frames;
         
-        dassert(nBlank > nTile);
+        dassert(nTemp > nTile);
         
-        if (backward)
-            nBlank += i;
+        if (back)
+            nTemp += i;
         
-        pWall->picnum = nBlank;
+        pWall->picnum = nTemp;
         
         do
         {
-            artedCopyTile(nTile, nBlank);
-            artedRotateTile(nBlank);
-            gSysTiles.add(nBlank);
+            artedCopyTile(nTile, nTemp);
+            artedRotateTile(nTemp);
+            gSysTiles.add(nTemp);
             
-            gRotTile[nTile]  = nBlank;
-            gRotTile[nBlank] = nTile;
+            gRotTile[nTile] = nTemp;
+            gRotTile[nTemp] = nTile;
             
-            if (backward)
+            if (back)
             {
-                nBlank--;
+                nTemp--;
                 nTile--;
             }
             else
             {
-                nBlank++;
+                nTemp++;
                 nTile++;
             }
             
@@ -2251,9 +2264,6 @@ void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int*
     int nPic = pSpr->picnum, nAng = pSpr->ang;
     int xrep = pSpr->xrepeat, wh = tilesizx[nPic];
 
-    *x1 = *x2 = pSpr->x;
-    *y1 = *y2 = pSpr->y;
-
     if (flags & 0x01)
         xoff = panm[nPic].xcenter;
 
@@ -2270,8 +2280,8 @@ void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int*
     cy = sintable[(nAng + kAng90 + kAng180) & kAngMask] * xrep;
     t = (wh>>1)+xoff;
 
-    *x1 -= mulscale16(cx, t);   *x2 = *x1 + mulscale16(cx, wh);
-    *y1 -= mulscale16(cy, t);   *y2 = *y1 + mulscale16(cy, wh);
+    *x1 = pSpr->x - mulscale16(cx, t);   *x2 = *x1 + mulscale16(cx, wh);
+    *y1 = pSpr->y - mulscale16(cy, t);   *y2 = *y1 + mulscale16(cy, wh);
 
     if (zt || zb)
     {
@@ -2294,9 +2304,6 @@ void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int*
     int yrep = pSpr->yrepeat, hg = tilesizy[nPic];
     int nCos = sintable[(nAng + kAng90) & kAngMask];
     int nSin = sintable[nAng];
-
-    *x1 = *x2 = *x3 = *x4 = pSpr->x;
-    *y1 = *y2 = *y3 = *y4 =  pSpr->y;
 
     if (flags & 0x01)
     {
@@ -2322,11 +2329,14 @@ void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int*
         if (hg % 2) hg++;
     }
 
+    if ((pSpr->cstat & kSprRelMask) == kSprFace)
+        wh = (wh * 3) >> 2, hg = (hg * 3) >> 2;
+
     cx = ((wh>>1)+xoff)*xrep;
     cy = ((hg>>1)+yoff)*yrep;
 
-    *x1 += dmulscale16(nSin, cx, nCos, cy);
-    *y1 += dmulscale16(nSin, cy, -nCos, cx);
+    *x1 = pSpr->x + dmulscale16(nSin, cx, nCos, cy);
+    *y1 = pSpr->y + dmulscale16(nSin, cy, -nCos, cx);
 
     t = wh*xrep;
     *x2 = *x1 - mulscale16(nSin, t);
@@ -2337,20 +2347,78 @@ void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int*
     i = -mulscale16(nSin, t);   *y3 = *y2 + i; *y4 = *y1 + i;
 }
 
-void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, int* zt, int* zb, char flags)
+char GetVoxSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, int* zt, int* zb, char flags)
 {
-    GetSpriteExtents(pSpr, x1, y1, x2, y2, x3, y3, x4, y4, flags);
-
-    if (zt || zb)
+    int nPic = pSpr->picnum;
+    int nVox;
+    
+    if ((nVox = tiletovox[nPic]) < 0 && (nVox = voxelIndex[nPic]) < 0)
+        return 0x00;
+    
+    if (spriteext[pSpr->index].flags & SPREXT_NOTMD)
+        return 0x00;
+    
+    if (voxoff[nVox] == NULL)
+        qloadvoxel(nVox);
+    
+    if (voxoff[nVox] && voxoff[nVox][0])
     {
-        int tzt, tzb;
-        GetSpriteExtents(pSpr, &tzt, &tzb);
-        if (zt)
-            *zt = tzt;
+        int nCos = sintable[(pSpr->ang + kAng90) & kAngMask];
+        int nSin = sintable[pSpr->ang & kAngMask];
+        int xr = pSpr->xrepeat, xo = 0;
+        int yr = pSpr->yrepeat;
+        int i, t, cx, cy;
+        int *md, xs, ys;
+        
+        md = (int*)voxoff[nVox][0];
+        xs = md[0], ys = md[1];
+        
+        if (panm[nPic].view == kSprViewVoxSpin)
+            xs = (xs > ys) ? xs : ys, ys = xs;
+        
+        if (flags & 0x01)
+            xo = panm[nPic].xcenter;
+        
+        if (flags & 0x02)
+            xo += pSpr->xoffset;
+        
+        if (pSpr->cstat & kSprFlipX)
+            xo = -xo;
+        
+        if (!(flags & 0x04))
+        {
+            if (xs % 2) xs++;
+            if (ys % 2) ys++;
+        }
+        
+        if ((pSpr->cstat & kSprRelMask) == kSprFace)
+            xs = (xs * 3) >> 2,  ys = (ys * 3) >> 2;
 
-        if (zb)
-            *zb = tzb;
+        cx = ((xs>>1)+xo)*xr;
+        cy = ((ys>>1)+0)*xr;
+        
+        *x1 = pSpr->x + dmulscale16(nSin, cx, nCos, cy);
+        *y1 = pSpr->y + dmulscale16(nSin, cy, -nCos, cx);
+        
+        t = xs*xr;
+        *x2 = *x1 - mulscale16(nSin, t);
+        *y2 = *y1 + mulscale16(nCos, t);
+        
+        t = ys*xr;
+        i = -mulscale16(nCos, t);   *x3 = *x2 + i; *x4 = *x1 + i;
+        i = -mulscale16(nSin, t);   *y3 = *y2 + i; *y4 = *y1 + i;
+        
+        if (zt || zb)
+        {
+            GetSpriteExtents(pSpr, &i, &t);
+            if (zt) *zt = i;
+            if (zb) *zb = t;
+        }
+        
+        return 0x04|0x01;
     }
+
+    return 0x00;
 }
 
 void ceilGetEdgeZ(int nSector, int* zBot, int* zTop)
@@ -2452,7 +2520,7 @@ int fixWallLoops(void)
             if ((n = wall[i].nextwall) >= 0 && !isNextWallOf(n, i))
             {
                 totalFound++, totalFixed++;
-                buildprintf(errMsgFmt, "Bad next wall", i, wall[i].point2, wall[i].nextwall, sectorofwall(i));
+                buildprintf(errMsgFmt, "Bad next wall", i, wall[i].point2, wall[i].nextwall, wallGetSect(i));
                 
                 wallDetach(n), wallDetach(i);
                 if ((n = findNextWall(i)) >= 0)
@@ -2462,7 +2530,7 @@ int fixWallLoops(void)
         else
         {
             totalFound++, totalFixed++;
-            buildprintf(errMsgFmt, "Zero length wall", i, wall[i].point2, wall[i].nextwall, sectorofwall(i));
+            buildprintf(errMsgFmt, "Zero length wall", i, wall[i].point2, wall[i].nextwall, wallGetSect(i));
             deletePoint(i);
         }
     }

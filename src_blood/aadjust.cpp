@@ -204,6 +204,34 @@ void AutoAdjustSpritesInit(void)
     }
 }
 
+int countClipdist(spritetype* pSpr, char voxOnly)
+{
+    int a = pSpr->ang, cd = pSpr->clipdist;
+    int ex[4], ey[4];
+    int xs, ys;
+    
+    pSpr->ang = 1536;
+    
+    if (GetVoxSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3]))
+    {
+        xs = klabs(ex[1] - ex[0]) >> 4;
+        ys = klabs(ey[2] - ey[1]) >> 4;
+        cd = ClipRange((xs+ys)>>1, 0, 255);
+    }
+    else if (!voxOnly)
+    {
+        GetSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3]);
+        xs = klabs(ex[1] - ex[0]) >> 4;
+        ys = 0;
+        
+        cd = ClipRange((xs+ys)>>1, 0, 255);
+    }
+
+    pSpr->ang = a;
+    
+    return cd;
+}
+
 void AutoAdjustSprites(void)
 {
     if (gPreviewMode || !gAutoAdjust.enabled)
@@ -218,9 +246,6 @@ void AutoAdjustSprites(void)
         for (nSprite = headspritesect[nSector]; nSprite >= 0; nSprite = nextspritesect[nSprite])
         {
             pSprite = &sprite[nSprite];
-            if (pSprite->statnum == kStatFree)
-                continue;
-
             int iPicnum = -1, iType = -1, nXSprite = -1, otype = pSprite->type;
 
             CleanUpStatnum(nSprite);
@@ -246,7 +271,8 @@ void AutoAdjustSprites(void)
 
             if (i < 0)
                 continue; // if nothing found, ignore this sprite
-
+            
+            pXSprite = NULL;
             if (autoData[i].xsprite)
             {
                 nXSprite = GetXSprite(nSprite);
@@ -271,8 +297,12 @@ void AutoAdjustSprites(void)
                         pSprite->cstat &= ~kSprBlock & ~kSprHitscan;
                         pSprite->cstat |= kSprInvisible;
                         pSprite->shade = -128;
-                        if (pXSprite->data2 > 0 || pXSprite->data3 > 0) pSprite->pal = kPlu1;
-                        else pSprite->pal = kPlu10;
+                        if (pXSprite)
+                        {
+                            if (pSprite->flags & kModernTypeFlag64) pSprite->pal = kPlu5;
+                            else if (pXSprite->data2 > 0 || pXSprite->data3 > 0) pSprite->pal = kPlu1;
+                            else pSprite->pal = kPlu10;
+                        }
                         break;
                     case kTrapExploder:
                         pSprite->cstat &= ~kSprBlock & ~kSprHitscan;
@@ -362,8 +392,10 @@ void AutoAdjustSprites(void)
             type = pSprite->type;
             if (autoData[i].group == kOGrpMarker)
             {
+                if (type != kMarkerPath)
+                    pSprite->cstat |= kSprInvisible;
+                
                 pSprite->cstat &= ~kSprBlock & ~kSprHitscan;
-                pSprite->cstat |= kSprInvisible;
                 pSprite->shade = -128;
             }
             else if (rngok(type, kSwitchBase, kSwitchMax)
@@ -439,21 +471,6 @@ BOOL adjSpriteByType(spritetype* pSprite) {
     return TRUE;
 }
 
-// how many of *same* pictures should be skipped before we meet required?
-int adjCountSkips(int pic) {
-
-    int skip = 0;
-    for (int i = 0; i < tileIndexCount; i++)
-    {
-        if (i == tileIndexCursor) break;
-        else if (tileIndex[i] == pic)
-            skip++;
-    }
-
-    return skip;
-
-}
-
 // returns required index of AUTODATA array
 int adjIdxByTileInfo(int pic, int skip) {
 
@@ -466,23 +483,6 @@ int adjIdxByTileInfo(int pic, int skip) {
 
     return -1;
 
-}
-
-int adjFillTilesArray(int objectGroup)
-{
-    int i = 0, j = 0;
-    for (j = 0, tileIndexCount = 0; j < autoDataLength; j++)
-    {
-        if (autoData[j].picnum < 0 || !(autoData[j].group & objectGroup)) continue;
-        if (!gSpriteNames[autoData[j].type])
-            continue;
-
-        tileIndex[tileIndexCount]    = (short)autoData[j].picnum;
-        tilePluIndex[tileIndexCount] = (char)ClipRange(autoData[j].plu, 0, kPluMax);
-        tileIndexCount++;
-    }
-
-    return tileIndexCount;
 }
 
 int FixMarker(int nSect, int nMrk, int nMrkType)
@@ -530,8 +530,8 @@ void cleanUpSectWalls(int nSect)
 
         /** try to fix incorrectly attached next walls or detach it **/
         /** ------------------------------------------------------- **/
-
-        if (((nNextW >= 0) ^ (nNextS >= 0)) || (sectorofwall(s) != nSect))
+        //if (((nNextW >= 0) ^ (nNextS >= 0)) || (sectorofwall(s) != nSect))
+        if (((nNextW >= 0) ^ (nNextS >= 0)) || (nNextW >= 0 && !isNextWallOf(nNextW, s)))
         {
             wallDetach(nNextW);
             wallDetach(s);
@@ -771,11 +771,22 @@ void CleanUpMisc() {
             }
             
             // useless x-sprites check
-            if (pSprite->statnum == kMaxStatus) continue;
-            else if (!pSprite->type && pSprite->extra > 0 && obsoleteXObject(OBJ_SPRITE, pSprite->extra))
+            if (!pSprite->type && pSprite->extra > 0 && obsoleteXObject(OBJ_SPRITE, pSprite->extra))
                 dbDeleteXSprite(pSprite->extra);
 
             CleanUpStatnum(j);
+            
+            if ((pSprite->cstat & kSprBlock) && (pSprite->cstat & kSprRelMask) == kSprFace)
+            {
+                if (gAutoAdjust.enabled && gAutoAdjust.setClipdist)
+                {
+                    if (pSprite->type == kDecoration || pSprite->statnum == kStatThing)
+                    {
+                        if (pSprite->extra <= 0 || !xsprite[pSprite->extra].triggerProximity)
+                            pSprite->clipdist = countClipdist(pSprite, gAutoAdjust.setClipdist == 1);
+                    }
+                }
+            }
 
             if ((pSprite->cstat & kSprMoveMask) == kSprMoveMask)
                 pSprite->cstat &= ~kSprMoveReverse;
@@ -802,42 +813,19 @@ void CleanUpMisc() {
                     pXSpr->medium     = (isUnderwaterSector(i) != 0);
                     pXSpr->burnSource = -1;
                     pXSpr->target     = -1;
+                    pXSpr->burnTime   = 0;
+                    
+                    if (irngok(pSprite->type, kDudeBurningInnocent, kDudeBurningZombieButcher)
+                        || irngok(pSprite->type, kDudeBurningTinyCaleb, kDudeBurningBeast))
+                        {
+                            pXSpr->burnSource = pSprite->index;
+                            pXSpr->burnTime = 32767;
+                        }
                 }
             }
         }
+        
         if ((rorStat & 0x01) == 0)  sectCstatRem(i, kSectTranslucR, OBJ_CEILING);
         if ((rorStat & 0x02) == 0)  sectCstatRem(i, kSectTranslucR, OBJ_FLOOR);
     }
 }
-
-/* BOOL sysStatReserved(int nStat) {
-
-    int i;
-    for (i = 0; i < LENGTH(sysStatData); i++)
-    {
-        if (nStat == sysStatData[i].statnum) return TRUE;
-    }
-
-    return FALSE;
-}
-
-BOOL sysStatCanChange(spritetype* pSpr) {
-
-    int i, j;
-    for (i = 0; i < LENGTH(sysStatData); i++)
-    {
-        SYS_STATNUM_GROUP* data = &sysStatData[i];
-        if (data->enumArray)
-        {
-            for (j = 0; j < data->enumLen; j++)
-            {
-                if (pSpr->type == data->enumArray[j])
-                    return FALSE;
-            }
-        }
-        else if (data->typeMax <= 0 && pSpr->type == data->typeMin) return FALSE;
-        else if (irngok(pSpr->type, data->typeMin, data->typeMax))  return FALSE;
-    }
-
-    return TRUE;
-} */

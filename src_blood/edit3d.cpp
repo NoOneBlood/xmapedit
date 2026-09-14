@@ -111,13 +111,17 @@ void SetCeilingZ( int nSector, int z )
         z = ClipHigh(z, sector[nSector].floorz);
     }
 
+    XSECTOR* pXSect = GetXSect(&sector[nSector]);
+    char zMotion = (pXSect && pXSect->onCeilZ != pXSect->offCeilZ);
+    
     for (int i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
     {
         int zTop, zBot;
         spritetype *pSprite = &sprite[i];
         GetSpriteExtents(pSprite, &zTop, &zBot);
-        if ( zTop <= getceilzofslope(nSector, pSprite->x, pSprite->y) )
-            pSprite->z += z - sector[nSector].ceilingz;
+        if ((zTop <= getceilzofslope(nSector, pSprite->x, pSprite->y))
+            || ((pSprite->cstat & kSprMoveMask) == kSprMoveReverse && zMotion))
+                pSprite->z += z - sector[nSector].ceilingz;
     }
     sector[nSector].ceilingz = z;
 }
@@ -138,14 +142,18 @@ void SetFloorZ( int nSector, int z )
     {
         z = ClipLow(z, sector[nSector].ceilingz);
     }
-
+    
+    XSECTOR* pXSect = GetXSect(&sector[nSector]);
+    char zMotion = (pXSect && pXSect->onFloorZ != pXSect->offFloorZ);
+    
     for (int i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
     {
         int zTop, zBot;
         spritetype *pSprite = &sprite[i];
         GetSpriteExtents(pSprite, &zTop, &zBot);
-        if (zBot >= getflorzofslope(nSector, pSprite->x, pSprite->y))
-            pSprite->z += z - sector[nSector].floorz;
+        if ((zBot >= getflorzofslope(nSector, pSprite->x, pSprite->y))
+            || ((pSprite->cstat & kSprMoveMask) == kSprMoveForward && zMotion))
+                pSprite->z += z - sector[nSector].floorz;
 
     }
     sector[nSector].floorz = z;
@@ -496,36 +504,55 @@ void LightBomb( int x, int y, int z, short nSector )
     }
 }
 
-static spritetype* InsertGameSprite( int nSector, int x, int y, int z, int nAngle, int group ) {
-
-    int i = 0; short picnum = -1;
-    if (!adjFillTilesArray(group) || (picnum = (short)tilePick(-1, -1, OBJ_CUSTOM, "Select game object")) < 0)
-        return NULL;
-
-    if ((i = adjIdxByTileInfo(picnum, adjCountSkips(picnum))) >= 0)
+static spritetype* InsertGameSprite( int nSector, int x, int y, int z, int nAngle, int group )
+{
+    SELITEM buf, *e; VOIDLIST list(sizeof(buf));
+    spritetype* pSpr; int nSpr, i;
+    AUTODATA* pData;
+    
+    memset(&buf, 0, sizeof(buf));
+    
+    for (i = 0; i < autoDataLength; i++)
     {
-        int nSprite = InsertSprite(nSector, kStatDecoration);
-        updatenumsprites();
-
-        spritetype *pSprite = &sprite[nSprite];
-
-        pSprite->picnum = picnum;
-        pSprite->type = autoData[i].type;
-
-        AutoAdjustSprites();
-
-        pSprite->x = x; pSprite->y = y; pSprite->z = z;
-        pSprite->ang = (short) nAngle;
-
-        if (autoData[i].exception)
-            adjSetApperance(pSprite, i);
-
-        clampSprite(pSprite);
-
-        return pSprite;
-
+        pData = &autoData[i];
+        if ((pData->group & group) == 0)
+            continue;
+        
+        buf.id          = pData->type;
+        buf.picnum      = pData->picnum;
+        buf.pal         = pData->plu;
+        buf.shade       = 0;
+        buf.data1       = i;
+        
+        sprintf(buf.name, "%0.31s", gSpriteNames[pData->type]);
+        list.Add(&buf);
     }
-
+    
+    if ((e = selectItem((SELITEM*)list.First(), list.Length(), -1, "Select game object")) != NULL)
+    {
+        pData = &autoData[e->data1];
+        if ((nSpr = InsertSprite(nSector, 0)) >= 0)
+        {
+            pSpr = &sprite[nSpr];
+            
+            pSpr->type   = pData->type;
+            pSpr->picnum = ClipLow(pData->picnum, 0);
+            pSpr->pal    = ClipLow(pData->plu, 0);
+            
+            pSpr->x = x; pSpr->y = y; pSpr->z = z;
+            pSpr->ang = nAngle;
+            
+            if (pData->xsprite)
+                GetXSprite(pSpr->index);
+            
+            AutoAdjustSprites(); // !!!
+            
+            adjSetApperance(pSpr, e->data1);
+            clampSprite(pSpr);
+            return pSpr;
+        }
+    }
+    
     return NULL;
 
 }
@@ -553,90 +580,210 @@ int userItemsCount(VOIDLIST* pList = NULL)
     return c;
 }
 
-static int qsSortByName(NAMED_TYPE* ref1, NAMED_TYPE* ref2)
+int helperFillUserDudesList(VOIDLIST* pList)
 {
-    return  stricmp(ref1->name, ref2->name);
+    SELITEM buf, *e; CDUINFO* p;
+    spritetype* pSpr; XSPRITE* pXSpr;
+    VOIDLIST* pInfo = &gCustomDudeInfo;
+    int nSpr, i;
+    
+    if ((nSpr = InsertSprite(0, kStatDude)) < 0)
+        return 0;
+    
+    pSpr = &sprite[nSpr];
+    pXSpr = &xsprite[GetXSprite(nSpr)];
+    pSpr->type = kDudeModernCustom;
+    
+    // First collect all V2 custom dude files
+    // that were added to the resource
+    // system.
+
+    for (p = (CDUINFO*)pInfo->First(); p->version == 2; p++)
+    {
+        pSpr->picnum    = 0;
+        pSpr->pal       = 0;
+        
+        pXSpr->sysData4 = 0;
+        pXSpr->data1    = p->id;
+        
+        cdGetSeq(pSpr);
+        
+        if (pXSpr->sysData4 != 2)
+            continue;
+        
+        buf.id          = p->id;
+        buf.picnum      = (pSpr->picnum == 0) ? -1 : pSpr->picnum;
+        buf.pal         = pSpr->pal;
+        buf.shade       = 0;
+        buf.data1       = 2;
+        
+        sprintf(buf.name, "%0.31s", p->name);
+        pList->Add(&buf);
+    }
+    
+    // Now collect all the V1 custom dude
+    // sprites that were insereted in
+    // the map
+    
+    for (i = headspritestat[kStatDude]; i >= 0; i = nextspritestat[i])
+    {
+        pSpr = &sprite[i];
+        if (pSpr->extra <= 0 || pSpr->index == nSpr)
+            continue;
+        
+        pXSpr = &xsprite[pSpr->extra];
+        if (pSpr->type != kDudeModernCustom)
+            continue;
+        
+        cdGetSeq(pSpr);
+        if (pXSpr->sysData4 != 1)
+            continue;
+        
+        buf.id              = pSpr->type;
+        buf.picnum          = pSpr->picnum;
+        buf.pal             = pSpr->pal;
+        buf.shade           = 0;
+        buf.data1           = 1;
+        sprintf(buf.name,   "V1: %d-%d-%d", pXSpr->data1, pXSpr->data2, pXSpr->data3);
+        
+        for (e = (SELITEM*)pList->First(); pList->Valid(e) && stricmp(buf.name, e->name); e++);
+        
+        if (!pList->Valid(e))
+            pList->Add(&buf);
+    }
+    
+    DeleteSprite(nSpr);
+    return pList->Length();
 }
 
-static spritetype* InsertUserItem(int nSector, int x, int y, int z, int nAngle)
+char helperGetDataForCustomDude(SELITEM* e, int data[3])
 {
-    VOIDLIST list(sizeof(NAMED_TYPE));
-    spritetype* pSpr; int nSpr, i;
+    char *key, *s; int i;
+    
+    if (e->data1 == 1)
+    {
+        if ((key = Bstrchr(e->name, ':')) != NULL)
+        {
+            key++;
+            for (i = 0; i < 3; i++)
+            {
+                if (i == 2) data[i] = atoi(key);
+                else if ((s = Bstrchr(key, '-')) != NULL)
+                {
+                    *s = '\0', data[i] = atoi(key), *s = '-';
+                    key = ++s;
+                }
+                else
+                    break;
+            }
+            
+            return 1;
+        }
+    }
+    else
+    {
+        data[0] = e->id;
+        data[1] = 0;
+        data[2] = 0;
+        return 2;
+    }
+    
+    return 0;
+}
 
-
-    NAMED_TYPE* pEntry = NULL;
-    if ((i = userItemsCount(&list)) <= 0)
-        return NULL;
-
-    list.Sort(qsSortByName);
-    if ((i = showButtons((NAMED_TYPE*)list.First(), i, "User items")) < mrUser)
+static spritetype* InsertUserDude(int nSector, int x, int y, int z, int nAngle)
+{
+    SELITEM *e; VOIDLIST list(sizeof(*e));
+    spritetype* pSpr; XSPRITE* pXSpr;
+    
+    int data[3] = { 0, 0, 0 }, nSpr, i;
+    char *key, *s;
+    
+    i = helperFillUserDudesList(&list);
+    
+    if (i > 0 && (e = selectItem((SELITEM*)list.First(), list.Length(), -1, "User dudes")) != NULL)
+    {
+        if ((nSpr = InsertSprite(nSector, kStatDude)) < 0)
             return NULL;
 
-    nSpr = InsertSprite(nSector, kStatItem);
-    pSpr = &sprite[nSpr];
-
-    pSpr->type  = (short) (i - mrUser);
-    pSpr->ang   = (short) nAngle;
-
-    pSpr->x = x;
-    pSpr->y = y;
-    pSpr->z = z;
-
-    updatenumsprites();
-    GetXSprite(nSpr);
-    adjSpriteByType(pSpr);
-    clampSprite(pSpr);
-    return pSpr;
+        pSpr  = &sprite[nSpr];
+        pXSpr = &xsprite[GetXSprite(nSpr)];
+        
+        switch(helperGetDataForCustomDude(e, data))
+        {
+            case 1:
+                pXSpr->data1 = data[0];
+                pXSpr->data2 = data[1];
+                pXSpr->data3 = data[2];
+                pSpr->pal = e->pal;
+                break;
+            default:
+                pXSpr->data1 = e->id;
+                break;
+        }
+        
+        pSpr->x = x; pSpr->y = y; pSpr->z = z;
+        pSpr->type = kDudeModernCustom;
+        pSpr->ang = nAngle;
+        
+        adjSpriteByType(pSpr);
+        clampSprite(pSpr);
+        return pSpr;
+    }
+    
+    return NULL;
 }
 
 static spritetype* InsertModernSpriteType(int nSector, int x, int y, int z, int nAngle)
 {
-    VOIDLIST list(sizeof(NAMED_TYPE));
-    OBJECT* pObj = gModernTypes.Ptr();
+    SELITEM buf, *e; VOIDLIST list(sizeof(buf));
     spritetype* pSpr;
-    NAMED_TYPE buf;
-    int nSpr, i;
-
-    while(pObj->type != OBJ_NONE)
+    int i;
+    
+    memset(&buf, 0, sizeof(buf));
+    
+    for (OBJECT* o = gModernTypes.First(); o->type != OBJ_NONE; o++)
     {
-        if (pObj->type == OBJ_SPRITE)
+        if (o->type == OBJ_SPRITE)
         {
-            buf.name = gSpriteNames[pObj->index];
-            buf.id   = pObj->index;
+            buf.id = o->index;
+            sprintf(buf.name, "%0.31s", gSpriteNames[buf.id]);
+            buf.picnum = 4096 + (buf.name[0] - 32);
+            buf.data1 = 1; buf.pal = 0;
+            
+            if ((i = adjIdxByType(buf.id)) >= 0)
+            {
+                if (autoData[i].picnum >= 0)    buf.picnum = autoData[i].picnum, buf.data1 = 0;
+                if (autoData[i].plu >= 0)       buf.pal = autoData[i].plu;
+            }
+            
             list.Add(&buf);
         }
-
-        pObj++;
     }
-
-    if (!list.Length()
-        || (i = showButtons((NAMED_TYPE*)list.First(), list.Length(), "Modern types")) < mrUser)
-            return NULL;
-
-    nSpr = InsertSprite(nSector, 0);
-    pSpr = &sprite[nSpr];
-
-    pSpr->type  = (short) (i - mrUser);
-    pSpr->ang   = (short) nAngle;
-
-    pSpr->x = x;
-    pSpr->y = y;
-    pSpr->z = z;
-
-    updatenumsprites();
-    GetXSprite(nSpr);
-    adjSpriteByType(pSpr);
-
-    // set a letter picnum if have nothing in autoData
-    if (pSpr->picnum == 0)
+    
+    if ((e = selectItem((SELITEM*)list.First(), list.Length(), -1, "Modern types")) != NULL)
     {
-        pSpr->xrepeat = pSpr->yrepeat = 128;
-        pSpr->picnum = (short)(4096 + (gSpriteNames[pSpr->type][0] - 32));
+        if ((i = InsertSprite(nSector, 0)) >= 0)
+        {
+            pSpr = &sprite[i];
+            
+            pSpr->picnum = e->picnum;
+            if (e->data1)
+                pSpr->xrepeat = pSpr->yrepeat = 128;
+            
+            pSpr->type = e->id;
+            pSpr->x = x; pSpr->y = y; pSpr->z = z;
+            pSpr->ang = nAngle;
+            
+            GetXSprite(i);
+            adjSpriteByType(pSpr);
+            clampSprite(pSpr);
+            updatenumsprites();
+            return pSpr;
+        }
     }
-
-    clampSprite(pSpr);
-    return pSpr;
-
+    
+    return NULL;
 }
 
 
@@ -653,6 +800,7 @@ enum {
     mrFavesPut,
     mrModern,
     mrUserItem,
+    mrUserDude,
     mrPrefabPut,
     mrPrefabAdd,
 };
@@ -682,6 +830,11 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
     dialog.height+=22;
     by+=22;
 
+    TextButton* bUserDudes = new TextButton( 4, 114, 122, 20,  "User &dudes", mrUserDude);
+    dialog.Insert(bUserDudes);
+    dialog.height+=22;
+    by+=22;
+
     if (userItemsCount() <= 0)
     {
         bUserItems->fontColor = kColorDarkGray;
@@ -699,6 +852,10 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
         bModernTypes->fontColor = kColorDarkGray;
         bModernTypes->disabled = 1;
         bModernTypes->canFocus = 0;
+        
+        bUserDudes->fontColor = kColorDarkGray;
+        bUserDudes->disabled = 1;
+        bUserDudes->canFocus = 0;
     }
 
 
@@ -746,7 +903,10 @@ int InsertGameObject( int where, int nSector, int x, int y, int z, int nAngle) {
             pSpr = InsertModernSpriteType(nSector, x, y, z, nAngle);
             break;
         case mrUserItem:
-            pSpr = InsertUserItem(nSector, x, y, z, nAngle);
+            pSpr = InsertGameSprite(nSector, x, y, z, nAngle, kOGrpItemUser);
+            break;
+        case mrUserDude:
+            pSpr = InsertUserDude(nSector, x, y, z, nAngle);
             break;
         case mrPrefabPut:
             if ((filename = browseOpenFS(gPaths.prefabs, kPrefabFileExt, "Insert prefab")) != NULL)
@@ -1578,70 +1738,135 @@ char dlgSpriteText()
     return (nRetn != mrCancel);
 }
 
+void clampSprite3D(spritetype* pSpr, int nWall, char which = 0x07, int zto = 0, int zbo = 0)
+{
+    int nAng, zt, zb, hg, nfz, ncz, tfz, tcz;
+    int x1, y1, x2, y2, ix, iy, ex[4], ey[4];
+    int sw, ew, i, t, e;
+    
+    if (which & 0x04)
+    {
+        clampSprite(pSpr, which, zto, zbo);
+        GetSpriteExtents(pSpr, &zt, &zb);
+        hg = klabs(zb - zt);
+        
+        if (nWall < 0)
+            getSectorWalls(pSpr->sectnum, &sw, &ew);
+        else
+            sw = ew = nWall;
 
+        while(sw <= ew)
+        {
+            getWallCoords(sw, &x1, &y1, &x2, &y2);
+            nAng = (getangle(x2-x1, y2-y1) + kAng90) & kAngMask;
+            e = 0;
+            
+            while(e >= 0)
+            {
+                switch(pSpr->cstat & kSprRelMask)
+                {
+                    case kSprSloped:
+                    case kSprFloor:
+                        GetSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3]);
+                        e = 4;
+                        break;
+                    case kSprWall:
+                        e = 0;
+                        break;
+                    default:
+                        if (!GetVoxSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3]))
+                        {
+                            ex[0] = pSpr->x; ey[0] = pSpr->y;
+                            getclosestpointonwall(pSpr->x, pSpr->y, sw, &ix, &iy);
+                            t = getangle(ix - pSpr->x, iy - pSpr->y);
+                            offsetPos(0, 16, 0, t, &ex[0], &ey[0], NULL);
+                            e = 1;
+                            break;
+                        }
+                        e = 4;
+                        break;
+                }
+                
+                if (nWall < 0)
+                {
+                    while(--e >= 0)
+                    {
+                        // don't know how to make it better
+                        if (kintersection(pSpr->x, pSpr->y, ex[e], ey[e], x1, y1, x2, y2, &ix, &iy))
+                        {
+                            if ((ix - ex[e]) || (iy - ey[e]))
+                            {
+                                if ((t = wall[sw].nextsector) >= 0)
+                                {
+                                    getzsofslope(t, ix, iy, &ncz, &nfz);
+                                    getzsofslope(pSpr->sectnum, ix, iy, &tcz, &tfz);
+                                    
+                                    if (zt >= sector[t].ceilingz + zto && zb <= sector[t].floorz + zbo)
+                                        continue;
+                                }
+                                
+                                offsetPos(0, 12, 0, nAng, &pSpr->x, &pSpr->y, NULL);
+                                break;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    while(--e >= 0)
+                    {
+                        // don't know how to make it better
+                        if (pointBehindLine(ex[e], ey[e], x1, y1, x2, y2))
+                        {
+                            offsetPos(0, 12, 0, nAng, &pSpr->x, &pSpr->y, NULL);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            sw++;
+        }
+    }
+    
+    sprFixSector(pSpr);
+    clampSprite(pSpr, which, zto, zbo); // don't allow to put sprites in floors / ceilings.
+}
 
 void ProcessInput3D( void )
 {
-    INPUTPROC* pInput = &gEditInput3D[key];
-    short hitsect, hitwall, hitsprite;
-    int x, y, z, r, hitx, hity, hitz;
-
-    searchit = 2;
-
-    if (gObjectLock.type >= 0)
-    {
-        if (totalclock < gObjectLock.time)
-        {
-            switch (gObjectLock.type)
-            {
-                case OBJ_FLOOR:
-                case OBJ_CEILING:
-                    searchsector = gObjectLock.idx;
-                    break;
-                default:
-                    searchwall = gObjectLock.idx;
-                    break;
-            }
-
-            searchindex = gObjectLock.idx;
-            searchstat = gObjectLock.type;
-        }
-        else
-        {
-            gObjectLock.type = gObjectLock.idx = -1;
-        }
-    }
+    static char* clipType[] = {"Off", "Try all walls", "Hit wall"};
+    static int zto = 0x80000000, zbo = 0x80000000;
+    static char rFirst = 0, clipStat = 2;
+    static int keyTime = 0;
+    
+    INPUTPROC* pInput = &gEditInput3D[key]; spritetype* pSpr;
+    int nAng, x, y, z, zt, zb, r, t, sprCnt = 0;
+    short hsc, hwl, hsp;
+    char inHglt;
+    
+    searchit = gObjectLock.Pass() ? 2 : 0;
 
     processMouseLook3D();
-
-    if (!gPreviewMode && searchstat >= 0)
+    
+    if (!gPreviewMode)
     {
-        static short mhold = 0;
-        static BOOL rfirst = FALSE;
-        short mpress = (short)(~mhold & gMouse.buttons);
-        static int ztofs = 0x80000000, zbofs = 0x80000000;
-        static int ox = 0, oy = 0, oz = 0;
-
-        if (mhold) searchit = 0;
-        else if (gMousePrefs.controls)
-        {
-            if (mhold) asksave = FALSE;
-            else gMouse.velRst = true;
-        }
-
+        if (gMouse.hold)
+            searchit = 0;
+        
         // highlight objects while *pressing* middle mouse
-        if (mpress == 4)
+        if (gMouse.press & 0x04)
         {
             if (searchstat != OBJ_SPRITE)
             {
                 // highlight walls and sectors for gradient shading
-                if (Beep(!gListGrd.Exists(searchstat, searchindex)))
+                if (Beep(!gListGrd.Exists(searchstat, GetHoverID())))
                 {
-                    gListGrd.Add(searchstat, searchindex);
+                    gListGrd.Add(searchstat, GetHoverID());
                 }
                 else
                 {
-                    gListGrd.Remove(searchstat, searchindex);
+                    gListGrd.Remove(searchstat, GetHoverID());
                 }
 
                 scrSetMessage("%d objects highlighted", gListGrd.Length());
@@ -1660,165 +1885,157 @@ void ProcessInput3D( void )
 
                 scrSetMessage("%d sprites highlighted", hgltSprCount());
             }
-
-        } // drag sprites while holding left mouse
-        else if ((mhold & 1) && (searchstat == OBJ_SPRITE && sprite[searchwall].statnum < kStatFree) && (gMousePrefs.controls & 0x0001))
+        }
+        
+        if (gMousePrefs.controls & 0x01)
         {
-            if (gMouseLook.mode || rfirst)
-                gMouse.VelocitySet(ClipLow(gMouse.velX >> 2, 10), ClipLow(gMouse.velY >> 2, 10), false);
-
-            gHighSpr = searchwall;
-            BOOL inHglt = sprInHglt(gHighSpr);
-            spritetype* pSprite = &sprite[gHighSpr];
-
-            if (ztofs == 0x80000000 || zbofs == 0x80000000)
-                sprGetZOffsets((short)gHighSpr, &ztofs, &zbofs); // keep z-offsets
-
-            camHitscan(&hitsect, &hitwall, &hitsprite, &hitx, &hity, &hitz, 0);
-            x = hitx; y = hity; z = hitz;
-
-
-            // only change z if right mouse button was hold before the left
-            if (hitsect >= 0) {
-
-                if (rfirst)
+            if (gMouse.hold & 0x01)
+            {
+                if (shift & 0x01)
                 {
-                    gMouse.velX = 0;
-                    if (gMouse.dY2)
-                    {
-                        int t;
-                        if (inHglt)
-                        {
-                            int dax, day;
-                            hgltSprAvePoint(&dax, &day);
-                            t = approxDist(posx - dax, posy - day);
-                        }
-                        else
-                        {
-                            t = approxDist(posx - pSprite->x, posy - pSprite->y);
-                        }
-
-                        //int t = approxDist(posx - pSprite->x, posy - pSprite->y);
-                        int t2 = ClipHigh(16 * mulscale14(t, 0x100), 3072);
-                        z = gMouse.dY2 * t2;
-
-                        if (inHglt)
-                        {
-                            hgltSprChgXYZ(0, 0, z);
-                            hgltSprClamp(ztofs, zbofs, (gMouse.dY2 < 0) ? 0x01 : 0x02); // don't allow to go through floor or ceiling keeping the shape and offsets
-                        }
-                        else
-                        {
-                            pSprite->z += z;
-                            clampSprite(pSprite); // don't allow to put sprites in floors / ceilings
-                        }
-
-                        gMapedHud.SetMsgImp(16, "Moving %d sprites by z:%d", (inHglt) ? hgltSprCount() : 1, abs(z));
-                    }
+                   keyTime = keystatus[KEY_LSHIFT]|keystatus[KEY_RSHIFT]; 
                 }
                 else
                 {
-                    dozCorrection(&z, (!shift) ? 0x3FF : 0x0FF);
-
-                    int nGrid = (gMousePrefs.fixedGrid) ? gMousePrefs.fixedGrid : grid;
-                    doGridCorrection(&x, &y, (shift) ? nGrid << 1 : nGrid);
-                    if (hitwall >= 0)
+                    if (keyTime == 1)
+                        clipStat = IncRotate(clipStat, LENGTH(clipType)), shift = 0x0;
+                    
+                    keyTime = 0;
+                }
+                
+                if (searchstat == OBJ_SPRITE)
+                {
+                    pSpr = &sprite[searchwall];
+                    if (gMouseLook.mode || rFirst)
+                        gMouse.VelocitySet(ClipLow(gMouse.velX >> 2, 10), ClipLow(gMouse.velY >> 2, 10), 0);
+                    
+                    sprCnt = ClipLow(hgltSprCount(), 1);
+                    inHglt = (sprInHglt(pSpr->index) && sprCnt > 1);
+                    
+                    if (zto == 0x80000000)
                     {
-                        int wallSect = sectorofwall(hitwall);
-                        doWallCorrection(hitwall, &x, &y, 14);
-                        if (inside(x, y, wallSect) <= 0)
+                        // keep z-offsets
+                        (inHglt) ? hgltSprGetZOffsets(&zto, &zbo)
+                            : sprGetZOffsets(pSpr->index, &zto, &zbo);
+                            
+                        zbo = ClipLow(zbo,  0);
+                        zto = ClipHigh(zto, 0);
+                    }
+                    
+                    if (rFirst == 0 && camHitscan(&hsc, &hwl, &hsp, &x, &y, &z, 0) >= 0 && hsc >= 0)
+                    {
+                        // drag sprites while holding left mouse
+                        
+                        dozCorrection(&z, (shift) ? 0x0FF : 0x3FF);
+                        t = (gMousePrefs.fixedGrid) ? gMousePrefs.fixedGrid : grid;
+                        doGridCorrection(&x, &y, (shift) ? t << 1 : t);
+                        
+                        if (hwl >= 0)
+                           doWallCorrection(hwl, &x, &y);
+                        
+                        if (inHglt)
                         {
-                            int nShift = 24, nx = x, ny = y;
-                            while(nShift > 0)
+                            if (gMouse.press & 2) // just rotate
                             {
-                                x = nx, y = ny;
-                                doWallCorrection(hitwall, &x, &y, nShift);
-                                if (inside(x, y, wallSect) <= 0)
-                                {
-                                    nShift--;
-                                    continue;
-                                }
-
-                                break;
+                                nAng = (shift) ? IncNext(pSpr->ang, 128) : DecNext(pSpr->ang, 128);
+                                hgltSprRotate((nAng - pSpr->ang) & kAngMask);
                             }
                         }
-
-                        if (!inHglt)
+                        else if ((gMouse.hold & 2) && hwl >= 0) // auto angle to wall while holding right mouse
                         {
-                            if (mhold & 2) // auto angle sprite to wall while holding right mouse
-                                pSprite->ang = (short)((GetWallAngle(hitwall) + kAng90) & kAngMask);
+                            pSpr->ang = (GetWallAngle(hwl) + kAng90) & kAngMask;
                         }
-                        // just rotate sprites
-                        else if (mpress & 2)
+                        else if (gMouse.press & 2) // just rotate
                         {
-                            hgltSprRotate((shift) ? -256 : 256);
-                            ox = 0;
+                            nAng = (irngok(panm[pSpr->picnum].view, kSprViewFull5, kSprViewFull8)) ? 256 : 128;
+                            pSpr->ang = ((shift) ? IncNext(pSpr->ang, nAng) : DecNext(pSpr->ang, nAng)) & kAngMask;
                         }
-                    }
-                    // rotate sprites while pressing right mouse
-                    else if (mpress & 2)
-                    {
+                        
                         if (inHglt)
                         {
-                            hgltSprRotate((shift) ? -256 : 256);
-                            ox = 0;
+                            hgltSprSetXYZ(x, y, z + zto + zbo);
+                            
+                            switch(clipStat)
+                            {
+                                case 1:
+                                    hgltSprClamp3D(hsc, 0x07, zto, zbo);
+                                    break;
+                                case 2:
+                                    if (hwl >= 0) hgltSprPutOnWall(hwl, x, y);
+                                    // no break
+                                default:
+                                    hgltSprClamp3D(hsc, 0x03, zto, zbo);
+                                    break;
+                            }
                         }
                         else
                         {
-                            short angs = (panm[pSprite->picnum].view == kSprViewFull5) ? 256 : 128;
-                            pSprite->ang = (short) ((!shift) ? (pSprite->ang + angs) : (pSprite->ang - angs) & kAngMask);
+                            GetSpriteExtents(pSpr, &zt, &zb);
+                            zb = zb - pSpr->z, zt = pSpr->z - zt;
+                            
+                            pSpr->x = x;
+                            pSpr->y = y;
+                            pSpr->z = (z + ((zt-zb)>>1)) + zbo + zto;
+                            
+                            ChangeSpriteSect(pSpr->index, hsc);
+                            
+                            switch(clipStat)
+                            {
+                                case 1:
+                                    clampSprite3D(pSpr, -1, 0x07, zto, zbo);
+                                    break;
+                                case 2:
+                                    if (hwl >= 0) clampSprite3D(pSpr, hwl, 0x07, zto, zbo);
+                                    // no break
+                                default:
+                                    clampSprite(pSpr, 0x03, zto, zbo);
+                                    break;
+                            }
                         }
+                        
+                        gMapedHud.SetMsgImp(16, "Moving %d sprites at x:%d y:%d z:%d, sct:%d (clip: %s)",
+                                sprCnt, pSpr->x, pSpr->y, pSpr->z, pSpr->sectnum, clipType[clipStat]);
                     }
-
-                    if (ox != x || oy != y || oz != z)
+                    else if (rFirst) // only change z if right mouse button was hold before the left
                     {
-                        if (inHglt)
+                        gMouse.velX = 0;
+                        if (gMouse.dY2)
                         {
-                            int dax, day, daz;
-                            hgltSprAvePoint(&dax, &day, &daz);
-                            hgltSprChgXYZ(x - dax, y - day, z - daz);
-                            if (hitwall >= 0)
-                                hgltSprPutOnWall(hitwall, x, y);
-
-                            hgltSprClamp(ztofs, zbofs); // don't allow to go through floor or ceiling keeping the shape and offsets
-                        }
-                        else
-                        {
-                            pSprite->x = x;
-                            pSprite->y = y;
-                            pSprite->z = z;
-
-                            ChangeSpriteSect(gHighSpr, hitsect);
-                            clampSprite(pSprite); // don't allow to put sprites in floors / ceilings.
+                            t = approxDist(posx - pSpr->x, posy - pSpr->y);
+                            z = gMouse.dY2 * ClipHigh(mulscale14(t, 0x100) << 3, 2048);
+                            if (z % 2) z++;
+                            
+                            t = pSpr->sectnum;
+                            if (isSkySector(pSpr->sectnum, OBJ_CEILING) && isSkySector(t, OBJ_FLOOR)) t = 0x00;
+                            else if (gMouse.dY2 < 0) t = isSkySector(t, OBJ_CEILING) ? 0x01 : 0x02;
+                            else t = isSkySector(t, OBJ_FLOOR) ? 0x02 : 0x01;
+                            
+                            if (inHglt)
+                            {
+                                hgltSprChgXYZ(0, 0, z);
+                                hgltSprClamp(zto, zbo, t); // don't allow to go through floor or ceiling keeping the shape and offsets
+                            }
+                            else
+                            {
+                                pSpr->z += z;
+                                clampSprite(pSpr, t, zto, zbo); // don't allow to put sprites in floors / ceilings
+                            }
+                            
+                            gMapedHud.SetMsgImp(16, "Moving %d sprites by z:%d", sprCnt, z);
                         }
                     }
-
-                    ox = x; oy = y; oz = z;
-                    gMapedHud.SetMsgImp(16, "Moving %d sprites at x:%d y:%d z:%d, sct:%d", (inHglt) ? hgltSprCount() : 1, x, y, z, hitsect);
                 }
             }
-        }
-        else if (gHighSpr >= 0)
-        {
-            ox = oy = oz = 0;
-            ztofs = zbofs = 0x80000000;
-            gMouse.VelocitySet(-1, -1, true);
-            gHighSpr = -1;
-            asksave = 1;
-        }
+            else if (gMouse.release & 0x01)
+            {
+                gMouse.VelocitySet(-1, -1, true);
+                zto = zbo = 0x80000000;
+                asksave = 1;
+            }
 
-        short omhold = mhold;
-        mhold = gMouse.buttons;
-
-        if (mhold & 3)
-        {
-            if ((omhold & 1) && !(omhold & 2)) rfirst = FALSE;
-            else if ((omhold & 2) && !(omhold & 1))
-                rfirst = TRUE;
-        }
-        else
-        {
-            rfirst = FALSE;
+            if ((gMouse.buttons & 3) == 0) rFirst = 0;
+            else if ((gMouse.hold & 2) && !(gMouse.hold & 1))
+                rFirst = 1;
         }
     }
 

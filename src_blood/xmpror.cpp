@@ -30,10 +30,37 @@
 #include "xmpview.h"
 #include "xmparted.h"
 #include "tile.h"
+#include "nnexts.h"
 
-short mirrorcnt = 0, mirrorsector, mirrorwall[4];
+#define kMirrorPicStartVanilla          4080
+#define kMirrorPicEndVanilla            kMirrorPicStartVanilla + 16
+
+struct MIRROR
+{
+    uint8_t type, flags;
+    uint16_t id, thisID;
+    uint16_t picStart, picEnd, picOld;
+    uint8_t hNeighID, vNeighID;
+    POINT3D ofs;
+};
+
+struct RORCAM
+{
+    int32_t x, y, z, d;
+    uint8_t index;
+};
+
+uint16_t mirrorcnt = 0;
+uint16_t mirrorPicStart = 0;
+uint16_t mirrorPicEnd   = 0;
+
+static int16_t mirrorsector, mirrorwall[4];
+static MIRROR mirror[kMaxROR];
+static RORCAM vcam[kMaxROR];
+static RORCAM hcam[kMaxROR];
+static uint8_t list[kMaxROR];
+
 short mirrorPicWidth, mirrorPicHeight;
-MIRROR mirror[kMaxROR];
 
 // lower, upper
 BYTE gStackDB[4][2] =
@@ -44,177 +71,424 @@ BYTE gStackDB[4][2] =
     {kMarkerLowStack,   kMarkerUpStack},
 };
 
-int CreateMirrorPic(int nObjTile, BOOL copy = TRUE)
-{
-    PICANM* pnm = &panm[nObjTile];
-    int o = 0, nNewTile, nRetn = nObjTile;
-
-    if ((nNewTile = tileSearchFreeRange(pnm->frames)) >= 0)
-    {
-        nRetn = nNewTile;
-        if (pnm->frames)
-            o = (pnm->type == 3) ? -pnm->frames : pnm->frames;
-
-        if (o < 0) // backwards animation...
-        {
-            o = klabs(o);
-            mirror[mirrorcnt].basePic = nNewTile + o;
-            nObjTile -= o;
-        }
-        else
-        {
-            mirror[mirrorcnt].basePic = nNewTile;
-        }
-
-        while (o-- >= 0)
-        {
-            gSysTiles.add(nNewTile);
-            if (copy)
-                artedCopyTile(nObjTile++, nNewTile);
-
-            nNewTile++;
-        }
-    }
-
-    return nRetn;
-}
-
 // functions for ROR drawing
 //////////////////////////////////
 void RestoreMirrorPic()
 {
-    tilesizx[kMirrorPic] = mirrorPicWidth;
-    tilesizy[kMirrorPic] = mirrorPicHeight;
+    tilesizx[kMirrorTile] = mirrorPicWidth;
+    tilesizy[kMirrorTile] = mirrorPicHeight;
 }
 
 void ClearMirrorPic()
 {
-    mirrorPicWidth  = tilesizx[kMirrorPic];
-    mirrorPicHeight = tilesizy[kMirrorPic];
-    tilesizx[kMirrorPic] = 0;
-    tilesizy[kMirrorPic] = 0;
+    mirrorPicWidth  = tilesizx[kMirrorTile];
+    mirrorPicHeight = tilesizy[kMirrorTile];
+    tilesizx[kMirrorTile] = 0;
+    tilesizy[kMirrorTile] = 0;
 }
 
-void InitMirrors()
+int qsSortByDist(RORCAM *a, RORCAM *b)         { return a->d - b->d; }
+inline char IsMirrorTile(int nTile)            { return irngok(nTile, mirrorPicStart, mirrorPicEnd); }
+inline void tileDeleteRange(int s, int e)      { while (--e >= s) tileFreeTile(e); }
+inline int ROR_GetOther(int nRor)              { return (mirror[nRor].type == OBJ_FLOOR) ? ++nRor : --nRor; }
+
+void ROR_ClearGotPic(int n)
 {
-    sectortype* pSect; walltype* pWall;
-    int i, j, k, nSect, nLink, nLink2;
+    int i = mirror[n].picEnd;
+    while (--i >= mirror[n].picStart)
+        ClearBitString(gotpic, i);
+}
 
-    ClearMirrorPic();
+void ROR_ClearGotPic(void)
+{
+    int i = mirrorPicEnd;
+    while (--i >= mirrorPicStart)
+        ClearBitString(gotpic, i);
+}
 
-    for (i = 0; i < mirrorcnt; i++)
+char ROR_TestGotPic(int n)
+{
+    int i = mirror[n].picEnd;
+    while (--i >= mirror[n].picStart)
     {
-        k = mirror[i].basePic;
-        PICANM pnm = panm[k];
-        if (pnm.type != 3)
+        if (TestBitString(gotpic, i))
+            return 1;
+    }
+
+    return 0;
+}
+
+void ROR_SetGotPic(int n)
+{
+    int i = mirror[n].picEnd;
+    while (--i >= mirror[n].picStart)
+        SetBitString(gotpic, i);
+}
+
+int ROR_FindBySector(int nSect, int nType)
+{
+    int i = mirrorcnt;
+    while (--i >= 0 && (mirror[i].type != nType || mirror[i].id != nSect));
+    return i;
+}
+
+int getDistToSect(int nSect, int x, int y)
+{
+    int s, e, d, nDist = 0x7FFFFFFF;
+    int wx, wy;
+
+    getSectorWalls(nSect, &s, &e);
+    while(s <= e)
+    {
+        getclosestpointonwall(x, y, s, &wx, &wy);
+        if ((d = approxDist(x - wx, y - wy)) < nDist)
+            nDist = d;
+
+        s++;
+    }
+
+    return nDist;
+
+}
+
+void ROR_CollectNeighborsH(int nStart, uint8_t *list, int* num)
+{
+    MIRROR* pRor = &mirror[nStart];
+    int s, e, n, i;
+
+    list[*num] = nStart; *num = *num + 1;
+    getSectorWalls(nStart, &s, &e);
+
+    while(s <= e) // collect all the matching sectors while not separated
+    {
+        if ((n = wall[s].nextsector) >= 0)
         {
-            for (j = k; j <= k + pnm.frames; j++)
+            if ((n = ROR_FindBySector(n, pRor->type)) >= 0)
             {
-                tileFreeTile(j);
-                gSysTiles.rem(j);
+                i = *num;
+                while (--i >= 0 && list[i] != n);
+                if (i < 0) ROR_CollectNeighborsH(n, list, num);
             }
         }
-        else
+
+        s++;
+    }
+}
+
+void ROR_CollectNeighborsV(int nStart, uint8_t* list, int* num)
+{
+    MIRROR *pRor = &mirror[nStart];
+    short* linkArr = (pRor->type == OBJ_FLOOR) ? gUpperLink : gLowerLink;
+    int nType, nSpr, s, n, t;
+
+    nType = pRor->type, s = n = pRor->id;
+
+    while( 1 )
+    {
+        t = nStart;
+        do
         {
-            for (j = k + pnm.frames; j >= k; j--)
+            pRor = &mirror[t];
+            if (pRor->type == nType && pRor->id == n)
             {
-                tileFreeTile(j);
-                gSysTiles.rem(j);
+                list[*num] = t;
+                *num = *num + 1;
+                break;
             }
+
+            t = IncRotate(t, mirrorcnt);
+        }
+        while(t != nStart);
+
+        if ((nSpr = linkArr[n]) < 0)
+            break;
+
+        n = sprite[nSpr].owner;
+        n = sprite[n].sectnum;
+
+        if (n < 0 || n == s)
+            break;
+    }
+}
+
+char IsRorSector(int nSect, int stat)
+{
+    if (stat == OBJ_FLOOR)
+    {
+        if (rngok(sector[nSect].floorpicnum, mirrorPicStart, mirrorPicEnd))     return (sector[nSect].floorstat & kSectTranslucR) ? 2 : 1;
+        else if (sector[nSect].floorpicnum == kMirrorTile)                      return 1;
+        else if ((sector[nSect].floorstat & kSectTranslucR) != 0)               return 2;
+        else                                                                    return 0;
+    }
+    else if (rngok(sector[nSect].ceilingpicnum, mirrorPicStart, mirrorPicEnd))  return (sector[nSect].ceilingstat & kSectTranslucR) ? 2 : 1;
+    else if (sector[nSect].ceilingpicnum == kMirrorTile)                        return 1;
+    else if ((sector[nSect].ceilingstat & kSectTranslucR) != 0)                 return 2;
+    else                                                                        return 0;
+}
+
+static int CreateMirrorPic(MIRROR* pFor, int nStart, int16_t* objTile)
+{
+    int32_t nObjTile = *objTile;
+    PICANM* pnm = &panm[nObjTile];
+    int32_t wh, hg, o;
+
+    pFor->picEnd = pFor->picStart = pFor->picOld = nObjTile;
+    pFor->picEnd += pnm->frames + 1;
+
+    if (nStart < 0)
+        return 0;
+
+    o = 0;
+    if (pnm->frames)
+        o = (pnm->type == 3) ? -pnm->frames : pnm->frames;
+
+    *objTile = nStart;
+    pFor->picEnd = pFor->picStart = nStart;
+    pFor->picEnd += pnm->frames + 1;
+
+    if (o < 0) // backwards animation...
+    {
+        o = klabs(o);
+        nObjTile -= o;
+        *objTile += o;
+    }
+
+    while (o-- >= 0)
+    {
+        if ((wh = tilesizx[nObjTile]) > 0 && (hg = tilesizy[nObjTile]) > 0)
+        {
+            if (tileAllocTile(nStart, wh, hg) && tileLoadTile(nObjTile))
+            {
+                Bmemmove((void*)waloff[nStart], (void*)waloff[nObjTile], wh * hg);
+                Bmemmove(&picanm[nStart], &picanm[nObjTile], sizeof(picanm[0]));
+                Bmemmove(&surfType[nStart], &surfType[nObjTile], sizeof(surfType[0]));
+            }
+        }
+
+        nObjTile++, nStart++;
+    }
+
+    return pFor->picEnd - pFor->picStart;
+}
+
+static void InitMirrorSector(void)
+{
+    // Create a room to translate the mirror
+    mirrorsector = numsectors;
+    for (int i = 0; i < 4; i++)
+    {
+        mirrorwall[i]                   = numwalls + i;
+        wall[mirrorwall[i]].picnum      = kMirrorTile;
+        wall[mirrorwall[i]].overpicnum  = kMirrorTile;
+        wall[mirrorwall[i]].cstat       = 0;
+        wall[mirrorwall[i]].nextsector  = -1;
+        wall[mirrorwall[i]].nextwall    = -1;
+        wall[mirrorwall[i]].point2      = numwalls + i + 1;
+    }
+
+    wall[mirrorwall[3]].point2          = mirrorwall[0];
+    sector[mirrorsector].ceilingpicnum  = kMirrorTile;
+    sector[mirrorsector].floorpicnum    = kMirrorTile;
+    sector[mirrorsector].wallptr        = mirrorwall[0];
+    sector[mirrorsector].wallnum        = 4;
+}
+
+static int MirrorPicsInit(int nRange)
+{
+    MIRROR* pRor;
+    int nStart, i;
+    int r;
+
+    tileDeleteRange(kMirrorPicStartVanilla, kMirrorPicEndVanilla);                      // compatibility
+    if (mirrorPicEnd > mirrorPicStart) tileDeleteRange(mirrorPicStart, mirrorPicEnd);   // previous session?
+
+    mirrorPicStart = mirrorPicEnd = 0;
+    if (nRange <= 0)
+        return -1;
+
+    if ((nStart = tileSearchFreeRange(nRange)) >= 0)
+    {
+        mirrorPicEnd = mirrorPicStart = nStart;
+        mirrorPicEnd += nRange;
+    }
+    else
+    {
+        scrSetLogMessage("Not enough range of free tiles for mirrors. Required range = %d.", nRange);
+    }
+
+    r = nStart;
+    i = mirrorcnt;
+    while (--i >= 0)
+    {
+        pRor = &mirror[i];
+
+        switch (pRor->type)
+        {
+            case OBJ_WALL:
+                if (wall[pRor->id].type == kWallStack)
+                    nStart += CreateMirrorPic(pRor, nStart, &wall[pRor->thisID].overpicnum);
+                else
+                    nStart += CreateMirrorPic(pRor, nStart, &wall[pRor->thisID].picnum);
+                break;
+            case OBJ_FLOOR:
+                nStart += CreateMirrorPic(pRor, nStart, &sector[pRor->thisID].floorpicnum);
+                break;
+            case OBJ_CEILING:
+                nStart += CreateMirrorPic(pRor, nStart, &sector[pRor->thisID].ceilingpicnum);
+                break;
         }
     }
 
+    return r;
+}
+
+void InitMirrors(void)
+{
+    walltype* pWall; uint8_t done[kMaxROR];
+    int i, j, k, nLinkA, nLinkB;
+    char rorTypeA, rorTypeB;
+    int nRange = 0;
+
+    ClearMirrorPic();
+
+    Bmemset(mirror, 0, sizeof(mirror));
+    mirrorsector = -1;
     mirrorcnt = 0;
 
-    i = numwalls; // prepare wall mirrors and stacks
-    while(mirrorcnt < kMaxROR && --i >= 0)
+    i = numwalls; // Prepare wall mirrors and stacks
+    while(--i >= 0 && mirrorcnt < kMaxROR)
     {
-        pWall =& wall[i];
-        if (IsMirrorPic(pWall->picnum))
+        pWall = &wall[i];
+        if (pWall->overpicnum == kMirrorTile && pWall->extra > 0 && pWall->type == kWallStack)
         {
-            pWall->cstat           |= kWallOneWay;
-            pWall->cstat           &= ~kWallRotate90;
-            pWall->picnum           = CreateMirrorPic(kMirrorPic, FALSE);
-
-            mirror[mirrorcnt].type  = OBJ_WALL;
-            mirror[mirrorcnt].id    = i;
-            mirrorcnt++;
-        }
-        else if (IsMirrorPic(pWall->overpicnum) && pWall->extra > 0 && pWall->type == kWallStack)
-        {
-            if (rngok(pWall->hitag, 0, numwalls))
+            j = numwalls;
+            while (--j >= 0)
             {
-                pWall->cstat           |= kWallOneWay;
-                pWall->cstat           &= ~kWallRotate90;
-                pWall->overpicnum       = CreateMirrorPic(pWall->overpicnum, FALSE);
-                mirror[mirrorcnt].type  = OBJ_WALL;
-                mirror[mirrorcnt].id    = pWall->hitag;
+                if (j == i || wall[j].extra <= 0) continue;
+                else if (wall[j].type != pWall->type) continue;
+                else if (xwall[wall[j].extra].data != xwall[pWall->extra].data) continue;
+
+                pWall->cstat               |= kWallOneWay;
+                pWall->hitag                = j;
+                wall[j].hitag               = i;
+
+                mirror[mirrorcnt].type      = OBJ_WALL;
+                mirror[mirrorcnt].thisID    = i;
+                mirror[mirrorcnt].id        = j;
                 mirrorcnt++;
+                nRange++;
+                break;
             }
+
+            if (j < 0)
+                scrSetLogMessage("Wall #%d has no matching wall link! (data = %d)", i, xwall[pWall->extra].data);
+        }
+        else if (pWall->picnum == kMirrorTile)
+        {
+            pWall->cstat               |= kWallOneWay;
+            pWall->overpicnum           = kMirrorTile;
+
+            mirror[mirrorcnt].type      = OBJ_WALL;
+            mirror[mirrorcnt].thisID    = i;
+            mirror[mirrorcnt].id        = i;
+            mirrorcnt++;
+            nRange++;
         }
     }
 
     if (mirrorcnt > 0)
     {
-        // create a room to translate the mirror
-        mirrorsector = numsectors;
-        for (i = 0; i < 4; i++)
+        if (numsectors + 1 >= kMaxSectors || numwalls + 4 >= kMaxWalls)
         {
-            mirrorwall[i]                   = numwalls+i;
-            wall[mirrorwall[i]].picnum      = kMirrorPic;
-            wall[mirrorwall[i]].overpicnum  = kMirrorPic;
-            wall[mirrorwall[i]].cstat       = 0;
-            wall[mirrorwall[i]].nextsector  = -1;
-            wall[mirrorwall[i]].nextwall    = -1;
-            wall[mirrorwall[i]].point2      = numwalls+i+1;
+            scrSetLogMessage("Must have at least %d sectors with %d walls free for mirrors!", 1, 4);
+            mirrorcnt = 0; // cancel the wall mirrors
         }
 
-        wall[mirrorwall[3]].point2          = mirrorwall[0];
-        sector[mirrorsector].ceilingpicnum  = kMirrorPic;
-        sector[mirrorsector].floorpicnum    = kMirrorPic;
-        sector[mirrorsector].wallptr        = mirrorwall[0];
-        sector[mirrorsector].wallnum        = 4;
+        if (mirrorcnt > 0)
+            InitMirrorSector();
     }
 
-    i = numsectors; // prepare sector stacks
-    while(mirrorcnt < kMaxROR && --i >= 0)
+    i = numsectors; // Prepare sector stacks
+    while(--i >= 0 && mirrorcnt < kMaxROR - 1)
     {
-        pSect = &sector[i];
-        if ((j = IsRorSector(i, OBJ_FLOOR)) > 0)
-        {
-            if ((nLink = gUpperLink[i]) < 0)
+        if ((rorTypeA = IsRorSector(i, OBJ_FLOOR)) <= 0)
+            continue;
+
+        if ((nLinkA = gUpperLink[i]) < 0
+            || (nLinkB = sprite[nLinkA].owner) < 0)
                 continue;
 
-            nLink2 = sprite[nLink].owner;
-            nSect  = sprite[nLink2].sectnum;
+        j = sprite[nLinkB].sectnum;
+        if ((rorTypeB = IsRorSector(j, OBJ_CEILING)) <= 0)
+            sector[j].ceilingpicnum = kMirrorTile; // force lower sector to be ROR
 
-            spritetype* pLink1 = &sprite[nLink];
-            spritetype* pLink2 = &sprite[gLowerLink[nSect]];
+        mirror[mirrorcnt].type      = OBJ_FLOOR;
+        mirror[mirrorcnt].thisID    = i;
+        mirror[mirrorcnt].id        = j;
 
-            pSect->floorpicnum          = CreateMirrorPic(pSect->floorpicnum, (j == 2));
-            mirror[mirrorcnt].type      = OBJ_FLOOR;
-            mirror[mirrorcnt].id        = nSect;
-            mirror[mirrorcnt].point.x   = pLink2->x - pLink1->x;
-            mirror[mirrorcnt].point.y   = pLink2->y - pLink1->y;
-            mirror[mirrorcnt].point.z   = pLink2->z - pLink1->z;
-            mirrorcnt++;
+        mirror[mirrorcnt].ofs.x     = sprite[nLinkB].x - sprite[nLinkA].x;
+        mirror[mirrorcnt].ofs.y     = sprite[nLinkB].y - sprite[nLinkA].y;
+        mirror[mirrorcnt].ofs.z     = sprite[nLinkB].z - sprite[nLinkA].z;
 
-            if (mirrorcnt < kMaxROR && (j = IsRorSector(nSect, OBJ_CEILING)) > 0)
-            {
-                sector[nSect].ceilingpicnum = CreateMirrorPic(sector[nSect].ceilingpicnum, (j == 2));
-                mirror[mirrorcnt].type      = OBJ_CEILING;
-                mirror[mirrorcnt].id        = i;
-                mirror[mirrorcnt].point.x   = pLink1->x - pLink2->x;
-                mirror[mirrorcnt].point.y   = pLink1->y - pLink2->y;
-                mirror[mirrorcnt].point.z   = pLink1->z - pLink2->z;
-                mirrorcnt++;
-            }
-        }
+        nRange += panm[sector[i].floorpicnum].frames+1;
+        mirrorcnt++;
+
+        mirror[mirrorcnt].type      = OBJ_CEILING;
+        mirror[mirrorcnt].thisID    = j;
+        mirror[mirrorcnt].id        = i;
+
+        mirror[mirrorcnt].ofs.x     = sprite[nLinkA].x - sprite[nLinkB].x;
+        mirror[mirrorcnt].ofs.y     = sprite[nLinkA].y - sprite[nLinkB].y;
+        mirror[mirrorcnt].ofs.z     = sprite[nLinkA].z - sprite[nLinkB].z;
+
+        nRange += panm[sector[j].ceilingpicnum].frames+1;
+        mirrorcnt++;
     }
-    
+
+    if (MirrorPicsInit(nRange) < 0)
+        mirrorcnt = 0; // cancel everything
+
+    i = mirrorcnt;
+    Bmemset(done, 0, sizeof(done));
+    while (--i >= 0 && mirror[i].type != OBJ_WALL)
+    {
+        // Grouping splitted ROR sectors
+        // for better and faster
+        // drawing.
+
+        if (done[i])
+            continue;
+
+        j = 0;
+        ROR_CollectNeighborsH(i, list, &j);
+        for (k = 0; k < j - 1; k++)
+            mirror[list[k]].hNeighID = list[k + 1], done[list[k]] = 1;
+
+        mirror[list[k]].hNeighID = list[0], done[list[k]] = 1;
+    }
+
+    i = mirrorcnt;
+    Bmemset(done, 0, sizeof(done));
+    while (--i >= 0 && mirror[i].type != OBJ_WALL)
+    {
+        // Grouping ceilings and floors
+        // for faster access.
+
+        if (done[i])
+            continue;
+
+        j = 0;
+        ROR_CollectNeighborsV(i, list, &j);
+        for (k = 0; k < j - 1; k++)
+            mirror[list[k]].vNeighID = list[k + 1], done[list[k]] = 1;
+
+        mirror[list[k]].vNeighID = list[0], done[list[k]] = 1;
+    }
+
     if (gPreviewMode)
         scrSetLogMessage("%d of %d mirrors are in use.", mirrorcnt, kMaxROR);
 }
+
 
 void TranslateMirrorColors(int nShade, int nPalette)
 {
@@ -222,15 +496,15 @@ void TranslateMirrorColors(int nShade, int nPalette)
         if (getrendermode() >= 3)
             return;
     #endif
-    
+
     int x1 = windowx1, y1 = windowy1;
     int x2 = windowx2, y2 = windowy2;
     int y;
-    
+
     nShade = ClipRange(nShade, 0, NUMPALOOKUPS(1));
     unsigned char *pMap = (unsigned char*)(palookup[nPalette] + shgetpalookup(0, nShade));
     unsigned char *pFrame;
-    
+
     begindrawing();
 
     while(x1 < x2)
@@ -242,142 +516,247 @@ void TranslateMirrorColors(int nShade, int nPalette)
             *pFrame = pMap[*pFrame];
             y++;
         }
-        
+
         x1++;
     }
-    
+
     enddrawing();
 }
 
-void ROR_ClearGotpicAll()
+static int DoWallMirrors(int x, int y, int z, int a, int horiz)
 {
-    int i = mirrorcnt;
-    while(--i >= 0)
-        ClearBitString(gotpic, mirror[i].basePic);
-}
+    walltype* pWall; MIRROR* pRor;
+    int32_t nSect, nNextW, nNextS;
+    int32_t dx, dy;
+    int32_t i;
 
-bool DrawMirrors(int x, int y, int z, int a, int horiz)
-{
-    MIRROR* pRor;
-    int i = mirrorcnt, dx, dy, dz;
+    short ca;
 
-    while(--i >= 0)
+    for (i = 0; i < mirrorcnt && mirror[i].type == OBJ_WALL; i++)
     {
-        pRor = &mirror[i];
-        if (!TestBitString(gotpic, pRor->basePic))
+        if (!ROR_TestGotPic(i))
             continue;
 
-        if (pRor->type == OBJ_WALL)
+        ROR_ClearGotPic(i);
+
+        pRor = &mirror[i];
+
+        pWall = &wall[pRor->id];
+        nSect = sectorofwall(pRor->id);
+
+        nNextW = pWall->nextwall;
+        nNextS = pWall->nextsector;
+
+        pWall->nextwall = mirrorwall[0];
+        pWall->nextsector = mirrorsector;
+
+        wall[mirrorwall[0]].nextwall        = pRor->id;
+        wall[mirrorwall[0]].nextsector      = nSect;
+        wall[mirrorwall[0]].x               = wall[pWall->point2].x;
+        wall[mirrorwall[0]].y               = wall[pWall->point2].y;
+        wall[mirrorwall[1]].x               = pWall->x;
+        wall[mirrorwall[1]].y               = pWall->y;
+        wall[mirrorwall[2]].x               = wall[mirrorwall[1]].x+(wall[mirrorwall[1]].x-wall[mirrorwall[0]].x)*16;
+        wall[mirrorwall[2]].y               = wall[mirrorwall[1]].y+(wall[mirrorwall[1]].y-wall[mirrorwall[0]].y)*16;
+        wall[mirrorwall[3]].x               = wall[mirrorwall[0]].x+(wall[mirrorwall[0]].x-wall[mirrorwall[1]].x)*16;
+        wall[mirrorwall[3]].y               = wall[mirrorwall[0]].y+(wall[mirrorwall[0]].y-wall[mirrorwall[1]].y)*16;
+
+        sector[mirrorsector].floorz         = sector[nSect].floorz;
+        sector[mirrorsector].ceilingz       = sector[nSect].ceilingz;
+
+        if (pWall->type == kWallStack)
         {
-            short ca;
-            int nSector, nNextWall;
-            int nNextSector;
-
-            walltype *pWall = &wall[pRor->id];
-            nSector = sectorofwall(pRor->id);
-
-            nNextWall = pWall->nextwall;
-            nNextSector = pWall->nextsector;
-
-            pWall->nextwall                 = mirrorwall[0];
-            pWall->nextsector               = mirrorsector;
-
-            wall[mirrorwall[0]].nextwall    = pRor->id;
-            wall[mirrorwall[0]].nextsector  = nSector;
-            wall[mirrorwall[0]].x           = wall[pWall->point2].x;
-            wall[mirrorwall[0]].y           = wall[pWall->point2].y;
-            wall[mirrorwall[1]].x           = pWall->x;
-            wall[mirrorwall[1]].y           = pWall->y;
-            wall[mirrorwall[2]].x           = wall[mirrorwall[1]].x+(wall[mirrorwall[1]].x-wall[mirrorwall[0]].x)<<4;
-            wall[mirrorwall[2]].y           = wall[mirrorwall[1]].y+(wall[mirrorwall[1]].y-wall[mirrorwall[0]].y)<<4;
-            wall[mirrorwall[3]].x           = wall[mirrorwall[0]].x+(wall[mirrorwall[0]].x-wall[mirrorwall[1]].x)<<4;
-            wall[mirrorwall[3]].y           = wall[mirrorwall[0]].y+(wall[mirrorwall[0]].y-wall[mirrorwall[1]].y)<<4;
-
-            sector[mirrorsector].floorz     = sector[nSector].floorz;
-            sector[mirrorsector].ceilingz   = sector[nSector].ceilingz;
-
-            if (pWall->type == kWallStack)
-            {
-                 dx = x - (wall[pWall->hitag].x-wall[pWall->point2].x);
-                 dy = y - (wall[pWall->hitag].y-wall[pWall->point2].y);
-                 ca = a;
-            }
-            else
-            {
-                preparemirror(x, y, z, a, horiz, pRor->id, mirrorsector, &dx, &dy, &ca);
-            }
-
-            drawrooms(dx, dy, z, ca, horiz, mirrorsector | kMaxSectors);
-            viewProcessSprites(dx, dy, z, ca);
-            drawmasks();
-
-            if (pWall->type != kWallStack)
-                completemirror();
-
-            if (pWall->pal || pWall->shade)
-                TranslateMirrorColors(pWall->shade, pWall->pal);
-
-            pWall->nextwall = nNextWall;
-            pWall->nextsector = nNextSector;
+            dx = x - (wall[pWall->hitag].x-wall[pWall->point2].x);
+            dy = y - (wall[pWall->hitag].y-wall[pWall->point2].y);
+            ca = a;
         }
         else
         {
-            dx = x + pRor->point.x; dy = y + pRor->point.y; dz = z + pRor->point.z;
-            drawrooms(dx, dy, dz, a, horiz, pRor->id | kMaxSectors);
-            viewProcessSprites(dx, dy, dz, a);
+            preparemirror(x, y, z, a, horiz, pRor->id, nSect, &dx, &dy, &ca);
+        }
+
+        drawrooms(dx, dy, z, ca, horiz, mirrorsector|kMaxSectors);
+        viewProcessSprites(dx, dy, z, ca);
+        drawmasks();
+
+        if (pWall->type != kWallStack)
+            completemirror();
+
+        if (pWall->pal || pWall->shade)
+            TranslateMirrorColors(pWall->shade, pWall->pal);
+
+        pWall->nextwall = nNextW;
+        pWall->nextsector = nNextS;
+        return 1;
+    }
+
+    return 0;
+}
+
+static int DoRoomOverRoom(int x, int y, int z, short a, short horiz)
+{
+    // Current limitations:
+    // 1. Can't see the wall mirrors/stacks and ROR at the same time.
+    // 2. Can't see the RORs of other sectors through RORs.
+
+    static int32_t hdrawcnt, vdrawcnt, i;
+
+    MIRROR *pRor, *pOth; RORCAM* pCam; short *pSecStat, *linkArr;
+    int32_t nIndex, t, n, oSectStat, dx, dy, dz;
+    int32_t r = 0;
+
+    hdrawcnt = 0;
+
+    i = mirrorcnt;
+    while(--i >= 0 && mirror[i].type != OBJ_WALL)
+    {
+        // First collect all the floors or ceilings
+        // we are currently see
+        // horizontally.
+
+        if (!ROR_TestGotPic(i))
+            continue;
+
+        pCam = &hcam[hdrawcnt];
+        pCam->d = 0x7FFFFFFF;
+
+        n = i;
+        do
+        {
+            pRor = &mirror[n];
+
+            if (pCam->d > 0)
+            {
+                pOth = &mirror[ROR_GetOther(n)];
+
+                if (inside(x, y, pOth->id))
+                {
+                    pCam->index = n;
+                    pCam->d = 0; // Priority
+                }
+                else if (ROR_TestGotPic(n))
+                {
+                    if ((t = getDistToSect(pOth->id, x, y)) < pCam->d)
+                    {
+                        pCam->index = n;
+                        pCam->d = t;
+                    }
+                }
+            }
+
+            ROR_ClearGotPic(n); // Must keep clearing for single drawing
+            n = pRor->hNeighID;
+        }
+        while(n != i);
+
+        hdrawcnt++;
+    }
+
+    // Sort the collected RORs by distance
+    // so that closest to the camera
+    // becomes first.
+
+    if (hdrawcnt > 1)
+        qsort((void*)hcam, hdrawcnt, sizeof(hcam[0]), (int(*)(const void*,const void*))qsSortByDist);
+
+    while(--hdrawcnt >= 0)
+    {
+        // Processing from the most far to
+        // the closest for better
+        // covering.
+
+        vdrawcnt = 0;
+        pCam = &hcam[hdrawcnt]; nIndex = pCam->index; pRor = &mirror[nIndex];
+        linkArr = (pRor->type == OBJ_FLOOR) ? gUpperLink : gLowerLink;
+        n = pRor->id; dx = x, dy = y, dz = z;
+
+        do
+        {
+            // Keep adding rooms until we reach the most far vertically.
+            // For ceilings search to the top and for
+            // floors to the bottom.
+
+            t = nIndex;
+            do
+            {
+                pOth = &mirror[t];
+                if (pOth->type == pRor->type && pOth->id == n)
+                {
+                    ROR_ClearGotPic(t);
+                    pCam = &vcam[vdrawcnt];
+                    pCam->index = t;
+
+                    dx += pOth->ofs.x;
+                    dy += pOth->ofs.y;
+                    dz += pOth->ofs.z;
+
+                    pCam->x = dx;
+                    pCam->y = dy;
+                    pCam->z = dz;
+
+                    vdrawcnt++;
+                    break;
+                }
+
+                t = pOth->vNeighID;
+            }
+            while (t != nIndex);
+
+            if ((n = linkArr[n]) >= 0)
+                n = sprite[n].owner, n = sprite[n].sectnum;
+        }
+        while (n >= 0 && n != pRor->id);
+
+        r += vdrawcnt;
+
+        while(--vdrawcnt >= 0)
+        {
+            // Drawing from the most far room to
+            // the current for better
+            // covering.
+
+            pCam = &vcam[vdrawcnt];
+            pRor = &mirror[pCam->index];
+
+            drawrooms(pCam->x, pCam->y, pCam->z, a, horiz, pRor->id | kMaxSectors);
+            BackupHover();
+
+            viewProcessSprites(pCam->x, pCam->y, pCam->z, a);
             drawmasks();
 
             // fix double draw of hovered wall
             if (searchstat == OBJ_MASKED)
                 gHovWall = -1;
 
-            #ifdef ENABLE_EXPERIMENTAL_FEATURES
-            // experimental...
-            if (gModernMap)
-            {
-                int s;
-                char nPal = 0, nShade = 0;
-                if (pRor->type == OBJ_FLOOR)
-                {
-                    if ((s = i+1) < mirrorcnt)
-                    {
-                        s = mirror[s].id;
-                        if (sector[s].hitag & 0x01) nPal   = sector[s].floorpal;
-                        if (sector[s].hitag & 0x02) nShade = sector[s].floorshade;
-                    }
-                }
-                else if ((s = i-1) >= 0)
-                {
-                    s = mirror[s].id;
-                    if (sector[s].hitag & 0x01) nPal   = sector[s].ceilingpal;
-                    if (sector[s].hitag & 0x02) nShade = sector[s].ceilingshade;
-                }
+            pSecStat = (pRor->type == OBJ_CEILING)
+                ? &sector[pRor->id].floorstat : &sector[pRor->id].ceilingstat;
 
-                if (nShade || nPal)
-                    TranslateMirrorColors(nShade, nPal);
-            }
-            #endif
+            oSectStat = *pSecStat, *pSecStat |= kSectParallax;
+
+            drawmasks();
+
+            *pSecStat = oSectStat;
         }
-
-        ROR_ClearGotpicAll();
-        return true;
     }
 
-    return false;
+    return r;
 }
 
-char IsMirrorPic(int nPic) { return (nPic == kMirrorPic || gRotTile[nPic] == kMirrorPic); }
-char IsRorSector(int nSect, int stat)
+char DrawMirrors(int x, int y, int z, int a, int horiz)
 {
-    if (stat == OBJ_FLOOR)
+    if (mirrorsector >= 0 && DoWallMirrors(x, y, z, a, horiz))
     {
-        if (IsMirrorPic(sector[nSect].floorpicnum))                 return 1;
-        else if ((sector[nSect].floorstat & kSectTranslucR) != 0)   return 2;
-        else return 0;
+        ROR_ClearGotPic();
+        return 1;
     }
-    else if (IsMirrorPic(sector[nSect].ceilingpicnum))              return 1;
-    else if ((sector[nSect].ceilingstat & kSectTranslucR) != 0)     return 2;
-    else return 0;
+
+    if (DoRoomOverRoom(x, y, z, a, horiz))
+    {
+        ROR_ClearGotPic();
+        return 1;
+    }
+
+    return 0;
 }
 
 char IsRorMarker(int nType)
@@ -388,24 +767,9 @@ char IsRorMarker(int nType)
         if (nType == gStackDB[i][0])    return 1;
         if (nType == gStackDB[i][1])    return 2;
     }
-    
+
     return 0;
 }
-
-bool IsLinkCorrect(spritetype* pSpr)
-{
-    if (!pSpr || pSpr->statnum >= kMaxStatus) return false;
-    else if (!rngok(pSpr->owner, 0, kMaxSprites)) return false;
-
-    spritetype* pSpr2 = &sprite[pSpr->owner];
-    if (pSpr2->owner != pSpr->index)
-        return false;
-
-    return true;
-}
-
-
-
 
 // functions to wrap through ROR links
 //////////////////////////////////
@@ -589,11 +953,14 @@ int CheckLinkWall(int *x, int *y, int *z, int* nVar)
         if (pXWallA->locked || pXWallB->locked)
             return 0;
 
-        avePointWall(*nVar, &x1, &y1, &z1);
-        avePointWall(pWallA->hitag, &x2, &y2, &z2);
+        getWallCoords(pWallA->hitag, &x1, &y1);
+        getWallCoords(pWallA->point2, &x2, &y2);
 
-        *x += x2-x1, *y += y2-y1, *z += z2-z1;
+        *x -= x2-x1, *y -= y2-y1;
         *nVar = sectorofwall(pWallA->hitag);
+        getzsofslope(*nVar, *x, *y, &z1, &z2);
+        *z = ClipRange(*z, z1, z2);
+
         return pWallB->type;
     #else
         return 0;
@@ -619,7 +986,7 @@ int CheckLink(int *x, int *y, int *z, int *nID, char wallLink)
                 }
 
                 spritetype* pSpr = &sprite[nSpr];
-                if (pSpr->flags & 0x01)
+                if (pSpr->flags & kModernTypeFlag1)
                     return 0;
             }
 

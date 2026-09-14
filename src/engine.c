@@ -2852,13 +2852,13 @@ static void drawalls(int bunch)
 			if (searchy <= uplc[searchx]) //ceiling
 			{
 				searchsector = sectnum;
-				searchindex  = sectnum; searchwall = wallnum;
+				searchwall = wallnum;
 				searchstat = 1; searchit = 1;
 			}
 			else if (searchy >= dplc[searchx]) //floor
 			{
 				searchsector = sectnum;
-				searchindex  = sectnum; searchwall = wallnum;
+				searchwall = wallnum;
 				searchstat = 2; searchit = 1;
 			}
 		}
@@ -2898,7 +2898,6 @@ static void drawalls(int bunch)
 							searchsector	= sectnum;
 							searchwall2		= wallnum;
 							searchwall		= wallnum;
-							searchindex		= wallnum;
 							searchwallcf 	= 0;
 							searchstat		= 0; searchit = 1;
 						}
@@ -2991,12 +2990,10 @@ static void drawalls(int bunch)
 							searchsector = sectnum;
 							searchwall2  = wallnum;
 							searchwall	 = wallnum;
-							searchindex  = wallnum;
 							
 							if ((wal->cstat&2) > 0)
 							{
 								searchwall 	 = wal->nextwall;
-								searchindex  = wal->nextwall;
 							}
 							
 							searchwallcf = 1;
@@ -3153,7 +3150,6 @@ static void drawalls(int bunch)
 				searchsector	= sectnum;
 				searchwall2		= wallnum;
 				searchwall		= wallnum;
-				searchindex		= wallnum;
 				if (nextsectnum < 0) searchstat = 0; else searchstat = 4;
 			}
 		}
@@ -3618,7 +3614,10 @@ void drawsprite(int snum)
 	int tilenum, vtilenum = 0, spritenum;
 	unsigned char swapped, daclip;
 	int slope;
+    
+    char mdSearchItHack = 0;
 
+    
 	//============================================================================= //POLYMOST BEGINS
 #if USE_POLYMOST
 	if (rendmode) { polymost_drawsprite(snum); return; }
@@ -3633,15 +3632,21 @@ void drawsprite(int snum)
 	spritenum = tspr->owner;
 	cstat = tspr->cstat;
 
-	if ((cstat&48)==48) vtilenum = tilenum;	// if the game wants voxels, it gets voxels
-	else if ((cstat & 48) < 16 && (usevoxels) && (tiletovox[tilenum] != -1)
-//#if USE_POLYMOST && USE_OPENGL
-		 && (!(spriteext[tspr->owner].flags&SPREXT_NOTMD))
-//#endif
-	   ) {
-		vtilenum = tiletovox[tilenum];
-		cstat |= 48;
+	if ((cstat&48)==48)
+    {
+        vtilenum = tilenum;	// if the game wants voxels, it gets voxels
+        if ((sprite[spritenum].cstat & 48) == 16)
+            mdSearchItHack = 1;
 	}
+    else if ((cstat & 48) <= 16 && (usevoxels) && (tiletovox[tilenum] != -1)
+        && (!(spriteext[tspr->owner].flags&SPREXT_NOTMD)))
+        {
+            vtilenum = tiletovox[tilenum];
+            cstat |= 48;
+            
+            if ((sprite[spritenum].cstat & 48) == 16)
+                mdSearchItHack = 1;
+        }
 
 	if ((cstat&48) != 48)
 	{
@@ -3797,7 +3802,6 @@ void drawsprite(int snum)
 				{
 					searchsector	= sectnum;
 					searchwall 		= spritenum;
-					searchindex 	= spritenum;
 					searchstat 		= 3;
 					searchit		= 1;
 				}
@@ -3839,7 +3843,7 @@ void drawsprite(int snum)
 		else
 			transmaskwallscan(lx,rx);
 	}
-	else if ((cstat&48) == 16)
+	else if ((cstat&48) == 16 || mdSearchItHack)
 	{
 		if ((cstat&4) > 0) xoff = -xoff;
 		if ((cstat&8) > 0) yoff = -yoff;
@@ -4083,13 +4087,15 @@ void drawsprite(int snum)
 				{
 					searchsector	= sectnum;
 					searchwall 		= spritenum;
-					searchindex 	= spritenum;
 					searchstat 		= 3; searchit = 1;
 				}
 
 		if ((cstat & 0x8000) && showinvisibility == 2)
 			return;
-
+        
+        if (mdSearchItHack)
+            goto md_searchit_hack;
+        
 		for (i = xb1[MAXWALLSB-1]; i <= xb2[MAXWALLSB-1]; i++)
 		{
 			if (lwall[i] < 0)
@@ -4456,7 +4462,6 @@ void drawsprite(int snum)
 				{
 					searchsector	= sectnum;
 					searchwall		= spritenum;
-					searchindex 	= spritenum;
 					searchstat 		= 3; searchit = 1;
 				}
 		
@@ -4794,9 +4799,16 @@ next_most:
 		float xfactor;
 		int xv, yv;
 		int floorz, ceilingz;
-        const int daxrepeat = ((sprite[spritenum].cstat&48)==16) ?
-            (tspr->xrepeat * 5) / 4 :
-            tspr->xrepeat;
+        int daxrepeat;
+
+///////////////
+// continue to drawing as voxel after getting proper searchstat
+md_searchit_hack:
+///////////////
+
+        daxrepeat = ((sprite[spritenum].cstat&48)==16) ?
+                    (tspr->xrepeat * 5) / 4 :
+                    tspr->xrepeat;
 
 		lx = 0; rx = xdim-1;
 		for(x=lx;x<=rx;x++)
@@ -4873,6 +4885,7 @@ next_most:
 								}
 								else
 								{     //INTERSECTION!
+#if 0
 									x = (xp1-globalposx) + scale(xp2-xp1,z1,z1-z2);
 									y = (yp1-globalposy) + scale(yp2-yp1,z1,z1-z2);
 
@@ -4891,6 +4904,7 @@ next_most:
 										x = 0x80000001;
 									}
 									else
+#endif
 										x = 0x7fffffff;
 								}
 							}
@@ -5003,7 +5017,7 @@ next_most:
 		globvis = globalvisibility;
 		if (sec->visibility != 0) globvis = mulscale4(globvis,(int)((unsigned char)(sec->visibility+16)));
 
-		if ((searchit >= 1) && (yp > (4<<8)) && (searchy >= lwall[searchx]) && (searchy < swall[searchx]))
+		if (mdSearchItHack == 0 && (searchit >= 1) && (yp > (4<<8)) && (searchy >= lwall[searchx]) && (searchy < swall[searchx]))
 		{
 			siz = divscale19(xdimenscale,yp);
 
@@ -5053,7 +5067,6 @@ next_most:
 						{
 							searchsector 	= sectnum;
 							searchwall 		= spritenum;
-							searchindex 	= spritenum;
 							searchstat 		= 3; searchit = 1;
 						}
 				}
@@ -5168,7 +5181,6 @@ static void drawmaskwall(short damaskwallcnt)
 		{
 			searchsector 	= sectnum;
 			searchwall 		= thewall[z];
-			searchindex 	= thewall[z];
 			searchstat 		= 4; searchit = 1;
 		}
 
@@ -9449,6 +9461,7 @@ void getzrange(int x, int y, int z, short sectnum,
 						}
 						break;
 					case 32:
+                    case 48:
 						daz = spr->z; daz2 = daz;
 
 						if ((cstat&64) != 0)

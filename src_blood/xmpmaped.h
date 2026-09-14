@@ -216,6 +216,8 @@ char wallVisible(int nWall);
 int wallGetSect(int nWall);
 void wallRotateTile(int nWall, char enable);
 
+void sprGetZOffsets(short idx, int* zto, int* zbo);
+
 int getSectorHeight(int nSector);
 void setFirstWall(int nSect, int nWall);
 char setAligntoWall(int nSect, int nWall);
@@ -254,7 +256,8 @@ void deletePoint(int nWall);
 
 void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* zt = NULL, int* zb = NULL, char flags = 0x07);
 void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, char flags = 0x07);
-void GetSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, int* zt, int* zb, char flags = 0x07);
+char GetVoxSpriteExtents(spritetype* pSpr, int* x1, int* y1, int* x2, int* y2, int* x3, int* y3, int* x4, int* y4, int* zt = NULL, int* zb = NULL, char flags = 0x06);
+
 void ceilGetEdgeZ(int nSector, int* zBot, int* zTop);
 void floorGetEdgeZ(int nSector, int* zBot, int* zTop);
 void setCstat(BOOL enable, short* pStat, int nStat);
@@ -393,9 +396,9 @@ struct SECTORSAVE
         return 0;
     }
     
-    int Load()
+    int Load(int _nSect = -1)
     {
-        int nSect = -1, nXSect = sect.extra;
+        int nSect = _nSect, nXSect = sect.extra;
         int i, j, s;
         
         walltype *ws, *w1, *w2; XWALL *xw;

@@ -868,11 +868,6 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 
         if (gArtEd.mode > kArtEdModeBatch)
             nVTile = (short)toolGetViewTile(nTile, gTool.nOctant, NULL, NULL);
-        else if (!gArtEd.mode && type == OBJ_CUSTOM)
-        {
-            if ((i = adjIdxByTileInfo(nTile, adjCountSkips(nTile))) >= 0)
-                scrSetMessage("Type %d: %s.", autoData[i].type, gSpriteNames[autoData[i].type]);
-        }
 
         gArtEd.nTile = nTile;
         gArtEd.nVTile = nVTile;
@@ -1131,6 +1126,9 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
             toolDrawCenter(&gArtEd.origin, color, 6, 6, 1); // draw crosshair after tile
             toolDrawCenterHUD(&gArtEd.origin, nTile, nVTile, j, gTool.nOctant, color);
             toolDrawWindow(0, 0, xdim, ydim, title, gStdColor[15]);
+            if (gArtEd.showPal)
+                toolDrawPalette(gTileView.palookup);
+            
             tileScrDrawStatus(x1, y2 - 1, x2, y2 + 14);
 
             // bottom part first
@@ -1334,6 +1332,14 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
                 }
                 break;
             case KEY_P: // select PLU for tiles to preview it
+                
+                if (!ctrl && !alt && !shift)
+                {
+                    gArtEd.showPal = !gArtEd.showPal;
+                    scrSetMessage("Palette %s", onOff(gArtEd.showPal));
+                    break;
+                }
+                
                 sprintf(buffer, "Preview palookup"); j = gTileView.palookup;
                 if (type == OBJ_CUSTOM) break;
                 else if (ctrl) j = kPlu0;
@@ -1516,8 +1522,10 @@ void tileDrawTileRect(Rect** pARect, int flags, int nTile, int nSize, int nPlu, 
     int x2 = pRect->x1,     y2 = pRect->y1;
     int wh = x2-x1,         hg = y2-y1;
     int dx = x1,            dy = y1;
-
-
+    
+    if (nSize < 0)
+        nSize = (wh < hg) ? wh : hg;
+    
     int dwh, dhg;
     tileDrawGetSize(nTile, nSize, &dwh, &dhg);
     if (flags & ALG_MIDDLE) dy = y1 + ((hg >> 1) - (dhg >> 1));
@@ -1537,8 +1545,8 @@ void tileDrawTileRect(Rect** pARect, int flags, int nTile, int nSize, int nPlu, 
 
 void tileDrawTileRect(Rect* pARect, int flags, int nTile, int nSize, int nPlu, int nShade, int nDrawFlags)
 {
-    Rect* pDummy = new Rect(pARect->x0, pARect->y0, pARect->x1, pARect->y1);
-    tileDrawTileRect(&pDummy, flags, nTile, nSize, nPlu, nShade, nDrawFlags);
+    Rect dummy = *pARect, *p = &dummy;
+    tileDrawTileRect(&p, flags, nTile, nSize, nPlu, nShade, nDrawFlags);
 }
 
 void tileDrawTile(int x, int y, short pic, int size, short plu, char flags, schar shade)

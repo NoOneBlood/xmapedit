@@ -46,6 +46,8 @@ struct INPUTPROC
 #define PROC_OKB        (PROC_OK | PROC_BEEP)
 
 
+extern TIMER gObjectLock;
+
 extern INPUTPROC gEditInputShared[256];
 extern INPUTPROC gEditInput3D[256];
 extern INPUTPROC gEditInput2D[256];

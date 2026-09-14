@@ -559,7 +559,7 @@ void FilePick::PaintMaskLayer(int x, int y, BOOL hasFocus)
     int wh = width, hg = height, dx = x, dy = y;
     int colWhRem, colHgRem, i, j, mx, my;
     intptr_t bframe = frameplace;
-    Rect* pRect; QBITMAP* pPic;
+    Rect r; QBITMAP* pPic;
 
     gfxBackupClip();
     gfxSetClip(dx, dy, dx+wh, dy+hg);
@@ -570,14 +570,14 @@ void FilePick::PaintMaskLayer(int x, int y, BOOL hasFocus)
 
     if (largePreviewSize)
     {
-        pRect = new Rect(dx, dy, dx+largePreviewSize-1, dy+hg);
+        r.set(dx, dy, dx+largePreviewSize-1, dy+hg);
 
         // draw large preview area
         /////////////////////////////
         gfxSetColor(clr2std(26));
-        gfxLine(pRect->x0, pRect->y0, pRect->x1, pRect->y1);
-        gfxLine(pRect->x0, pRect->y1, pRect->x1, pRect->y0);
-        gfxVLine(pRect->x1, pRect->y0, pRect->y1);
+        gfxLine(r.x0, r.y0, r.x1, r.y1);
+        gfxLine(r.x0, r.y1, r.x1, r.y0);
+        gfxVLine(r.x1, r.y0, r.y1);
     }
 
     wh = width-scrollSize-largePreviewSize;
@@ -630,20 +630,20 @@ void FilePick::PaintMaskLayer(int x, int y, BOOL hasFocus)
         // buttons
         ///////////////////////////////
         pPic = pBitmaps[6]; gfxSetColor(clr2std(20));
-        pRect = new Rect(dx+1, dy, dx+scrollSize-1, dy+scrollSize);
-        gfxFillBox(pRect);
-        gfxRect(pRect);
+        r.set(dx+1, dy, dx+scrollSize-1, dy+scrollSize);
+        gfxFillBox(&r);
+        gfxRect(&r);
 
-        mx = pRect->x0+((pRect->width()>>1)-(pPic->width>>1));
-        my = pRect->y0+((pRect->height()>>1)-(pPic->height>>1));
+        mx = r.x0+((r.width()>>1)-(pPic->width>>1));
+        my = r.y0+((r.height()>>1)-(pPic->height>>1));
         gfxDrawBitmap(pPic, mx, my);
 
         pPic = pBitmaps[7];
-        pRect = new Rect(dx+1, dy+hg-scrollSize, dx+scrollSize-1, dy+hg);
-        gfxFillBox(pRect);
+        r.set(dx+1, dy+hg-scrollSize, dx+scrollSize-1, dy+hg);
+        gfxFillBox(&r);
 
-        mx = pRect->x0+((pRect->width()>>1)-(pPic->width>>1));
-        my = pRect->y0+((pRect->height()>>1)-(pPic->height>>1));
+        mx = r.x0+((r.width()>>1)-(pPic->width>>1));
+        my = r.y0+((r.height()>>1)-(pPic->height>>1));
         gfxDrawBitmap(pPic, mx, my);
     }
 
@@ -2115,30 +2115,35 @@ char* dirBrowse(char* pAPath, char* pFilter, char* pTitle, int flags)
     char fulpath[BMAX_PATH] = "\0";
     char filname[BMAX_PATH] = "\0";
     char *pPath;
-
-    if (!isDir(pAPath))
+    
+    strcpy(dirpath, pAPath);
+    _fullpath(fulpath, dirpath, BMAX_PATH);
+    
+    if (*fulpath != '\0')
     {
-        getFilename(pAPath, filname, 1); getPath(pAPath, dirpath, 0);
-
-        if (!isFile(pAPath))
+        pathRemSlash(fulpath);
+        
+        if (!isDir(fulpath))
         {
-            filname[0] = '\0';
-            if (!isempty(dirpath) && !isDir(dirpath))
+            getPath(fulpath, dirpath, 0); pathRemSlash(dirpath);
+            getFilename(fulpath, filname, 1);
+
+            if (!isFile(fulpath))
             {
-                Alert("Could not open \"%s\".", dirpath);
-                dirpath[0] = '\0';
+                *filname = '\0';
+                if (!isempty(dirpath) && !isDir(dirpath))
+                {
+                    Alert("Could not open \"%s\".", dirpath);
+                    *dirpath = '\0';
+                }
             }
         }
+        else
+        {
+            strcpy(dirpath, fulpath);
+        }
     }
-    else
-    {
-        strcpy(dirpath, pAPath);
-    }
-
-    // maybe expand relative to absolute?
-    if (_fullpath(fulpath, dirpath, BMAX_PATH))
-        strcpy(dirpath, fulpath);
-
+    
     pPath = browser.ShowDialog(dirpath, filname, pFilter, pTitle, flags);
     getcwd(dirpath, sizeof(dirpath));
 
@@ -2500,11 +2505,11 @@ static char getThumbnail_MAP(char* filepath, int nTile, int wh, int hg, int bg)
         //////////////////////////////////////
 
         ver7 = ((magic.version & 0xFF00) == (0x0700 & 0xFF00));
-        if (!ver7 && (magic.version & 0xFF00) != (0x0603 & 0xFF00))
+/*         if (!ver7 && (magic.version & 0xFF00) != (0x0603 & 0xFF00))
         {
             close(hFile);
             return 0;
-        }
+        } */
 
         if (read(hFile, &header, sizeof(header)) != sizeof(header))
         {
@@ -2816,7 +2821,7 @@ static char getThumbnail_SEQ(char* filepath, int nTile, int wh, int hg, int bg)
                     wh = tilesizx[nTile2]; hg = tilesizy[nTile2];
                     helperAllocThumb(nTile, wh, hg, bg);
                     memcpy((void*)waloff[nTile], pTile, wh*hg);
-                    tilePaint(nTile, pFrame->pal, pFrame->shade);
+                    tilePaint(nTile, seqGetPal(pFrame), pFrame->shade);
                     
                     if (pFrame->xflip)
                         artedFlipTileX(nTile);
@@ -2867,8 +2872,12 @@ static char getThumbnail_QAV(char* filepath, int nTile, int wh, int hg, int bg)
                 
                 // draw all tiles of the frame!!!
                 for (j = 0; j < LENGTH(pFrame->tiles); j++)
-                    DrawFrame(pQav->x, pQav->y, &pFrame->tiles[j], 0x02, 0, 0);
-
+                {
+                    pTFrame = &pFrame->tiles[j];
+                    if (pTFrame->picnum > 0)
+                        DrawFrame(pQav->x, pQav->y, pTFrame, 0x02, 0, 0);
+                }
+                
                 setviewback();
                 artedRotateTile(nTile);
                 artedFlipTileY(nTile);

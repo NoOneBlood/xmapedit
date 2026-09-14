@@ -53,6 +53,7 @@ class IniFile
         void Init();
         void Load(unsigned char* pRaw, int nLength, char flags = INI_NORMAL);
         char Save(char* saveName = NULL);
+        void Merge(IniFile* pIni);
         //---------------------------------------------------------------
         int  NodeAdd(ININODE* pNode, int nPos);
         int  NodeAddEmpty(int nPos);

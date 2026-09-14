@@ -100,11 +100,13 @@ void PREVIEW_MODE::Start()
     gScreen.msgShowTotal = 16;
     asksave = 0;
     
-    gHighSpr = -1;
     gPostCount = 0;
     
     if (gMisc.externalModels == 2)
         usevoxels = 1;
+    
+    panState = gMisc.pan;
+    gMisc.pan = 1;
     
     for (i = 0; i < kMaxSprites; i++)
     {
@@ -293,6 +295,7 @@ void PREVIEW_MODE::Stop()
 	gPhysSpritesList.Free();
 	
 	gScreen.msgShowTotal = 1;
+    gMisc.pan = panState;
     
     gMapedHud.SetTile();
     
@@ -302,6 +305,7 @@ void PREVIEW_MODE::Stop()
         delete(pState);
     }
     
+    AlignSlopes();
 	scrSetLogMessage("Preview mode disabled.");
     gPreviewMode = 0;
 	BeepFail();

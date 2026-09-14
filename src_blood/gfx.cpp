@@ -622,10 +622,11 @@ void gfxDrawText(int x, int y, int color, char* pzText, QFONT* pFont, bool label
     }
 }
 
-void gfxDrawTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines)
+void gfxDrawTextRect(Rect* pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines)
 {
-    Rect* pRect = *pARect;
-
+    Rect rect(pARect->x0, pARect->y0, pARect->x1, pARect->y1);
+    Rect* pRect = &rect;
+    
     int wh = pRect->width(),    hg = pRect->height();
     int x1 = pRect->x0,         y1 = pRect->y0;
     int x2 = pRect->x1,         y2 = pRect->y1;
@@ -657,7 +658,7 @@ void gfxDrawTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont,
     }
     else if (flags & kTextAMiddle)
     {
-        dy = y1+((hg>>1)-((nLines*fh) >> 1));
+        dy = y1+((hg>>1)-((ClipLow(nLines, 1) * fh) >> 1));
     }
     else
     {
@@ -726,18 +727,6 @@ void gfxDrawTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont,
 
     pRect->y1 = dy;
 }
-
-void gfxDrawTextRect(Rect* pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines)
-{
-    Rect* pDummy = new Rect(pARect->x0, pARect->y0, pARect->x1, pARect->y1);
-    gfxDrawTextRect(&pDummy, flags, fc, str, pFont, maxLines);
-}
-
-void gfxGetTextRect(Rect** pARect, int flags, char fc, char* str, QFONT* pFont, int maxLines)
-{
-    gfxDrawTextRect(pARect, flags, fc, str, pFont, maxLines);
-}
-
 
 void gfxDrawText(int x, int y, int fr, int bg, char* txt, QFONT* pFont, bool label)
 {

@@ -110,11 +110,15 @@ int pfbAdd(char *filename, int nFaceAng, int nThumbTile)
 
     int i, j, k, total = 0;
     int x, y, z, left, right, top, bottom, ztop, zbottom, ztofs, zbofs;
-    hgltSprGetEdges(&left, &right, &top, &bottom, &ztop, &zbottom, &ztofs, &zbofs);
-
+    hgltSprGetEdges(&left, &right, &top, &bottom, &ztop, &zbottom);
+    hgltSprGetZOffsets(&ztofs, &zbofs);
+    
     if (fileExists(filename) && unlink(filename) != 0)
         return -1;
 
+    ztofs = ClipHigh(ztofs, 0);
+    zbofs = ClipLow(zbofs,  0);
+    
     // get average point of sprites
     x = left + ((right - left) >> 1);
     y = top  + ((bottom - top) >> 1);
@@ -526,10 +530,13 @@ int pfbInsert(char* file, int nStat, int nID, int nSect, int x, int y, int z, in
 
 int pfbDlgOptions(int* nFaceAngle, int* nThumbTile)
 {
+    static spritetype* cpysprite = NULL;
+    static walltype* cpywall = NULL;
+    
     char press1024 = 0, press0 = 0, press1536 = 1, press512 = 0;
     static char attach = 1; char colors[256];
     const int twh = 200, thg = 180, pad = 4;
-    int nTile, wh, hg, mx, my, i;
+    int nTile = 0, wh, hg, mx, my, i;
     int tw, th, ts;
 
     FieldSet *pFaceF, *pThumbF; Panel *pFaceP, *pThumbP, *pTileP;
@@ -539,8 +546,11 @@ int pfbDlgOptions(int* nFaceAngle, int* nThumbTile)
 
     *nThumbTile = -1; *nFaceAngle = -1;
     memset(colors, 0, sizeof(colors));
-
-    if ((nTile = tileGetBlank()) >= 0)
+    
+    if (cpysprite == NULL)  cpysprite = (spritetype*)malloc(sizeof(sprite));
+    if (cpywall == NULL)    cpywall = (walltype*)malloc(sizeof(wall));
+    
+    if (cpywall && cpysprite && (nTile = tileGetBlank()) >= 0)
     {
         if (tileAllocTile(nTile, twh, thg))
         {

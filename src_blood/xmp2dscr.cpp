@@ -1230,7 +1230,7 @@ void SCREEN2D::ScreenDraw(void)
         fc = ColorGet(kColorYellow, h);
         bc = ColorGet(kColorBrown, h);
 
-        if (hgltType)
+        if (hgltType & kHgltWall)
         {
             for (i = 0; i < numwalls; i++)
             {
@@ -1428,11 +1428,19 @@ void SCREEN2D::ScreenDraw(void)
         x1 = hgltx1;    x2 = hgltx2;
         y1 = hglty1;    y2 = hglty2;
 
-        switch(hgltType)
+        switch(hgltType & kHgltPoint)
         {
             case kHgltPoint:
                 fc = ColorGet(kColorMagenta);
                 bc = ColorGet(kColorLightCyan);
+                break;
+            case kHgltSprite:
+                fc = ColorGet(kColorCyan);
+                bc = ColorGet(kColorLightBlue);
+                break;
+            case kHgltWall:
+                fc = ColorGet(kColorLightRed);
+                bc = ColorGet(kColorGrey26);
                 break;
             default:
                 fc = ColorGet(kColorLightGreen);
@@ -1522,6 +1530,9 @@ void SCREEN2D::DrawSpritePathMarker(void)
 
     if (pXSpr && pXSpr->data2 >= 0 && pXSpr->data1 != pXSpr->data2)
     {
+        if (prefs.useTransluc)
+            gfxTranslucency(2);
+        
         for (i = headspritestat[kStatPathMarker]; i != -1; i = nextspritestat[i])
         {
             spritetype *pSpr2 = &sprite[i];
@@ -1535,6 +1546,9 @@ void SCREEN2D::DrawSpritePathMarker(void)
             x2 = cscalex(pSpr2->x); y2 = cscaley(pSpr2->y);
             DrawLine(x1, y1, x2, y2, ColorGet(kColorLightMagenta, BLINK), HOVER, kPatDotted);
         }
+        
+        if (prefs.useTransluc)
+            gfxTranslucency(0);
     }
 
     c = GetSpriteColor(pSpr, BLINK);
@@ -1567,7 +1581,7 @@ void SCREEN2D::DrawSprite(spritetype* pSprite)
 
     if ((pSpr->index | 0x4000) == pointhighlight) HOVER = 1;
     else if (highlightcnt > 0 && TestBitString(hgltspri, pSpr->index)) HOVER = 1;
-    else if (InHighlight(x1, y1)) HOVER = 1;
+    else if ((hgltType & kHgltSprite) && InHighlight(x1, y1)) HOVER = 1;
     else HOVER = 0;
 
     BLINK = (HOVER && h);
@@ -1728,31 +1742,63 @@ void SCREEN2D::DrawSpriteAmbient(void)
 void SCREEN2D::DrawSpriteStealth(void)
 {
     char c, more;
-
-    if (gModernMap)
+    
+    if (!gModernMap || pXSpr == NULL || pXSpr->data1 < 0)
     {
-        if (pXSpr && pXSpr->data1 >= 0)
-        {
-            more = (pXSpr->data2 > 0 || pXSpr->data3 > 0);
-            c = ColorGet((more) ? kColorLightRed : kColorLightCyan);
-
-            if (pXSpr->data1 > 0)
-                DrawCircle(x1, y1, mulscale10(pXSpr->data1, data.zoom), c, false, kPatDashed);
-            else if (HOVER)
-                FillSector(pSpr->sectnum, c);
-
-            if (OnScreen(x1, y1, 4))
-            {
-                c = ColorGet((more) ? kColorLightRed : kColorLightCyan, BLINK);
-                DrawIconFaceSpr_NORMAL(x1, y1, c);
-                DrawIconCross(x1, y1, c, 4);
-            }
-
-            return;
-        }
+        DrawSpriteCommon();
+        return;
     }
 
-    DrawSpriteCommon();
+    if (prefs.useTransluc)
+        gfxTranslucency(1);
+        
+
+    if ((pSpr->flags & kModernTypeFlag64) == 0)
+    {
+        // stealth mode
+        more = (pXSpr->data2 > 0 || pXSpr->data3 > 0);
+        c = ColorGet((more) ? kColorLightRed : kColorLightCyan);
+
+        if (pXSpr->data1 > 0)
+            DrawCircle(x1, y1, mulscale10(pXSpr->data1, data.zoom), c, false, kPatDashed);
+        else if (HOVER)
+            FillSector(pSpr->sectnum, c, 4, kPatDotted);
+        
+        if (prefs.useTransluc)
+            gfxTranslucency(0);
+        
+        c = ColorGet((more) ? kColorLightRed : kColorLightCyan, BLINK);
+    }
+    else if (pXSpr->data1 > 0)
+    {
+        // clip mode
+        c = ColorGet(kColorLightGray);
+        DrawCircle(x1, y1, mulscale10(pXSpr->data1, data.zoom), c, false, kPatDotted);
+        
+        if (pXSpr->data2 > 0)
+        {
+            c = ColorGet(kColorLightGreen);
+            DrawCircle(x1, y1, mulscale10(pXSpr->data2, data.zoom), c, false, kPatNormal);
+        }
+        
+        if (pXSpr->data3 > 0)
+        {
+            c = ColorGet(kColorLightBlue);
+            DrawCircle(x1, y1, mulscale10(pXSpr->data3, data.zoom), c, false, kPatNormal);
+        }
+
+        c = color;
+    }
+    
+    if (prefs.useTransluc)
+        gfxTranslucency(0);
+    
+    if (OnScreen(x1, y1, 4))
+    {
+        DrawIconFaceSpr_NORMAL(x1, y1, c);
+        DrawIconCross(x1, y1, c, 4);
+    }
+    
 }
 
 void SCREEN2D::DrawSpriteLaser(void)

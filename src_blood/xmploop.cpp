@@ -292,6 +292,7 @@ int LOOPBUILD::SetupPrivate(int x, int y)
     int x1, y1, x2, y2, x3, y3, x4, y4, tx, ty;
     int i, j, t, a, s, e, ls, le;
     int nResult, splitState = -1;
+    int32_t* p;
 
     if (numPoints < 2)
     {
@@ -347,15 +348,32 @@ int LOOPBUILD::SetupPrivate(int x, int y)
     
     if (numPoints == 1)
     {
-        x1 = point[0].x;
-        y1 = point[0].y;
+        x1 = tx = point[0].x;
+        y1 = ty = point[0].y;
         
-        a = getangle(mousxplc-x1, mousyplc-y1);
-        offsetPos(0, 12, 0, a, &x1, &y1, NULL);
-        for (i = 0; i < numsectors && destSect < 0; i++)
+        a = getangle(mousxplc-tx, mousyplc-ty);
+        offsetPos(0, 12, 0, a, &tx, &ty, NULL);
+        
+        if ((s = findWallAtPos(x1, y1)) >= 0)
         {
-            if (ED32_Inside(x1, y1, i))
-                destSect = i;
+            // nextsectors scope
+            
+            IDLIST node(1);
+            collectWallsOfNode(&node, s, 0x01);
+            for (p = node.First(); *p >= 0 && destSect < 0; p++)
+            {
+                if ((s = sectorofwall(*p)) >= 0 && ED32_Inside(tx, ty, s))
+                    destSect = s;
+            }
+        }
+        else
+        {
+            // global scope
+            for (i = 0; i < numsectors && destSect < 0; i++)
+            {
+                if (ED32_Inside(tx, ty, i))
+                    destSect = i;
+            }
         }
     }
     

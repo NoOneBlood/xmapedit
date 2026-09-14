@@ -25,12 +25,68 @@ static char helperPickIniMessage(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 static char helperSetFlags(DIALOG_ITEM*, DIALOG_ITEM *control, BYTE key);
 static char helperXSectorSetData(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key);
 static char helperFindNextSide(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key);
+static char helperPickCustomDude(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key);
 
 static int dlgCountItems(DIALOG_ITEM* pDlg)
 {
     int c = 1;
     while(pDlg->type != CONTROL_END) { pDlg++, c++; };
     return c;
+}
+
+int helperPickGibType(int nGib, int objType)
+{
+    SELITEM buf, *e; VOIDLIST list(sizeof(buf));
+    short pic, pal, xr, yr;
+    int i;
+    
+    memset(&buf, 0, sizeof(buf));
+    strcpy(buf.name, "None");
+    buf.picnum = -1;
+    list.Add(&buf);
+    
+    for (i = (objType == OBJ_WALL); i < LENGTH(gibList); i++)
+    {
+        GIBLIST* pEntry = &gibList[i];
+        
+        pic = pal = xr = yr = -1;
+        
+        if (pEntry->at0)
+        {
+            GIBFX* pGib = pEntry->at0;
+            FXDATA* pFX = &gFXData[pGib->at0];
+            pic = pFX->at12;
+            
+            if (pFX->at2 > 0)
+               getSeqPrefs(pFX->at2, &pic, &xr, &yr, &pal);
+        }
+        else if (pEntry->at8)
+        {
+            if (objType == OBJ_WALL)
+                continue;
+            
+            GIBTHING* pGib = pEntry->at8;
+            pic = pGib->at4;
+        }
+        else
+            continue;
+        
+        sprintf(buf.name, "%0.31s", pEntry->name);
+        
+        buf.picnum = pic;
+        buf.group  = pEntry->group;
+        buf.pal    = pal;
+        buf.shade  = 0;
+        buf.id     = i + (objType == OBJ_SPRITE);
+        
+        list.Add(&buf);
+    }
+    
+    sprintf(buf.name, "%s gib type", gSearchStatNames[objType]);
+    if ((e = selectItem((SELITEM*)list.First(), list.Length(), nGib, buf.name)) != NULL)
+        return e->id;
+    
+    return -1;
 }
 
 #pragma pack(push, 1)
@@ -50,7 +106,7 @@ DIALOG_INFO* GetDialogInfo(DIALOG_ITEM* pDlg, int nID);
 
 DIALOG_ITEM dlgXSprite[] =
 {
-    { NO,   1,      0,  0,  1,  LIST,           "Type %4d: %-18.18s", 0, 1023, gSpriteNames, NULL,               NO_DEFVAL },
+    { NO,   1,      0,  0,  1,  LIST,           "Type %4d: %-17.17s", 0, 1023, gSpriteNames, NULL,               NO_DEFVAL },
     { NO,   1,      0,  1,  2,  NUMBER,         "RX ID: %-4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  2,  3,  NUMBER,         "TX ID: %-4d", 0, 1023, NULL, helperGetNextUnusedID },
     { NO,   1,      0,  3,  4,  LIST,           "State  %1d: %-3s", 0, 1, gBoolNames },
@@ -63,57 +119,58 @@ DIALOG_ITEM dlgXSprite[] =
     { NO,   1,      0,  9,  9,  NUMBER,         "waitTime = %-4d", 0, 4095 },
     { NO,   1,      0,  10, 10, LIST,           "restState %1d: %-3s", 0, 1, gBoolNames },
 
-    { NO,   1,      30, 0,  0,  HEADER,         "Trigger On:" },
-    { NO,   1,      30, 1,  11, CHECKBOX,       "Push" },
-    { NO,   1,      30, 2,  12, CHECKBOX,       "Vector" },
-    { NO,   1,      30, 3,  13, CHECKBOX,       "Impact" },
-    { NO,   1,      30, 4,  14, CHECKBOX,       "Pickup" },
-    { NO,   1,      30, 5,  15, CHECKBOX,       "Touch" },
-    { NO,   1,      30, 6,  16, CHECKBOX,       "Proximity" },
-    { MO,   1,      30, 7,  17, CHECKBOX,       "Sees player" },
-    { MO,   1,      30, 8,  18, CHECKBOX,       "Screen" },
-    { MO,   1,      39, 8,  19, CHECKBOX,       "Aim" },
+    { NO,   1,      29, 0,  0,  HEADER,         "Trigger On:" },
+    { NO,   1,      29, 1,  11, CHECKBOX,       "Push" },
+    { NO,   1,      29, 2,  12, CHECKBOX,       "Vector" },
+    { NO,   1,      29, 3,  13, CHECKBOX,       "Impact" },
+    { NO,   1,      29, 4,  14, CHECKBOX,       "Pickup" },
+    { NO,   1,      29, 5,  15, CHECKBOX,       "Touch" },
+    { NO,   1,      29, 6,  16, CHECKBOX,       "Proximity" },
+    { MO,   1,      29, 7,  17, CHECKBOX,       "Sees player" },
+    { MO,   1,      29, 8,  18, CHECKBOX,       "Screen" },
+    { MO,   1,      38, 8,  19, CHECKBOX,       "Aim" },
 
-    { NO,   1,      21, 9,  0,  HEADER,         "Launch 1 2 3 4 5 S B C T" },
-    { NO,   1,      28, 10, 20, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
-    { NO,   1,      30, 10, 21, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
-    { NO,   1,      32, 10, 22, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
-    { NO,   1,      34, 10, 23, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
-    { NO,   1,      36, 10, 24, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
-    { NO,   1,      38, 10, 25, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
-    { NO,   1,      40, 10, 26, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
-    { NO,   1,      42, 10, 27, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
-    { NO,   1,      44, 10, 28, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      20, 9,  0,  HEADER,         "Launch 1 2 3 4 5 S B C T" },
+    { NO,   1,      27, 10, 20, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      29, 10, 21, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      31, 10, 22, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      33, 10, 23, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      35, 10, 24, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      37, 10, 25, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      39, 10, 26, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      41, 10, 27, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
+    { NO,   1,      43, 10, 28, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
 
-    { NO,   1,      46, 0,  0,  HEADER,         "Trigger Flags:  " },
-    { NO,   1,      46, 1,  29, CHECKBOX,       "Decoupled" },
-    { NO,   1,      46, 2,  30, CHECKBOX,       "1-shot" },
-    { NO,   1,      46, 3,  31, CHECKBOX,       "Locked" },
-    { NO,   1,      46, 4,  32, CHECKBOX,       "Interruptable" },
-    { NO,   1,      46, 5,  33, CHECKBOX,       "Player only" },
+    { NO,   1,      45, 0,  0,  HEADER,         "Trigger Flags:  " },
+    { NO,   1,      45, 1,  29, CHECKBOX,       "Decoupled" },
+    { NO,   1,      45, 2,  30, CHECKBOX,       "1-shot" },
+    { NO,   1,      45, 3,  31, CHECKBOX,       "Locked" },
+    { NO,   1,      45, 4,  32, CHECKBOX,       "Interruptable" },
+    { NO,   1,      45, 5,  33, CHECKBOX,       "Player only" },
 
-    { NO,   1,      46, 6,  0,  HEADER,         "Data:           " },
-    { NO,   1,      46, 7,  kSprDialogData1,    NUMBER,     "Data1", -32768, 32767, NULL, helperAuditSound },
-    { NO,   1,      46, 8,  kSprDialogData2,    NUMBER,     "Data2", -32768, 32767, NULL, helperAuditSound },
-    { NO,   1,      46, 9,  kSprDialogData3,    NUMBER,     "Data3", -32768, 32767, NULL, helperAuditSound },
-    { NO,   1,      46, 10, kSprDialogData4,    NUMBER,     "Data4", -65536, 65535, NULL, helperAuditSound },
+    { NO,   1,      45, 6,  0,  HEADER,         "Data:           " },
+    { NO,   1,      45, 7,  kSprDialogData1,    NUMBER,     "Data1", -32768, 32767, NULL, helperAuditSound },
+    { NO,   1,      45, 8,  kSprDialogData2,    NUMBER,     "Data2", -32768, 32767, NULL, helperAuditSound },
+    { NO,   1,      45, 9,  kSprDialogData3,    NUMBER,     "Data3", -32768, 32767, NULL, helperAuditSound },
+    { NO,   1,      45, 10, kSprDialogData4,    NUMBER,     "Data4", -65536, 65535, NULL, helperAuditSound },
 
-    { NO,   1,      64, 0,  0,  HEADER,         "Respawn:      " },
-    { NO,   1,      64, 1,  38, LIST,           "When %1d: %-6.6s", 0, 3, gRespawnNames },
+    { NO,   1,      62, 0,  0,  HEADER,         "Respawn:        " },
+    { NO,   1,      62, 1,  38, LIST,           "When %1d: %-8.8s", 0, 3, gRespawnNames },
 
-    { NO,   1,      64, 2,  0,  HEADER,         "Dude P D B A S" },
-    { MO,   1,      69, 3,  39, CHECKBOX,       "" },
-    { MO,   1,      71, 3,  40, CHECKBOX,       "" },
-    { MO,   1,      73, 3,  41, CHECKBOX,       "" },
-    { MO,   1,      75, 3,  42, CHECKBOX,       "" },
-    { MO,   1,      77, 3,  43, CHECKBOX,       "" },
+    { NO,   1,      62, 2,  0,  HEADER,         "Dude P D B A S T" },
+    { MO,   1,      67, 3,  39, CHECKBOX,       "", 0, 1, NULL, NULL, 0},
+    { MO,   1,      69, 3,  40, CHECKBOX,       "", 0, 1, NULL, NULL, 0},
+    { MO,   1,      71, 3,  41, CHECKBOX,       "", 0, 1, NULL, NULL, 0},
+    { MO,   1,      73, 3,  42, CHECKBOX,       "", 0, 1, NULL, NULL, 0},
+    { MO,   1,      75, 3,  43, CHECKBOX,       "", 0, 1, NULL, NULL, 0},
+    { MO,   1,      77, 3,  44, CHECKBOX,       "", 0, 1, NULL, NULL, 1},
 
-    { NO,   1,      64, 5,  0,  HEADER,         "Miscellaneous:" },
-    { NO,   1,      64, 6,  44, LIST,           "Key:  %1d %-7.7s", 0, 7, gKeyItemNames },
-    { NO,   1,      64, 7,  45, LIST,           "Wave: %1d %-7.7s", 0, 3, gBusyNames },
-    { NO,   1,      64, 8,  46, NUMBER,         "Hi-tag: %-6d",  -32768, 32767, NULL,  helperSetFlags },
-    { NO,   1,      64, 9,  47, NUMBER,         "Lock msg:  %-3d", 0, 255, NULL, helperPickIniMessage },
-    { NO,   1,      64, 10, 48, NUMBER,         "Drop item: %-3d", 0, 199, NULL, helperPickItemTile },
+    { NO,   1,      62, 5,  0,  HEADER,         "Miscellaneous:  " },
+    { NO,   1,      62, 6,  45, LIST,           "Key:  %1d %-8.8s", 0, 7, gKeyItemNames },
+    { NO,   1,      62, 7,  46, LIST,           "Wave: %1d %-8.8s", 0, 3, gBusyNames },
+    { NO,   1,      62, 8,  47, NUMBER,         "Hi-tag: %-8d",  -32768, 32767, NULL,  helperSetFlags },
+    { NO,   1,      62, 9,  48, NUMBER,         "Lock msg:  %-5d", 0, 255, NULL, helperPickIniMessage },
+    { NO,   1,      62, 10, 49, NUMBER,         "Drop item: %-5d", 0, 199, NULL, helperPickItemTile },
 
     { NO,   1,      0,  0,  0,  CONTROL_END },
 };
@@ -1613,7 +1670,7 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
                 {
                     case kWallGib:
                         if (control->tabGroup != kWallData) break;
-                        i = toolGibTool(control->value, OBJ_WALL);
+                        i = helperPickGibType(control->value, OBJ_WALL);
                         if (i < 0)
                             return key;
 
@@ -1630,8 +1687,13 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
                 switch (nType = dialog->value)
                 {
                     case kMarkerDudeSpawn:
-                        if (control->tabGroup < kSprDialogData1 || control->tabGroup > kSprDialogData4) break;
+                        if (!rngok(control->tabGroup, kSprDialogData1, kSprDialogData4)) break;
                         helperPickEnemyTile(dialog, control, key);
+                        return 0;
+                    case kDudeModernCustom:
+                    case kModernCustomDudeSpawn:
+                        if (!rngok(control->tabGroup, kSprDialogData1, kSprDialogData3)) break;
+                        helperPickCustomDude(dialog, control, key);
                         return 0;
                     case kMarkerUpLink:
                     case kMarkerUpWater:
@@ -1658,7 +1720,7 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
                     case kThingObjectGib:
                     case kThingObjectExplode:
                         if (control->tabGroup < kSprDialogData1 || control->tabGroup > kSprDialogData3) break;
-                        i = toolGibTool(control->value, OBJ_SPRITE);
+                        i = helperPickGibType(control->value, OBJ_SPRITE);
                         if (i < 0)
                             return key;
 
@@ -1683,24 +1745,51 @@ char helperAuditSound(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
     return key;
 }
 
-int helperPickTypeHelper(int nGroup, char* title)
+NAMED_TYPE gSpriteNamesEx[] =
 {
-    int retn = -1, i;
-    scrSave();
+    { kDudeBurningInnocent,         "Burning Innocent"   },
+    { kDudeBurningCultist,          "Burning Cultist"    },
+    { kDudeBurningZombieAxe,        "Burning Axe Zombie" },
+    { kDudeBurningZombieButcher,    "Burning Butcher"    },
+    { kDudeBurningTinyCaleb,        "Burning Tiny Caleb" },
+    { kDudeBurningBeast,            "Burning Beast"      },
+};
 
-    if (adjFillTilesArray(nGroup))
+int helperPickTypeHelper(int nGroup, int nID, char* title)
+{
+    SELITEM buf, *e; VOIDLIST list(sizeof(buf));
+    AUTODATA* pData;
+    
+    for (int i = 0; i < autoDataLength; i++)
     {
-        if ((i = tilePick(-1, -1, OBJ_CUSTOM, title)) >= 0)
+        pData = &autoData[i];
+        if ((pData->group & nGroup) == 0)
+            continue;
+        
+        buf.id          = pData->type;
+        buf.group       = pData->group;
+        buf.picnum      = pData->picnum;
+        buf.pal         = pData->plu;
+        buf.shade       = 0;
+        buf.data1       = i;
+        
+        if (isempty(gSpriteNames[pData->type]))
         {
-            if ((i = adjIdxByTileInfo(i, adjCountSkips(i))) >= 0)
-            {
-                retn = autoData[i].type;
-            }
+            int j = LENGTH(gSpriteNamesEx);
+            while(--j >= 0 && pData->type != gSpriteNamesEx[j].id);
+            sprintf(buf.name, "%0.31s", (j >= 0) ? gSpriteNamesEx[j].name : "Unnamed");
+            
         }
+        else
+            sprintf(buf.name, "%0.31s", gSpriteNames[pData->type]);
+        
+        list.AddUnique(&buf);
     }
-
-    scrRestore();
-    return retn;
+    
+    if ((e = selectItem((SELITEM*)list.First(), list.Length(), nID, title)) != NULL)
+        return e->id;
+    
+    return -1;
 }
 
 char helperPickEnemyTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
@@ -1708,7 +1797,7 @@ char helperPickEnemyTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
     int value;
     if (key == KEY_F10 || key == KEY_SPACE)
     {
-        if ((value = helperPickTypeHelper(kOGrpDude, "Select enemy to spawn")) >= 0)
+        if ((value = helperPickTypeHelper(kOGrpDude|kOGrpDudeSpawn, control->value, "Select enemy to spawn")) >= 0)
             control->value = value;
     }
 
@@ -1720,7 +1809,7 @@ char helperPickItemTile(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
     int value;
     if (key == KEY_F10 || key == KEY_SPACE)
     {
-        if ((value = helperPickTypeHelper(kOGrpWeapon | kOGrpAmmo | kOGrpAmmoMix | kOGrpItem, "Select item")) >= 0)
+        if ((value = helperPickTypeHelper(kOGrpWeapon | kOGrpAmmo | kOGrpAmmoMix | kOGrpItem | kOGrpItemUser, control->value, "Select item")) >= 0)
             control->value = value;
     }
 
@@ -1880,6 +1969,29 @@ static char helperFindNextSide(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE k
         
         BeepFail();
         Alert("Next %s not found for wall %d!", (setNextSect) ? "sector" : "wall", nWall);
+    }
+
+    return key;
+}
+
+static char helperPickCustomDude(DIALOG_ITEM* dialog, DIALOG_ITEM *control, BYTE key)
+{
+    if (key == KEY_F10 || key == KEY_SPACE)
+    {
+        int i, value, data[3] = {0, 0, 0};
+        SELITEM buf, *e; VOIDLIST list(sizeof(buf));
+        DIALOG_ITEM* p;
+        
+        i = helperFillUserDudesList(&list);
+        if (i > 0 && (e = selectItem((SELITEM*)list.First(), list.Length(), control->value)) != NULL)
+        {
+            if (helperGetDataForCustomDude(e, data))
+            {
+                if ((p = FindItem(dialog, kSprDialogData1)) != NULL) p->value = data[0];
+                if ((p = FindItem(dialog, kSprDialogData2)) != NULL) p->value = data[1];
+                if ((p = FindItem(dialog, kSprDialogData3)) != NULL) p->value = data[2];
+            }
+        }
     }
 
     return key;
@@ -2299,13 +2411,16 @@ void dlgXSpriteToDialog(DIALOG_HANDLER* pHandle, int nSprite)
     pHandle->SetValue(40, pXSprite->dudeDeaf);
     pHandle->SetValue(41, pXSprite->dudeGuard);
     pHandle->SetValue(42, pXSprite->dudeAmbush);
-    pHandle->SetValue(43, pXSprite->unused1); // used to set stealth flag for dude
+    
+    // additional dude flags for modern features
+    pHandle->SetValue(43, (pXSprite->unused1 & 0x01) != 0); // "STEALTH" must be set
+    pHandle->SetValue(44, (pXSprite->unused1 & 0x02) == 0); // "IGNORE TOUCH" must be NOT set
 
-    pHandle->SetValue(44, pXSprite->key);
-    pHandle->SetValue(45, pXSprite->wave);
-    pHandle->SetValue(46, sprite[nSprite].flags);
-    pHandle->SetValue(47, pXSprite->lockMsg);
-    pHandle->SetValue(48, pXSprite->dropItem);
+    pHandle->SetValue(45, pXSprite->key);
+    pHandle->SetValue(46, pXSprite->wave);
+    pHandle->SetValue(47, sprite[nSprite].flags);
+    pHandle->SetValue(48, pXSprite->lockMsg);
+    pHandle->SetValue(49, pXSprite->dropItem);
 }
 
 void dlgDialogToXSprite(DIALOG_HANDLER* pHandle, int nSprite)
@@ -2334,11 +2449,11 @@ void dlgDialogToXSprite(DIALOG_HANDLER* pHandle, int nSprite)
     pXSprite->triggerTouch      = pHandle->GetValue(15);
     pXSprite->triggerProximity  = pHandle->GetValue(16);
     pXSprite->triggerSight      = pHandle->GetValue(17);
-    if (pHandle->GetValue(18)) pXSprite->unused3 |= 0x0001;
-    else pXSprite->unused3 &= ~0x0001;
+    if (pHandle->GetValue(18)) pXSprite->unused3 |= 0x01;
+    else pXSprite->unused3 &= ~0x01;
 
-    if (pHandle->GetValue(19)) pXSprite->unused3 |= 0x0002;
-    else pXSprite->unused3 &= ~0x0002;
+    if (pHandle->GetValue(19)) pXSprite->unused3 |= 0x02;
+    else pXSprite->unused3 &= ~0x02;
     //pXSprite->triggerReserved1    = pHandle->GetValue(18);
     //pXSprite->triggerReserved2    = pHandle->GetValue(19);
 
@@ -2373,19 +2488,20 @@ void dlgDialogToXSprite(DIALOG_HANDLER* pHandle, int nSprite)
     pXSprite->dudeDeaf          = pHandle->GetValue(40);
     pXSprite->dudeGuard         = pHandle->GetValue(41);
     pXSprite->dudeAmbush        = pHandle->GetValue(42);
-    pXSprite->unused1           = pHandle->GetValue(43);
+    
+    (pHandle->GetValue(43) != 0) ? pXSprite->unused1 |= 0x01 : pXSprite->unused1 &= ~0x01;
+    (pHandle->GetValue(44) == 0) ? pXSprite->unused1 |= 0x02 : pXSprite->unused1 &= ~0x02;
 
-    pXSprite->key               = pHandle->GetValue(44);
-    pXSprite->wave              = pHandle->GetValue(45);
-    sprite[nSprite].flags       = pHandle->GetValue(46);
-    pXSprite->lockMsg           = pHandle->GetValue(47);
-    pXSprite->dropItem          = pHandle->GetValue(48);
+    pXSprite->key               = pHandle->GetValue(45);
+    pXSprite->wave              = pHandle->GetValue(46);
+    sprite[nSprite].flags       = pHandle->GetValue(47);
+    pXSprite->lockMsg           = pHandle->GetValue(48);
+    pXSprite->dropItem          = pHandle->GetValue(49);
     
     if (!gModernMap
         && pXSprite->command == 100
             && pXSprite->txID == 60 && pXSprite->txID == pXSprite->rxID)
                 gModernMap = 1;
-    
 }
 
 void dlgDialogToSprite(DIALOG_HANDLER* pHandle, int nSprite)
@@ -2541,11 +2657,14 @@ void dlgDialogToXSector(DIALOG_HANDLER* pHandle, int nSector)
     char found = 0;
 
     // delete all the sector sfx sprites in this sector
-    for (i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
+    for (i = headspritesect[nSector]; i >= 0;)
     {
-        if (sprite[i].statnum >= kStatFree || sprite[i].type != kSoundSector)
+        if (sprite[i].type != kSoundSector)
+        {
+            i = nextspritesect[i];
             continue;
-
+        }
+        
         // save info of first found sprite
         if (!found)
         {

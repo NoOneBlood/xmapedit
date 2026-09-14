@@ -56,6 +56,7 @@ class PREVIEW_MODE
         unsigned int forceStartPos      : 1;
         unsigned int enableSound        : 1;
         unsigned int modernMap          : 1;
+        unsigned int panState           : 1;
         unsigned int enableMusic        : 1;
         unsigned int difficulty         : 3;
         unsigned int mode               : 3;

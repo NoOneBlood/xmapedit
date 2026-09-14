@@ -68,7 +68,39 @@
 
 extern BOOL gEventRedirectsUsed;
 
+enum enum_CDUD_POSTURE {
+kCdudePosture                   = 0,
+kCdudePostureL                  = kCdudePosture,
+kCdudePostureC,
+kCdudePostureW,
+kCdudePostureF,
+kCdudePostureMax,
+};
 
+enum enum_CDUD_STATUS {
+kCdudeStatusNormal              = 0x00,
+kCdudeStatusAwaked              = 0x01,
+kCdudeStatusForceCrouch         = 0x02,
+kCdudeStatusSleep               = 0x04,
+kCdudeStatusMorph               = 0x08,
+kCdudeStatusRespawn             = 0x10,
+};
+
+struct CDUINFO
+{
+    uint16_t id;
+    uint8_t version;
+    char name[32];
+    struct
+    {
+        uint32_t idle[kCdudePostureMax];
+        uint32_t sleep[kCdudePostureMax];
+        uint16_t scale;
+    }
+    anim;
+};
+
+extern VOIDLIST gCustomDudeInfo;
 
 extern IDLIST gProxySpritesList;
 extern IDLIST gSightSpritesList;
@@ -179,7 +211,7 @@ struct EXTERNAL_FILES_LIST
 
 extern SPRITEMASS gSpriteMass[kMaxXSprites];
 extern EXTERNAL_FILES_LIST gExternFiles[2];
-extern char gCustomDudeNames[kMaxSprites][32];
+extern char* gCustomDudeNames[kMaxSprites];
 extern char gItemTypeGroup[];
 
 
@@ -307,5 +339,6 @@ void pathSpriteTranslate(int nSect, int nBusyA, int nBusyB, int fX, int fY, int 
 int pathSpriteBusy(unsigned int nSect, unsigned int a2);
 XSPRITE* pathSectFindNextMarker(XSECTOR* pXSect, XSPRITE* pXMark = NULL, char dir = 1);
 
+void customDudeInfoInit();
 int userItemsInit();
 #endif

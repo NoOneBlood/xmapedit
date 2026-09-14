@@ -455,7 +455,6 @@ void evSend(int nIndex, int nType, int rxId, COMMAND_ID command, int nCauser)
             }
             return;
         case kChannelTextOver:
-            if (nType != OBJ_SPRITE) return; // only sprites can send messages
             gPreview.MapMessage(command);
             return;
         case kChannelRemoteBomb0:

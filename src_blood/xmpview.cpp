@@ -491,10 +491,11 @@ void viewWallHighlight(int nWall, int nSect, char how, BOOL testPoint)
 
 void viewSpriteHighlight(spritetype* pSpr)
 {
-    spritetype* pView; char floor = 0x0;
+    static int ex[4], ey[4], ez[2];
+    
+    spritetype* pView; char floor = 0x0, model = 0;
     int nSect = pSpr->sectnum, nAng = pSpr->ang, t = pSpr->ang;
-    int i, x1, y1, x2, y2, x3, y3, x4, y4, zt, zb;
-    int size, fz, cz, xofs = -1, yofs = -1;
+    int i, j, fz, cz, cx, cy, size, xofs = -1, yofs = -1;
     int nFSpr;
 
     if ((nFSpr = headspritestat[kStatFree]) < 0)
@@ -503,24 +504,37 @@ void viewSpriteHighlight(spritetype* pSpr)
     switch (pSpr->cstat & kSprRelMask)
     {
         case kSprFace:
+            if (tiletovox[pSpr->picnum] >= 0 || voxelIndex[pSpr->picnum] >= 0)
+            {
+                if (GetVoxSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3], &ez[0], &ez[1]))
+                {
+                    model = 1;
+                    break;
+                }
+            }
             pSpr->ang = nAng = (ang + kAng180) & kAngMask;
-            GetSpriteExtents(pSpr, &x1, &y1, &x2, &y2, &zt, &zb);
+            GetSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ez[0], &ez[1]);
             pSpr->ang = t;
             xofs = -4;
             yofs = -1;
             break;
         case kSprWall:
-            GetSpriteExtents(pSpr, &x1, &y1, &x2, &y2, &zt, &zb);
-            if ((x1-posx)*(y2-posy) < (x2-posx)*(y1-posy))
+            GetSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ez[0], &ez[1]);
+            if ((ex[0]-posx)*(ey[1]-posy) < (ex[1]-posx)*(ey[0]-posy))
             {
-                x3 = x1+((x2-x1)>>1); y3 = y1+((y2-y1)>>1);
+                cx = MIDPOINT(ex[1], ex[0]);
+                cy = MIDPOINT(ey[1], ey[0]);
+                
+                RotatePoint(&ex[0], &ey[0], kAng180, cx, cy);
+                RotatePoint(&ex[1], &ey[1], kAng180, cx, cy);
+                
                 nAng = (pSpr->ang + kAng180) & kAngMask;
-                RotatePoint(&x1, &y1, kAng180, x3, y3);
-                RotatePoint(&x2, &y2, kAng180, x3, y3);
             }
             break;
         case kSprFloor:
-            GetSpriteExtents(pSpr, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4);
+            GetSpriteExtents(pSpr, &ex[0], &ey[0], &ex[1], &ey[1], &ex[2], &ey[2], &ex[3], &ey[3]);
+            ez[0] = ez[1] = pSpr->z;
+            
             floor |= 0x01;
             if (spriteGetSlope(pSpr->index))
                 floor |= 0x02;
@@ -528,8 +542,81 @@ void viewSpriteHighlight(spritetype* pSpr)
     }
 
     getzsofslope(nSect, pSpr->x, pSpr->y, &cz, &fz);
-    size = ClipRange(approxDist(pSpr->x - posx, pSpr->y - posy)/72, 20, 128);
-
+    size = ClipRange(approxDist(pSpr->x - posx, pSpr->y - posy)>>6, 20, 64);
+    
+    if (model)
+    {
+        xofs = yofs = 0;
+        
+        for (i = 0; i < 2; i++)
+        {
+            for (j = 0; j < 4; j++)
+            {
+                if ((pView = viewInsertTSprite(nSect, -32767, pSpr)) == NULL)
+                    break;
+                
+                pView->xoffset      = xofs;
+                pView->yoffset      = yofs;
+                pView->picnum       = gSysTiles.wallHglt;
+                pView->xrepeat      = pView->yrepeat = size;
+                pView->shade        = -128;
+                pView->ang          = nAng + kAng180;
+                pView->owner        = nFSpr;
+                pView->pal          = 10;
+                
+                t = pView->sectnum;
+                if (FindSector(ex[j], ey[j], ez[i], &t))
+                    pView->sectnum = t;
+                
+                if (!h)
+                    pView->cstat |= kSprTransluc2;
+        
+                pView->cstat |= kSprWall;
+                if (i == 1)
+                    pView->cstat |= kSprFlipY, pView->cstat &= ~kSprOrigin; 
+                
+                switch(j)
+                {
+                    case 0: // BACK ltb
+                        pView->ang = pView->ang + kAng45;
+                        pView->cstat |= kSprFlipX;
+                        break;
+                    case 1: // BACK rtb
+                        pView->ang = pView->ang - kAng45;
+                        break;
+                    case 2: // FACE rtb
+                        pView->ang = pView->ang + kAng45;
+                        break;
+                    case 3: // FACE ltb
+                        pView->ang = pView->ang - kAng45;
+                        pView->cstat |= kSprFlipX;
+                        break;
+                }
+                
+                int a1 = pView->ang & kAngMask;
+                int a2 = (ang + kAng90) & kAngMask;
+                int a3 = (ang - kAng90) & kAngMask;
+                
+                if (klabs(DANGLE(a1, a2)) <= kAng15)
+                {
+                    (j == 0 || j == 2)
+                        ? pView->ang -= kAng15 : pView->ang += kAng15;
+                }
+                else if (klabs(DANGLE(a1, a3)) <= kAng15)
+                {
+                    (j == 0 || j == 2)
+                        ? pView->ang += kAng15 : pView->ang -= kAng15;
+                }
+                
+                pView->x = ex[j];
+                pView->y = ey[j];
+                pView->z = ez[i];
+            }
+        }
+        
+        return;
+    }
+    
     for (i = 0; i < 4; i++)
     {
         if ((pView = viewInsertTSprite(nSect, -32767, pSpr)) == NULL)
@@ -554,26 +641,26 @@ void viewSpriteHighlight(spritetype* pSpr)
             switch(i)
             {
                 case 0: // lt
-                    pView->x            = x1;
-                    pView->y            = y1;
-                    pView->z            = zt;
+                    pView->x            = ex[0];
+                    pView->y            = ey[0];
+                    pView->z            = ez[0];
                     pView->cstat        |= kSprFlipX;
                     break;
                 case 1: // lb
-                    pView->x            = x1;
-                    pView->y            = y1;
-                    pView->z            = zb;
+                    pView->x            = ex[0];
+                    pView->y            = ey[0];
+                    pView->z            = ez[1];
                     pView->cstat        |= (kSprFlipX | kSprFlipY);
                     break;
                 case 2: //rt
-                    pView->x            = x2;
-                    pView->y            = y2;
-                    pView->z            = zt;
+                    pView->x            = ex[1];
+                    pView->y            = ey[1];
+                    pView->z            = ez[0];
                     break;
                 case 3: //rb
-                    pView->x            = x2;
-                    pView->y            = y2;
-                    pView->z            = zb;
+                    pView->x            = ex[1];
+                    pView->y            = ey[1];
+                    pView->z            = ez[1];
                     pView->cstat        |= kSprFlipY;
                     break;
 
@@ -583,12 +670,12 @@ void viewSpriteHighlight(spritetype* pSpr)
             {
                 case 1:
                 case 3:
-                    if (isSkySector(nSect, OBJ_FLOOR) || zb < fz) break;
+                    if (isSkySector(nSect, OBJ_FLOOR) || ez[1] < fz) break;
                     pView->yoffset = -2;
                     break;
                 case 0:
                 case 2:
-                    if (isSkySector(nSect, OBJ_CEILING) || zt > cz) break;
+                    if (isSkySector(nSect, OBJ_CEILING) || ez[0] > cz) break;
                     pView->yoffset = -2;
                     break;
             }
@@ -599,32 +686,18 @@ void viewSpriteHighlight(spritetype* pSpr)
 
             switch(i)
             {
-                case 0: // lt
-                    pView->x            = x1;
-                    pView->y            = y1;
-                    pView->cstat        |= kSprFlipX;
-                    break;
-                case 1: // rt
-                    pView->x            = x2;
-                    pView->y            = y2;
-                    break;
-                case 2: //rb
-                    pView->x            = x3;
-                    pView->y            = y3;
-                    pView->ang          = pSpr->ang + kAng90;
-                    break;
-                case 3: //lb
-                    pView->x            = x4;
-                    pView->y            = y4;
-                    pView->ang          = pSpr->ang + kAng180;
-                    break;
-
+                case 0: pView->cstat |= kSprFlipX;          break; // lt
+                case 1:                                     break; // rt
+                case 2: pView->ang = pSpr->ang + kAng90;    break; // rb
+                case 3: pView->ang = pSpr->ang + kAng180;   break; // lb
             }
 
+            pView->x = ex[i];
+            pView->y = ey[i];
+            pView->z = ez[0] - 16;
+            
             if (floor & 0x02)
-                pView->z = spriteGetZOfSlope(pSpr->index, pView->x, pView->y);
-            else
-                pView->z = pSpr->z - 16;
+               pView->z = spriteGetZOfSlope(pSpr->index, pView->x, pView->y);
         }
     }
 }
@@ -686,7 +759,7 @@ void viewObjectHighlight(int nType, int nID)
         if (h)
         {
             pView->cstat |= kSprTransluc2;
-            if (searchstat == nType && searchindex == nID)
+            if (searchstat == nType && GetHoverID() == nID)
                 t = 64;
         }
 
@@ -776,18 +849,19 @@ void viewProcessSprites(int x, int y, int z, int a) {
         {
             if (nSpr == gHovSpr)
             {
-                switch (pTSpr->cstat & 48) {
+                switch (pTSpr->cstat & kSprRelMask)
+                {
                     case kSprWall:
                         if (pTSpr->cstat & kSprOneSided) break;
                         // no break
                     case kSprFace:
-                        if (nView == kSprViewVox || nView == kSprViewVoxSpin) break;
-                        viewAddEffect(i, kViewEffectAngle);
+                        if (nView == kSprViewSingle || nView == kSprViewBounce)
+                            viewAddEffect(i, kViewEffectAngle);
                         break;
                 }
             }
 
-            if ((h) && (nSpr == gHighSpr || TestBitString(hgltspri, nSpr)))
+            if (h && TestBitString(hgltspri, nSpr))
                 viewAddEffect(i, kViewEffectHighlight);
         }
         else if (showinvisibility && (sprite[nSpr].cstat & kSprInvisible))
@@ -809,6 +883,8 @@ void viewProcessSprites(int x, int y, int z, int a) {
 
         if (!voxType)
             viewRotateSprite(pTSpr, nView, x, y, &offset); // rotate ViewFullN sprites
+        else if (panm[nTile].view == kSprViewVoxSpin)
+            pTSpr->ang = (short)((totalclock * 12) & kAngMask);
 
         for (; offset > 0; offset-- )
             pTSpr->picnum += 1 + panm[pTSpr->picnum].frames;
@@ -872,7 +948,8 @@ void viewProcessSprites(int x, int y, int z, int a) {
 
         if (voxType)
         {
-            switch(voxType) {
+            switch(voxType)
+            {
                 case kVoxTypeInternal:
                     pTSpr->cstat &= ~(kSprFlipX|kSprFlipY); // no flip for RFF voxels
                     pTSpr->yoffset += panm[pTSpr->picnum].ycenter;
@@ -883,9 +960,6 @@ void viewProcessSprites(int x, int y, int z, int a) {
                     pTSpr->picnum = tileGetPic(pTSpr->picnum); // animate
                     break;
             }
-
-            if (panm[nTile].view == kSprViewVoxSpin)
-                pTSpr->ang = (short)((totalclock * 12) & kAngMask);
         }
 
         sectortype *pSect = &sector[pTSpr->sectnum];

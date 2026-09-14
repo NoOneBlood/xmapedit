@@ -140,6 +140,7 @@ static void Push(int oType, int oIndex);
 static void TriggerObject(int nSerial);
 static void Error(char* pFormat, ...);
 static char Cmp(int val);
+static char Cmp(int val, int nArg1, int nArg2);
 static void Restore();
 
 static char CheckGeneric();
@@ -266,14 +267,7 @@ static char sectCmpDepth(void)          { return Cmp((xAvail) ? pXSect->Depth : 
 static char wallCmpOverpicnum(void)     { return Cmp(pWall->overpicnum); }
 static char wallChkIsMirror(void)
 {
-    int i = mirrorcnt;
-    while(--i >= 0)
-    {
-        if (mirror[i].type == 0 && mirror[i].id == objIndex)
-            return true;
-    }
-
-    return false;
+    return (pWall->type != kWallStack && Cmp(pWall->picnum, mirrorPicStart, mirrorPicEnd-1));
 }
 
 static char wallHelperChkSector(int nSect)
@@ -1282,6 +1276,14 @@ static char Cmp(int val)
         return (val >= arg1 && val <= arg2);
     }
     else return (val == arg1);
+}
+
+static char Cmp(int val, int nArg1, int nArg2)
+{
+    arg1 = nArg1;
+    arg2 = nArg2;
+
+    return Cmp(val);
 }
 
 static void Error(char* pFormat, ...)

@@ -386,8 +386,8 @@ void artedInit() {
     if (gTool.cantest)
     {
         i = getHighlightedObject();
-        gTool.objType  = (char)searchstat;
-        gTool.objIndex = searchindex;
+        gTool.objType  = searchstat;
+        gTool.objIndex = GetHoverID();
     }
 
     memset(tilePluIndex, kPlu0, sizeof(tilePluIndex));

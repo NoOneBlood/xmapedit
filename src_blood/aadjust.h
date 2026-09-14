@@ -52,19 +52,12 @@ struct SYS_STATNUM_GROUP
 extern AUTODATA* autoData;
 extern int autoDataLength;
 
-extern SYS_STATNUM_GROUP sysStatData[];
-
 void AutoAdjustSprites(void);
 void AutoAdjustSpritesInit(void);
 void adjSetApperance(spritetype* pSprite, int idx);
 BOOL adjSpriteByType(spritetype* pSprite);
-int adjCountSkips(int pic);
 int adjIdxByTileInfo(int pic, int skip);
-int adjFillTilesArray(int objectGroup);
 int adjIdxByType(int nType);
-
-BOOL sysStatReserved(int nStat);
-BOOL sysStatCanChange(spritetype* pSpr);
 
 void CleanUp();
 void CleanUpStatnum(int nSpr);
