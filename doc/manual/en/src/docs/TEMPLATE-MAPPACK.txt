@@ -29,6 +29,7 @@ AND SUBSIDIARIES.
 Game                   : Blood
 Title                  : Type the full name of your Map Pack
 Filename               : Type the full file name
+Version		       : Type the Add-On version. For 1st release, 1.0
 Date		       : The date you finished your Map Pack
 Author                 : Your name/nickname
 Misc. author info      : Type stuff about you if you want
@@ -71,7 +72,7 @@ Demos Replaced         :
 
 *Compatibility*
 
-Vanilla Blood          : 
+Vanilla Blood (DOS)    : 
 Fresh Supply           : 
 Refreshed Supply       : 
 BloodGDX/Related forks : 

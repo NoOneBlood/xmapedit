@@ -27,6 +27,7 @@ OF THEIR AFFILIATES AND SUBSIDIARIES.
 Game                   : Blood
 Title                  : Type the full name of your sprite prefab
 Filename               : Type the full file name
+Version		       : Type the sprite prefab version. For 1st release, 1.0
 Date		       : The date you finished your prefab
 Author                 : Your name/nickname
 Misc. author info      : Type stuff about you if you want
@@ -51,7 +52,7 @@ Additional Notes       : Mention any relevant notes here
 
 *Compatibility*
 
-Vanilla Blood          : 
+Vanilla Blood (DOS)    : 
 Modern Features        :
 Slopes                 : 
 Additional notes       : any other relevant notes about compatibility

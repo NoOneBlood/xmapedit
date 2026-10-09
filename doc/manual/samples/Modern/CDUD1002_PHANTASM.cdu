@@ -1,0 +1,227 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;A custom phantasm similar to vanilla, but can
+
+;shot 3 skulls or 1 skull that follows the
+
+;target
+
+;
+
+[General]
+
+Version             = 2
+
+Name                = Custom Phantasm
+
+Author              = NoOne
+
+Medium              = Land
+
+Mass                = 70
+
+Health              = 100
+
+ClipDist            = 64
+
+Periphery           = 341
+
+
+
+
+[Velocity]
+
+Fly                 = (Forward=25000, Turn=25, Dodge=15000, Vertical=20000)
+
+
+
+
+[Animation]
+
+Scale               = 100%
+
+Idle                = 5376
+
+Search              = 5383
+
+Move                = 5383
+
+RecoilDefault       = 5381
+
+DeathDefault        = 5377
+
+
+
+
+[Sound]
+
+MultipleSources     = 1
+
+TargetSpot          = 1600
+
+TargetChase         = 1600
+
+TargetDead          = 1601
+
+GotHit              = 1602
+
+DeathDefault        = (1603, 1605)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Scytche
+
+;
+
+[Weapon1]
+
+Type                = VECTOR_13
+
+Distance            = (0, 128)
+
+PickChance          = 100%
+
+Dispersion          = 40%
+
+AimAngle            = 64
+
+AttackAnimation     = (Fly=5382)
+
+AttackSetup         = (Inertia=0, Timer=120, TurnToTarget=0, NumShots=3)
+
+ShotSound           = (1406, 120%)
+
+Height              = 256
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;3 skulls
+
+;
+
+[Weapon2]
+
+Type                = PROJECTILE_8
+
+Distance            = (384, 768)
+
+PickChance          = 80%
+
+Dispersion          = 20%
+
+AimAngle            = 85
+
+AttackAnimation     = 5382
+
+AttackSetup         = (Inertia=1, TurnToTarget=1, Timer=120, Prediction=(768, 256, 75), NumShots=3)
+
+ShotAppearance      = (Pal=Inherit, Scale=Inherit, Offset=(0, -8))
+
+ShotSetup           = (Velocity=1128)
+
+ShotSound           = 489
+
+Style               = (Angle=256)
+
+AimSlope            = 768
+
+Default             = 1
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;1 following skull
+
+;
+
+[Weapon3]
+
+Type                = PROJECTILE_8
+
+Distance            = (384, 768)
+
+PickChance          = 50%
+
+Dispersion          = 20%
+
+AimAngle            = 85
+
+AttackAnimation     = 5382
+
+AttackSetup         = (Inertia=1, TurnToTarget=1, Timer=160, Prediction=(768, 256, 75))
+
+ShotAppearance      = (Pal=7, Scale=Inherit, Offset=(0, -8))
+
+ShotSetup           = (Velocity=1128, FollowAngle=64)
+
+ShotSound           = 489
+
+AimSlope            = 768
+
+
+
+
+[Recoil]
+
+OnDamage            = (10, 80%)
+
+
+
+
+[Flight]
+
+LandSetup           = (Distance=(0, 1024, 0), Time=32, Chance=100%)
+
+SetHeightTime       = (32, 384)
+
+MaxHeight           = 5192
+
+MinCFHeight         = 128
+
+DragCompensation    = 64
+
+BackOnTrackAccel    = 20%
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Uncoment this if you want dude to spin in circles
+
+;when flying high enough similar to
+
+;vanilla
+
+;
+
+#[MoveSetup]
+
+#FallHeight          = 2048
+
+
+
+
+[Damage]
+
+Falling             = 0%
+
+Burning             = 0%
+
+Bullet              = 15%
+
+Explode             = 0%
+
+Choke               = 0%
+
+Spirit              = 5%
+
+Electric            = 0%

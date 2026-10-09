@@ -29,15 +29,16 @@ AND SUBSIDIARIES.
 Game                   : Blood
 Title                  : Type the full name of your Add-On
 Filename               : Type the full file name
+Version		       : Type the Add-On version. For 1st release, 1.0
 Date		       : The date you finished your Add-On
 Author                 : Your name/nickname
 Misc. author info      : Type stuff about you if you want
-Contact
+Contact		       :
 		         E-mail: Your email address
 		         Web page: Your website if you have any
 			 Add any other social media if you want
 
-Other levels I've made : List other levels you have made
+Other levels I've made : List/link other levels you have made
 Description            : Write a Add-On description
 Additional credits to  : Mention any person you want to credit
 
@@ -71,7 +72,7 @@ Demos Replaced         :
 
 *Compatibility*
 
-Vanilla Blood          : 
+Vanilla Blood (DOS)    : 
 Fresh Supply           : 
 Refreshed Supply       : 
 BloodGDX/Related forks : 

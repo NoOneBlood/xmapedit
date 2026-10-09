@@ -1,0 +1,228 @@
+[General]
+
+Version         = 2
+
+Name            = Custom Axe Zombie
+
+Medium          = Land
+
+Author          = NoOne
+
+Mass            = 70
+
+Health          = 60
+
+Clipdist        = 48
+
+
+
+
+[Velocity]
+
+Stand           = (Forward=9300, Turn=30)
+
+
+
+
+[Animation]
+
+Idle            = 4352
+
+
+
+
+;Define it as sleeping
+
+IdleSleep       = 4364
+
+IdleWake        = 4361
+
+
+
+
+Move            = 4360
+
+KnockoutEnter   = 4353
+
+Knockout        = 4362
+
+KnockoutExit    = 4363
+
+Burning         = 4355
+
+RecoilDefault   = 4357
+
+RecoilElectric  = 4356
+
+
+
+
+;Headshot and normal death
+
+DeathDefault    = (4353, 4359)
+
+
+
+
+DeathBurning    = 4365
+
+DeathExplode    = 4354
+
+DeathSpirit     = 4366
+
+
+
+
+[Sound]
+
+TargetSpot      = (1103, 1104, 1105)
+
+TargetChase     = (1103, 1104, 1105)
+
+GotHit          = 1106
+
+Burning         = 1106
+
+DeathDefault    = (1107, 1108)
+
+DeathBurning    = (1107, 1108)
+
+DeathExplode    = (1107, 1108)
+
+IdleWake        = 745
+
+
+
+
+[Weapon1]
+
+Type            = VECTOR_11
+
+Distance        = (0, 100)
+
+PickChance      = 100%
+
+Dispersion      = 0%
+
+AimAngle        = 32
+
+AttackAnimation = 4358
+
+AttackSetup     = (Inertia=true, TurnToTarget=false)
+
+
+
+
+[Recoil]
+
+OnDamage        = (15, 70%)
+
+
+
+
+[Knockout]
+
+OnDamage        = (20, 100%, 384)
+
+
+
+
+[Damage]
+
+Falling         = 20%
+
+Burning         = 110%
+
+Bullet          = 80%
+
+Explode         = 110%
+
+Choke           = 0%
+
+Spirit          = 115%
+
+Electric        = 120%
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;The head gib
+
+;
+
+[FXEffect1]
+
+Type           = GIB28
+
+
+
+
+;Set a larger delay (longer than anim length) so it spawns once
+
+Delay           = 1024
+
+
+
+
+;Only spawn it when dude playing headshot death
+
+OnAnim          = 4359
+
+AnimFrame       = 1
+
+
+
+
+;Spawn it at higher pos
+
+Offset          = (32, 0, -512)
+
+
+
+
+;Set velocity so it not stuck in the air
+
+Velocity        = 256
+
+
+
+
+;Make it fly higher
+
+VelocitySlope   = -2048
+
+
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Optional blood trails for headshot
+
+;
+
+[FXEffect2]
+
+Type            = FX27
+
+
+
+
+;Only spawn it when dude playing headshot death
+
+OnAnim          = 4359
+
+
+
+
+;Set some velocity
+
+Velocity        = 128
+
+VelocitySlope   = -2048
+
+SpawnChance     = 60%

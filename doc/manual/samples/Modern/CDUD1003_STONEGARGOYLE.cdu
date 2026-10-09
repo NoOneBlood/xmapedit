@@ -1,0 +1,217 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;A custom stone gargoyle similar to vanilla, but
+
+;also able to summon up to 9 flesh gargoyles
+
+;
+
+[General]
+
+Version             = 2
+
+Name                = Custom Stone Gargoyle
+
+Author              = NoOne
+
+Medium              = Land
+
+Mass                = 200
+
+Health              = 200
+
+ClipDist            = 84
+
+Periphery           = 1024
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Can only fly, so default posture for animation
+
+; is fly as well
+
+;
+
+[Velocity]
+
+Fly                 = (Forward=20000, Turn=15, Dodge=14000, Vertical=35000)
+
+
+
+
+[Animation]
+
+Idle                = 5120
+
+Move                = 5120
+
+RecoilDefault       = 5125
+
+DeathDefault        = 5121
+
+
+
+
+[Sound]
+
+TargetSpot          = (1450, 1451, 200%)
+
+TargetChase         = (1450, 200%)
+
+GotHit              = (1452, 200%)
+
+DeathDefault        = (1453, 1454, 1455, 200%)
+
+
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Shots 3 gargoyle slash vectors at a time
+
+;
+
+[Weapon1]
+
+Type                = VECTOR_14
+
+Distance            = (0, 128)
+
+PickChance          = 100%
+
+Dispersion          = 20%
+
+AimAngle            = 64
+
+AimSlope            = 0
+
+AttackAnimation     = 5126
+
+AttackSetup         = (Inertia=0, Timer=120, TurnToTarget=0, NumShots=3)
+
+ShotSound           = (1406, 150%)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Shots 2 stone gargoyle projectiles at a time
+
+; with target move prediction
+
+;
+
+[Weapon2]
+
+Type                = PROJECTILE_12
+
+Distance            = (384, 768)
+
+PickChance          = 80%
+
+Dispersion          = 0%
+
+AimAngle            = 85
+
+AimSlope            = (-1280, 1280)
+
+AttackAnimation     = 5127
+
+AttackSetup         = (Inertia=1, TurnToTarget=0, NumShots=2, Timer=60, Prediction=(2048, 172, 100))
+
+ShotSetup           = (Offset=(-128, 0, 0), ClipDist=16)
+
+Style               = (Offset=(256, 0, 0))
+
+ShotSound           = (1457, 150%)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Summon 3 flesh gargoyles with average health
+
+; when high or low enough
+
+; Have limited ammo
+
+;
+
+[Weapon3]
+
+Type                = VDUD_6
+
+Distance            = (768, 2048)
+
+PickChance          = 80%
+
+Dispersion          = 0%
+
+Height              = (Above=(1024, 2048), Below=(1024, 2048))
+
+AimAngle            = 85
+
+AttackAnimation     = 5126
+
+AttackSetup         = (Inertia=0, TurnToTarget=1, NumShots=3)
+
+ShotSetup           = (Offset=(1024, 256, 0), Velocity=1280)
+
+ShotSound           = (1401, 200%)
+
+Style               = (Angle=512)
+
+Cooldown            = 512
+
+Ammo                = 9
+
+Data                = 32
+
+
+
+
+[Recoil]
+
+OnDamage            = (20, 80%)
+
+
+
+
+[Flight]
+
+LandSetup           = (Distance=(0, 1024, 2048), Time=32, Chance=100%)
+
+SetHeightTime       = (64, 256)
+
+MaxHeight           = 10240
+
+DragCompensation    = 128
+
+MinCFHeight         = 64
+
+
+
+
+[Damage]
+
+Falling             = 0%
+
+Burning             = 0%
+
+Bullet              = 10%
+
+Explode             = 10%
+
+Choke               = 0%
+
+Spirit              = 40%
+
+Electric            = 20%

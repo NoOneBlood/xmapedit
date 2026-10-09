@@ -1,0 +1,293 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;This is a custom Cerberus with 1 head similar
+
+;to vanilla but more dangerous since it's
+
+;projectiles follows the target
+
+;and it can stomp it
+
+;
+
+[General]
+
+Version             = 2
+
+Name                = Custom Cerberus
+
+Author              = NoOne
+
+Mass                = 65535
+
+HearDist            = 2560
+
+SeeDist             = 12800
+
+Periphery           = 682
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Cannot live underwater
+
+Medium              = Land
+
+Health              = 200
+
+ClipDist            = 72
+
+
+
+
+[Velocity]
+
+Stand               = (Forward=9000, Turn=15)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Using vanilla animation with larger scale
+
+;
+
+[Animation]
+
+Scale               = 110%
+
+Idle                = 9984
+
+Move                = 9991
+
+RecoilDefault       = 9989
+
+RecoilElectric      = 9988
+
+DeathDefault        = 9985
+
+
+
+
+[Sound]
+
+TargetSpot          = (2300, 200%)
+
+TargetChase         = (2300, 2301, 200%)
+
+GotHit              = (2302, 2303, 200%)
+
+DeathDefault        = (2304, 2305, 2306, 200%)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;All weapons have timer set to 60, so is not
+
+;playing full animation which makes it
+
+;similar to vanilla
+
+;
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Bite
+
+;
+
+[Weapon1]
+
+Type                = VECTOR_15
+
+Distance            = (0, 128)
+
+Dispersion          = 60%
+
+PickChance          = 100%
+
+AttackAnimation     = 9990
+
+AimAngle            = 512
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;3 bites at once
+
+AttackSetup         = (Timer=60, Interruptable=true, TurnToTarget=true, NumShots=3)
+
+ShotSound           = (1307, 1308, 200%)
+
+Cooldown            = 8
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Burning flame
+
+;
+
+[Weapon2]
+
+Type                = PROJECTILE_9
+
+Distance            = (200, 400)
+
+PickChance          = 100%
+
+Dispersion          = 0%
+
+AttackAnimation     = 9990
+
+AimAngle            = 512
+
+AttackSetup         = (Timer=60, Interruptable=true, TurnToTarget=true)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Spawn first projectile on the left side, add target track angle
+
+ShotSetup           = (Offset=(-320, 512, 0), FollowAngle=2048)
+
+ShotSound           = (1309, 200%)
+
+Cooldown            = 8
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Fireball
+
+;
+
+[Weapon3]
+
+Type                = PROJECTILE_14
+
+Distance            = (400, 3072)
+
+PickChance          = 100%
+
+Dispersion          = (70%, 0%)
+
+AttackAnimation     = 9990
+
+AimAngle            = 512
+
+AttackSetup         = (Timer=60, Interruptable=true, TurnToTarget=true, Prediction=(512, 341, 100))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Spawn first projectile on the left side, add target track angle
+
+ShotSetup           = (Offset=(-320, 1024, 0), Velocity=3072, FollowAngle=16)
+
+ShotAppearance      = (Scale=120%)
+
+ShotSound           = (1309, 200%)
+
+Cooldown            = 8
+
+
+
+
+[Recoil]
+
+OnDamage            = (30, 80%)
+
+
+
+
+[Damage]
+
+Falling             = 5%
+
+Burning             = 0%
+
+Bullet              = 5%
+
+Explode             = 5%
+
+Choke               = 0%
+
+Spirit              = 50%
+
+Electric            = 25%
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Prevents suicide
+
+IgnoreDamageFrom    = Self
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Deal damage to target when standing on it
+
+StompDamage         = 64
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Maybe drop basic armor or life seed
+
+;
+
+[DropItem]
+
+Item1               = (Type=140, Chance=20%)
+
+Item2               = (Type=110, Chance=30%)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Bleeding dead right head effect
+
+;
+
+[FXEffect1]
+
+Type                = FX27
+
+OnState             = (Move, Idle, Attack)
+
+Offset              = (64, -128, 710)
+
+SpawnChance         = 95%
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Gibs on death
+
+;
+
+[FXEffect2]
+
+Type                = (FX27, GIB8)
+
+GibSetup            = (Type=GIB19, Flags=Impact)
+
+OnState             = Death
+
+Velocity            = 128
+
+Delay               = 1024
+
+SpawnAll            = true

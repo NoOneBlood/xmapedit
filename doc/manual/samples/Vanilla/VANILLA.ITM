@@ -1,0 +1,548 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; A section that defines file version must always
+; exist as well as the Version
+; parameter.
+;
+[General]
+Version = 1
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Weapon stuff
+; Note: for compatibility it's very important
+; to add ammo BEFORE weapon for proper
+; weapon auto-switch or the demos will
+; desync.
+;
+; ------ Obsolete / Modern
+[RANDOM]
+Type		= (Weapon, 40)
+Appearance	= (Tile=832, Size=40)
+
+
+[Sawed-off]
+Type		= (Weapon, 41)
+Appearance	= (Tile=559, Size=48)
+AddAmmo		= (Amount=8, Slot=3)
+SetWeapon	= (Amount=1, Slot=3)
+
+
+[Tommy Gun]
+Type		= (Weapon, 42)
+Appearance	= (Tile=558, Size=48)
+AddAmmo		= (Amount=50, Slot=4)
+SetWeapon	= (Amount=1, Slot=4)
+
+
+[Flare pistol]
+Type		= (Weapon, 43)
+Appearance	= (Tile=524, Size=48)
+AddAmmo		= (Amount=9, Slot=2)
+SetWeapon	= (Amount=1, Slot=2)
+
+
+[Voodoo doll_WEAPON]
+Type		= (Weapon, 44)
+Appearance	= (Tile=525, Size=40)
+AddAmmo		= (Amount=100, Slot=10)
+SetWeapon	= (Amount=1, Slot=10)
+
+
+[Tesla Cannon]
+Type		= (Weapon, 45)
+Appearance	= (Tile=539, Size=48)
+AddAmmo		= (Amount=64, Slot=8)
+SetWeapon	= (Amount=1, Slot=8)
+
+
+[Napalm Launcher]
+Type		= (Weapon, 46)
+Appearance	= (Tile=526, Size=48)
+AddAmmo		= (Amount=6, Slot=5)
+SetWeapon	= (Amount=1, Slot=5)
+
+; ------ Obsolete
+[Pitchfork]
+Type		= (Weapon, 47)
+
+
+[Spray Can_WEAPON]
+Type		= (Weapon, 48)
+Appearance	= (Tile=618, Size=40)
+AddAmmo		= (Amount=480, Slot=7)
+SetWeapon	= (Amount=1, Slot=7)
+
+
+[Dynamite]
+Type		= (Weapon, 49)
+Appearance	= (Tile=589, Size=48)
+AddAmmo		= (Amount=1, Slot=6)
+SetWeapon	= (Amount=1, Slot=6)
+
+
+[Life Leech]
+Type		= (Weapon, 50)
+Appearance	= (Tile=800, Size=48)
+AddAmmo		= (Amount=35, Slot=9)
+SetWeapon	= (Amount=1, Slot=9)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Ammo stuff
+; Note: for compatibility it's very important
+; to add ammo AFTER weapon for proper
+; weapon auto-switch or the demos will
+; desync.
+;
+[Spray Can_AMMO]
+Type		= (Ammo, 60)
+Appearance	= (Tile=618, Size=40)
+SetWeapon	= (Amount=1, Slot=7)
+AddAmmo		= (Amount=480, Slot=7)
+
+
+[Bundle of TNT*]
+Type		= (Ammo, 61)
+Appearance	= (Tile=589, Size=48)
+SetWeapon	= (Amount=1, Slot=6)
+AddAmmo		= (Amount=1, Slot=6)
+
+
+[Bundle of TNT]
+Type		= (Ammo, 62)
+Appearance	= (Tile=589, Size=48)
+SetWeapon	= (Amount=1, Slot=6)
+AddAmmo		= (Amount=1, Slot=6)
+
+
+[Case of TNT]
+Type		= (Ammo, 63)
+Appearance	= (Tile=809, Size=48)
+AddAmmo		= (Amount=5, Slot=6)
+SetWeapon	= (Amount=1, Slot=6)
+
+
+[Proximity Detonator]
+Type		= (Ammo, 64)
+Appearance	= (Tile=811, Size=40)
+SetWeapon	= (Amount=1, Slot=11)
+AddAmmo		= (Amount=1, Slot=11)
+
+
+[Remote Detonator]
+Type		= (Ammo, 65)
+Appearance	= (Tile=810, Size=40)
+SetWeapon	= (Amount=1, Slot=12)
+AddAmmo		= (Amount=1, Slot=12)
+
+
+[Trapped Soul]
+Type		= (Ammo, 66)
+Appearance	= (Tile=820, Size=24)
+AddAmmo		= (Amount=10, Slot=9)
+
+
+[4 shotgun shells]
+Type		= (Ammo, 67)
+Appearance	= (Tile=619, Size=48)
+AddAmmo		= (Amount=4, Slot=3)
+
+
+[Box of shotgun shells]
+Type		= (Ammo, 68)
+Appearance	= (Tile=812, Size=48)
+AddAmmo		= (Amount=15, Slot=3)
+
+
+[A few bullets]
+Type		= (Ammo, 69)
+Appearance	= (Tile=813, Size=48)
+AddAmmo		= (Amount=15, Slot=4)
+
+
+[Voodoo doll_AMMO]
+Type		= (Ammo, 70)
+Appearance	= (Tile=525, Size=40)
+SetWeapon	= (Amount=1, Slot=10)
+AddAmmo		= (Amount=100, Slot=10)
+
+
+; ------ Obsolete
+[OBSOLETE_1]
+Type		= (Ammo, 71)
+
+
+[Full drum of bullets]
+Type		= (Ammo, 72)
+Appearance	= (Tile=817, Size=48)
+AddAmmo		= (Amount=100, Slot=4)
+
+
+[Tesla Charge]
+Type		= (Ammo, 73)
+Appearance	= (Tile=548, Size=24)
+AddAmmo		= (Amount=32, Slot=8)
+
+; ------ Obsolete
+[OBSOLETE_2]
+Type		= (Ammo, 74)
+
+; ------ Obsolete
+[OBSOLETE_3]
+Type		= (Ammo, 75)
+
+
+[Flares]
+Type		= (Ammo, 76)
+Appearance	= (Tile=816, Size=48)
+AddAmmo		= (Amount=8, Slot=2)
+
+; ------ Obsolete
+[OBSOLETE_4]
+Type		= (Ammo, 77)
+
+; ------ Obsolete
+[OBSOLETE_5]
+Type		= (Ammo, 78)
+
+
+[Gasoline Can]
+Type		= (Ammo, 79)
+Appearance	= (Tile=801, Size=48)
+AddAmmo		= (Amount=6, Slot=5)
+
+
+; ------ Obsolete / Modern
+[Random Ammo]
+Type		= (Ammo, 80)
+Appearance	= (Tile=832, Size=40)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Key stuff
+;
+[Skull key]
+Type		= (Key, 100)
+Appearance	= (Tile=2552, Size=32)
+SetKey		= (Amount=1, Slot=1)
+
+
+[Eye key]
+Type		= (Key, 101)
+Appearance	= (Tile=2553, Size=32)
+SetKey		= (Amount=1, Slot=2)
+
+
+[Fire key]
+Type		= (Key, 102)
+Appearance	= (Tile=2554, Size=32)
+SetKey		= (Amount=1, Slot=3)
+
+
+[Dagger key]
+Type		= (Key, 103)
+Appearance	= (Tile=2555, Size=32)
+SetKey		= (Amount=1, Slot=4)
+
+
+[Spider key]
+Type		= (Key, 104)
+Appearance	= (Tile=2556, Size=32)
+SetKey		= (Amount=1, Slot=5)
+
+
+[Moon key]
+Type		= (Key, 105)
+Appearance	= (Tile=2557, Size=32)
+SetKey		= (Amount=1, Slot=6)
+
+
+[Key 7]
+Type		= (Key, 106)
+Appearance	= (Tile=2558, Size=32)
+SetKey		= (Amount=1, Slot=7)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Health stuff
+;
+[Red potion]
+Type		= (Health, 111)
+Appearance	= (Tile=517, Size=40)
+AddHealth	= (Amount=2)
+
+
+[Life Essence]
+Type		= (Health, 109)
+Appearance	= (Tile=2169, Size=40)
+AddHealth	= (Amount=20, MaxAmount=100)
+
+
+[Medicine Pouch]
+Type		= (Health, 108)
+Appearance	= (Tile=822, Size=40)
+AddHealth	= (Amount=50, MaxAmount=100)
+
+
+[Life Seed]
+Type		= (Health, 110)
+Appearance	= (Tile=2433, Size=40)
+AddHealth	= (Amount=100)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Powerup stuff
+;
+[Feather Fall]
+Type			= (Powerup, 112)
+Appearance		= (Tile=783, Size=40)
+AddPowerTime	= (Amount=36, Slot=13,	Compatible=True)
+
+
+[Invisibility]
+Type			= (Powerup, 113)
+Appearance		= (Tile=896, Size=40)
+AddPowerTime	= (Amount=36, Slot=14,	Compatible=True)
+RespawnTime		= SPECIAL1
+
+
+[INVULNERABILITY]
+Type			= (Powerup, 114)
+Appearance		= (Tile=825, Size=40)
+AddPowerTime	= (Amount=36, Slot=15,	Compatible=True)
+RespawnTime		= SPECIAL2
+
+; ------ Obsolete
+[Raven Flight]
+Type			= (Powerup, 116)
+Appearance		= (Tile=828, Size=40)
+AddPowerTime	= (Amount=36, Slot=17,	Compatible=True)
+
+
+[Guns Akimbo]
+Type			= (Powerup, 117)
+Appearance		= (Tile=829, Size=40)
+AddPowerTime	= (Amount=36, Slot=18,	Compatible=True)
+RespawnTime		= SPECIAL1
+
+
+[Gas mask]
+Type			= (Powerup, 119)
+Appearance		= (Tile=831, Size=40)
+AddPowerTime	= (Amount=36, Slot=20,	Compatible=True)
+
+; ------ Obsolete
+[Clone]
+Type			= (Powerup, 120)
+Appearance		= (Tile=863, Size=40)
+AddPowerTime	= (Amount=36, Slot=21,	Compatible=True)
+
+; ------ Obsolete
+[Decoy]
+Type			= (Powerup, 122)
+Appearance		= (Tile=836, Size=40)
+AddPowerTime	= (Amount=36, Slot=23,	Compatible=True)
+
+
+[Doppelganger]
+Type			= (Powerup, 123)
+Appearance		= (Tile=853, Size=56)
+AddPowerTime	= (Amount=36, Slot=24,	Compatible=True)
+
+
+[Reflective Shots]
+Type			= (Powerup, 124)
+Appearance		= (Tile=2428, Size=40)
+AddPowerTime	= (Amount=36, Slot=25,	Compatible=True)
+RespawnTime		= SPECIAL1
+
+
+; ------ Obsolete
+[ShadowCloak]
+Type			= (Powerup, 126)
+Appearance		= (Tile=768, Size=64)
+AddPowerTime	= (Amount=36, Slot=27,	Compatible=True)
+
+
+; ------ Obsolete
+[Rage Shroom]
+Type			= (Powerup, 127)
+Appearance		= (Tile=840, Size=48)
+AddPowerTime	= (Amount=36, Slot=28,	Compatible=True)
+
+
+[Delirium Shroom]
+Type			= (Powerup, 128)
+Appearance		= (Tile=841, Size=48)
+AddPowerTime	= (Amount=9, Slot=29,	Compatible=True)
+
+
+; ------ Obsolete / Modern
+[Grow Shroom]
+Type			= (Powerup, 129)
+Appearance		= (Tile=842, Size=48)
+AddPowerTime	= (Amount=36, Slot=30,	Compatible=True)
+
+; ------ Obsolete / Modern
+[Shrink Shroom]
+Type			= (Powerup, 130)
+Appearance		= (Tile=843, Size=48)
+AddPowerTime	= (Amount=36, Slot=31,	Compatible=True)
+
+
+[Death Mask]
+Type			= (Powerup, 131)
+Appearance		= (Tile=683, Size=48)
+AddPowerTime	= (Amount=36, Slot=32,	Compatible=True)
+
+
+; ------ Obsolete
+[Wine Goblet]
+Type			= (Powerup, 132)
+Appearance		= (Tile=521, Size=40)
+AddPowerTime	= (Amount=36, Slot=33,	Compatible=True)
+
+
+; ------ Obsolete
+[Wine Bottle]
+Type			= (Powerup, 133)
+Appearance		= (Tile=604, Size=40)
+AddPowerTime	= (Amount=36, Slot=34,	Compatible=True)
+
+
+; ------ Obsolete
+[Skull Grail]
+Type			= (Powerup, 134)
+Appearance		= (Tile=520, Size=40)
+AddPowerTime	= (Amount=36, Slot=35,	Compatible=True)
+
+
+; ------ Obsolete
+[Silver Grail]
+Type			= (Powerup, 135)
+Appearance		= (Tile=803, Size=40)
+AddPowerTime	= (Amount=36, Slot=36,	Compatible=True)
+
+; ------ Obsolete
+[Tome]
+Type			= (Powerup, 136)
+Appearance		= (Tile=518, Size=40)
+AddPowerTime	= (Amount=36, Slot=37,	Compatible=True)
+
+
+; ------ Obsolete
+[Black Chest]
+Type			= (Powerup, 137)
+Appearance		= (Tile=522, Size=40)
+AddPowerTime	= (Amount=36, Slot=38,	Compatible=True)
+
+
+; ------ Obsolete
+[Wooden Chest]
+Type			= (Powerup, 138)
+Appearance		= (Tile=523, Size=40)
+AddPowerTime	= (Amount=36, Slot=39,	Compatible=True)
+
+
+[Asbestos Armor]
+Type			= (Powerup, 139)
+Appearance		= (Tile=837, Size=(80, 64))
+AddPowerTime	= (Amount=36, Slot=40,	Compatible=True)
+
+
+#[Blue Team Base]
+#Type			= (Powerup, 145)
+#Appearance		= (Tile=753, Size=64)
+#AddPowerTime	= (Amount=0, Slot=46,	Compatible=True)
+
+
+#[Red Team Base]
+#Type			= (Powerup, 146)
+#Appearance		= (Tile=753, Size=64)
+#AddPowerTime	= (Amount=0, Slot=47,	Compatible=True)
+
+
+#[Blue Flag]
+#Type			= (Powerup, 147)
+#Appearance		= (Tile=3558, Shade=-128, Pal=0, Size=64)
+#AddPowerTime	= (Amount=0, Slot=48,	Compatible=True)
+
+
+#[Red Flag]
+#Type			= (Powerup, 148)
+#Appearance		= (Tile=3558, Shade=-128, Pal=7, Size=64)
+#AddPowerTime	= (Amount=0, Slot=49,	Compatible=True)
+
+
+; -> Modern
+[Level Map]
+Type			= (Powerup, 150)
+Appearance		= (Tile=833, Size=40)
+AddPowerTime	= (Amount=1, Slot=51,	Compatible=True)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Armor stuff
+;
+[Basic Armor]
+Type			= (Armor, 140)
+Appearance		= (Tile=2628, Size=64)
+AddArmor		= (Amount=50, MaxAmount=100, Slot=1, Compatible=True)
+AddArmor		= (Amount=50, MaxAmount=100, Slot=2, Compatible=True)
+AddArmor		= (Amount=50, MaxAmount=100, Slot=3, Compatible=True)
+
+
+[Body Armor]
+Type			= (Armor, 141)
+Appearance		= (Tile=2586, Size=64)
+AddArmor		= (Amount=100, MaxAmount=100, Slot=1, Compatible=True)
+
+
+[Fire Armor]
+Type			= (Armor, 142)
+Appearance		= (Tile=2578, Size=64)
+AddArmor		= (Amount=100, MaxAmount=100, Slot=2, Compatible=True)
+
+
+[Spirit Armor]
+Type			= (Armor, 143)
+Appearance		= (Tile=2602, Size=64)
+AddArmor		= (Amount=100, MaxAmount=100, Slot=3, Compatible=True)
+
+
+[Super Armor]
+Type			= (Armor, 144)
+Appearance		= (Tile=2594, Size=64)
+AddArmor		= (Amount=200, Slot=1)
+AddArmor		= (Amount=200, Slot=2)
+AddArmor		= (Amount=200, Slot=3)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Inventory stuff
+;
+[Doctor's Bag]
+Type			= (Inventory, 107)
+Appearance		= (Tile=519, Size=40)
+AddInventory	= (Amount=100, Slot=1)
+
+
+[Diving Suit]
+Type			= (Inventory, 118)
+Appearance		= (Tile=830, Size=(80, 64))
+AddInventory	= (Amount=100, Slot=2)
+
+
+[Crystal Ball]
+Type			= (Inventory, 121)
+Appearance		= (Tile=760, Size=40)
+AddInventory	= (Amount=100, Slot=3)
+GameMode		= (B, T, C)
+
+
+[Beast Vision]
+Type			= (Inventory, 125)
+Appearance		= (Tile=839, Size=40)
+AddInventory	= (Amount=100, Slot=4)
+
+
+[Boots of Jumping]
+Type			= (Inventory, 115)
+Appearance		= (Tile=827, Size=40)
+AddInventory	= (Amount=100, Slot=5)
