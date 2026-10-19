@@ -1,0 +1,27 @@
+[Header]
+Version=1
+MapCRC=88457732
+
+[001]
+Position=(22187, 15732)
+Object=(6, 4)
+Text001=Start firing napalm in this sector...
+Appearance=(159, -1, 0, 0)
+
+[002]
+Position=(27639, 6943)
+Object=(6, 1)
+Text001=Exit here!
+Appearance=(127, -1, 0, 0)
+
+[003]
+Position=(18166, 24156)
+Object=(6, 8)
+Text001=Get napalm missile in this room to get the key.
+Appearance=(143, -1, 0, 0)
+
+[004]
+Position=(22405, 30372)
+Object=(3, 28)
+Text001=The key you need!
+Appearance=(191, -1, 0, 0)

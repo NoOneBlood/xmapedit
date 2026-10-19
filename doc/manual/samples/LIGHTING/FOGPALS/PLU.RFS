@@ -1,0 +1,9 @@
+resource "PLU\GREY.PLU" as 16, PRELOCK;
+resource "PLU\WHITE.PLU" as 17, PRELOCK;
+resource "PLU\RED.PLU" as 18, PRELOCK;
+resource "PLU\GREEN.PLU" as 19, PRELOCK;
+resource "PLU\BLUE.PLU" as 20, PRELOCK;
+resource "PLU\ORANGE.PLU" as 21, PRELOCK;
+resource "PLU\YELLOW.PLU" as 22, PRELOCK;
+
+;

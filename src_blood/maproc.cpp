@@ -89,7 +89,7 @@ int dlgZHeightOff(char *title, int z1, int z2, char bottom, char dir)
 static int lightBombLoadPreset(IniFile* pIni, LIGHT_BOMB* pPrefs, char check = 0)
 {
     char *pGroup = "LightBomb";
-    
+
     if (check && !pIni->SectionExists(pGroup))
     {
         Alert("\"%s\" is not Light Bomb Preset file!");
@@ -210,7 +210,7 @@ static int dlgLightBombOptions(LIGHT_BOMB* pPrefs)
             {
                 sprintf(filepath, "%s/%s", kXmpLightBombDir, "default.lbp");
                 IniFile ini(filepath);
-                
+
                 lightBombLoadPreset(&ini, &buf);
             }
 
@@ -242,7 +242,7 @@ static int dlgLightBombOptions(LIGHT_BOMB* pPrefs)
                 IniFile ini(pPath);
                 lightBombLoadPreset(&ini, &buf, 1);
             }
-            
+
             continue;
         }
     }
@@ -255,15 +255,15 @@ int dlgClipdist(char *title, int nVal, int nValAuto, int nDefault)
     const int l = gfxGetTextLen(title, pFont)+8;
     const int wh = ClipRange(l, 154, xdim-4);
     const int hwh = wh >> 1;
-    
+
     char buf[16];
     sprintf(buf, "Auto [%d]", nValAuto);
-    
+
     Window dialog(0, 0, wh+14, 62, title);
     EditNumber *en = new EditNumber(4, 4, wh, 18, nVal);
     TextButton *bCur = new TextButton(4, 22, hwh, 20, "Ok", 100);
     TextButton *bAuto = new TextButton(hwh+4, 22, hwh, 20, buf, 101);
-    
+
     dialog.Insert(en);
     dialog.Insert(bCur);
     dialog.Insert(bAuto);
@@ -295,7 +295,7 @@ char helperTranslateToSector(char allowSky = 1)
             }
             break;
     }
-    
+
     scrSetMessage("Must enable textured map first");
     return 0;
 }
@@ -315,10 +315,10 @@ static char edKeyProcShared_KEY_1(char key, char ctrl, char shift, char alt)
     {
         case OBJ_SPRITE:
             sprite[searchwall].cstat ^= kSprOneSided;
-            
+
             i = sprite[searchwall].cstat;
             msg+=sprintf(msg, "Sprite #%d one-sided flag is %s", searchwall, onOff(i & kSprOneSided));
-            
+
             if ((i & kSprRelMask) >= kSprFloor)
             {
                 sprite[searchwall].cstat &= ~kSprFlipY;
@@ -327,7 +327,7 @@ static char edKeyProcShared_KEY_1(char key, char ctrl, char shift, char alt)
                     if ((ED2D && gScreen2D.prefs.showMap == 2)
                         || (ED3D && posz > sprite[searchwall].z))
                             sprite[searchwall].cstat |= kSprFlipY;
-                            
+
                     msg+=sprintf(msg, " (visible from %s)", (sprite[searchwall].cstat & kSprFlipY) ? "below" : "above");
                 }
             }
@@ -744,7 +744,7 @@ static char edKeyProcShared_KEY_ENTER(char key, char ctrl, char shift, char alt)
                     pSpr->xrepeat = tempxrepeat;
                     pSpr->yrepeat = tempyrepeat;
                     pSpr->cstat = tempcstat;
-                    
+
                     if ((pSpr->cstat & kSprRelMask) == kSprSloped)
                     {
                         pSpr->xoffset   = tempxoffset;
@@ -989,7 +989,7 @@ static char edKeyProcShared_KEY_DELETE(char key, char ctrl, char shift, char alt
     else if (searchstat == OBJ_SPRITE)
     {
         spritetype* pSpr = &sprite[searchwall];
-        
+
         if (shift || !sprInHglt(searchwall))
         {
             if (pSpr->statnum == kStatPathMarker && pSpr->extra > 0)
@@ -997,16 +997,16 @@ static char edKeyProcShared_KEY_DELETE(char key, char ctrl, char shift, char alt
                 XSPRITE* pXSpr = &xsprite[pSpr->extra];
                 XSPRITE* pXNxt = pathMarkerFind(NULL, pXSpr, 1);
                 XSPRITE* pXPrv = pathMarkerFind(NULL, pXSpr, 0);
-                
+
                 if (pXNxt || pXPrv)
                     pathMarkerChangeData(pXSpr->data1, (pXNxt) ? pXNxt->data1 : pXPrv->data2);
             }
-            
+
             sprDelete(&sprite[searchwall]);
         }
         else
             i = hgltSprCallFunc(sprDelete);
-        
+
         scrSetMessage("%d sprite(s) deleted.", ClipLow(i, 1));
         updatenumsprites();
 
@@ -1129,7 +1129,7 @@ static char edKeyProcShared_KEY_COMMA(char key, char ctrl, char shift, char alt)
         i = (dir == 0) ? -i :  i;
     else
         i = (dir == 0) ?  i : -i;
-        
+
 
     if (ED2D && highlightsectorcnt > 0)
     {
@@ -1141,11 +1141,11 @@ static char edKeyProcShared_KEY_COMMA(char key, char ctrl, char shift, char alt)
 
         return PROC_OK;
     }
-    
+
     if (searchstat == OBJ_SPRITE)
     {
         pSpr = &sprite[searchwall];
-        
+
         if (!sprInHglt(pSpr->index))
         {
             i = (shift) ? 16 : 256;
@@ -1159,10 +1159,10 @@ static char edKeyProcShared_KEY_COMMA(char key, char ctrl, char shift, char alt)
             hgltSprRotate(i);
             scrSetMessage("Rotate %d sprite(s) by %d", hgltSprCount(), i);
         }
-        
+
         return PROC_OKUB;
     }
-    
+
     if (ED3D && IsHoverWall())
     {
         // temporary rotate
@@ -1297,7 +1297,7 @@ static char edKeyProcShared_KEY_PAD7(char key, char ctrl, char shift, char alt)
                 if (!isSkySector(searchsector, searchstat)) break;
                 return PROC_OK;
         }
-        
+
         a = 1536;
     }
 
@@ -1575,12 +1575,12 @@ static char edKeyProcShared_KEY_D(char key, char ctrl, char shift, char alt)
     int ex[4], ey[4], xs, ys, cd, i;
     char* msg = buffer;
     spritetype* pSpr;
-    
+
     if (searchstat == OBJ_SPRITE)
     {
         pSpr = &sprite[searchwall];
         msg += sprintf(buffer, "Sprite #%d", pSpr->index);
-        
+
         if (!ctrl)
         {
             if (alt)
@@ -1597,16 +1597,16 @@ static char edKeyProcShared_KEY_D(char key, char ctrl, char shift, char alt)
                     xs = klabs(ex[1] - ex[0]) >> 4;
                     ys = 0;
                 }
-                
+
                 pSpr->ang = i;
-                
+
 
                 cd = ClipRange((xs+ys)>>1, 0, 255);
 
                 msg += sprintf(msg, " %s", "clipdist"), sprintf(msg, " (%d - %d)", 0, 255);
                 if ((i = dlgClipdist(buffer, pSpr->clipdist, cd, -1)) == -1)
                     return PROC_FAILB;
-                
+
                 pSpr->clipdist = ClipRange(i, 0, 255);
             }
             else
@@ -1615,15 +1615,15 @@ static char edKeyProcShared_KEY_D(char key, char ctrl, char shift, char alt)
                 i = ClipRange(GetNumberBox(buffer, pSpr->detail, pSpr->detail), 0, 4);
                 pSpr->detail = i;
             }
-            
+
             *msg = '\0';
             scrSetMessage("%s = %d", buffer, i);
             return PROC_OKUB;
         }
-        
+
         if (ctrl)
         {
-            scrSetMessage("%s show model is %s", buffer, onOff((pSpr->flags ^= kHitagNoModel) == 0));            
+            scrSetMessage("%s show model is %s", buffer, onOff((pSpr->flags ^= kHitagNoModel) == 0));
             return PROC_OKUB;
         }
     }
@@ -1649,10 +1649,10 @@ static char edKeyProcShared_KEY_E(char key, char ctrl, char shift, char alt)
             scrSetMessage("%s[%d] texture %s expanded", GetHoverName(), searchsector, isNot(sectCstatGet(searchsector, searchstat) & kSectExpand));
             return PROC_OKUB;
         }
-        
+
         return PROC_FAILB;
     }
-    
+
     if (searchstat != OBJ_SPRITE)
         return PROC_FAILB;
 
@@ -1891,7 +1891,7 @@ static char edKeyProcShared_KEY_M(char key, char ctrl, char shift, char alt)
 static char edKeyProcShared_KEY_Q(char key, char ctrl, char shift, char alt)
 {
     int nID = GetHoverID();
-    
+
     // connect one object with the one from clipboard via RX/TX
 
     if (somethingintab == OBJ_NONE)
@@ -1916,11 +1916,11 @@ static char edKeyProcShared_KEY_R(char key, char ctrl, char shift, char alt)
 {
     spritetype* pSpr;
     int i;
-    
+
     if (ED2D
         && searchstat != OBJ_SPRITE && !helperTranslateToSector())
             return PROC_FAILB;
-    
+
     // R (relative alignment, rotation)
 
     if (IsHoverSector())
@@ -2041,7 +2041,7 @@ static char edKeyProcShared_KEY_W(char key, char ctrl, char shift, char alt)
         ProcessHighlightSectors((HSECTORFUNC*)sectFXSetShadeFlags, 1);
         scrSetMessage("Lighting wave: %s", gWaveNames[nWave]);
         CleanUp();
-        
+
         return PROC_OKUB;
     }
 
@@ -2214,11 +2214,11 @@ static char edKeyProcShared_KEY_F5(char key, char ctrl, char shift, char alt)
 {
     int i = 1;
     int nSect;
-    
+
     if (key == KEY_F6
         && ED3D && IsHoverSector())
             searchstat = OBJ_WALL;
-    
+
     switch (searchstat)
     {
         case OBJ_SPRITE:
@@ -2361,7 +2361,7 @@ static char edKeyProcShared_KEY_F11(char key, char ctrl, char shift, char alt)
         scrSetMessage("Global panning and slope auto-align is %s", onOff(gMisc.pan));
         if (gMisc.pan)
             AlignSlopes();
-        
+
         return PROC_OKB;
     }
 
@@ -2456,17 +2456,50 @@ static char edKeyProc3D_KEY_CAPSLOCK(char key, char ctrl, char shift, char alt)
 
 // ----------------------------------------------------------------------------- //
 
+static char edKeyProc3D_KEY_BACKSPACE(char key, char ctrl, char shift, char alt)
+{
+    // reset cstat flags
+
+    switch (searchstat)
+    {
+        case OBJ_WALL:
+        case OBJ_MASKED:
+            wall[searchwall].cstat = 0;
+            scrSetMessage("Wall #%d cstat reset", searchwall);
+            return PROC_OKUB;
+
+        case OBJ_SPRITE:
+            sprite[searchwall].cstat = 0x80;
+            scrSetMessage("Sprite #%d cstat reset", searchwall);
+            return PROC_OKUB;
+
+        case OBJ_FLOOR:
+            sector[searchsector].floorstat = 0;
+            scrSetMessage("Sector #%d floor cstat reset", searchsector);
+            return PROC_OKUB;
+
+        case OBJ_CEILING:
+            sector[searchsector].ceilingstat = 0;
+            scrSetMessage("Sector #%d ceiling cstat reset", searchsector);
+            return PROC_OKUB;
+    }
+
+    return PROC_FAILB;
+}
+
+// ----------------------------------------------------------------------------- //
+
 static char edKeyProc3D_KEY_INSERT(char key, char ctrl, char shift, char alt)
 {
     spritetype* pSpr;
     int i;
-    
+
     if (searchstat != OBJ_SPRITE)
         return PROC_FAILB;
 
     i = ClipLow(hgltSprCallFunc(sprClone), 1);
     scrSetMessage("%d sprite(s) duplicated and stamped.", i);
-    
+
     if (i > 1)
     {
         for (i = 0; i < highlightcnt; i++)
@@ -2477,7 +2510,7 @@ static char edKeyProc3D_KEY_INSERT(char key, char ctrl, char shift, char alt)
             searchwall = highlight[i] & 0x3FFF;
             break;
         }
-        
+
         searchit = 0;
         gObjectLock.Set(256); // give user some time to drag out new sprites
         gMapedHud.SetMsgImp(256, "Locked on %s #%d", GetHoverName(), searchwall);
@@ -2583,13 +2616,13 @@ static char edKeyProc3D_KEY_PAGEDN(char key, char ctrl, char shift, char alt)
         {
             if (d)
                 nStep = -nStep;
-            
+
             if (searchstat == OBJ_CEILING)
                 ProcessHighlightSectors(SetCeilingRelative, nStep);
             else
                 ProcessHighlightSectors(SetFloorRelative, nStep);
         }
-        
+
         z = (searchstat == OBJ_CEILING)
             ? sector[searchsector].ceilingz : sector[searchsector].floorz;
     }
@@ -2598,7 +2631,7 @@ static char edKeyProc3D_KEY_PAGEDN(char key, char ctrl, char shift, char alt)
         hgltSprCallFunc((d) ? RaiseSprite : LowerSprite, nStep);
         z = sprite[searchwall].z;
     }
-    
+
 
     if (z != 0x80000000)
     {
@@ -2854,7 +2887,7 @@ static char edKeyProc3D_KEY_PLUS(char key, char ctrl, char shift, char alt)
     if (keystatus[KEY_D])
     {
         nStep = mulscale10((key == KEY_MINUS) ? 16 : -16, numpalookups<<5);
-        
+
         #if 0
         if (gModernMap)
         {
@@ -2866,7 +2899,7 @@ static char edKeyProc3D_KEY_PLUS(char key, char ctrl, char shift, char alt)
             }
         }
         #endif
-        
+
         visibility = ClipRange(visibility + nStep, 0, kMaxVisibility);
         scrSetMessage("Global visibility %d (%s)", visibility, buffer);
         return PROC_OKUB;
@@ -2894,23 +2927,23 @@ static char edKeyProc3D_KEY_PLUS(char key, char ctrl, char shift, char alt)
 
             return PROC_OKUB;
         }
-        
+
         nStep = (key == KEY_MINUS) ? -1 : +1;
-        
+
         if (ctrl)           pFunc = sectFXChgAmplitude;     // iterate lighting effect amplitude
         else if (alt)       pFunc = sectFXChgFreq;          // iterate lighting effect phase
         else if (shift)     pFunc = sectFXChgPhase;         // iterate lighting effect frequency
         else                return PROC_FAILB;
-        
+
         ProcessHighlightSectors((HSECTORFUNC*)pFunc, nStep);
         ProcessHighlightSectors((HSECTORFUNC*)sectFXSetShadeFlags, 1);
-        
+
         if ((pXSect = GetXSect(&sector[searchsector])) != NULL)
         {
             if (ctrl)           scrSetMessage("Amplitude: %d", pXSect->amplitude);
             else if (shift)     scrSetMessage("Phase: %d", pXSect->shadePhase);
             else if (alt)       scrSetMessage("Frequency: %d", pXSect->shadeFreq);
-            
+
             CleanUp();
             return PROC_OKUB;
         }
@@ -2923,9 +2956,73 @@ static char edKeyProc3D_KEY_PLUS(char key, char ctrl, char shift, char alt)
 
 static char edKeyProc3D_KEY_C(char key, char ctrl, char shift, char alt)
 {
-    // change all tiles matching target to tab picnum
+    //Shift+C paste shade matching target to clipboard
+    //Alt+C   paste tiles matching target to clipboard
+
     sectortype* pSect; walltype* pWall; spritetype* pSpr;
     int i, j;
+
+    if (shift)
+    {
+        if (IsHoverWall())
+        {
+           pWall = &wall[searchwall];
+               j = (searchstat == OBJ_WALL)
+                       ? pWall->picnum : pWall->overpicnum;
+
+            for (i = 0; i < numwalls; i++)
+            {
+                if (((searchstat == OBJ_WALL)
+				        ? wall[i].picnum : wall[i].overpicnum) != j)
+                            continue;
+                wall[i].shade = tempshade;
+            }
+
+            return PROC_OKUB;
+        }
+
+        if (IsHoverSector())
+        {
+           pSect = &sector[searchsector];
+           j = (searchstat == OBJ_FLOOR)
+                ? pSect->floorpicnum : pSect->ceilingpicnum;
+
+            for (i = 0; i < numsectors; i++)
+            {
+                if (searchstat == OBJ_CEILING)
+                {
+                    if (sector[i].ceilingpicnum != j)
+					    continue;
+                    sector[i].ceilingshade = tempshade;
+                }
+                else
+                {
+                    if (sector[i].floorpicnum != j)
+					    continue;
+                    sector[i].floorshade = tempshade;
+                }
+            }
+
+            return PROC_OKUB;
+        }
+
+        if (searchstat == OBJ_SPRITE)
+        {
+            j = sprite[searchwall].picnum;
+
+            for (i = 0; i < kMaxSprites; i++)
+            {
+                pSpr = &sprite[i];
+                if (pSpr->statnum >= kMaxStatus
+                    || pSpr->picnum != j)
+                        continue;
+
+                sprite[i].shade = tempshade;
+            }
+
+            return PROC_OKUB;
+        }
+    }
 
     if (!alt)
         return PROC_FAILB;
@@ -3153,12 +3250,12 @@ static char edKeyProc3D_KEY_F(char key, char ctrl, char shift, char alt)
         pSpr = &sprite[searchwall];
         GetSpriteExtents(pSpr, &zTopOld, &i);
         t = panm[pSpr->picnum].view;
-        
+
         canx = !irngok(t, kSprViewFull5, kSprViewFull8);
         cany = (pSpr->cstat & kSprRelMask) <= kSprWall;
         if (irngok(t, kSprViewVox, kSprViewVoxSpin) && tiletovox[pSpr->picnum] < 0)
             canx = cany = 0;
-        
+
         t = pSpr->cstat;
         switch(t & (kSprFlipX|kSprFlipY))
         {
@@ -3387,7 +3484,7 @@ static char edKeyProc3D_KEY_O(char key, char ctrl, char shift, char alt)
         {
             pSpr->cstat ^= kSprOrigin;
             clampSprite(pSpr);
-            
+
             scrSetMessage("%s[%d] origin align is %s", GetHoverName(), searchwall, onOff((pSpr->cstat & kSprOrigin)));
             return PROC_OKUB;
         }
@@ -3403,9 +3500,9 @@ static char edKeyProc3D_KEY_P(char key, char ctrl, char shift, char alt)
     char title[64], nPlu;
     int nID, nPic, nShade;
     int i;
-    
+
     nID = GetHoverID();
-    
+
     if (IsHoverSector())
     {
         if (ctrl && shift)
@@ -4163,13 +4260,13 @@ static char edKeyProc2D_KEY_SPACE(char key, char ctrl, char shift, char alt)
 
             return PROC_FAILB;
         }
-        
+
         if (shift)
         {
             if (pointhighlight >= 0 && (pointhighlight & 0xc000) == 0)
                 getWallCoords(pointhighlight, &x, &y);
         }
-        
+
         if (!pGLBuild)
         {
             pGLBuild = new LOOPBUILD();
@@ -4206,12 +4303,12 @@ static char edKeyProc2D_KEY_INSERT(char key, char ctrl, char shift, char alt)
     int nGrid = (grid <= 0) ? 10 : grid;
     int x = mousxplc, y = mousyplc;
     int nSect, i, j, s, e;
-    
+
     if (!pGLBuild)
     {
         i = highlightsectorcnt;
         while(--i >= 0 && !inside(x, y, highlightsector[i]));
-        
+
         if (i >= 0)
         {
             for (i = 0; i < highlightsectorcnt; i++)
@@ -4220,12 +4317,12 @@ static char edKeyProc2D_KEY_INSERT(char key, char ctrl, char shift, char alt)
                 SECTORSAVE sect(nSect);
                 if ((j = sect.Load()) < 0)
                     break;
-                
-                highlightsector[i] = j; 
+
+                highlightsector[i] = j;
                 sectChgXY(j, 2048>>nGrid, 2048>>nGrid, 0x03);
                 getSectorWalls(nSect, &s, &e);
                 j = sector[j].wallptr;
-                
+
                 while(s <= e)
                     gNextWall[j] = wall[s].nextwall, s++, j++;
             }
@@ -4257,11 +4354,11 @@ static char edKeyProc2D_KEY_INSERT(char key, char ctrl, char shift, char alt)
                     }
                 }
             }
-            
+
             return PROC_OKUB;
         }
     }
-    
+
     if (linehighlight >= 0)
     {
         getclosestpointonwall(x, y, linehighlight, &x, &y);
@@ -4317,26 +4414,26 @@ static char edKeyProc2D_KEY_F(char key, char ctrl, char shift, char alt)
     if (pointhighlight >= 0 && (pointhighlight & 0xc000) == 0)  nWall = pointhighlight;
     else if (linehighlight >= 0)                                nWall = linehighlight;
     else                                                        nWall = -1;
-    
+
     if (nWall < 0)
         return PROC_FAILB;
-    
+
     if (ctrl)
     {
         int ls, le;
         loopGetWalls(nWall, &ls, &le);
         flipwalls(ls, ls+le-ls);
-        
+
         loopDetach(ls);
         loopAttach(ls);
-        
+
         scrSetMessage("%d walls were turned inside out.", le-ls+1);
         return PROC_OKUB;
     }
-    
+
     if (hgltWallCount())
         return PROC_FAILB;
-    
+
     setFirstWall(sectorofwall(nWall), nWall);
     scrSetMessage("The wall %d now sector's %d first wall.", nWall, sectorofwall(nWall));
     return PROC_OKUB;
@@ -4536,7 +4633,7 @@ static char edKeyProc2D_KEY_S(char key, char ctrl, char shift, char alt)
         if (somethingintab == OBJ_SPRITE)
         {
             pBufSpr = &sprite[tempidx];
-        
+
             pSpr->picnum  = cpysprite.picnum;
             pSpr->shade   = cpysprite.shade;
             pSpr->pal     = cpysprite.pal;
@@ -4582,9 +4679,9 @@ static char edKeyProc2D_KEY_S(char key, char ctrl, char shift, char alt)
                     xsprite[j].data2    = xsprite[j].data1; // finalize current marker?
                     xsprite[j].busyTime = xsprite[k].busyTime;
                     xsprite[j].wave     = xsprite[k].wave;
-                    
+
                     pXSect = pathMarkerFindSector(&xsprite[j]);
-                    
+
                     if (pXSect == NULL)
                     {
                         short nAng = (short)(getangle(pSpr->x - pBufSpr->x, pSpr->y - pBufSpr->y) & kAngMask);
@@ -4754,6 +4851,7 @@ INPUTPROC gEditInput3D[256] =
     { KEY_Z,                edKeyProc3D_KEY_A           },
     { KEY_CAPSLOCK,         edKeyProc3D_KEY_CAPSLOCK    },
     { KEY_INSERT,           edKeyProc3D_KEY_INSERT      },
+    { KEY_BACKSPACE,        edKeyProc3D_KEY_BACKSPACE   },
     { KEY_PAGEDN,           edKeyProc3D_KEY_PAGEDN      },
     { KEY_PAGEUP,           edKeyProc3D_KEY_PAGEDN      },
     { KEY_LBRACE,           edKeyProc3D_KEY_LBRACE      },
