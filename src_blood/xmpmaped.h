@@ -209,9 +209,6 @@ void wallAttach(int nWall, int nNextS, int nNextW);
 void wallAttach(int nWall, int nNextW);
 double getWallLength(int nWall, int nGrid);
 void getWallCoords(int nWall, int* x1 = NULL, int* y1 = NULL, int* x2 = NULL, int* y2 = NULL);
-short wallCstatAdd(int nWall, short cstat, char nextWall = 1);
-short wallCstatRem(int nWall, short cstat, char nextWall = 1);
-short wallCstatToggle(int nWall, short cstat, char nextWall = 1);
 char wallVisible(int nWall);
 int wallGetSect(int nWall);
 void wallRotateTile(int nWall, char enable);
@@ -273,7 +270,7 @@ int isClockDir(POINT2D* p, int c);
 int isClockDir(walltype* p, int c, char dragit = 1);
 void flipPoints(POINT2D* p, int c);
 void rotatePoints(POINT2D* point, int numpoints, int s);
-int nextSpriteAt(int x, int y, int *prv);
+int nextSpriteAt(int x, int y, int nSpr, char dir = 1);
 
 char sectorToolDisableAll(char alsoFreeDraw);
 char sectorToolEnable(int nType, int nData);

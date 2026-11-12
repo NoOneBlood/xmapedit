@@ -226,6 +226,7 @@ const char *ExtGetSpriteCaption(short spritenum, char captStyle);
 
 char IsHoverSector();
 char IsHoverWall();
+char IsHoverSprite();
 char* GetHoverName();
 
 void BackupHover();

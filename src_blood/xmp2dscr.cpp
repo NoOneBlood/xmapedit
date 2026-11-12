@@ -758,7 +758,7 @@ void SCREEN2D::DrawWall(int nWall)
             THICK = (oneSideBlock) ? 2 : 1;
     }
 
-    color = GetWallColor(nWall, (nWall == linehighlight) ? h : 0);
+    color = GetWallColor(nWall, (nWall == linehighlight || TestBitString(hgltwall, nWall)) ? h : 0);
     
     if (oneSideBlock)
     {

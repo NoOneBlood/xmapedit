@@ -103,25 +103,21 @@ int hgltSprCallFunc(HSPRITEFUNC SpriteFunc, int nData) {
 
     int retn = 0;
     int i, j;
-    if (getHighlightedObject() == 200 && !sprInHglt(searchwall)) {
-        SpriteFunc(&sprite[searchwall], nData);
-        return 0;
-    }
-
-    for (i = highlightcnt - 1; i >= 0; i--) {
-
+    
+    i = highlightcnt;
+    while(--i >= 0)
+    {
         if ((highlight[i] & 0xC000) == 0)
             continue;
-
+        
         j = highlight[i] & 0x3FFF;
-        if (sprite[j].statnum < kMaxStatus) {
-
+        if (sprite[j].statnum < kMaxStatus)
+        {
             SpriteFunc(&sprite[j], nData);
             retn++;
-
         }
     }
-
+    
     return retn;
 }
 
@@ -439,7 +435,10 @@ void hgltReset(int which)
     }
 
     if ((which & kHgltSector) && highlightsectorcnt >= 0)
+    {
+        hgltSectAttach(1);
         highlightsectorcnt = -1;
+    }
 
     if (which & kHgltGradient)
         gListGrd.Clear(); // clear out 3d mode highlights
@@ -1175,57 +1174,59 @@ void hgltSprRotate(int step) {
 
 }
 
-int hgltWallCount(int* whicnt, int* redcnt)
+int hgltWallCount()
 {
-    int i, j, total = 0;
-    if (whicnt) *whicnt = 0;
-    if (redcnt) *redcnt = 0;
-    for (i = 0; i < highlightcnt; i++)
+    int i = highlightcnt;
+    int c = 0;
+    
+    while(--i >= 0)
     {
-        if ((highlight[i] & 0xC000) != 0)
-            continue;
-
-        total++;
-        j = highlight[i];
-        if (wall[j].nextwall >= 0 && redcnt != NULL) *redcnt = *redcnt + 1;
-        else if (whicnt != NULL)
-            *whicnt = *whicnt + 1;
+        if ((highlight[i] & 0xC000) == 0)
+            c++;
     }
-
-    return total;
+    
+    return c;
 }
 
-int hgltWallsCheckStat(int nStat, int which, int nMask)
+int hgltWallCallFunc(HWALLFUNC WallFunc, int nData, char both)
 {
-    int i, nwall, j = 0, red, redcnt = 0, whicnt = 0, cstat;
-    if (!hgltWallCount(&whicnt, &redcnt))
-        return 0;
-
-    for (i = 0; i < highlightcnt; i++)
+    int retn = 0;
+    int i, j, n;
+    
+    i = highlightcnt;
+    while(--i >= 0)
     {
         if ((highlight[i] & 0xC000) != 0)
             continue;
 
-        nwall = highlight[i];
-        red = (wall[nwall].nextwall >= 0);
-        cstat = wall[nwall].cstat;
-
-        if (((which & 0x01) && !red) || ((which & 0x02) && red))
+        j = highlight[i];
+        if (WallFunc(j, nData))
         {
-            if (which & 0x04)
-            {
-                if ((nMask && (cstat & nMask) != nStat) || (!nMask && !(cstat & nStat)))
-                    j++;
-            }
-            else if ((nMask && (cstat & nMask) == nStat) || (!nMask && (cstat & nStat)))
-                j++;
+            n = wall[j].nextwall;
+            if (both && n >= 0 && !wallInHglt(n))
+                WallFunc(n, nData);
+            
+            retn++;
         }
     }
-
-    if ((which & 0x03) == 0x03) return (j + redcnt + whicnt) - (redcnt + whicnt);
-    else if (which & 0x01) return (j + whicnt) - whicnt;
-    else if (which & 0x02) return (j + redcnt) - redcnt;
-    return 0;
+    
+    for (OBJECT* o = gListGrd.First(); o->type != OBJ_NONE; o++)
+    {
+        if (o->type != OBJ_WALL && o->type != OBJ_MASKED)
+            continue;
+        
+        j = o->index;
+        if (WallFunc(j, nData))
+        {
+            n = wall[j].nextwall;
+            if (both && n >= 0 && !wallInHglt(n))
+                WallFunc(n, nData);
+            
+            retn++;
+        }
+    }
+    
+    return retn;
 }
 
 void hgltSectGetBox(int* x1, int* y1, int* x2, int *y2)

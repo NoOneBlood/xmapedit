@@ -28,7 +28,7 @@
 typedef void HSECTORFUNC(int nSector, int nData);
 typedef void HSECTORFUNC2(int nSector, int arg1, int arg2, int arg3, int arg4);
 typedef void HSPRITEFUNC(spritetype *pSprite, int nData);
-
+typedef char HWALLFUNC(int nWall, int nData);
 
 enum {
 kHgltSector         = 0x0001,
@@ -119,8 +119,8 @@ inline char wallInHglt(int idx)
     return (hgltCheck(OBJ_WALL, idx) >= 0);
 }
 
-int hgltWallCount(int* whicnt = NULL, int* redcnt = NULL);
-int hgltWallsCheckStat(int nStat, int which = 0x03, int nMask = 0x0);
+int hgltWallCount();
+int hgltWallCallFunc(HWALLFUNC WallFunc, int nData, char both = 0);
 
 void hgltSectDetach();
 void hgltSectAttach(char inHgltRange = 0);

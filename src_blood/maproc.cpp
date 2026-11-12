@@ -44,6 +44,255 @@ const char* gTranslucLevNames[3] =
     "mostly",
 };
 
+void sprCstatAdd(spritetype* pSpr, int cstat)
+{
+    pSpr->cstat |= ((short)cstat);
+}
+
+void sprCstatRem(spritetype* pSpr, int cstat)
+{
+    pSpr->cstat &= ~((short)cstat);
+}
+
+void sprFlagsAdd(spritetype* pSpr, int flags)
+{
+    pSpr->flags |= ((short)flags);
+}
+
+void sprFlagsRem(spritetype* pSpr, int flags)
+{
+    pSpr->flags &= ~((short)flags);
+}
+
+void sprSizeSet(spritetype* pSpr, int nSize)
+{
+    pSpr->xrepeat = pSpr->yrepeat = nSize;
+}
+
+void spr_Floor_OneSide_HandleFlip(spritetype* pSpr, int z)
+{
+    if (pSpr->cstat & kSprOneSided)
+    {
+        pSpr->cstat &= ~kSprFlipY;
+        if ((pSpr->cstat & kSprRelMask) >= kSprFloor)
+        {
+            if ((ED2D && gScreen2D.prefs.showMap == 2)
+                || (ED3D && z > pSpr->z))
+                    pSpr->cstat |= kSprFlipY;
+        }
+    }
+}
+
+int helperProcSpr(HSPRITEFUNC SpriteFunc, int nData, char hglt, char* str)
+{
+    int c;
+    
+    if (str)
+        str += sprintf(str, "sprite[%d]", searchwall);
+    
+    if (hglt && sprInHglt(searchwall))
+    {
+        c = hgltSprCallFunc(SpriteFunc, nData);
+        if (str && c > 1)
+            sprintf(str, " and %d other sprites", c - 1);
+    }
+    else
+    {
+        SpriteFunc(&sprite[searchwall], nData);
+        c = 1;
+    }
+    
+    return c;
+}
+
+char wallCstatAdd(int nWall, int nVal)
+{
+    nVal = (short)nVal;
+    if ((wall[nWall].cstat & nVal) != 0)
+        return 0;
+    
+    wall[nWall].cstat |= nVal;
+    return 1;
+}
+
+char wallCstatRem(int nWall, int nVal)
+{
+    nVal = (short)nVal;
+    if ((wall[nWall].cstat & nVal) == 0)
+        return 0;
+    
+    wall[nWall].cstat &= ~nVal;
+    return 1;
+}
+
+char wallCstatAdd_OneWay(int nWall, int nVal)
+{
+    if (wall[nWall].nextwall >= 0)
+    {
+        nVal = wallCstatAdd(nWall, kWallOneWay);
+        if ((nVal & kWallOneWay) && !(nVal & kWallMasked))
+            wall[nWall].overpicnum = wall[nWall].picnum;
+        
+        return 1;
+    }
+    
+    return 0;
+}
+
+char wallCstatAdd_Block(int nWall, int nVal)
+{
+    return (wall[nWall].nextwall >= 0) ? wallCstatAdd(nWall, nVal) : 0;
+}
+
+char wallCstatAdd_Mask(int nWall, int)
+{
+    int n;
+    if ((n = wall[nWall].nextwall) >= 0)
+    {
+        wallCstatAdd(nWall, kWallMasked);
+        
+        // other side flip-x
+        if ((wall[nWall].cstat & kWallFlipX) == 0)
+            wallCstatAdd(n, kWallFlipX);
+        else if (wall[n].cstat & kWallFlipX) // other side unflip-x
+            wallCstatRem(n, kWallFlipX);
+        
+        wall[nWall].overpicnum = ClipLow(wall[nWall].overpicnum, 0);
+        wall[n].overpicnum = wall[nWall].overpicnum;
+
+        // useless to have this together
+        wallCstatRem(nWall, kWallOneWay);
+        return 1;
+    }
+    
+    return 0;
+}
+
+char wallPalSet(int nWall, int nVal)
+{
+    setPluOf(nVal, OBJ_WALL, nWall);
+    return 1;
+}
+
+char wallShadeSet(int nWall, int nVal)
+{
+    setShadeOf(nVal, OBJ_WALL, nWall);
+    return 1;
+}
+
+char wallFixRepeats(int nWall, int)
+{
+    fixrepeats(nWall);
+    return 1;
+}
+
+char wallPanSet(int nWall, int nVal)
+{
+    wall[nWall].xpanning = wall[nWall].ypanning = nVal;
+    return 1;
+}
+
+char wallRepeatSet(int nWall, int nVal)
+{
+    wall[nWall].xrepeat = wall[nWall].yrepeat = nVal;
+    return 1;
+}
+
+char wallRepeatReset(int nWall, int)
+{
+    wall[nWall].xpanning = wall[nWall].ypanning = 0;
+    wall[nWall].xrepeat = wall[nWall].yrepeat = 8;
+    wallFixRepeats(nWall, 0);
+    return 1;
+}
+
+char wallSizeXIter(int nWall, int nVal)
+{
+    wall[nWall].xrepeat = ClipRange(wall[nWall].xrepeat + nVal, 0, 255);
+    return 1;
+}
+
+char wallSizeYIter(int nWall, int nVal)
+{
+    wall[nWall].yrepeat = ClipRange(wall[nWall].yrepeat + nVal, 0, 255);
+    return 1;
+}
+
+int helperProcWall(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
+{
+    int c = 0;
+    int n;
+    
+    n = wall[searchwall].nextwall;
+    
+    if (hglt)
+    {
+        if ((hglt = (wallInHglt(searchwall) || wallInHglt(n))) == 0)
+        {
+            for(OBJECT* o = gListGrd.First(); o->type != OBJ_NONE; o++)
+            {
+                if (o->type != OBJ_WALL && o->type != OBJ_MASKED) continue;
+                if (o->index != searchwall && o->index != n) continue;
+                hglt = 1;
+                break;
+            }
+        }
+    }
+    
+/*     int i = highlightcnt;
+    while(--i >= 0)
+    {
+        if ((highlight[i] & 0xC000) != 0)
+            continue;
+        
+        int j = highlight[i];
+        if (j == searchwall || wall[j].nextwall == searchwall)
+            continue;
+        
+        if (wallInHglt(wall[j].point2) && wallInHglt(lastwall(j)))
+            continue;
+
+        hglt2dRemove(OBJ_WALL, j);
+    } */
+    
+    if (str)
+    {
+        if (n >= 0)
+        {
+            if (!both) // !!!
+                str += sprintf(str, "one side of ");
+        }
+        
+        str += sprintf(str, "wall #%d", searchwall);
+    }
+    
+    if (hglt)
+    {
+        c = hgltWallCallFunc(WallFunc, nData, both);
+        if (str && c > 1)
+            sprintf(str, " and %d other walls", c - 1);
+    }
+    else
+    {
+        n = searchwall;
+        if (WallFunc(n, nData))
+        {
+            if (both && (n = wall[n].nextwall) >= 0 && !wallInHglt(n))
+                WallFunc(n, nData);
+            
+            c = 1;
+        }
+    }
+    
+    return c;
+}
+
+spritetype* GetHoverSprite()
+{
+    return (searchstat == OBJ_SPRITE) ? &sprite[searchwall] : NULL;
+}
+
+
 int dlgZHeightOff(char *title, int z1, int z2, char bottom, char dir)
 {
     const int l = gfxGetTextLen(title, pFont)+8;
@@ -308,29 +557,23 @@ char helperTranslateToSector(char allowSky = 1)
 
 static char edKeyProcShared_KEY_1(char key, char ctrl, char shift, char alt)
 {
+    spritetype* pSpr; walltype* pWall;
     char* msg = buffer;
     int i;
 
     switch (searchstat)
     {
         case OBJ_SPRITE:
-            sprite[searchwall].cstat ^= kSprOneSided;
+            pSpr = &sprite[searchwall];
+            helperProcSpr((pSpr->cstat & kSprOneSided) ? sprCstatRem : sprCstatAdd, kSprOneSided, !shift, msg);
+            msg += sprintf(msg, "%s %s one-sided", buffer, isNot(pSpr->cstat & kSprOneSided));
 
-            i = sprite[searchwall].cstat;
-            msg+=sprintf(msg, "Sprite #%d one-sided flag is %s", searchwall, onOff(i & kSprOneSided));
-
-            if ((i & kSprRelMask) >= kSprFloor)
+            if ((pSpr->cstat & kSprRelMask) >= kSprFloor && (pSpr->cstat & kSprOneSided))
             {
-                sprite[searchwall].cstat &= ~kSprFlipY;
-                if (i & kSprOneSided)
-                {
-                    if ((ED2D && gScreen2D.prefs.showMap == 2)
-                        || (ED3D && posz > sprite[searchwall].z))
-                            sprite[searchwall].cstat |= kSprFlipY;
-
-                    msg+=sprintf(msg, " (visible from %s)", (sprite[searchwall].cstat & kSprFlipY) ? "below" : "above");
-                }
+                helperProcSpr(spr_Floor_OneSide_HandleFlip, posz, !shift, NULL);
+                msg+=sprintf(msg, " (visible from %s)", (pSpr->cstat & kSprFlipY) ? "below" : "above");
             }
+            
             scrSetMessage(buffer);
             return PROC_OKUB;
         case OBJ_FLOOR:
@@ -339,13 +582,10 @@ static char edKeyProcShared_KEY_1(char key, char ctrl, char shift, char alt)
             // no break
         case OBJ_WALL:
         case OBJ_MASKED:
-            if (wall[searchwall].nextwall >= 0)
+            pWall = &wall[searchwall];
+            if (helperProcWall((pWall->cstat & kWallOneWay) ? wallCstatRem : wallCstatAdd_OneWay, kWallOneWay, 0, !alt, buffer))
             {
-                i = wallCstatToggle(searchwall, kWallOneWay, !shift);
-                if ((i & kWallOneWay) && !(i & kWallMasked))
-                        wall[searchwall].overpicnum = wall[searchwall].picnum;
-
-                scrSetMessage("Wall #%d one-sided flag is %s", searchwall, onOff(i & kWallOneWay));
+                scrSetMessage("%s %s one-sided", buffer, isNot(pWall->cstat & kWallOneWay));
                 return PROC_OKUB;
             }
             break;
@@ -989,7 +1229,6 @@ static char edKeyProcShared_KEY_DELETE(char key, char ctrl, char shift, char alt
     else if (searchstat == OBJ_SPRITE)
     {
         spritetype* pSpr = &sprite[searchwall];
-
         if (shift || !sprInHglt(searchwall))
         {
             if (pSpr->statnum == kStatPathMarker && pSpr->extra > 0)
@@ -1005,9 +1244,9 @@ static char edKeyProcShared_KEY_DELETE(char key, char ctrl, char shift, char alt
             sprDelete(&sprite[searchwall]);
         }
         else
-            i = hgltSprCallFunc(sprDelete);
+            i = helperProcSpr(sprDelete, 0, 1, NULL);
 
-        scrSetMessage("%d sprite(s) deleted.", ClipLow(i, 1));
+        scrSetMessage("%d sprite(s) deleted.", i);
         updatenumsprites();
 
         return PROC_OKUB;
@@ -1080,7 +1319,7 @@ static char edKeyProcShared_KEY_HOME(char key, char ctrl, char shift, char alt)
                 break;
         }
 
-        scrSetMessage("%s #%d %s found", GetHoverName(), nID, isNot(nID >= 0));
+        scrSetMessage("%s %s found", GetHoverName(), isNot(nID >= 0));
         clampCamera();
 
         return (nID >= 0) ? PROC_OKB : PROC_FAILB;
@@ -1222,21 +1461,22 @@ static char edKeyProcShared_KEY_PAD5(char key, char ctrl, char shift, char alt)
     switch (searchstat)
     {
         case OBJ_SPRITE:
-            i = searchwall;
-            strcpy(buffer, "repeat reset");
-            sprite[searchwall].xrepeat = sprite[searchwall].yrepeat = 64;
+            helperProcSpr(sprSizeSet, 64, !shift, buffer);
+            scrSetMessage("repeat reset for %s", buffer);
             break;
         case OBJ_WALL:
         case OBJ_MASKED:
-            strcpy(buffer, "auto repeat");
-            i = searchwall;
-            if (!alt)
+            if (alt)
             {
-                strcpy(buffer, "pan/repeat reset");
-                wall[searchwall].xpanning = wall[searchwall].ypanning = 0;
-                wall[searchwall].xrepeat  = wall[searchwall].yrepeat  = 8;
+                helperProcWall(wallFixRepeats, 0, 0, !alt, buffer);
+                scrSetMessage("auto repeat for %s", buffer);
             }
-            fixrepeats(searchwall);
+            else
+            {
+                
+                helperProcWall(wallRepeatReset, 0, 0, !alt, buffer);
+                scrSetMessage("pan/repeat reset for %s", buffer);
+            }
             break;
         case OBJ_FLOOR:
         case OBJ_CEILING:
@@ -1506,22 +1746,22 @@ static char edKeyProcShared_KEY_PADENTER(char key, char ctrl, char shift, char a
 
 static char edKeyProcShared_KEY_B(char key, char ctrl, char shift, char alt)
 {
+    spritetype* pSpr; walltype* pWall;
     int i, j, k, f;
-    int nWall;
-
 
     if (ctrl)
     {
         clipmovemask2d = clipmovemask3d = (clipmovemask3d == 0) ? BLOCK_MOVE : 0;
-        scrSetMessage("Block move is %s", onOff(clipmovemask3d));
+        scrSetMessage("Block movement is %s", onOff(clipmovemask3d));
         return PROC_OKB;
     }
 
     switch (searchstat)
     {
         case OBJ_SPRITE:
-            sprite[searchwall].cstat ^= kSprBlock;
-            scrSetMessage("sprite[%d] blocking flag is %s", searchwall, onOff(sprite[searchwall].cstat & kSprBlock));
+            pSpr = &sprite[searchwall];
+            helperProcSpr((pSpr->cstat & kSprBlock) ? sprCstatRem : sprCstatAdd, kSprBlock, !shift, buffer);
+            scrSetMessage("%s %s blocking movement", buffer, isNot(pSpr->cstat & kSprBlock));
             return PROC_OKUB;
         case OBJ_FLOOR:
         case OBJ_CEILING:
@@ -1530,39 +1770,13 @@ static char edKeyProcShared_KEY_B(char key, char ctrl, char shift, char alt)
             // no break
         case OBJ_WALL:
         case OBJ_MASKED:
-            if (hgltCheck(OBJ_WALL, searchwall) >= 0)
+            pWall = &wall[searchwall];
+            if (helperProcWall((pWall->cstat & kWallBlock) ? wallCstatRem : wallCstatAdd_Block, kWallBlock, !shift, !alt, buffer))
             {
-                k = hgltWallsCheckStat(kWallBlock, 0x02); // red walls has cstat
-                f = hgltWallsCheckStat(kWallBlock, 0x06); // red walls has NO cstat
-                j = k;
-
-                for (i = 0; i < highlightcnt; i++)
-                {
-                    if ((highlight[i] & 0xC000) != 0)
-                        continue;
-
-                    nWall = highlight[i];
-                    if (wall[nWall].nextwall < 0) continue;
-                    else if (f < j && f > k)
-                    {
-                        if (k < j) wallCstatRem(nWall, kWallBlock, !shift);
-                        else wallCstatAdd(nWall, kWallBlock, !shift);
-                    }
-                    else if (k < j) wallCstatAdd(nWall, kWallBlock, !shift);
-                    else wallCstatRem(nWall, kWallBlock, !shift);
-                }
+                scrSetMessage("%s %s blocking movement", buffer, isNot(pWall->cstat & kWallBlock));
+                return PROC_OKUB;
             }
-            else if (wall[searchwall].nextwall >= 0)
-            {
-                wallCstatToggle(searchwall, kWallBlock, !shift);
-            }
-            else
-            {
-                break;
-            }
-
-            scrSetMessage("wall[%d] blocking flag is %s", searchwall, onOff(wall[searchwall].cstat & kWallBlock));
-            return PROC_OKUB;
+            break;
     }
 
     return PROC_FAILB;
@@ -1623,7 +1837,8 @@ static char edKeyProcShared_KEY_D(char key, char ctrl, char shift, char alt)
 
         if (ctrl)
         {
-            scrSetMessage("%s show model is %s", buffer, onOff((pSpr->flags ^= kHitagNoModel) == 0));
+            helperProcSpr((pSpr->flags & kHitagNoModel) ? sprFlagsRem : sprFlagsAdd, kHitagNoModel, !shift, buffer);
+            scrSetMessage("%s %s showing model", buffer, isNot((pSpr->flags & kHitagNoModel) == 0));
             return PROC_OKUB;
         }
     }
@@ -1674,12 +1889,14 @@ static char edKeyProcShared_KEY_I(char key, char ctrl, char shift, char alt)
         scrSetMessage("Show invisible sprites is %s", onOff(showinvisibility^=1));
         return PROC_OKB;
     }
-
-    if (searchstat != OBJ_SPRITE)
+    
+    spritetype* pSpr = GetHoverSprite();
+    
+    if (pSpr == NULL)
         return PROC_FAILB;
 
-    sprite[searchwall].cstat ^= kSprInvisible;
-    scrSetMessage("sprite[%d] %s invisible", searchwall, isNot(sprite[searchwall].cstat & kSprInvisible));
+    helperProcSpr((pSpr->cstat & kSprInvisible) ? sprCstatRem : sprCstatAdd, kSprInvisible, !shift, buffer);
+    scrSetMessage("%s %s invisible", buffer, isNot(pSpr->cstat & kSprInvisible));
     return PROC_OKUB;
 }
 
@@ -1804,44 +2021,41 @@ static char edKeyProcShared_KEY_K(char key, char ctrl, char shift, char alt)
     switch (searchstat)
     {
         case OBJ_SPRITE:
-            switch (i = (short)(sprite[searchwall].cstat & kSprMoveMask))
+            i = sprite[searchwall].cstat & kSprMoveMask;
+            helperProcSpr(sprCstatRem, kSprMoveMask, !shift, buffer);
+            switch (i)
             {
                 case kSprMoveNone:
-                    i = kSprMoveForward;
-                    scrSetMessage("sprite[%d] moves forward (blue).", searchwall);
+                    helperProcSpr(sprCstatAdd, kSprMoveForward, !shift, buffer);
+                    scrSetMessage("%s moves forward (blue).", buffer);
                     break;
                 case kSprMoveForward:
-                    i = kSprMoveReverse;
-                    scrSetMessage("sprite[%d] moves reverse (green).", searchwall);
+                    helperProcSpr(sprCstatAdd, kSprMoveReverse, !shift, buffer);
+                    scrSetMessage("%s moves reverse (green).", buffer);
                     break;
                 case kSprMoveReverse:
-                    i = kSprMoveNone;
-                    scrSetMessage("sprite[%d] kinetic move disabled.", searchwall);
+                    scrSetMessage("kinetic move disabled for %s.", buffer);
                     break;
             }
-            sprite[searchwall].cstat &= ~kSprMoveMask;
-            sprite[searchwall].cstat |= (short)i;
             return PROC_OKUB;
         case OBJ_WALL:
         case OBJ_MASKED:
-            switch (i = (short)(wall[searchwall].cstat & kWallMoveMask))
+            i = wall[searchwall].cstat & kWallMoveMask;
+            helperProcWall(wallCstatRem, kWallMoveMask, !shift, !alt, buffer);
+            switch (i)
             {
                 case kWallMoveNone:
-                    i = kWallMoveForward;
-                    scrSetMessage("wall[%d] moves forward (blue).", searchwall);
+                    helperProcWall(wallCstatAdd, kWallMoveForward, !shift, !alt, buffer);
+                    scrSetMessage("%s moves forward (blue).", buffer);
                     break;
                 case kWallMoveForward:
-                    i = kWallMoveReverse;
-                    scrSetMessage("wall[%d] moves reverse (green).", searchwall);
+                    helperProcWall(wallCstatAdd, kWallMoveReverse, !shift, !alt, buffer);
+                    scrSetMessage("%s moves reverse (green).", buffer);
                     break;
                 case kWallMoveReverse:
-                default:
-                    i = kWallMoveNone;
-                    scrSetMessage("wall[%d] kinetic move disabled.", searchwall);
+                    scrSetMessage("kinetic move disabled for %s.", buffer);
                     break;
             }
-            wallCstatRem(searchwall, kWallMoveMask, !shift);
-            wallCstatAdd(searchwall, i, !shift);
             return PROC_OKUB;
     }
 
@@ -1859,30 +2073,15 @@ static char edKeyProcShared_KEY_M(char key, char ctrl, char shift, char alt)
         searchwall = searchwall2;
         searchstat = OBJ_WALL;
     }
-
-    if (searchwall >= 0 && (i = wall[searchwall].nextwall) >= 0)
+    
+    if (searchwall >= 0)
     {
-        if (wallCstatToggle(searchwall, kWallMasked, !shift) & kWallMasked)
-        {
-            if (!shift)
-            {
-                // other side flip-x
-                if (!(wall[searchwall].cstat & kWallFlipX)) wallCstatAdd(i, kWallFlipX, FALSE);
-                else if (wall[i].cstat & kWallFlipX) // other side unflip-x
-                    wallCstatRem(i, kWallFlipX, FALSE);
-
-                wall[searchwall].overpicnum = ClipLow(wall[searchwall].overpicnum, 0);
-                wall[i].overpicnum = wall[searchwall].overpicnum;
-            }
-
-            // useless to have this together
-            wallCstatRem(searchwall, kWallOneWay, !shift);
-        }
-
-        scrSetMessage("wall[%d] %s masked", searchwall, isNot(wall[searchwall].cstat & kWallMasked));
+        walltype* pWall = &wall[searchwall];
+        helperProcWall((pWall->cstat & kWallMasked) ? wallCstatRem : wallCstatAdd_Mask, kWallMasked, !shift, !alt, buffer);
+        scrSetMessage("%s %s masked", buffer, isNot(pWall->cstat & kWallMasked));
         return PROC_OKUB;
     }
-
+    
     return PROC_FAILB;
 }
 
@@ -1937,44 +2136,35 @@ static char edKeyProcShared_KEY_R(char key, char ctrl, char shift, char alt)
 
     if (searchstat == OBJ_WALL)
     {
-        i = wallCstatToggle(searchwall, kWallRotate90, 0);
-        scrSetMessage("%s[%d] tile %s rotated 90deg", GetHoverName(), searchwall, isNot(i & kWallRotate90));
+        walltype* pWall = &wall[searchwall];
+        helperProcWall((pWall->cstat & kWallRotate90) ? wallCstatRem : wallCstatAdd, kWallRotate90, 0, !shift, buffer);
+        scrSetMessage("tile %s rotated 90deg for %s",isNot(pWall->cstat & kWallRotate90), buffer);
         return PROC_OKUB;
     }
-
-    if (searchstat != OBJ_SPRITE)
+    
+    
+    if ((pSpr = GetHoverSprite()) == NULL)
         return PROC_FAILB;
 
-    pSpr = &sprite[searchwall];
-    switch (i = (pSpr->cstat & kSprRelMask))
+    i = pSpr->cstat & kSprRelMask;
+    helperProcSpr(sprCstatRem, kSprRelMask, !shift, buffer);
+    
+    switch (i)
     {
-        case 0x00:
-            i = 0x10;
-            scrSetMessage("sprite[%d] is wall sprite", searchwall);
+        case kSprFace:
+            helperProcSpr(sprCstatAdd, kSprWall, !shift, buffer);
+            scrSetMessage("%s is wall oriented", buffer);
             break;
-        case 0x10:
-            i = 0x20;
-            scrSetMessage("sprite[%d] is floor sprite", searchwall);
+        case kSprWall:
+            helperProcSpr(sprCstatAdd, kSprFloor, !shift, buffer);
+            scrSetMessage("%s is floor oriented", buffer);
             break;
         default:
-            i = 0x00;
-            scrSetMessage("sprite[%d] is face sprite", searchwall);
+            scrSetMessage("%s is face oriented", buffer);
             break;
     }
-
-    pSpr->cstat &= ~kSprRelMask;
-    pSpr->cstat |= (unsigned short)i;
-
-    if ((pSpr->cstat & kSprOneSided) && ED3D)
-    {
-        pSpr->cstat &= ~kSprFlipY;
-        if ((pSpr->cstat & kSprRelMask) >= kSprFloor)
-        {
-            if (posz > pSpr->z)
-                pSpr->cstat |= kSprFlipY;
-        }
-    }
-
+    
+    helperProcSpr(spr_Floor_OneSide_HandleFlip, posz, !shift, NULL);
     return PROC_OKUB;
 }
 
@@ -1983,7 +2173,23 @@ static char edKeyProcShared_KEY_R(char key, char ctrl, char shift, char alt)
 static char edKeyProcShared_KEY_U(char key, char ctrl, char shift, char alt)
 {
     int nVis, i;
+	int nShade, nID;
+	nID = GetHoverID();
+    
+ 	if (alt && ED3D)
+    {
+		nID = GetHoverID();
 
+        nShade = getShadeOf(searchstat, nID);
+        if ((nShade = GetNumberBox("Shade", nShade, -1)) == -1)
+             return PROC_FAILB;
+
+        nShade = ClipRange(nShade, -128, 127);
+        setShadeOf(nShade, searchstat, nID);
+		
+		scrSetMessage("%s #%d shade: %d", GetHoverName(), nID, nShade);
+        return PROC_OKUB;
+    }
     if (IsHoverWall())
         TranslateWallToSector();
     else if (searchstat == OBJ_SPRITE)
@@ -2076,7 +2282,7 @@ static char edKeyProcShared_KEY_X(char key, char ctrl, char shift, char alt)
     int nSect, nWall;
     int s, e, cx, cy;
     int i = 0;
-
+    
     if (ED2D)
     {
         if (ctrl)
@@ -2106,7 +2312,7 @@ static char edKeyProcShared_KEY_X(char key, char ctrl, char shift, char alt)
             return (i) ? PROC_OKUB : PROC_FAILB;
         }
     }
-
+    
     if (key != KEY_X)
         return PROC_FAILB;
 
@@ -2469,17 +2675,19 @@ static char edKeyProc3D_KEY_BACKSPACE(char key, char ctrl, char shift, char alt)
             return PROC_OKUB;
 
         case OBJ_SPRITE:
-            sprite[searchwall].cstat = 0x80;
+            sprite[searchwall].cstat = kSprOrigin;
             scrSetMessage("Sprite #%d cstat reset", searchwall);
             return PROC_OKUB;
 
         case OBJ_FLOOR:
             sector[searchsector].floorstat = 0;
+			sector[searchsector].floorslope = 0;
             scrSetMessage("Sector #%d floor cstat reset", searchsector);
             return PROC_OKUB;
 
         case OBJ_CEILING:
             sector[searchsector].ceilingstat = 0;
+			sector[searchsector].ceilingslope = 0;
             scrSetMessage("Sector #%d ceiling cstat reset", searchsector);
             return PROC_OKUB;
     }
@@ -2497,8 +2705,8 @@ static char edKeyProc3D_KEY_INSERT(char key, char ctrl, char shift, char alt)
     if (searchstat != OBJ_SPRITE)
         return PROC_FAILB;
 
-    i = ClipLow(hgltSprCallFunc(sprClone), 1);
-    scrSetMessage("%d sprite(s) duplicated and stamped.", i);
+    i = helperProcSpr(sprClone, 0, !shift, buffer);
+    scrSetMessage("%s duplicated and stamped.", buffer);
 
     if (i > 1)
     {
@@ -2564,7 +2772,7 @@ static char edKeyProc3D_KEY_PAGEDN(char key, char ctrl, char shift, char alt)
                 ProcessHighlightSectors(SetFloorZ, z);
                 break;
             case OBJ_SPRITE:
-                hgltSprCallFunc((d) ? PutSpriteOnCeiling : PutSpriteOnFloor, 0);
+                helperProcSpr((d) ? PutSpriteOnCeiling : PutSpriteOnFloor, 0, 1, NULL);
                 z = sprite[searchwall].z;
                 break;
         }
@@ -2628,7 +2836,7 @@ static char edKeyProc3D_KEY_PAGEDN(char key, char ctrl, char shift, char alt)
     }
     else if (searchstat == OBJ_SPRITE)
     {
-        hgltSprCallFunc((d) ? RaiseSprite : LowerSprite, nStep);
+        helperProcSpr((d) ? RaiseSprite : LowerSprite, nStep, 1, NULL);
         z = sprite[searchwall].z;
     }
 
@@ -3356,8 +3564,8 @@ static char edKeyProc3D_KEY_G(char key, char ctrl, char shift, char alt)
 
 static char edKeyProc3D_KEY_H(char key, char ctrl, char shift, char alt)
 {
-    // H (hitscan sensitivity)
-
+    spritetype* pSpr; walltype* pWall;
+    
     switch (searchstat)
     {
         case OBJ_FLOOR:
@@ -3365,12 +3573,14 @@ static char edKeyProc3D_KEY_H(char key, char ctrl, char shift, char alt)
             // no break
         case OBJ_WALL:
         case OBJ_MASKED:
-            wallCstatToggle(searchwall, kWallHitscan, !shift);
-            scrSetMessage("wall[%d] %s hitscan sensitive", searchwall, isNot(wall[searchwall].cstat & kWallHitscan));
+            pWall = &wall[searchwall];
+            helperProcWall((pWall->cstat & kWallHitscan) ? wallCstatRem : wallCstatAdd, kWallHitscan, !shift, !alt, buffer);
+            scrSetMessage("%s %s hitscan sensitive.", buffer, isNot(pWall->cstat & kWallHitscan));
             return PROC_OKUB;
         case OBJ_SPRITE:
-            sprite[searchwall].cstat ^= kSprHitscan;
-            scrSetMessage("sprite[%d] %s hitscan sensitive", searchwall, isNot(sprite[searchwall].cstat & kSprHitscan));
+            pSpr = &sprite[searchwall];
+            helperProcSpr((pSpr->cstat & kSprHitscan) ? sprCstatRem : sprCstatAdd, kSprHitscan, !shift, buffer);
+            scrSetMessage("%s %s hitscan sensitive.", buffer, isNot(pSpr->cstat & kSprHitscan));
             return PROC_OKUB;
     }
 
@@ -3435,9 +3645,8 @@ static char edKeyProc3D_KEY_O(char key, char ctrl, char shift, char alt)
         // O (top/bottom orientation - for doors)
 
         pWall = &wall[searchwall];
-        pWall->cstat ^= kWallOrgBottom;
-        if (pWall->nextwall == -1) scrSetMessage("Texture pegged at %s", (pWall->cstat & kWallOrgBottom) ? "bottom" : "top");
-        else scrSetMessage("Texture pegged at %s", (pWall->cstat & kWallOrgOutside) ? "outside" : "inside");
+        helperProcWall((pWall->cstat & kWallOrgBottom) ? wallCstatRem : wallCstatAdd, kWallOrgBottom, 0, !alt, buffer);
+        scrSetMessage("Texture pegged at %s for %s", (pWall->cstat & kWallOrgBottom) ? "bottom" : "top", buffer);
         return PROC_OKUB;
     }
 
@@ -3482,10 +3691,8 @@ static char edKeyProc3D_KEY_O(char key, char ctrl, char shift, char alt)
         }
         else if (alt)
         {
-            pSpr->cstat ^= kSprOrigin;
-            clampSprite(pSpr);
-
-            scrSetMessage("%s[%d] origin align is %s", GetHoverName(), searchwall, onOff((pSpr->cstat & kSprOrigin)));
+            helperProcSpr((pSpr->cstat & kSprOrigin) ? sprCstatRem : sprCstatAdd, kSprOrigin, !shift, buffer);
+            scrSetMessage("origin align is %s for %s", onOff(pSpr->cstat & kSprOrigin), buffer);
             return PROC_OKUB;
         }
     }
@@ -3557,14 +3764,28 @@ static char edKeyProc3D_KEY_P(char key, char ctrl, char shift, char alt)
     i = isEffectivePLU(nPic, palookup[nPlu]);
     buffer[0] = '\0';
     if (nPlu > 1)
-        sprintf(buffer, "(%d efficiency)", i);
+        sprintf(buffer, "(%d%% efficiency)", i);
 
-    scrSetMessage("%s: #%d %s", strlwr(title), nPlu, buffer);
-    if (searchstat == OBJ_SPRITE && sprInHglt(searchwall) && !shift)
-        hgltSprCallFunc(sprPalSet, nPlu);
+    if (IsHoverSprite())
+    {
+        if (helperProcSpr(sprPalSet, nPlu, !shift, buffer2) > 1)
+            *buffer = '\0';
+        
+        scrSetMessage("%s palookup #%d %s", buffer2, nPlu, buffer);
+    }
+    else if (IsHoverWall())
+    {
+        if (helperProcWall(wallPalSet, nPlu, !shift, 1, buffer2) > 1)
+            *buffer = '\0';
+        
+        scrSetMessage("%s palookup #%d %s", buffer2, nPlu, buffer);
+    }
     else
+    {
+        scrSetMessage("%s: #%d %s", strlwr(title), nPlu, buffer);
         setPluOf(nPlu, searchstat, nID);
-
+    }
+    
     return PROC_OKUB;
 }
 
@@ -3701,45 +3922,50 @@ static char edKeyProc3D_KEY_S(char key, char ctrl, char shift, char alt)
 static char edKeyProc3D_KEY_T(char key, char ctrl, char shift, char alt)
 {
     int i = 0, j;
-
+    spritetype* pSpr; walltype* pWall;
+    
     buffer[0] = '\0';
     switch (searchstat)
     {
         case OBJ_MASKED:
-            sprintf(buffer, "%d", searchwall);
-            if (wall[searchwall].cstat & kWallTransluc)  i = 2;
-            if (wall[searchwall].cstat & kWallTranslucR) i = 1;
+            pWall = &wall[searchwall];
+            if (pWall->cstat & kWallTransluc)  i = 2;
+            if (pWall->cstat & kWallTranslucR) i = 1;
             switch (i = IncRotate(i, 3))
             {
                 case 0:
-                    wallCstatRem(searchwall, kWallTransluc2, !shift);
+                    helperProcWall(wallCstatRem, kWallTransluc2, !shift, !alt, buffer);
                     break;
                 case 1:
-                    wallCstatAdd(searchwall, kWallTransluc2, !shift);
+                    helperProcWall(wallCstatAdd, kWallTransluc2, !shift, !alt, buffer);
                     break;
                 case 2:
-                    wallCstatRem(searchwall, kWallTransluc2, !shift);
-                    wallCstatAdd(searchwall, kWallTransluc,  !shift);
+                    helperProcWall(wallCstatRem, kWallTransluc2, !shift, !alt, buffer);
+                    helperProcWall(wallCstatAdd, kWallTransluc, !shift, !alt, buffer);
                     break;
             }
+            scrSetMessage("%s %s tanslucent", buffer, gTranslucLevNames[i]);
+            *buffer = '\0';
             break;
         case OBJ_SPRITE:
-            sprintf(buffer, "%d", searchwall);
-            if (sprite[searchwall].cstat & kSprTransluc1) i = 2;
-            if (sprite[searchwall].cstat & kSprTranslucR) i = 1;
+            pSpr = &sprite[searchwall];
+            if (pSpr->cstat & kSprTransluc1) i = 2;
+            if (pSpr->cstat & kSprTranslucR) i = 1;
             switch (i = IncRotate(i, 3))
             {
                 case 0:
-                    sprite[searchwall].cstat &= ~kSprTransluc2;
+                    helperProcSpr(sprCstatRem, kSprTransluc2, !shift, buffer);
                     break;
                 case 1:
-                    sprite[searchwall].cstat |= kSprTransluc2;
+                    helperProcSpr(sprCstatAdd, kSprTransluc2, !shift, buffer);
                     break;
                 case 2:
-                    sprite[searchwall].cstat &= ~kSprTransluc2;
-                    sprite[searchwall].cstat |= kSprTransluc1;
+                    helperProcSpr(sprCstatRem, kSprTransluc2, !shift, buffer);
+                    helperProcSpr(sprCstatAdd, kSprTransluc1, !shift, buffer);
                     break;
             }
+            scrSetMessage("%s %s tanslucent", buffer, gTranslucLevNames[i]);
+            *buffer = '\0';
             break;
         case OBJ_FLOOR:
         case OBJ_CEILING:
@@ -3980,15 +4206,10 @@ static char edKeyProc3D_KEY_PADMINUS(char key, char ctrl, char shift, char alt)
                 Sky::SetShade(searchsector, searchstat, sector[searchsector].floorshade, alt);
             return PROC_OKUB;
         case OBJ_SPRITE:
-            if (!shift && sprInHglt(searchwall))
-            {
-                scrSetMessage("%d sprites are %s by %d", hgltSprCallFunc(sprShadeIterate, nStep), (nStep > 0) ? "darker" : "brighter", nStep);
-            }
+            if (helperProcSpr((ctrl) ? sprShadeSet : sprShadeIterate, nStep, !shift, buffer) > 1)
+                scrSetMessage("iterate shade by %d for %s", nStep, buffer);
             else
-            {
-                pSetShadeOf(nStep, searchstat, searchwall);
                 scrSetMessage("Shade: %d", sprite[searchwall].shade);
-            }
             return PROC_OKUB;
     }
 
@@ -4022,7 +4243,8 @@ static char edKeyProc3D_KEY_PAD0(char key, char ctrl, char shift, char alt)
         {
             case OBJ_WALL:
             case OBJ_MASKED:
-                (pal) ? wall[searchwall].pal = 0 : wall[searchwall].shade = 0;
+                helperProcWall((pal) ? wallPalSet : wallShadeSet, 0, !shift, !alt, NULL);
+                scrSetMessage("%s %s reset.", buffer, (pal) ? "palette" : "shade");
                 break;
             case OBJ_FLOOR:
             case OBJ_CEILING:
@@ -4046,15 +4268,15 @@ static char edKeyProc3D_KEY_PAD0(char key, char ctrl, char shift, char alt)
                     if (isSkySector(searchsector, searchstat))
                         Sky::SetShade(searchsector, searchstat, 0, alt);
                 }
+                scrSetMessage("%s reset.", (pal) ? "Palette" : "Shade");
                 break;
             case OBJ_SPRITE:
-                if (!shift) hgltSprCallFunc((pal) ? sprPalSet : sprShadeSet, 0);
-                else (pal) ? sprite[searchwall].pal = 0 : sprite[searchwall].shade = 0;
+                helperProcSpr((pal) ? sprPalSet : sprShadeSet, 0, !shift, buffer);
+                scrSetMessage("%s %s reset.", buffer, (pal) ? "palette" : "shade");
                 break;
         }
     }
-
-    scrSetMessage("%s reset.", (pal) ? "Palette" : "Shade");
+    
     return PROC_OKUB;
 }
 
@@ -4334,16 +4556,17 @@ static char edKeyProc2D_KEY_INSERT(char key, char ctrl, char shift, char alt)
 
         if (searchstat == OBJ_SPRITE)
         {
-            scrSetMessage("%d sprite(s) duplicated and stamped.", ClipLow(hgltSprCallFunc(sprClone), 1));
+            helperProcSpr(sprClone, 0, !shift, buffer);
+            scrSetMessage("%s duplicated and stamped.", buffer);
             if (pointdrag >= 0 && (pointdrag & 0xC000) != 0)
             {
-                i = pointdrag & 0x3FFF;
+                i = j = pointdrag & 0x3FFF;
                 if (!sprInHglt(i))
                 {
                     x = sprite[i].x;
                     y = sprite[i].y;
 
-                    while(nextSpriteAt(x, y, &i) >= 0)
+                    while((i = nextSpriteAt(x, y, i)) != j)
                     {
                         if (sprInHglt(i))
                         {
@@ -4458,10 +4681,11 @@ static char edKeyProc2D_KEY_H(char key, char ctrl, char shift, char alt)
             if (key == KEY_H)
             {
                 if (ctrl) wall[i].hitag = ClipRange(GetNumberBox(buffer, wall[i].hitag, wall[i].hitag), 0, 32767);
-                else if (wall[i].nextwall >= 0)
+                else
                 {
-                    wallCstatToggle(i, kWallHitscan, !shift);
-                    scrSetMessage("Wall[%d] %s hitscan sensitive", i, isNot(wall[i].cstat & kWallHitscan));
+                    walltype* pWall = &wall[searchwall];
+                    helperProcWall((pWall->cstat & kWallHitscan) ? wallCstatRem : wallCstatAdd, kWallHitscan, !shift, !alt, buffer);
+                    scrSetMessage("%s %s hitscan sensitive.", buffer, isNot(pWall->cstat & kWallHitscan));
                 }
             }
             else wall[i].type = ClipRange(GetNumberBox(buffer, wall[i].type, wall[i].type), 0, 32767);
@@ -4472,8 +4696,9 @@ static char edKeyProc2D_KEY_H(char key, char ctrl, char shift, char alt)
                 if (ctrl) sprite[i].flags = ClipRange(GetNumberBox(buffer, sprite[i].flags, sprite[i].flags), 0, 32767);
                 else
                 {
-                    sprite[i].cstat ^= kSprHitscan;
-                    scrSetMessage("Sprite[%d] %s hitscan sensitive", i, isNot(sprite[i].cstat & kSprHitscan));
+                    spritetype* pSpr = &sprite[i];
+                    helperProcSpr((pSpr->cstat & kSprHitscan) ? sprCstatRem : sprCstatAdd, kSprHitscan, !shift, buffer);
+                    scrSetMessage("%s %s hitscan sensitive.", buffer, isNot(pSpr->cstat & kSprHitscan));
                 }
             }
             else sprite[i].type = ClipRange(GetNumberBox(buffer, sprite[i].type, sprite[i].type), 0, 32767);

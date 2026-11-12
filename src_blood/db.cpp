@@ -611,8 +611,8 @@ int dbConvBuildMapGen(IOBuffer* pIo)
     {
         RemoveSpriteStat(i);
         pIo->read(&sprite[i], sizeof(spritetype));
-        InsertSpriteSect(i, sprite[i].sectnum);
-        InsertSpriteStat(i, sprite[i].statnum);
+        InsertSpriteSect(i, ClipLow(sprite[i].sectnum, 0));
+        InsertSpriteStat(i, ClipLow(sprite[i].statnum, 0));
         sprite[i].index     = i;
     }
 

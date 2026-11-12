@@ -2404,19 +2404,23 @@ BOOL testXSectorForLighting(int nXSect)
 
 int roundAngle(int nAng, int nAngles)
 {
-    int i, a = 0;
-    int16_t *angles = new int16_t [nAngles];
-    int n = 2048 / nAngles;
-
-    for (i = 0; i < nAngles; i++)
+    static int16_t angles[kAng360 + 1];
+    if (rngok(nAngles, 0, LENGTH(angles)))
     {
-        angles[i] = a;
-        a+=n;
-    }
+        int n = 2048 / nAngles;
+        int i, a = 0;
 
-    while(--i >= 0 && !rngok(nAng, angles[i], angles[i]+n))
-    delete [] angles;
-    return angles[i];
+        for (i = 0; i < nAngles; i++)
+        {
+            angles[i] = a;
+            a+=n;
+        }
+
+        while(--i >= 0 && !rngok(nAng, angles[i], angles[i]+n))
+        return angles[i];
+    }
+    
+    return nAng;
 }
 
 

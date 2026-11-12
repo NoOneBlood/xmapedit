@@ -575,29 +575,22 @@ void ProcessInput2D( void )
     {
         j = pointhighlight & 0x3FFF;
         gScreen2D.data.sprUnderCursor = countSpritesAt(sprite[j].x, sprite[j].y);
-        if (gScreen2D.data.sprUnderCursor > 1)
+        if (gScreen2D.data.sprUnderCursor > 1 && alt && gMouse.wheel)
         {
-            if (alt && gMouse.wheel)
+            if (totalclock >= gTimers.mouseWheelTimer1)
             {
-                if (totalclock >= gTimers.mouseWheelTimer1)
+                if ((i = nextSpriteAt(sprite[j].x, sprite[j].y, j, gMouse.wheel < 0)) >= 0)
                 {
-                    while( 1 )
-                    {
-                        if ((i = nextSpriteAt(sprite[j].x, sprite[j].y, &spridx)) >= 0)
-                        {
-                            scrSetMessage("Focus on sprite #%d at X=%d, Y=%d", sprite[i].index, sprite[i].x, sprite[i].y);
-                            ChangeSpriteSect(sprite[i].index, sprite[i].sectnum); // put sprite in bottom of the spritesect array
-                            BeepOk();
-                            break;
-                        }
-                    }
-
-                    gTimers.mouseWheelTimer1 = totalclock + 16;
+                    scrSetMessage("Focus on sprite #%d at X=%d, Y=%d", sprite[i].index, sprite[i].x, sprite[i].y);
+                    ChangeSpriteSect(sprite[i].index, sprite[i].sectnum); // put sprite in bottom of the spritesect array
+                    BeepOk();
                 }
-
-                // get new pointhighlight on next call?
-                return;
+                    
+                gTimers.mouseWheelTimer1 = totalclock + 32;
             }
+
+            // get new pointhighlight on next call?
+            return;
         }
     }
 

@@ -249,6 +249,8 @@ SPECIAL_DATA_NAMES pCtrlDataNames[32] =
     72, { NULL, "Pack item", "Additional", NULL },
     73, { NULL, "Angle", NULL, NULL },
     74, { NULL, "Powerup", "Duration", NULL },
+    83, { NULL, "Status", NULL, NULL },
+    84, { NULL, "Input", NULL, NULL },
 };
 
 NAMED_TYPE gToolNames[] =
@@ -4615,6 +4617,11 @@ void xmpCreateToolTestMap(char withSprite)
 char IsHoverSector()
 {
     return (searchstat == OBJ_FLOOR || searchstat == OBJ_CEILING || searchstat == OBJ_SECTOR);
+}
+
+char IsHoverSprite()
+{
+    return (searchstat == OBJ_SPRITE);
 }
 
 char IsHoverWall()

@@ -1471,44 +1471,6 @@ void getWallCoords(int nWall, int* x1, int* y1, int* x2, int* y2)
     if (y2) *y2 = wall[wall[nWall].point2].y;
 }
 
-short wallCstatAdd(int nWall, short cstat, char nextWall)
-{
-    setCstat(1, &wall[nWall].cstat, cstat);
-    if (nextWall && wall[nWall].nextwall >= 0)
-        setCstat(1, &wall[wall[nWall].nextwall].cstat, cstat);
-
-    return wall[nWall].cstat;
-}
-
-short wallCstatRem(int nWall, short cstat, char nextWall)
-{
-    setCstat(0, &wall[nWall].cstat, cstat);
-    if (nextWall && wall[nWall].nextwall >= 0)
-        setCstat(0, &wall[wall[nWall].nextwall].cstat, cstat);
-
-    return wall[nWall].cstat;
-}
-
-short wallCstatToggle(int nWall, short cstat, char nextWall)
-{
-    wall[nWall].cstat ^= cstat;
-    if (nextWall && wall[nWall].nextwall >= 0)
-    {
-        if ((wall[nWall].cstat & cstat))
-        {
-            if (!(wall[wall[nWall].nextwall].cstat & cstat))
-                wallCstatAdd(wall[nWall].nextwall, cstat, 0);
-        }
-        else
-        {
-            if ((wall[wall[nWall].nextwall].cstat & cstat))
-                wallCstatRem(wall[nWall].nextwall, cstat, 0);
-        }
-    }
-
-    return wall[nWall].cstat;
-}
-
 char wallVisible(int nWall)
 {
     walltype* pWall = &wall[nWall];
@@ -2515,7 +2477,13 @@ int fixWallLoops(void)
     i = numwalls;
     while(--i >= 0)
     {
-        if (getWallLength(i) > 0)
+        if ((n = wallGetSect(i)) < 0)
+        {
+            totalFound++, totalFixed++;
+            buildprintf(errMsgFmt, "Orphan wall", i, wall[i].point2, wall[i].nextwall, n);
+            deletePoint(i);
+        }
+        else if (getWallLength(i) > 0)
         {
             if ((n = wall[i].nextwall) >= 0 && !isNextWallOf(n, i))
             {
@@ -2555,7 +2523,7 @@ int fixWallLoops(void)
             j = wall[j].point2;
             t++;
         }
-        while(i != j && t < numwalls);
+        while(i != j && rngok(j, 0, numwalls) && t < numwalls);
         
         if (bad)
         {
@@ -2565,24 +2533,34 @@ int fixWallLoops(void)
             
             if (nSect >= 0)
             {
-                getWallCoords(sector[nSect].wallptr, &x, &y);
-                VOIDLIST loop(sizeof(wall[0]));
-                j = i;
-                do
+                if (wall[j].point2 >= numwalls)
                 {
-                    loop.Add(&wall[j]);
-                    j = wall[j].point2;
+                    wall[j].point2 = j+1;
+                    sectAttach(nSect);
+                    totalFixed++;
+                    i = numwalls;
                 }
-                while(i != j);
-                
-                loopDetach(j), loopDelete(i);
-                j = insertLoopEx(nSect, (walltype*)loop.First(), loop.Length(), ILOOP_DIR_FW|ILOOP_NO_FLIP, &sector[nSect]);
-                loopAttach(j), totalFixed++;
-                
-                if ((j = findWallAtPos(nSect, x, y)) >= 0)
-                    setFirstWall(nSect, j); // for slope
-                
-                i = numwalls;
+                else if (sectorofwall(wall[j].point2) == nSect)
+                {
+                    getWallCoords(sector[nSect].wallptr, &x, &y);
+                    VOIDLIST loop(sizeof(wall[0]));
+                    j = i;
+                    do
+                    {
+                        loop.Add(&wall[j]);
+                        j = wall[j].point2;
+                    }
+                    while(i != j);
+                    
+                    loopDetach(j), loopDelete(i);
+                    j = insertLoopEx(nSect, (walltype*)loop.First(), loop.Length(), ILOOP_DIR_FW|ILOOP_NO_FLIP, &sector[nSect]);
+                    loopAttach(j), totalFixed++;
+                    
+                    if ((j = findWallAtPos(nSect, x, y)) >= 0)
+                        setFirstWall(nSect, j); // for slope
+                    
+                    i = numwalls;
+                }
             }
         }
     }
@@ -2626,11 +2604,14 @@ int fixWallLoops(void)
     {
         if (sector[i].wallptr >= 0 && sector[i].wallnum > 0)
             continue;
-
-        for (j = i; j < numsectors-1; j++) sector[j] = sector[j+1];
+        
+        #if 0
+            for (j = i; j < numsectors-1; j++) sector[j] = sector[j+1];
+            numsectors--;
+        #endif
+        
         buildprintf(errMsgFmt, "Bad sector", -1, -1, -1, i);
-        totalFound++, totalFixed++;
-        numsectors--;
+        totalFound++;
     }
     
     if (totalFound)
@@ -2886,23 +2867,41 @@ void rotatePoints(POINT2D* point, int numpoints, int s)
     }
 }
 
-int nextSpriteAt(int x, int y, int *prv)
+int nextSpriteAt(int x, int y, int nSpr, char dir)
 {
-    int i;
-    for (i = ClipLow(*prv, 0); i < kMaxSprites; i++)
+    int i = kMaxSprites; int32_t *p;
+    IDLIST list(true);
+    
+    while(--i >= 0)
     {
-        if (sprite[i].statnum >= kMaxStatus) continue;
-        else if (sprite[i].x == x && sprite[i].y == y)
+        if (sprite[i].statnum >= kMaxStatus
+            || sprite[i].x != sprite[nSpr].x || sprite[i].y != sprite[nSpr].y)
+                continue;
+                
+        list.Add(i);
+    }
+    
+    for (p = list.First(); *p >= 0; p++)
+    {
+        if (*p == nSpr)
         {
-            if (*prv == -1 || *prv < i)
+            if (dir > 0)
             {
-                *prv = i;
-                return i;
+                p++;
+                if (!list.Valid(p))
+                    p = list.First();
             }
+            else
+            {
+                p--;
+                if (!list.Valid(p))
+                    p = list.Last();
+            }
+            
+            return *p;
         }
     }
-
-    *prv = -1;
+    
     return -1;
 }
 
