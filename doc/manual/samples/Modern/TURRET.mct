@@ -1,0 +1,114 @@
+[Header]
+Version=1
+MapCRC=1098626376
+
+[001]
+Position=(12302, -14871)
+Text001=ENTERRING TURRET
+Appearance=(153, 0, 0, 0)
+
+[002]
+Position=(10166, -14687)
+Object=(3, 14)
+Text001=Center view
+Appearance=(159, -1, 0, 1)
+
+[003]
+Position=(10193, -14941)
+Object=(3, 30)
+Text001=Holster
+Appearance=(159, -1, 0, 1)
+
+[004]
+Position=(10347, -15321)
+Object=(3, 11)
+Text001=OFF real input process
+Appearance=(255, 16, 0, 1)
+
+[005]
+Position=(13565, -13440)
+Text001=PROCESSING TURRET
+Appearance=(127, 0, 0, 0)
+
+[006]
+Position=(13565, -13154)
+Object=(3, 0)
+Text001=Some player inside?
+Appearance=(159, -1, 0, 1)
+
+[007]
+Position=(12509, -13505)
+Object=(3, 57)
+Text001=Alive?
+Appearance=(159, -1, 0, 1)
+
+[008]
+Position=(15622, -12632)
+Object=(3, 25)
+Text001=Hit ACTION (Quit)
+Appearance=(127, -1, 0, 1)
+
+[009]
+Position=(14724, -9287)
+Object=(3, 27)
+Text001=ON real input process!
+Appearance=(255, 16, 0, 1)
+
+[010]
+Position=(16650, -9957)
+Object=(3, 31)
+Text001=Raise weapon
+Appearance=(159, -1, 0, 1)
+
+[011]
+Position=(11275, -12363)
+Object=(3, 48)
+Text001=Have velocity?
+Appearance=(159, -1, 0, 1)
+
+[012]
+Position=(15332, -12827)
+Object=(3, 2)
+Text001=Turn LEFT
+Appearance=(127, -1, 0, 1)
+
+[013]
+Position=(15049, -13056)
+Object=(3, 3)
+Text001=Turn RIGHT
+Appearance=(127, -1, 0, 1)
+
+[014]
+Position=(12148, -13216)
+Object=(3, 8)
+Text001=Shoot NORMAL (Tesla)
+Appearance=(127, -1, 0, 1)
+
+[015]
+Position=(11869, -13002)
+Object=(3, 10)
+Text001=Shoot ALT (Flame)
+Appearance=(127, -1, 0, 1)
+
+[016]
+Position=(11532, -12712)
+Object=(3, 22)
+Text001=Hit JUMP (Lasers)
+Appearance=(127, -1, 0, 1)
+
+[017]
+Position=(16142, -10865)
+Text001=EXITING TURRET
+Appearance=(143, 0, 0, 0)
+
+[018]
+Position=(15058, -13534)
+Object=(3, 58)
+Text001=Dead?
+Appearance=(159, -1, 0, 1)
+
+[019]
+Position=(14353, -11520)
+Object=(3, 54)
+Text001=Hack for ambient sound
+Appearance=(45, -1, 0, 1)

@@ -1,0 +1,74 @@
+[Header]
+Version=1
+MapCRC=-285902700
+
+[001]
+Position=(33409, 21675)
+Object=(3, 3)
+Text001=OPENING GATES SCENE
+Appearance=(159, 143, 0, 0)
+
+[002]
+Position=(29995, 21118)
+Object=(3, 11)
+Text001=4. Change next marker id for Innocent
+Appearance=(159, -1, 0, 1)
+
+[003]
+Position=(29792, 21228)
+Object=(3, 9)
+Text001=3. Toggle gates
+Appearance=(159, -1, 0, 1)
+
+[004]
+Position=(29321, 21472)
+Object=(3, 8)
+Text001=1. Disable controls (all players)
+Appearance=(31, -1, 0, 1)
+
+[005]
+Position=(29595, 21330)
+Object=(3, 7)
+Text001=2. Enable camera
+Appearance=(127, -1, 0, 1)
+
+[006]
+Position=(29946, 26285)
+Object=(3, 14)
+Text001=5. Enable controls (all players)
+Appearance=(31, -1, 0, 1)
+
+[007]
+Position=(30359, 26484)
+Object=(3, 13)
+Text001=6. Disable camera
+Appearance=(127, -1, 0, 1)
+
+[008]
+Position=(39313, 44253)
+Text001=OUTPUT TO TILE
+Appearance=(159, 143, 0, 0)
+
+[009]
+Position=(49010, 40686)
+Object=(3, 26)
+Text001=Camera attached to Tchernobog
+Appearance=(159, -1, 0, 1)
+
+[010]
+Position=(51895, 55970)
+Object=(3, 21)
+Text001=Camera tracking Tchernobog
+Appearance=(159, -1, 0, 1)
+
+[011]
+Position=(44034, 40351)
+Object=(3, 22)
+Text001=Switching between cameras
+Appearance=(31, -1, 0, 1)
+
+[012]
+Position=(33214, 40073)
+Object=(3, 24)
+Text001=Static camera
+Appearance=(159, -1, 0, 1)
