@@ -1319,7 +1319,10 @@ static char edKeyProcShared_KEY_HOME(char key, char ctrl, char shift, char alt)
                 break;
         }
 
-        scrSetMessage("%s %s found", GetHoverName(), isNot(nID >= 0));
+       if (nID >= 0) scrSetMessage("%s %s found", gSearchStatNames[nType], isNot(nID >= 0));
+	   
+	      else scrSetMessage ("%s not found - Sir Not Appearing In This Film", gSearchStatNames[nType]);
+		   
         clampCamera();
 
         return (nID >= 0) ? PROC_OKB : PROC_FAILB;
