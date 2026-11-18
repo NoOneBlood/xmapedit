@@ -157,7 +157,7 @@ void ROR_CollectNeighborsH(int nStart, uint8_t *list, int* num)
     int s, e, n, i;
 
     list[*num] = nStart; *num = *num + 1;
-    getSectorWalls(nStart, &s, &e);
+    getSectorWalls(pRor->id, &s, &e);
 
     while(s <= e) // collect all the matching sectors while not separated
     {

@@ -411,8 +411,8 @@ int SECTAUTOARC::BuildArc( void )
     for (i = 0; i < nCount; i++)
     {
         nSect = p[i];
-        if (procCeil) SetCeilingSlope(nSect, 0);
-        if (procFlor) SetFloorSlope(nSect, 0);
+        if (procCeil) ceilSlopeSet(nSect, 0);
+        if (procFlor) floorSlopeSet(nSect, 0);
 
         if (!sector[nSect].alignto)
         {
@@ -449,8 +449,8 @@ int SECTAUTOARC::BuildArc( void )
     for (i = 0; i < nCount; i++)
     {
         nSect = p[i];
-        if (procCeil) SetCeilingZ(nSect, cz1);
-        if (procFlor) SetFloorZ(nSect, fz1);
+        if (procCeil) ceilZSet(nSect, cz1);
+        if (procFlor) floorZSet(nSect, fz1);
     }
 
     nHeigh = perc2val(heightPerc, klabs(cz1-fz1));
@@ -476,13 +476,13 @@ int SECTAUTOARC::BuildArc( void )
             fz3 = nHeigh;
         }
 
-        if (procCeil) SetCeilingRelative(nSect, +cz3);
-        if (procFlor) SetFloorRelative(nSect, -fz3);
+        if (procCeil) ceilZChg(nSect, +cz3);
+        if (procFlor) floorZChg(nSect, -fz3);
         nPrev = nSect;
 
         nSect = p[nCount - i - 1];
-        if (procCeil) SetCeilingRelative(nSect, +cz3);
-        if (procFlor) SetFloorRelative(nSect, -fz3);
+        if (procCeil) ceilZChg(nSect, +cz3);
+        if (procFlor) floorZChg(nSect, -fz3);
     }
 
     cz1 = sector[p[nHalfCount]].ceilingz;
@@ -498,12 +498,12 @@ int SECTAUTOARC::BuildArc( void )
         fz3 = perc2val(nPerc, klabs(fz1-fz2));
 
         nSect = p[i];
-        if (procCeil) SetCeilingRelative(nSect, -cz3);
-        if (procFlor) SetFloorRelative(nSect, +fz3);
+        if (procCeil) ceilZChg(nSect, -cz3);
+        if (procFlor) floorZChg(nSect, +fz3);
 
         nSect = p[nCount - i - 1];
-        if (procCeil) SetCeilingRelative(nSect, -cz3);
-        if (procFlor) SetFloorRelative(nSect, +fz3);
+        if (procCeil) ceilZChg(nSect, -cz3);
+        if (procFlor) floorZChg(nSect, +fz3);
     }
 
     for (i = 0; i < nCount; i++)
@@ -521,23 +521,23 @@ int SECTAUTOARC::BuildArc( void )
 
         if (procCeil)
         {
-            SetCeilingRelative(nSect, nHeigh);
+            ceilZChg(nSect, nHeigh);
             alignceilslope(nSect, x, y, sector[nPrev].ceilingz);
 
-            SetCeilingRelative(nPrev, nHeigh);
-            SetCeilingSlope(nPrev, sector[nSect].ceilingheinum);
+            ceilZChg(nPrev, nHeigh);
+            ceilSlopeSet(nPrev, sector[nSect].ceilingheinum);
         }
 
         if (procFlor)
         {
-            SetFloorRelative(nSect, -nHeigh);
+            floorZChg(nSect, -nHeigh);
             alignflorslope(nSect, x, y, sector[nPrev].floorz);
 
-            SetFloorRelative(nPrev, -nHeigh);
-            SetFloorSlope(nPrev, sector[nSect].floorheinum);
+            floorZChg(nPrev, -nHeigh);
+            floorSlopeSet(nPrev, sector[nSect].floorheinum);
 
-            SetFloorSlope(nSect, klabs(sector[nSect].floorheinum));
-            SetFloorSlope(nPrev, klabs(sector[nPrev].floorheinum));
+            floorSlopeSet(nSect, klabs(sector[nSect].floorheinum));
+            floorSlopeSet(nPrev, klabs(sector[nPrev].floorheinum));
         }
     }
     else if ((nCount % 2) == 0)
@@ -546,8 +546,8 @@ int SECTAUTOARC::BuildArc( void )
         cz1 = sector[nSect].ceilingz;
         fz1 = sector[nSect].floorz;
 
-        if (procCeil) SetCeilingSlope(nSect,    perc2val(20, sector[nPrev].ceilingheinum));
-        if (procFlor) SetFloorSlope(nSect,      perc2val(20, sector[nPrev].floorheinum));
+        if (procCeil) ceilSlopeSet(nSect,    perc2val(20, sector[nPrev].ceilingheinum));
+        if (procFlor) floorSlopeSet(nSect,      perc2val(20, sector[nPrev].floorheinum));
 
         getWallCoords(ALIGNTO(nSect), &x, &y);
         getzsofslope(nSect, x, y, &cz2, &fz2);
@@ -556,14 +556,14 @@ int SECTAUTOARC::BuildArc( void )
         fz3 = klabs(fz2-fz1);
 
         nSect = p[nHalfCount + 1]; nPrev = p[nHalfCount + 2];
-        if (procCeil) SetCeilingSlope(nSect,    perc2val(20, sector[nPrev].ceilingheinum));
-        if (procFlor) SetFloorSlope(nSect,      perc2val(20, sector[nPrev].floorheinum));
+        if (procCeil) ceilSlopeSet(nSect,    perc2val(20, sector[nPrev].ceilingheinum));
+        if (procFlor) floorSlopeSet(nSect,      perc2val(20, sector[nPrev].floorheinum));
 
         for (i = 1; i < nCount-1; i++)
         {
             nSect = p[i];
-            if (procCeil) SetCeilingRelative(nSect, +cz3);
-            if (procFlor) SetFloorRelative(nSect,   -fz3);
+            if (procCeil) ceilZChg(nSect, +cz3);
+            if (procFlor) floorZChg(nSect,   -fz3);
         }
 
         sectAutoAlignSlope(p[0],        (arcFlags & 0x03));

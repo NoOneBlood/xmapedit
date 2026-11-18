@@ -2637,8 +2637,8 @@ int worldSprCallFunc(HSPRITEFUNC pFunc, int nData)
         spritetype* pSpr = &sprite[i];
         if (pSpr->statnum < kMaxStatus)
         {
-            pFunc(pSpr, nData);
-            c++;
+            if (pFunc(pSpr, nData))
+                c++;
         }
     }
 

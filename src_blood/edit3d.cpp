@@ -52,7 +52,7 @@ static int WallNx[kMaxWalls], WallNy[kMaxWalls];
 static int FloorNx[kMaxSectors], FloorNy[kMaxSectors], FloorNz[kMaxSectors];
 static int CeilNx[kMaxSectors], CeilNy[kMaxSectors], CeilNz[kMaxSectors];
 
-int NextSectorNeighborZ(int nSect, int nBaseZ, char topBot, char dir)
+int NextSectorNeighborZ(int nSect, int nBaseZ, char topBot, char dir, char hglt)
 {
     int nNextZ = (dir) ? 0x7fffffff : 0x80000000;
     int t, s, e, nRetnZ = nBaseZ, nNextSect;
@@ -63,6 +63,7 @@ int NextSectorNeighborZ(int nSect, int nBaseZ, char topBot, char dir)
     {
         if ((nNextSect = wall[s++].nextsector) < 0) continue;
         else if (getSectorHeight(nNextSect) <= 0) continue;
+        else if (hglt && sectInHglt(nNextSect)) continue;
         else if (topBot)
         {
             floorGetEdgeZ(nNextSect, &z[0], &z[2]);
@@ -94,110 +95,6 @@ int NextSectorNeighborZ(int nSect, int nBaseZ, char topBot, char dir)
     return nRetnZ;
 }
 
-void SetCeilingZ( int nSector, int z )
-{
-    int fs = sector[nSector].floorheinum;
-    int cs = sector[nSector].ceilingheinum;
-    int fz, cz;
-
-    // don't allow to go through the floor
-    if ((fs >= 0 && cs < 0) || (fs < 0 && cs >= 0) || (((fs < 0 && cs < 0) || (fs > 0 && cs > 0)) && fs != cs))
-    {
-        sectGetEdgeZ(nSector, &fz, &cz); // get most bottom and top Z
-        z = ClipHigh(z, fz + (sector[nSector].ceilingz - cz));
-    }
-    else
-    {
-        z = ClipHigh(z, sector[nSector].floorz);
-    }
-
-    XSECTOR* pXSect = GetXSect(&sector[nSector]);
-    char zMotion = (pXSect && pXSect->onCeilZ != pXSect->offCeilZ);
-    
-    for (int i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
-    {
-        int zTop, zBot;
-        spritetype *pSprite = &sprite[i];
-        GetSpriteExtents(pSprite, &zTop, &zBot);
-        if ((zTop <= getceilzofslope(nSector, pSprite->x, pSprite->y))
-            || ((pSprite->cstat & kSprMoveMask) == kSprMoveReverse && zMotion))
-                pSprite->z += z - sector[nSector].ceilingz;
-    }
-    sector[nSector].ceilingz = z;
-}
-
-void SetFloorZ( int nSector, int z )
-{
-    int fs = sector[nSector].floorheinum;
-    int cs = sector[nSector].ceilingheinum;
-    int fz, cz;
-
-    // don't allow to go through the ceiling
-    if ((fs >= 0 && cs < 0) || (fs < 0 && cs >= 0) || (((fs < 0 && cs < 0) || (fs > 0 && cs > 0)) && fs != cs))
-    {
-        sectGetEdgeZ(nSector, &fz, &cz); // get most bottom and top Z
-        z = ClipLow(z, cz + (sector[nSector].floorz - fz));
-    }
-    else
-    {
-        z = ClipLow(z, sector[nSector].ceilingz);
-    }
-    
-    XSECTOR* pXSect = GetXSect(&sector[nSector]);
-    char zMotion = (pXSect && pXSect->onFloorZ != pXSect->offFloorZ);
-    
-    for (int i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
-    {
-        int zTop, zBot;
-        spritetype *pSprite = &sprite[i];
-        GetSpriteExtents(pSprite, &zTop, &zBot);
-        if ((zBot >= getflorzofslope(nSector, pSprite->x, pSprite->y))
-            || ((pSprite->cstat & kSprMoveMask) == kSprMoveForward && zMotion))
-                pSprite->z += z - sector[nSector].floorz;
-
-    }
-    sector[nSector].floorz = z;
-}
-
-void SetCeilingSlope( int nSector, int nSlope )
-{
-    sector[nSector].ceilingslope = (short)nSlope;
-
-    if (sector[nSector].ceilingslope == 0)
-        sectCstatRem(nSector, kSectSloped, OBJ_CEILING);
-    else
-        sectCstatAdd(nSector, kSectSloped, OBJ_CEILING);
-
-    for (int i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
-    {
-        spritetype *pSprite = &sprite[i];
-        int zTop, zBot;
-        GetSpriteExtents(pSprite, &zTop, &zBot);
-        int z = getceilzofslope(nSector, pSprite->x, pSprite->y);
-        if ( zTop < z )
-            sprite[i].z += z - zTop;
-    }
-}
-
-void SetFloorSlope( int nSector, int nSlope )
-{
-    sector[nSector].floorslope = (short)nSlope;
-
-    if (sector[nSector].floorslope == 0)
-        sectCstatRem(nSector, kSectSloped, OBJ_FLOOR);
-    else
-        sectCstatAdd(nSector, kSectSloped, OBJ_FLOOR);
-
-    for (int i = headspritesect[nSector]; i != -1; i = nextspritesect[i])
-    {
-        spritetype *pSprite = &sprite[i];
-        int zTop, zBot;
-        GetSpriteExtents(pSprite, &zTop, &zBot);
-        int z = getflorzofslope(nSector, pSprite->x, pSprite->y);
-        if ( zBot > z )
-            sprite[i].z += z - zBot;
-    }
-}
 
 void SetSectorShadePhase( int nSector, int shadePhase )
 {
@@ -237,7 +134,7 @@ static void BuildStairsF( int nSector, int nStepHeight )
         {
             if ( sectInHglt(j) && !visited[j] )
             {
-                SetFloorZ(j, sector[nSector].floorz - (nStepHeight << 8));
+                floorZSet(j, sector[nSector].floorz - (nStepHeight << 8));
                 BuildStairsF(j, nStepHeight);
             }
         }
@@ -259,7 +156,7 @@ static void BuildStairsC( int nSector, int nStepHeight )
         {
             if ( sectInHglt(j) && !visited[j] )
             {
-                SetCeilingZ(j, sector[nSector].ceilingz - (nStepHeight << 8));
+                ceilZSet(j, sector[nSector].ceilingz - (nStepHeight << 8));
                 BuildStairsC(j, nStepHeight);
             }
         }
@@ -1234,168 +1131,11 @@ BOOL F9Menu( void )
     return bChanged;
 }
 
-
-void PutSpriteOnCeiling( spritetype *pSprite, int offs)
-{
-    int zTop, zBot;
-    GetSpriteExtents(pSprite, &zTop, &zBot);
-    if ((pSprite->cstat & 48) == 48) // sloped sprites on sloped sectors...
-    {
-        if ((sector[pSprite->sectnum].ceilingstat & kSectSloped)
-            && sector[pSprite->sectnum].ceilingslope != 0)
-                zTop = pSprite->z;
-    }
-
-    pSprite->z += getceilzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zTop;
-    pSprite->z += offs;
-
-}
-
-
-void PutSpriteOnFloor( spritetype *pSprite, int offs)
-{
-    int zTop, zBot;
-    GetSpriteExtents(pSprite, &zTop, &zBot);
-    if ((pSprite->cstat & 48) == 48) // sloped sprites on sloped sectors...
-    {
-        if ((sector[pSprite->sectnum].floorstat & kSectSloped)
-            && sector[pSprite->sectnum].floorslope != 0)
-                zBot = pSprite->z;
-    }
-
-    pSprite->z += getflorzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zBot;
-    pSprite->z += offs;
-}
-
-
-void RaiseSprite( spritetype *pSprite, int nStep )
-{
-    if (sprInHglt(pSprite->index))
-        pSprite->z-=nStep;
-    else
-        pSprite->z = DecNext(pSprite->z, nStep);
-}
-
-
-void LowerSprite( spritetype *pSprite, int nStep )
-{
-    //pSprite->z = IncNext(pSprite->z, nStep);
-    pSprite->z+=nStep;
-}
-
-void SetCeilingRelative( int nSector, int dz )
-{
-    SetCeilingZ(nSector, sector[nSector].ceilingz + dz);
-}
-
-
-void SetFloorRelative( int nSector, int dz )
-{
-    SetFloorZ(nSector, sector[nSector].floorz + dz);
-}
-
-
-void RaiseCeiling( int nSector, int nStep )
-{
-    SetCeilingZ(nSector, DecNext(sector[nSector].ceilingz, nStep));
-}
-
-
-void RaiseFloor( int nSector, int nStep )
-{
-    SetFloorZ(nSector, DecNext(sector[nSector].floorz, nStep));
-}
-
-
-void LowerCeiling( int nSector, int nStep )
-{
-    SetCeilingZ(nSector, IncNext(sector[nSector].ceilingz, nStep));
-}
-
-
-void LowerFloor( int nSector, int nStep )
-{
-    SetFloorZ(nSector, IncNext(sector[nSector].floorz, nStep));
-}
-
-void OffsetRoomZ(int nSector, int dz)
-{
-    int i;
-    sectortype* pSect = &sector[nSector];
-    pSect->ceilingz += dz;
-    pSect->floorz += dz;
-
-    if (pSect->extra > 0)
-    {
-        XSECTOR* pXSect = &xsector[pSect->extra];
-        pXSect->onFloorZ += dz;
-        pXSect->offFloorZ += dz;
-        pXSect->onCeilZ += dz;
-        pXSect->offCeilZ += dz;
-
-    }
-
-    for (i = headspritesect[nSector]; i >= 0; i = nextspritesect[i])
-    {
-        spritetype* pSpr = &sprite[i];
-        pSpr->z += dz;
-    }
-}
-
-
-void SetWave( int nSector, int nWave )
+char SetWave(int nSector, int nWave)
 {
     int nXSect = GetXSector(nSector);
     xsector[nXSect].shadeWave = nWave;
-}
-
-
-void ProcessHighlightSectors( HSECTORFUNC FloorFunc, int nData )
-{
-
-    int i = 0;
-    if (gListGrd.Length())
-    {
-        // if only pointing in one of selected objects
-        OBJECT* pDb = gListGrd.Ptr();
-        while(pDb->type != OBJ_NONE)
-        {
-            switch(pDb->type)
-            {
-                case OBJ_FLOOR:
-                case OBJ_CEILING:
-                    if (!sectInHglt(pDb->index))
-                    {
-                        if (!i)
-                        {
-                            if (pDb->index == searchsector)
-                            {
-                                pDb = gListGrd.Ptr(); i = 1;
-                                continue;
-                            }
-                        }
-                        else
-                        {
-                            FloorFunc(pDb->index, nData);
-                        }
-                    }
-                    break;
-            }
-
-            pDb++;
-        }
-    }
-
-    if (sectInHglt(searchsector))
-    {
-        for (i = 0; i < highlightsectorcnt; i++)
-            FloorFunc(highlightsector[i], nData);
-    }
-    else if (i == 0)
-    {
-        FloorFunc(searchsector, nData);
-    }
-
+    return 1;
 }
 
 void processMouseLook3D()

@@ -1501,8 +1501,19 @@ void ShowSpriteData(int nSprite, BOOL xFirst, BOOL showDialog)
     gMapedHud.SetMsg(buf);
 }
 
+char sectXPropertiesSet(int nSect, int)
+{
+    GetXSector(nSect);
+    DIALOG_HANDLER dialog(&gMapedHud, dlgXSector);
+    dlgDialogToXSector(&dialog, nSect);
+    return 1;
+}
+
 void EditSectorData(int nSector, BOOL xFirst)
 {
+    int c = highlightsectorcnt;
+    char hglt;
+    
     ShowSectorData(nSector, xFirst);
     if (xFirst)
     {
@@ -1511,7 +1522,12 @@ void EditSectorData(int nSector, BOOL xFirst)
         DIALOG_HANDLER dialog(&gMapedHud, dlgXSector);
         dlgXSectorToDialog(&dialog, nSector);
         if (dialog.Edit())
-            dlgDialogToXSector(&dialog, nSector);
+        {
+            hglt = (c > 1 && sectInHglt(nSector)
+                && Confirm("Copy to the rest %d highlighted sectors?", c - 1));
+            
+            ProcessSectors(sectXPropertiesSet, -1, 0, hglt);
+        }
     }
     else
     {
@@ -1526,23 +1542,50 @@ void EditSectorData(int nSector, BOOL xFirst)
     ShowSectorData(nSector, TRUE);
 }
 
+char sectFXPropertiesSet(int nSect, int)
+{
+    GetXSector(nSect);
+    DIALOG_HANDLER dialog(&gMapedHud, dlgXSectorFX);
+    dlgDialogToXSectorFX(&dialog, nSect);
+    return 1;
+}
+
 void EditSectorLighting(int nSector)
 {
+    int c = highlightsectorcnt;
+    char hglt;
+    
     ShowSectorData(nSector, TRUE);
     GetXSector(nSector);
 
     DIALOG_HANDLER dialog(&gMapedHud, dlgXSectorFX);
     dlgXSectorFXToDialog(&dialog, nSector);
     if (dialog.Edit())
-        dlgDialogToXSectorFX(&dialog, nSector);
-
+    {
+        hglt = (c > 1 && sectInHglt(nSector)
+            && Confirm("Copy to the rest %d highlighted sectors?", c - 1));
+        
+        ProcessSectors(sectFXPropertiesSet, -1, 0, hglt);
+    }
+    
     CleanUp();
     vel = svel = angvel = 0;
     ShowSectorData(nSector, TRUE);
 }
 
+char wallXPropertiesSet(int nWall, int)
+{
+    GetXWall(nWall);
+    DIALOG_HANDLER dialog(&gMapedHud, dlgXWall);
+    dlgDialogToXWall(&dialog, nWall);
+    return 1;
+}
+
 void EditWallData(int nWall, BOOL xFirst)
 {
+    int c = hgltWallCount();
+    char hglt;
+    
     ShowWallData(nWall, xFirst);
     if (xFirst)
     {
@@ -1551,7 +1594,12 @@ void EditWallData(int nWall, BOOL xFirst)
         DIALOG_HANDLER dialog(&gMapedHud, dlgXWall);
         dlgXWallToDialog(&dialog, nWall);
         if (dialog.Edit())
-            dlgDialogToXWall(&dialog, nWall);
+        {
+            hglt = (c > 1 && wallInHglt(nWall)
+                && Confirm("Copy to the rest %d highlighted walls?", c - 1));
+
+            ProcessWalls(wallXPropertiesSet, 0, false, hglt);
+        }
     }
     else
     {
@@ -1566,8 +1614,19 @@ void EditWallData(int nWall, BOOL xFirst)
     ShowWallData(nWall, TRUE);
 }
 
+char sprXPropertiesSet(spritetype* pSpr, int)
+{
+    GetXSprite(pSpr->index);
+    DIALOG_HANDLER dialog(&gMapedHud, dlgXSprite);
+    dlgDialogToXSprite(&dialog, pSpr->index);
+    return 1;
+}
+
 void EditSpriteData(int nSprite, BOOL xFirst)
 {
+    int c = hgltSprCount();
+    char hglt;
+    
     ShowSpriteData(nSprite, xFirst);
     if (xFirst)
     {
@@ -1576,7 +1635,12 @@ void EditSpriteData(int nSprite, BOOL xFirst)
         DIALOG_HANDLER dialog(&gMapedHud, dlgXSprite);
         dlgXSpriteToDialog(&dialog, nSprite);
         if (dialog.Edit())
-            dlgDialogToXSprite(&dialog, nSprite);
+        {
+            hglt = (c > 1 && sprInHglt(nSprite)
+                && Confirm("Copy to the rest %d highlighted sprites?", c - 1));
+
+            ProcessSprites(sprXPropertiesSet, 0, hglt);
+        }
     }
     else
     {
@@ -2301,8 +2365,8 @@ void dlgDialogToSector(DIALOG_HANDLER* pHandle, int nSector)
 
     // forward set
     pSect->ceilingstat              = pHandle->GetValue(16);
-    SetCeilingSlope(nSector,        pHandle->GetValue(14));
-    SetCeilingZ(nSector,            pHandle->GetValue(15));
+    ceilSlopeSet(nSector,           pHandle->GetValue(14));
+    ceilZSet(nSector,               pHandle->GetValue(15));
 
 
     pSect->floorpicnum              = pHandle->GetValue(17);
@@ -2313,8 +2377,8 @@ void dlgDialogToSector(DIALOG_HANDLER* pHandle, int nSector)
 
     // forward set
     pSect->floorstat                = pHandle->GetValue(24);
-    SetFloorSlope(nSector,          pHandle->GetValue(22));
-    SetFloorZ(nSector,              pHandle->GetValue(23));
+    floorSlopeSet(nSector,          pHandle->GetValue(22));
+    floorZSet(nSector,              pHandle->GetValue(23));
 }
 
 

@@ -215,6 +215,7 @@ EDITOREXEOBJS=$(XMAPEDSRC)\common.$o \
     $(XMAPEDSRC)\edit2d.$o \
     $(XMAPEDSRC)\edit3d.$o \
     $(XMAPEDSRC)\maproc.$o \
+    $(XMAPEDSRC)\maproc_callback.$o \
     $(XMAPEDSRC)\fire.$o \
     $(XMAPEDSRC)\callback.$o \
     $(XMAPEDSRC)\eventq.$o \

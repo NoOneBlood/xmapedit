@@ -36,6 +36,7 @@
 #include "maproc.h"
 #include "xmpmisc.h"
 #include "hglt.h"
+#include "maproc_callback.h"
 
 enum
 {

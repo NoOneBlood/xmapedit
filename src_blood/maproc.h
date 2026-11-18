@@ -24,6 +24,7 @@
 ***********************************************************************************/
 #ifndef __MAPEDPROC
 #define __MAPEDPROC
+#include "hglt.h"
 
 typedef char (*INPUTPROC_FUNC)(char key, char ctrl, char shift, char alt);
 
@@ -53,4 +54,7 @@ extern INPUTPROC gEditInput3D[256];
 extern INPUTPROC gEditInput2D[256];
 void editInputInit();
 
+int ProcessSprites(HSPRITEFUNC SpriteFunc, int nData, char hglt = true, char* str = NULL);
+int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt = true, char* str = NULL);
+int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt = true, char* str = NULL);
 #endif

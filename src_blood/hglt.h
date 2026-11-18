@@ -25,9 +25,9 @@
 #include "common_game.h"
 
 
-typedef void HSECTORFUNC(int nSector, int nData);
-typedef void HSECTORFUNC2(int nSector, int arg1, int arg2, int arg3, int arg4);
-typedef void HSPRITEFUNC(spritetype *pSprite, int nData);
+typedef char HSECTORFUNC(int nSector, int nData);
+typedef void HSECTORFUNCEX(int nSector, int arg1, int arg2, int arg3, int arg4);
+typedef char HSPRITEFUNC(spritetype *pSprite, int nData);
 typedef char HWALLFUNC(int nWall, int nData);
 
 enum {
@@ -43,28 +43,19 @@ extern BITARRAY16 hgltspri, hgltwall;
 extern int hgltx1, hgltx2, hglty1, hglty2;
 extern short hgltType;
 
-void sprFixSector(spritetype* pSprite, int flags = 0);
-void sprDelete(spritetype* pSprite, int dummy = 0);
-void sprPalSet(spritetype* pSprite, int value);
-void sprShadeSet(spritetype* pSprite, int value);
-void sprShadeIterate(spritetype* pSprite, int step);
-void sprClone(spritetype* pSprite, int);
+
 int hgltSprCallFunc(HSPRITEFUNC SpriteFunc,  int nData = 0);
 int hgltSprCount();
 
 
-void sectChgVisibility(int nSect, int nVis);
-void sectFXSetShadeFlags(int nSect, int, int, int, int);
-void sectFXChgFreq(int nSect, int nVal, int, int, int);
-void sectFXChgPhase(int nSect, int nVal, int, int, int);
-void sectFXChgAmplitude(int nSect, int nVal, int, int, int);
 void sectChgShade(int nSect, int nOf, int nShade, int a3=0, int a4=0);
 void sectDelete(int nSector, int a1=0, int a2=0, int a3=0, int a4=0);
 void sectChgXY(int nSector, int bx, int by, int a3=0, int a4=0);
 void sectChgZ(int nSector, int bz, int a2 = 0, int flags = 0, int a4 = 0);
 void sectSetupZOffset(int nSect, sectortype* pOParent, sectortype* pNParent, int flags);
 void sectSetupZOffset(int nSect, int nParentOld, int nParentNew, int flags, int);
-int hgltSectCallFunc(HSECTORFUNC2 SectorFunc, int arg1 = 0, int arg2 = 0, int arg3 = 0, int arg4 = 0);
+int hgltSectCallFunc(HSECTORFUNC SectFunc, int nData);
+int hgltSectCallFunc(HSECTORFUNCEX SectorFunc, int arg1 = 0, int arg2 = 0, int arg3 = 0, int arg4 = 0);
 
 
 void hgltIsolatePathMarkers(int which = kHgltPoint | kHgltSector);
@@ -130,7 +121,6 @@ char hgltSectInsideBox(int x, int y);
 int hgltSectFlip(int flags);
 int hgltSectRotate(int flags, int nAng);
 int hgltSectAutoRedWall(int flags = 0x00);
-int hgltSectDelete();
 
 char hgltListOuterLoops(int* s, int* e, IDLIST* slist, IDLIST* wlist, char which);
 void hgltIsolateChannels(char which);

@@ -800,8 +800,8 @@ void ProcessInput2D( void )
                             j = ClipLow(hg>>2, 128);
                             clampSprite(pSpr, 0x03, -j, j);
                         }
-                        else if (fSpr)      PutSpriteOnFloor(pSpr, zbo);
-                        else if (cSpr)      PutSpriteOnCeiling(pSpr, klabs(zto));
+                        else if (fSpr)      sprPutOnFloor(pSpr, zbo);
+                        else if (cSpr)      sprPutOnCeil(pSpr, klabs(zto));
 
                         if (linehighlight >= 0 && alt)
                         {
