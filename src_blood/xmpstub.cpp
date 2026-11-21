@@ -2469,26 +2469,28 @@ void xmpAbout(void) {
 
     GUI_TEXT text[] = {
 
-        {"The XMAPEDIT", 1, 0, 4, 0},
+        {"The XMAPEDIT SDK", 1, 0, 4, 0},
         {"{date}", 2, 0, 4, 0},
         {"www.cruo.bloodgame.ru/xmapedit", 1, 0, 4, 0},
         {"\0", 0, 0, 0},
 
         {"Created by", 1, 0, 0, 0},
-        {"nuke.YKT", 1, 0, 1, 5},
-        {"NoOne", 1, 0, 1, 5},
+		{"NoOne", 1, 0, 5, 5},
+        {"Nuke.YKT", 1, 0, 1, 5},
+		{"Life_My_Agony", 1, 0, 1, 5},
         {"\0", 0, 0, 0},
 
         {"Tested by", 1, 0, 0, 0},
-        {"Spill,  Seizhak,  daMann,  BloodyTom", 1, 0, 1, 1},
-        {"Michael_Life_My_Agony,", 1, 0, 1, 1},
+															 
+        {"Life_My_Agony,", 1, 0, 1, 1},
         {"Tekedon,  Nyyss0nen", 1, 0, 1, 1},
+		{"Spill,  Seizhak,  daMann,  BloodyTom", 1, 0, 1, 1},
         {"and others", 1, 0, 1, 1},
         {"\0", 0, 0, 0},
 
         {"Manual written by", 1, 0, 0, 0},
         {"Seizhak (ENG, Original)", 1, 0, 5, 5},
-        {"Michael_Life_My_Agony (RUS)", 1, 0, 1, 5},
+        {"Life_My_Agony (RUS)", 1, 0, 1, 5},
         {"\0", 0, 0, 0},
 
         {"Original MAPEDIT version by", 1, 0, 0, 0},
@@ -2497,7 +2499,7 @@ void xmpAbout(void) {
         {"\0", 0, 0, 0},
 
         {"Original BUILD Engine by", 1, 0, 0, 0},
-        {"Ken Silverman", 1, 0, 1, 5},
+        {"Ken Silverman", 1, 0, 5, 5},
         {"\0", 0, 0, 0},
 
         {"jF BUILD by", 1, 0, 0, 0},
@@ -2505,8 +2507,9 @@ void xmpAbout(void) {
         {"\0", 0, 0, 0},
 
         {"Engine updates by", 1, 0, 0, 0},
-        {"nuke.YKT", 1, 0, 1, 5},
+        {"Nuke.YKT", 1, 0, 1, 5},
         {"\0", 0, 0, 0},
+
 
         {"Always keep backup of your files.", 1, 0, 0, 1},
         {"You are using this software at", 1, 0, 0, 1},

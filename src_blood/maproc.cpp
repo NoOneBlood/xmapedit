@@ -1065,12 +1065,76 @@ static char edKeyProcShared_KEY_HOME(char key, char ctrl, char shift, char alt)
                 break;
         }
 
-        scrSetMessage("%s %s found", GetHoverName(), isNot(nID >= 0));
+       if (nID >= 0) scrSetMessage("%s %s found", gSearchStatNames[nType], isNot(nID >= 0));
+	   
+	      else scrSetMessage ("%s not found - Sir Not Appearing In This Film", gSearchStatNames[nType]);
+		   
         clampCamera();
 
         return (nID >= 0) ? PROC_OKB : PROC_FAILB;
     }
+	
+	if (alt)  //  in case game crash debug feature
+	{
+		
+		Window dialog(0, 0, 180, 100, "Goto position");
+		
+        Label *lXPOS           = new Label(4, 8, "XPOS:");
+        EditNumber *eXPOS      = new EditNumber(40, 4, 100, 18, posx);
+		
+        Label *lYPOS           = new Label(4, 30, "YPOS:");
+        EditNumber *eYPOS      = new EditNumber(40, 26, 100, 18, posy);
+		
+        Label *lANG            = new Label(4, 52, "ANG:");
+        EditNumber *eANG       = new EditNumber(40, 48, 100, 18, ang);
+		
+		dialog.Insert(lXPOS); dialog.Insert(eXPOS);
+		dialog.Insert(lYPOS); dialog.Insert(eYPOS);
+		dialog.Insert(lANG);  dialog.Insert(eANG);
+		
+        if (ShowModal(&dialog) == mrCancel)
+        return PROC_FAILB;
+	
+        long x = eXPOS->value;
+        long y = eYPOS->value;
+        short nSector = cursectnum;
 
+        updatesector(x, y, &nSector);
+		
+        if (nSector < 0)
+		
+		{
+         scrSetMessage("Coordinates X=%d Y=%d have no sector", x, y);
+         return PROC_FAILB;
+		}
+		
+        posx = x; posy = y; posz = sector[nSector].floorz; ang = eANG->value & 2047;
+        cursectnum = nSector;
+        clampCamera();
+        scrSetMessage("Goto: X-POS=%d Y-POS=%d ANG=%d Sector=%d", x, y, ang, nSector);
+        return PROC_OKUB;
+	}
+	
+/*	if (alt)  // original from Blood alpha
+    {
+        long x = GetNumberBox("X=", posx, posx);
+        long y = GetNumberBox("Y=", posy, posy);
+		
+        short nSector = cursectnum;
+        updatesector(x, y, &nSector);
+		
+        if (nSector == -1)
+        {
+         return PROC_FAILB;
+        }
+		
+        cursectnum = nSector;
+        posx = x; posy = y; posz = sector[nSector].floorz;
+		
+        clampCamera();
+        return PROC_OKUB;
+	}
+*/  
     if (shift)
     {
         if (gPreview.ShowMenu())
@@ -1903,7 +1967,23 @@ static char edKeyProcShared_KEY_R(char key, char ctrl, char shift, char alt)
 static char edKeyProcShared_KEY_U(char key, char ctrl, char shift, char alt)
 {
     int nVis;
+	int nShade, nID;
+	nID = GetHoverID();
+    
+ 	if (alt && ED3D)
+    {
+		nID = GetHoverID();
 
+        nShade = getShadeOf(searchstat, nID);
+        if ((nShade = GetNumberBox("Shade", nShade, -1)) == -1)
+             return PROC_FAILB;
+
+        nShade = ClipRange(nShade, -128, 127);
+        setShadeOf(nShade, searchstat, nID);
+		
+		scrSetMessage("%s #%d shade: %d", GetHoverName(), nID, nShade);
+        return PROC_OKUB;
+    }
     if (IsHoverWall())
         TranslateWallToSector();
     else if (IsHoverSprite())
@@ -2392,17 +2472,19 @@ static char edKeyProc3D_KEY_BACKSPACE(char key, char ctrl, char shift, char alt)
             return PROC_OKUB;
 
         case OBJ_SPRITE:
-            sprite[searchwall].cstat = 0x80;
+            sprite[searchwall].cstat = kSprOrigin;
             scrSetMessage("Sprite #%d cstat reset", searchwall);
             return PROC_OKUB;
 
         case OBJ_FLOOR:
             sector[searchsector].floorstat = 0;
+			sector[searchsector].floorslope = 0;
             scrSetMessage("Sector #%d floor cstat reset", searchsector);
             return PROC_OKUB;
 
         case OBJ_CEILING:
             sector[searchsector].ceilingstat = 0;
+			sector[searchsector].ceilingslope = 0;
             scrSetMessage("Sector #%d ceiling cstat reset", searchsector);
             return PROC_OKUB;
     }
