@@ -34,7 +34,7 @@ PLATFORM=x64
 # Windows compatibility
 # ---------------------------------------------------------------
 !if "$(PLATFORM)" == "x86"
-# 0 = WVista or higher................ (VC2005 - 22 tested)
+# 0 = WVista or higher................ (VC2005 - 26 tested)
 # 1 = WXP or higher................... (VC2005 - 17 tested)
 # 2 = W98 or higher................... (VC2003 - 05 tested)
 # 3 = W95 or higher................... (Experimental, VC2003 tested only)

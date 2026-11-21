@@ -70,32 +70,6 @@ int hgltSprCallFunc(HSPRITEFUNC SpriteFunc, int nData)
     return c;
 }
 
-int hgltSectCallFunc(HSECTORFUNC SectFunc, int nData)
-{
-    int c = 0;
-    int i;
-    
-    i = highlightsectorcnt;
-    while(--i >= 0)
-    {
-        if (SectFunc(highlightsector[i], nData))
-            c++;
-    }
-    
-    for (OBJECT* o = gListGrd.First(); o->type != OBJ_NONE; o++)
-    {
-        if (o->type != OBJ_FLOOR
-            && o->type != OBJ_CEILING && o->type != OBJ_SECTOR)
-                continue;
-        
-        if (!sectInHglt(o->index)
-            && SectFunc(o->index, nData))
-                c++;
-    }
-    
-    return c;
-}
-
 int hgltSectCallFunc(HSECTORFUNCEX SectorFunc, int arg1, int arg2, int arg3, int arg4)
 {
     int i = highlightsectorcnt;
@@ -1143,47 +1117,6 @@ int hgltWallCount()
     return c;
 }
 
-int hgltWallCallFunc(HWALLFUNC WallFunc, int nData, char both)
-{
-    int retn = 0;
-    int i, j, n;
-    
-    i = highlightcnt;
-    while(--i >= 0)
-    {
-        if ((highlight[i] & 0xC000) != 0)
-            continue;
-
-        j = highlight[i];
-        if (WallFunc(j, nData))
-        {
-            n = wall[j].nextwall;
-            if (both && n >= 0 && !wallInHglt(n))
-                WallFunc(n, nData);
-            
-            retn++;
-        }
-    }
-    
-    for (OBJECT* o = gListGrd.First(); o->type != OBJ_NONE; o++)
-    {
-        if (o->type != OBJ_WALL && o->type != OBJ_MASKED)
-            continue;
-        
-        j = o->index;
-        if (WallFunc(j, nData))
-        {
-            n = wall[j].nextwall;
-            if (both && n >= 0 && !wallInHglt(n))
-                WallFunc(n, nData);
-            
-            retn++;
-        }
-    }
-    
-    return retn;
-}
-
 void hgltSectGetBox(int* x1, int* y1, int* x2, int *y2)
 {
     int nFirst = sector[highlightsector[0]].wallptr;
@@ -1810,23 +1743,31 @@ void sectChgZ(int nSect, int bz, int a2, int flags, int a4)
 
 }
 
-BOOL hgltShowStatus(int x, int y) {
-
+char hgltShowStatus(int x, int y)
+{
+    static char batchColor[] =
+    {
+        kColorLightGray,
+        kColorWhite,
+        0,
+        kColorLightBlue,
+    };
+    
     QFONT* pFont = qFonts[5];
     int xstep = pFont->width;
     int nLen = gListGrd.Length();
-
-
+    int ox = x;
+    
     if (nLen > 0 || highlightcnt > 0 || highlightsectorcnt > 0)
     {
         sprintf(buffer, "HIGHLIGHT:");
-        gfxPrinTextShadow(x, y, gStdColor[kColorYellow], buffer, pFont);
+        gfxPrinTextShadow(x, y, clr2std(kColorYellow), buffer, pFont);
         x += gfxGetTextLen(buffer, pFont) + xstep;
 
         if (nLen > 0)
         {
             sprintf(buffer, "GRADIENT=%d", nLen);
-            gfxPrinTextShadow(x, y, gStdColor[kColorLightMagenta], buffer, pFont);
+            gfxPrinTextShadow(x, y, clr2std(kColorLightMagenta), buffer, pFont);
             x += gfxGetTextLen(buffer, pFont) + xstep;
         }
 
@@ -1836,7 +1777,7 @@ BOOL hgltShowStatus(int x, int y) {
             if (sprites)
             {
                 sprintf(buffer, "SPRITES=%d", sprites);
-                gfxPrinTextShadow(x, y, gStdColor[kColorLightCyan], buffer, pFont);
+                gfxPrinTextShadow(x, y, clr2std(kColorLightCyan), buffer, pFont);
                 x += gfxGetTextLen(buffer, pFont) + xstep;
             }
 
@@ -1844,7 +1785,7 @@ BOOL hgltShowStatus(int x, int y) {
             if (walls > 0)
             {
                 sprintf(buffer, "WALLS=%d", walls);
-                gfxPrinTextShadow(x, y, gStdColor[kColorLightRed], buffer, pFont);
+                gfxPrinTextShadow(x, y, clr2std(kColorLightRed), buffer, pFont);
                 x += gfxGetTextLen(buffer, pFont) + xstep;
             }
         }
@@ -1852,14 +1793,19 @@ BOOL hgltShowStatus(int x, int y) {
         if (highlightsectorcnt > 0)
         {
             sprintf(buffer, "SECTORS=%d", highlightsectorcnt);
-            gfxPrinTextShadow(x, y, gStdColor[kColorLightGreen], buffer, pFont);
+            gfxPrinTextShadow(x, y, clr2std(kColorLightGreen), buffer, pFont);
             x += gfxGetTextLen(buffer, pFont) + xstep;
         }
 
-        return TRUE;
+        y += pFont->height+4; pFont = qFonts[1];
+        sprintf(buffer, "BATCH MODE: %s", gBatchModeNames[gBatchMode]);
+        gfxPrinTextShadow(ox, y, clr2std(batchColor[gBatchMode]), buffer, pFont);
+
+        
+        return 1;
     }
 
-    return FALSE;
+    return 0;
 
 }
 

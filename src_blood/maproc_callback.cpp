@@ -125,6 +125,76 @@ char sprSizeSet(spritetype* pSpr, int nVal)
     return 1;
 }
 
+char sprSizeXChg(spritetype* pSpr, int nVal)
+{
+    int v = pSpr->xrepeat;
+    if ((nVal < 0 && v <= 1) || (nVal > 0 && v >= 255))
+        return 0;
+    
+    pSpr->xrepeat = ClipRange(v + nVal, 1, 255);
+    return 1;
+}
+
+char sprSizeYChg(spritetype* pSpr, int nVal)
+{
+    int v = pSpr->yrepeat;
+    if ((nVal < 0 && v <= 1) || (nVal > 0 && v >= 255))
+        return 0;
+    
+    pSpr->yrepeat = ClipRange(v + nVal, 1, 255);
+    return 1;
+}
+
+char sprOffsXChg(spritetype* pSpr, int nVal)
+{
+    if ((pSpr->cstat & kSprRelMask) == kSprSloped)
+        return 0;
+    
+    int d = (nVal < 0) ? -1 : 1;
+    int v = klabs(nVal);
+    
+    d = -d;
+    
+    if (pSpr->cstat & kSprFlipX)
+        d = -d;
+    
+    pSpr->xoffset = changechar(pSpr->xoffset, d, v != 1, 0);
+    return 1;
+}
+
+char sprOffsYChg(spritetype* pSpr, int nVal)
+{
+    if ((pSpr->cstat & kSprRelMask) == kSprSloped)
+        return 0;
+    
+    int d = (nVal < 0) ? -1 : 1;
+    int v = klabs(nVal);
+    
+    if ((pSpr->cstat & kSprRelMask) != kSprFace) // fix wrong offset direction when sprite flipped
+    {
+        if (pSpr->cstat & kSprFlipY)
+            d = -d;
+    }
+    
+    pSpr->yoffset = changechar(pSpr->yoffset, d, v != 1, 0);
+    return 1;
+}
+
+char sprPosXChg(spritetype* pSpr, int nVal)
+{
+    int v = klabs(nVal);
+    int a = (((ED2D) ? 1536 : ang) + kAng90) & kAngMask;
+    offsetPos(0, nVal, 0, a, &pSpr->x, &pSpr->y, NULL);
+    return 1;
+}
+
+char sprPosYChg(spritetype* pSpr, int nVal)
+{
+    int a = (ED2D) ? 1536 : ang;
+    offsetPos(0, nVal, 0, a, &pSpr->x, &pSpr->y, NULL);
+    return 1;
+}
+
 char spr_Floor_OneSide_HandleFlip(spritetype* pSpr, int nVal)
 {
     if (pSpr->cstat & kSprOneSided)
@@ -455,13 +525,21 @@ char wallSizeSet(int nWall, int nVal)
 
 char wallSizeXChg(int nWall, int nVal)
 {
-    wall[nWall].xrepeat = ClipRange(wall[nWall].xrepeat + nVal, 0, 255);
+    int v = wall[nWall].xrepeat;
+    if ((nVal < 0 && v <= 0) || (nVal > 0 && v >= 255))
+        return 0;
+    
+    wall[nWall].xrepeat = ClipRange(v + nVal, 0, 255);
     return 1;
 }
 
 char wallSizeYChg(int nWall, int nVal)
 {
-    wall[nWall].yrepeat = ClipRange(wall[nWall].yrepeat + nVal, 0, 255);
+    int v = wall[nWall].yrepeat;
+    if ((nVal < 0 && v <= 0) || (nVal > 0 && v >= 255))
+        return 0;
+    
+    wall[nWall].yrepeat = ClipRange(v + nVal, 0, 255);
     return 1;
 }
 
@@ -662,15 +740,23 @@ char floorPanSet(int nSect, int nVal)
     return 1;
 }
 
-char floorPanXSet(int nSect, int nVal)
+char floorPanXChg(int nSect, int nVal)
 {
-    sector[nSect].floorxpanning = nVal;
+    sectortype* pSect = &sector[nSect];
+    int d = (nVal < 0) ? -1 : 1;
+    int v = klabs(nVal);
+    
+    pSect->floorxpanning = changechar(pSect->floorxpanning, d, v != 1, 0);
     return 1;
 }
 
-char floorPanYSet(int nSect, int nVal)
+char floorPanYChg(int nSect, int nVal)
 {
-    sector[nSect].floorypanning = nVal;
+    sectortype* pSect = &sector[nSect];
+    int d = (nVal < 0) ? -1 : 1;
+    int v = klabs(nVal);
+    
+    pSect->floorypanning = changechar(pSect->floorypanning, d, v != 1, 0);
     return 1;
 }
 
@@ -681,25 +767,6 @@ char floorPanYSet(int nSect, int nVal)
 /***********************************************/
 //////////////////
 
-
-char ceilPanSet(int nSect, int nVal)
-{
-    sector[nSect].ceilingxpanning = nVal;
-    sector[nSect].ceilingypanning = nVal;
-    return 1;
-}
-
-char ceilPanXSet(int nSect, int nVal)
-{
-    sector[nSect].ceilingxpanning = nVal;
-    return 1;
-}
-
-char ceilPanYSet(int nSect, int nVal)
-{
-    sector[nSect].ceilingypanning = nVal;
-    return 1;
-}
 
 char ceilZSet(int nSect, int nVal)
 {
@@ -844,6 +911,32 @@ char ceilPicnumSet(int nSect, int nVal)
     return 1;
 }
 
+char ceilPanSet(int nSect, int nVal)
+{
+    sector[nSect].ceilingxpanning = nVal;
+    sector[nSect].ceilingypanning = nVal;
+    return 1;
+}
+
+char ceilPanXChg(int nSect, int nVal)
+{
+    sectortype* pSect = &sector[nSect];
+    int d = (nVal < 0) ? -1 : 1;
+    int v = klabs(nVal);
+    
+    pSect->ceilingxpanning = changechar(pSect->ceilingxpanning, d, v != 1, 0);
+    return 1;
+}
+
+char ceilPanYChg(int nSect, int nVal)
+{
+    sectortype* pSect = &sector[nSect];
+    int d = (nVal < 0) ? -1 : 1;
+    int v = klabs(nVal);
+    
+    pSect->ceilingypanning = changechar(pSect->ceilingypanning, d, v != 1, 0);
+    return 1;
+}
 
 ////////////////////////////////////////////////////
 /***********************************************/

@@ -819,7 +819,7 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
     BOOL drawCol = TRUE;
 
     hgltTileReset();
-    sprintf(title, (titleArg) ? titleArg : "Tile viewer");
+    strcpy(title, (titleArg) ? titleArg : "Tile viewer");
 
     MOUSE mouse;
     mouse.ChangeCursor(kBitmapMouseCursor);
@@ -1001,10 +1001,12 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
                     // overlay info
                     if (!keystatus[KEY_CAPSLOCK])
                     {
-                        sprintf(buffer, "%d", nDTile); j = gfxGetTextLen(buffer, pFont);
+                        sprintf(buffer, "#%d", nDTile); j = gfxGetTextLen(buffer, pFont);
                         gfxPrinTextShadow(x + kMar, y + kMar, gStdColor[14], buffer, pFont);
                         tx = x + j + 5;
-
+                        
+                        int fX = 0;
+                        
                         if (gArtEd.mode || gTileView.showInfo)
                         {
                             if (gDirtTiles[nDTile])
@@ -1042,10 +1044,19 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
                                 sprintf(buffer, "%+d", tileShade[nDTile]);
                                 gfxPrinTextShadow(x + kMar, ty, gStdColor[13], strupr(buffer), pFont);
                             }
+                            
+                            if (tileHist[nDTile] && rngok(type, OBJ_WALL, OBJ_SECTOR))
+                            {
+                                QFONT* pFont = qFonts[1];
+                                tx = x + bsx - kMar, ty = y + bsy - kMar;
+                                sprintf(buffer, "%d", tileHist[nDTile]); j = gfxGetTextLen(buffer, pFont);
+                                gfxPrinTextShadow(tx - j, ty - pFont->height, gStdColor[18], buffer, pFont);
+                                fX = j + kMar;
+                            }
                         }
 
                         if (tileInFaves(nDTile))
-                            gfxDrawText(x + bsx - favLen - kMar, y + bsy - qFonts[3]->height - kMar, gStdColor[12], fav, qFonts[3]);
+                            gfxDrawText(x + bsx - fX - favLen - kMar, y + bsy - qFonts[3]->height - kMar, gStdColor[12], fav, qFonts[3]);
 
                     }
                 }
@@ -1101,9 +1112,9 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
 
                 if (mouse.dX2 || mouse.dY2 || mouse.wheel)
                 {
-                    nStart = ClipRange(nStart, 0, tileIndexCount - 1);
+                    j = ClipLow(tileIndexCount - 1, 0); nStart = ClipRange(nStart, 0, j);
                     nCol = ClipRange(mouse.X/bsx, 0, nCols-1); nRow = ClipRange(mouse.Y/bsy, 0, nRows-1);
-                    nCursor = ClipRange((nRow*nCols)+nStart+nCol, nStart, ClipHigh(((nCols*nRows)+nStart)-1, tileIndexCount-1));
+                    nCursor = ClipRange((nRow*nCols)+nStart+nCol, nStart, ClipHigh(((nCols*nRows)+nStart)-1, j));
                 }
             }
         }
@@ -1239,6 +1250,7 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
                     case kArtEdModeNone:
                         if (gTileView.scrSave) Resource::Free(gTileView.scrSave);
                         tileIndexCursor = -1;
+                        scrSetMessage("");
                         nTile = nDefault;
                         title[0] = '\0';
                         return nTile;
@@ -1352,8 +1364,14 @@ int tilePick( int nTile, int nDefault, int type, char* titleArg, char flags) {
                 break;
             case KEY_Q:
                 if (gArtEd.mode >= kArtEdModeBatch) break;
-                scrSetMessage("Show %s tiles.", gSearchStatNames[type = IncRotate(type, OBJ_SECTOR)]);
-                tileBuildHistogram(type);
+                j = type;
+                do
+                {
+                    type = IncRotate(type, OBJ_SECTOR);
+                    tileBuildHistogram(type);
+                }
+                while(j != type && tileIndexCount <= 0);
+                scrSetMessage("Show %s tiles.", gSearchStatNames[type]);
                 nCursor = nStart = 0;
                 updLev = 2;
                 break;

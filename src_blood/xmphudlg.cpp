@@ -1511,9 +1511,6 @@ char sectXPropertiesSet(int nSect, int)
 
 void EditSectorData(int nSector, BOOL xFirst)
 {
-    int c = highlightsectorcnt;
-    char hglt;
-    
     ShowSectorData(nSector, xFirst);
     if (xFirst)
     {
@@ -1522,12 +1519,7 @@ void EditSectorData(int nSector, BOOL xFirst)
         DIALOG_HANDLER dialog(&gMapedHud, dlgXSector);
         dlgXSectorToDialog(&dialog, nSector);
         if (dialog.Edit())
-        {
-            hglt = (c > 1 && sectInHglt(nSector)
-                && Confirm("Copy to the rest %d highlighted sectors?", c - 1));
-            
-            ProcessSectors(sectXPropertiesSet, -1, 0, hglt);
-        }
+            ProcessSectors(sectXPropertiesSet, -1, 0, BMODE | 0x02);
     }
     else
     {
@@ -1552,21 +1544,13 @@ char sectFXPropertiesSet(int nSect, int)
 
 void EditSectorLighting(int nSector)
 {
-    int c = highlightsectorcnt;
-    char hglt;
-    
     ShowSectorData(nSector, TRUE);
     GetXSector(nSector);
 
     DIALOG_HANDLER dialog(&gMapedHud, dlgXSectorFX);
     dlgXSectorFXToDialog(&dialog, nSector);
     if (dialog.Edit())
-    {
-        hglt = (c > 1 && sectInHglt(nSector)
-            && Confirm("Copy to the rest %d highlighted sectors?", c - 1));
-        
-        ProcessSectors(sectFXPropertiesSet, -1, 0, hglt);
-    }
+        ProcessSectors(sectFXPropertiesSet, -1, 0, BMODE | 0x02);
     
     CleanUp();
     vel = svel = angvel = 0;
@@ -1594,12 +1578,7 @@ void EditWallData(int nWall, BOOL xFirst)
         DIALOG_HANDLER dialog(&gMapedHud, dlgXWall);
         dlgXWallToDialog(&dialog, nWall);
         if (dialog.Edit())
-        {
-            hglt = (c > 1 && wallInHglt(nWall)
-                && Confirm("Copy to the rest %d highlighted walls?", c - 1));
-
-            ProcessWalls(wallXPropertiesSet, 0, false, hglt);
-        }
+            ProcessWalls(wallXPropertiesSet, 0, false, BMODE | 0x02);
     }
     else
     {
@@ -1624,9 +1603,6 @@ char sprXPropertiesSet(spritetype* pSpr, int)
 
 void EditSpriteData(int nSprite, BOOL xFirst)
 {
-    int c = hgltSprCount();
-    char hglt;
-    
     ShowSpriteData(nSprite, xFirst);
     if (xFirst)
     {
@@ -1635,12 +1611,7 @@ void EditSpriteData(int nSprite, BOOL xFirst)
         DIALOG_HANDLER dialog(&gMapedHud, dlgXSprite);
         dlgXSpriteToDialog(&dialog, nSprite);
         if (dialog.Edit())
-        {
-            hglt = (c > 1 && sprInHglt(nSprite)
-                && Confirm("Copy to the rest %d highlighted sprites?", c - 1));
-
-            ProcessSprites(sprXPropertiesSet, 0, hglt);
-        }
+            ProcessSprites(sprXPropertiesSet, 0, BMODE | 0x02);
     }
     else
     {

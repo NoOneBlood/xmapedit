@@ -1562,14 +1562,14 @@ BOOL artedDlgReplaceColor(int nTile) {
             buffer[0] = '\0';
         }
         x = dw - bw - (pad << 1), y = (ph << 1) + (pad * 3);
-        TextButton* pCancel = new TextButton(x, y, bw, bh, "&Quit", mrCancel);      x -= (bw + (pad >> 1));
-        TextButton* pOkay   = new TextButton(x, y, bw, bh, "&Save", mrOk);          x -= (bw + (pad >> 1));
-        TextButton* pApply  = new TextButton(x, y, bw, bh, "&Paint", 100);          x = pad;
+        TextButton* pCancel = new TextButton(x, y, bw, bh, "Quit", mrCancel);      x -= (bw + (pad >> 1));
+        TextButton* pOkay   = new TextButton(x, y, bw, bh, "Save", mrOk);          x -= (bw + (pad >> 1));
+        TextButton* pApply  = new TextButton(x, y, bw, bh, "Paint", 100);          x = pad;
 
-        TextButton* pRevert = new TextButton(x, y, bw, bh, "&Reset", 101); x += (bw + (pad >> 1));
+        TextButton* pRevert = new TextButton(x, y, bw, bh, "Reset", 101); x += (bw + (pad >> 1));
         pRevert->fontColor  = 4;
 
-        TextButton* pLoadPal = new TextButton(x, y, bw + 40, bh, "&Apply palette", 102);
+        TextButton* pLoadPal = new TextButton(x, y, bw + 40, bh, "Apply palette", 102);
         pLoadPal->fontColor = 1;
 
         if (memcmp(pTile, pPreview, imgLen) == 0)

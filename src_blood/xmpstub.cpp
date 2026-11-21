@@ -227,6 +227,14 @@ char* gCommandNames[256] =
     // to be filled at init
 };
 
+char* gBatchModeNames[] =
+{
+    "OFF",                  // 0x00
+    "AUTO",                 // 0x01
+    "*",                    // 0x02
+    "ASK",                  // 0x03
+};
+
 NAMED_TYPE gModernCommandNames[] =
 {
     {13,                "Sector Pause"},

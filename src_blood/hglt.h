@@ -54,7 +54,6 @@ void sectChgXY(int nSector, int bx, int by, int a3=0, int a4=0);
 void sectChgZ(int nSector, int bz, int a2 = 0, int flags = 0, int a4 = 0);
 void sectSetupZOffset(int nSect, sectortype* pOParent, sectortype* pNParent, int flags);
 void sectSetupZOffset(int nSect, int nParentOld, int nParentNew, int flags, int);
-int hgltSectCallFunc(HSECTORFUNC SectFunc, int nData);
 int hgltSectCallFunc(HSECTORFUNCEX SectorFunc, int arg1 = 0, int arg2 = 0, int arg3 = 0, int arg4 = 0);
 
 
@@ -64,7 +63,7 @@ void hgltIsolatePathMarkers(int which = kHgltPoint | kHgltSector);
 void hgltSprPutOnWall(int nwall, int x, int y);
 void sprGetZOffsets(short idx, int* top, int* bot);
 
-BOOL hgltShowStatus(int x, int y);
+char hgltShowStatus(int x, int y);
 short hgltCheck(int type, int idx);
 int hgltAdd(int type, int idx);
 short hglt2dAddInXYRange(int hgltType, int x1, int y1, int x2, int y2);
@@ -111,7 +110,6 @@ inline char wallInHglt(int idx)
 }
 
 int hgltWallCount();
-int hgltWallCallFunc(HWALLFUNC WallFunc, int nData, char both = 0);
 
 void hgltSectDetach();
 void hgltSectAttach(char inHgltRange = 0);

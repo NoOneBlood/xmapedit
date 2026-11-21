@@ -89,6 +89,8 @@ extern char *gKeyItemNames[8];
 extern char *gSearchStatNames[8];
 extern char *gZModeNames[4];
 extern char* gDepthNames[8];
+extern char* gBatchModeNames[4];
+
 extern NAMED_TYPE gDifficNames[6];
 extern NAMED_TYPE gGameNames[5];
 extern NAMED_TYPE gGameObjectGroupNames[11];

@@ -46,15 +46,17 @@ struct INPUTPROC
 #define PROC_FAILB      (PROC_FAIL | PROC_BEEP)
 #define PROC_OKB        (PROC_OK | PROC_BEEP)
 
-
 extern TIMER gObjectLock;
+extern char gBatchMode;
+
+#define BMODE    gBatchMode
 
 extern INPUTPROC gEditInputShared[256];
 extern INPUTPROC gEditInput3D[256];
 extern INPUTPROC gEditInput2D[256];
 void editInputInit();
 
-int ProcessSprites(HSPRITEFUNC SpriteFunc, int nData, char hglt = true, char* str = NULL);
-int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt = true, char* str = NULL);
-int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt = true, char* str = NULL);
+int ProcessSprites(HSPRITEFUNC pFunc, int nData, char hglt, char* str = NULL);
+int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str = NULL);
+int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt, char* str = NULL);
 #endif

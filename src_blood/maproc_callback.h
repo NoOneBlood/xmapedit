@@ -39,6 +39,12 @@ char sprCstatRem(spritetype* pSpr, int nVal);
 char sprFlagsAdd(spritetype* pSpr, int nVal);
 char sprFlagsRem(spritetype* pSpr, int nVal);
 char sprSizeSet(spritetype* pSpr, int nVal);
+char sprSizeXChg(spritetype* pSpr, int nVal);
+char sprSizeYChg(spritetype* pSpr, int nVal);
+char sprOffsXChg(spritetype* pSpr, int nVal);
+char sprOffsYChg(spritetype* pSpr, int nVal);
+char sprPosXChg(spritetype* pSpr, int nVal);
+char sprPosYChg(spritetype* pSpr, int nVal);
 char spr_Floor_OneSide_HandleFlip(spritetype* pSpr, int nVal);
 char sprSlopeSet(spritetype* pSpr, int nVal);
 char sprSlopeChg(spritetype* pSpr, int nVal);
@@ -99,8 +105,8 @@ char floorShadeSet(int nSect, int nVal);
 char floorPalSet(int nSect, int nVal);
 char floorPicnumSet(int nSect, int nVal);
 char floorPanSet(int nSect, int nVal);
-char floorPanXSet(int nSect, int nVal);
-char floorPanYSet(int nSect, int nVal);
+char floorPanXChg(int nSect, int nVal);
+char floorPanYChg(int nSect, int nVal);
 
 ////////////////////////////////////////////////////
 /***********************************************/
@@ -119,8 +125,8 @@ char ceilShadeSet(int nSect, int nVal);
 char ceilPalSet(int nSect, int nVal);
 char ceilPicnumSet(int nSect, int nVal);
 char ceilPanSet(int nSect, int nVal);
-char ceilPanXSet(int nSect, int nVal);
-char ceilPanYSet(int nSect, int nVal);
+char ceilPanXChg(int nSect, int nVal);
+char ceilPanYChg(int nSect, int nVal);
 
 ////////////////////////////////////////////////////
 /***********************************************/
