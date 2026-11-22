@@ -1096,8 +1096,8 @@ static char edKeyProcShared_KEY_HOME(char key, char ctrl, char shift, char alt)
         if (ShowModal(&dialog) == mrCancel)
         return PROC_FAILB;
 	
-        long x = eXPOS->value;
-        long y = eYPOS->value;
+        int x = eXPOS->value;
+        int y = eYPOS->value;
         short nSector = cursectnum;
 
         updatesector(x, y, &nSector);
@@ -1115,27 +1115,7 @@ static char edKeyProcShared_KEY_HOME(char key, char ctrl, char shift, char alt)
         scrSetMessage("Goto: X-POS=%d Y-POS=%d ANG=%d Sector=%d", x, y, ang, nSector);
         return PROC_OKUB;
 	}
-	
-/*	if (alt)  // original from Blood alpha
-    {
-        long x = GetNumberBox("X=", posx, posx);
-        long y = GetNumberBox("Y=", posy, posy);
-		
-        short nSector = cursectnum;
-        updatesector(x, y, &nSector);
-		
-        if (nSector == -1)
-        {
-         return PROC_FAILB;
-        }
-		
-        cursectnum = nSector;
-        posx = x; posy = y; posz = sector[nSector].floorz;
-		
-        clampCamera();
-        return PROC_OKUB;
-	}
-*/  
+ 
     if (shift)
     {
         if (gPreview.ShowMenu())
