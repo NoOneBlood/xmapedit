@@ -35,15 +35,17 @@ extern QFONT* pFont;
 
 // modal result codes
 enum {
-    mrNone      = 0x00,
-    mrOk        = 0x01,
-    mrCancel    = 0x02,
-    mrAbort     = 0x03,
-    mrRetry     = 0x04,
-    mrIgnore    = 0x05,
-    mrNo        = 0x06,
-    mrYes       = 0x07,
-    mrUser      = 0x08,
+    mrNone      = 1,
+    mrOk        = 2,
+    mrCancel    = 3,
+    mrAbort     = 4,
+    mrRetry     = 5,
+    mrIgnore    = 6,
+    mrNo        = 7,
+    mrYes       = 8,
+    mrNoToAll   = 9,
+    mrYesToAll  = 10,
+    mrUser      = 11,
 };
 
 enum GEVENT_TYPE {
@@ -586,7 +588,8 @@ char fade(int rate = 120);
 void GUIInit();
 int YesNoCancel(char *__format, ...);
 void Alert(char *__format, ...);
-BOOL Confirm(char *__format, ...);
+char Confirm(char *__format, ...);
+int ConfirmToAll(char *__format, ...);
 void ShowFileContents(char* pPath);
 int colorPicker(BYTE* colors, char* title, int nDefault = 0, int flags = 0);
 #endif

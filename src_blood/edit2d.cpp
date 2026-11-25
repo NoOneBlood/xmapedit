@@ -687,7 +687,7 @@ void ProcessInput2D( void )
                     }
                     
                     if (!gotit)
-                        pointdrag = searchwall, capstat = 3;
+                        pointdrag = pointhighlight, capstat = 3;
                 }
 
                 if (pointdrag >= 0)
@@ -760,20 +760,6 @@ void ProcessInput2D( void )
                                 else
                                     hg = -1; // do not change z of sprites
                             }
-                            
-                            if (hg >= 0)
-                            {
-                                fSpr = ((hg == 0 || klabs(zbo) < hg) && zbo >= -256);
-                                cSpr = ((hg == 0 || klabs(zto) < hg) && zto <= +256);
-                                
-                                if ((fSpr && cSpr) || (!fSpr && !cSpr))
-                                {
-                                    j = ClipLow(hg>>2, 128);
-                                    hgltSprClamp(-j, j, 0x03);
-                                }
-                                else if (fSpr)      hgltSprPutOnFloor(zbo);
-                                else if (cSpr)      hgltSprPutOnCeiling(klabs(zto));
-                            }
                         }
                     }
                     else if (searchstat == OBJ_SPRITE)
@@ -787,21 +773,8 @@ void ProcessInput2D( void )
                             hg = klabs(zb-zt);
                         }
 
-                        pSpr->x = x;
-                        pSpr->y = y;
-                        
+                        pSpr->x = x; pSpr->y = y;
                         sprFixSector2(pSpr, sectorhighlight);
-                        
-                        fSpr = ((hg == 0 || klabs(zbo) < hg) && zbo >= -256);
-                        cSpr = ((hg == 0 || klabs(zto) < hg) && zto <= +256);
-                        
-                        if ((fSpr && cSpr) || (!fSpr && !cSpr))
-                        {
-                            j = ClipLow(hg>>2, 128);
-                            clampSprite(pSpr, 0x03, -j, j);
-                        }
-                        else if (fSpr)      sprPutOnFloor(pSpr, zbo);
-                        else if (cSpr)      sprPutOnCeil(pSpr, klabs(zto));
 
                         if (linehighlight >= 0 && alt)
                         {
@@ -999,6 +972,34 @@ void ProcessInput2D( void )
                         getWallCoords(i, &x1, &y1, &x2, &y2);
                         if ((x1 == x2 && y1 == y2) && ((x3 == x1 && y3 == y1) || (x3 == x2 && y3 == y2)))
                             deletePoint(i);
+                    }
+                }
+                else if (pointdrag >= 0 && zto != 0x80000000)
+                {
+                    spritetype* pSpr = &sprite[pointdrag & 0x3FFF];
+                    
+                    if (sprInHglt(pSpr->index) && hgltSprCount() > 1)
+                    {
+                        if (hg >= 0)
+                        {
+                            fSpr = ((hg == 0 || klabs(zbo) < hg) && zbo >= -256);
+                            cSpr = ((hg == 0 || klabs(zto) < hg) && zto <= +256);
+                            j = ClipLow(hg>>2, 128);
+                            
+                            if ((fSpr && cSpr) || (!fSpr && !cSpr)) hgltSprClamp(-j, j, 0x03);
+                            else if (fSpr)                          hgltSprPutOnFloor(zbo);
+                            else if (cSpr)                          hgltSprPutOnCeiling(klabs(zto));
+                        }
+                    }
+                    else
+                    {
+                        fSpr = ((hg == 0 || klabs(zbo) < hg) && zbo >= -256);
+                        cSpr = ((hg == 0 || klabs(zto) < hg) && zto <= +256);
+                        j = ClipLow(hg>>2, 128);
+                        
+                        if ((fSpr && cSpr) || (!fSpr && !cSpr))     clampSprite(pSpr, 0x03, -j, j);
+                        else if (fSpr)                              sprPutOnFloor(pSpr, zbo);
+                        else if (cSpr)                              sprPutOnCeil(pSpr, klabs(zto));
                     }
                 }
 

@@ -146,5 +146,6 @@ char sectFXAmplitudeChg(int nSect, int nVal);
 char sectFXWaveSet(int nSect, int nVal);
 char sectStateSet(int nSect, int nVal);
 char sectShowOrSetupZMotion(int nSect, int nVal);
+char sectClone(int nSect, int);
 
 #endif

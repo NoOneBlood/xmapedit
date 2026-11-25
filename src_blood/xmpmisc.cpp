@@ -478,18 +478,51 @@ int getClosestId(Resource* pIn, int nId, int nRange, char* nType, char dir)
     return nId;
 }
 
-void clampSprite(spritetype* pSprite, int which, int zto, int zbo) {
-
-    int zTop, zBot;
-    if (pSprite->sectnum >= 0 && pSprite->sectnum < kMaxSectors)
+void clampSprite(spritetype* pSpr, int which, int zto, int zbo)
+{
+    int zt, zb, hg1;
+    int cz, fz, hg2;
+    
+    if (!rngok(pSpr->sectnum, 0, kMaxSectors))
+        return;
+    
+    GetSpriteExtents(pSpr, &zt, &zb);
+    getzsofslope(pSpr->sectnum, pSpr->x, pSpr->y, &cz, &fz);
+    hg1 = klabs(zb - zt), hg2 = klabs(fz - cz);
+    
+    if (hg1 >= hg2)
     {
-        GetSpriteExtents(pSprite, &zTop, &zBot);
         if (which & 0x01)
-            pSprite->z += ClipHigh(getflorzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zBot + zbo, 0);
+        {
+            if (zt >= fz)
+            {
+                pSpr->z = fz - (zb - pSpr->z);
+                if (zbo > 0 && zbo < hg1)
+                    pSpr->z += zbo;
+                
+                return;
+            }
+        }
+        
         if (which & 0x02)
-            pSprite->z += ClipLow(getceilzofslope(pSprite->sectnum, pSprite->x, pSprite->y) - zTop - zto, 0);
-    }
+        {
+            if (zb <= cz)
+            {
+                pSpr->z = cz + (pSpr->z - zt) + zto;
+                if (zto > 0 && zto < hg1)
+                    pSpr->z += zto;
 
+                return;
+            }
+        }
+    }
+    else
+    {
+        if (which & 0x01)
+            pSpr->z += ClipHigh(fz - zb + zbo, 0);
+        if (which & 0x02)
+            pSpr->z += ClipLow(cz - zt - zto, 0);
+    }
 }
 
 
@@ -1387,6 +1420,10 @@ char tmpFileMake(char* out)
     int hFile;
     
     *out = '.', tmpnam(&out[1]);
+    
+    if (!slash(out[1]))
+        tmpnam(out);
+    
     if ((hFile = open(out, O_RDWR|O_CREAT|O_TRUNC|O_BINARY, S_IREAD|S_IWRITE)) >= 0)
     {
         close(hFile);

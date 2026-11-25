@@ -804,7 +804,7 @@ void artedSaveArtFiles() {
         if (!artFile->dirty || nTiles <= 0) continue;
         else if (!tmpFileMake(tempName))
         {
-            artedLogMsg("Failed to create temporary file for %s!", artFile->path);
+            artedLogMsg("Failed to create temporary file for %s!\n", artFile->path);
             continue;
         }
 
@@ -819,7 +819,7 @@ void artedSaveArtFiles() {
         fileAttrSetWrite(fileName);
         if (error || !fileDelete(fileName) || rename(tempName, fileName) != 0)
         {
-            artedLogMsg("Failed to save %s (temp: %s)!", fileName, tempName);
+            artedLogMsg("Failed to save %s (temp: %s)!\n", fileName, tempName);
             Alert("Failed to save %s!", fileName);
             continue;
         }

@@ -40,10 +40,12 @@ QFONT* pFont;
 
 NAMED_TYPE gStdButtons[] = {
 
-    {mrOk,      "&Ok"},
-    {mrYes,     "&Yes"},
-    {mrNo,      "&No"},
-    {mrCancel,  "&Cancel"},
+    {mrOk,          "&Ok"},
+    {mrYes,         "&Yes"},
+    {mrYesToAll,    "Y&es to all"},
+    {mrNo,          "&No"},
+    {mrNoToAll,     "N&o to all"},
+    {mrCancel,      "&Cancel"},
 };
 
 BOOL cmpHotKey(char keyA, char keyB) {
@@ -1890,6 +1892,8 @@ void EditNumber::HandleEvent( GEVENT *event )
             case KEY_DELETE:
             case KEY_LEFT:
             case KEY_RIGHT:
+            case KEY_UP:
+            case KEY_DOWN:
             case KEY_HOME:
             case KEY_END:
                 break;
@@ -2749,7 +2753,7 @@ int showStandardWindow(char* text, char* buttons, char* caption = "")
     QFONT* pTextFont = pFont;
     BOOL newStyle = (strchr(text, '\n') || strchr(text, '\r'));
     int dialogWidth = kDlgMinW, dialogHeight = kDlgMinH;
-    int i, t;
+    int i, t, butw = kButW;
     char* pTxt;
 
     if (!newStyle)
@@ -2766,15 +2770,21 @@ int showStandardWindow(char* text, char* buttons, char* caption = "")
 
         pTxt+=strlen(pTxt)+1;
     }
-
-    pText->width  = dialogWidth;
-    pText->height = (pText->lines * pTextFont->height);
-
-    dialogWidth  += (kPadd<<2);
-    if (newStyle)
-        dialogHeight += (pText->height+(kPadd<<1));
-
-    Window dialog(0, 0, dialogWidth, dialogHeight, caption); // create the dialog
+    
+    // get longest name
+    i = 0;
+    while(buttons[i] != mrNone)
+    {
+        t = LENGTH(gStdButtons);
+        while(--t >= 0 && gStdButtons[t].id != buttons[i]);
+        if ((t = gfxGetLabelLen(gStdButtons[t].name, pFont)) > butw)
+            butw = t;
+        
+        i++;
+    }
+    
+    butw += (kPadd<<2);
+    
     Container* pButtons = new Container(0, 0, 0, 0);
 
     i = 0;
@@ -2784,11 +2794,22 @@ int showStandardWindow(char* text, char* buttons, char* caption = "")
         while(--t >= 0 && gStdButtons[t].id != buttons[i]);
 
         dassert(t >= 0);
-        pButtons->Insert(new TextButton(pButtons->width, 0, kButW, kButH, gStdButtons[t].name, buttons[i]));
-        pButtons->width+=(kButW+kPadd);
+        pButtons->Insert(new TextButton(pButtons->width, 0, butw, kButH, gStdButtons[t].name, buttons[i]));
+        pButtons->width+=(butw+kPadd);
         i++;
     }
+        
+    dialogWidth = ClipLow(dialogWidth, pButtons->width);
+    
+    pText->width  = dialogWidth;
+    pText->height = (pText->lines * pTextFont->height);
 
+    dialogWidth  += (kPadd<<2);
+    if (newStyle)
+        dialogHeight += (pText->height+(kPadd<<1));
+
+    Window dialog(0, 0, dialogWidth, dialogHeight, caption); // create the dialog
+    
     pButtons->width -= kPadd;
     pButtons->height = kButH;
 
@@ -2850,7 +2871,7 @@ void Alert(char *__format, ...) {
     return;
 }
 
-BOOL Confirm(char *__format, ...) {
+char Confirm(char *__format, ...) {
 
     int retn;
     char buttons[] = { mrYes, mrNo, mrNone };
@@ -2863,6 +2884,23 @@ BOOL Confirm(char *__format, ...) {
 
     retn = showStandardWindow(buffer, buttons, "Confirm");
     return (retn == mrYes || retn == mrOk);
+}
+
+int ConfirmToAll(char *__format, ...)
+{
+    int retn;
+    char buttons[] = { mrYesToAll, mrYes, mrNoToAll, mrNo, mrNone };
+    char buffer[1024];
+
+    va_list argptr;
+    va_start(argptr, __format);
+    vsprintf(buffer, __format, argptr);
+    va_end(argptr);
+
+    if ((retn = showStandardWindow(buffer, buttons, "Select action")) == mrYes)
+        retn = mrOk;
+
+    return retn;
 }
 
 void ShowFileContents(char* pPath)

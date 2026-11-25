@@ -36,6 +36,7 @@
 #include "tile.h"
 #include "xmpexplo.h"
 
+static char* batchFormatStr = "Do same job for %s #%d?"; 
 char gBatchMode = 0x01;
 TIMER gObjectLock;
 
@@ -3814,7 +3815,7 @@ static char edKeyProc3D_KEY_PADMINUS(char key, char ctrl, char shift, char alt)
             return PROC_OKUB;
         case OBJ_SPRITE:
             if (ProcessSprites((ctrl) ? sprShadeSet : sprShadeChg, nStep, BMODE, buffer) > 1)
-                scrSetMessage("iterate shade by %d for %s", nStep, buffer);
+                scrSetMessage("change shade by %d for %s", nStep, buffer);
             else
                 scrSetMessage("Shade: %d", sprite[searchwall].shade);
             return PROC_OKUB;
@@ -4083,41 +4084,24 @@ static char edKeyProc2D_KEY_SPACE(char key, char ctrl, char shift, char alt)
 
 static char edKeyProc2D_KEY_INSERT(char key, char ctrl, char shift, char alt)
 {
-    int nGrid = (grid <= 0) ? 10 : grid;
     int x = mousxplc, y = mousyplc;
-    int nSect, i, j, s, e;
+    int i, j;
 
     if (!pGLBuild)
     {
         i = highlightsectorcnt;
-        while(--i >= 0 && !inside(x, y, highlightsector[i]));
-
-        if (i >= 0)
+        while(--i >= 0)
         {
-            for (i = 0; i < highlightsectorcnt; i++)
-            {
-                nSect = highlightsector[i];
-                SECTORSAVE sect(nSect);
-                if ((j = sect.Load()) < 0)
-                    break;
-
-                highlightsector[i] = j;
-                sectChgXY(j, 2048>>nGrid, 2048>>nGrid, 0x03);
-                getSectorWalls(nSect, &s, &e);
-                j = sector[j].wallptr;
-
-                while(s <= e)
-                    gNextWall[j] = wall[s].nextwall, s++, j++;
-            }
-
-            hgltSectAttach(1);
-            scrSetMessage("%d sector(s) duplicated and stamped.", i);
+            if (!inside(x, y, highlightsector[i])) continue;
+            ProcessSectors(sectClone, -1, 0, true, buffer);
+            scrSetMessage("%s duplicated and stamped.", buffer);
+            hgltSectAttach(true);
             return PROC_OKUB;
         }
 
         if (IsHoverSprite())
         {
-            ProcessSprites(sprClone, 0, BMODE, buffer);
+            ProcessSprites(sprClone, 0, true, buffer);
             scrSetMessage("%s duplicated and stamped.", buffer);
             if (pointdrag >= 0 && (pointdrag & 0xC000) != 0)
             {
@@ -4165,18 +4149,20 @@ static char edKeyProc2D_KEY_INSERT(char key, char ctrl, char shift, char alt)
 static char edKeyProc2D_KEY_F8(char key, char ctrl, char shift, char alt)
 {
     int i = (alt) ? 0 : 1;
+    int c = 0;
+    
     switch (searchstat)
     {
         case OBJ_WALL:
         case OBJ_SPRITE:
-            CXTracker::Track(searchstat, searchwall, i);
+            c = CXTracker::Track(searchstat, searchwall, i);
             break;
         case OBJ_FLOOR:
-            CXTracker::Track(OBJ_SECTOR, sectorhighlight, i);
+            c = CXTracker::Track(OBJ_SECTOR, sectorhighlight, i);
             break;
     }
-
-    return PROC_OKB;
+    
+    return (c) ? PROC_OKB : PROC_FAILB;
 }
 
 // ----------------------------------------------------------------------------- //
@@ -4609,15 +4595,11 @@ static char edKeyProc2D_KEY_END(char key, char ctrl, char shift, char alt)
 int ProcessSprites(HSPRITEFUNC SpriteFunc, int nData, char hglt, char* str)
 {
     signed char ask = (hglt & 0x02), r, curStat = -1;
-    int i, n, t, c = 0, numappend = 0;
-    int nSpr = searchwall;
+    int nSpr = searchwall, i, n, t, c = 0;
+    DONEOFTOTAL jobs = {};
     
     if (hglt)
-    {
-        n = hgltSprCount();
-        hglt = (sprInHglt(nSpr) && n > 1
-            && (!ask || Confirm("Do same job for %d other sprites in a highlight?", n - 1)));
-    }
+        hglt = (sprInHglt(nSpr) && (jobs.total = hgltSprCount()) > 1);
     
     if (hglt)
     {
@@ -4628,25 +4610,44 @@ int ProcessSprites(HSPRITEFUNC SpriteFunc, int nData, char hglt, char* str)
                 continue;
             
             n = highlight[i] & 0x3FFF;
+            
+            if (ask && ((curStat < 0 && nSpr != n) || curStat >= 0))
+            {
+                switch(ConfirmToAll(batchFormatStr, "sprite", n))
+                {
+                    case mrOk:                      break;
+                    case mrYesToAll:    ask = 0;    break;
+                    case mrNo:                      continue;
+                    default:            i = -1;     continue;
+                }
+            }
+            
             if ((r = SpriteFunc(&sprite[n], nData)) > 0)
                 c++;
             
             if (curStat < 0 && n == nSpr)
                 curStat = r;
+            
+            jobs.done++;
         }
     }
     else
     {
         if ((curStat = SpriteFunc(&sprite[nSpr], nData)) > 0)
             c = 1;
+        
+        jobs.done++;
     }
+    
+    if (str)
+        *str = '\0';
     
     if (curStat > 0)
     {
         if (str)
             str += sprintf(str, "sprite #%d", nSpr);
         
-        if (c > 1)
+        if (jobs.done > 1)
         {
             if (str)
                 str += sprintf(str, "%s", " and ");
@@ -4655,7 +4656,7 @@ int ProcessSprites(HSPRITEFUNC SpriteFunc, int nData, char hglt, char* str)
         }
     }
     
-    if (str && hglt)
+    if (str && jobs.done > 1)
         str += sprintf(str, "%d other sprites", c);
     
     return c;
@@ -4666,6 +4667,7 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
     signed char ask = (hglt & 0x02), r, curStat = -1;
     int i, n, t, c = 0, numappend = 0;
     int nWall = searchwall;
+    DONEOFTOTAL jobs = {};
     
     if (hglt)
     {
@@ -4686,9 +4688,7 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
             }
         }
         
-        n = hgltWallCount();
-        hglt = (wallInHglt(nWall) && n > 1
-            && (!ask || Confirm("Do same job for %d other walls in a highlight?", n - 1)));
+        hglt = (wallInHglt(nWall) && (jobs.total = hgltWallCount()) > 1);
     }
     
     if (hglt)
@@ -4700,6 +4700,18 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
                 continue;
             
             n = highlight[i];
+            
+            if (ask && ((curStat < 0 && nWall != n) || curStat >= 0))
+            {
+                switch(ConfirmToAll(batchFormatStr, "wall", n))
+                {
+                    case mrOk:                      break;
+                    case mrYesToAll:    ask = 0;    break;
+                    case mrNo:                      continue;
+                    default:            i = -1;     continue;
+                }
+            }
+            
             if ((r = WallFunc(n, nData)) > 0)
             {
                 t = wall[n].nextwall;
@@ -4711,6 +4723,8 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
             
             if (curStat < 0 && n == nWall)
                 curStat = r;
+            
+            jobs.done++;
         }
     }
     else
@@ -4723,7 +4737,12 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
             
             c = 1;
         }
+        
+        jobs.done++;
     }
+    
+    if (str)
+        *str = '\0';
     
     if (curStat > 0)
     {
@@ -4744,7 +4763,7 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
         }
     }
     
-    if (str && hglt)
+    if (str && jobs.done > 1)
         str += sprintf(str, "%d other walls", c);
     
     highlightcnt -= numappend;
@@ -4757,6 +4776,7 @@ int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt, char* 
     int nSect = (ED2D) ? sectorhighlight : searchsector;
     signed char ask = (hglt & 0x02), r, curStat = -1;
     int i, n, c = 0, numappend = 0;
+    DONEOFTOTAL jobs = {};
     
     if (nType == OBJ_FLOOR)         nType = 1;
     else if (nType == OBJ_CEILING)  nType = 2;
@@ -4782,9 +4802,7 @@ int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt, char* 
             }
         }
         
-        n = highlightsectorcnt;
-        hglt = (sectInHglt(nSect) && n > 1
-            && (!ask || Confirm("Do same job for %d other %ss in a highlight?", n - 1, name[nType])));
+        hglt = (sectInHglt(nSect) && (jobs.total = highlightsectorcnt) > 1);
     }
     
     if (hglt)
@@ -4793,18 +4811,37 @@ int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt, char* 
         while(--i >= 0)
         {
             n = highlightsector[i];
+            
+            if (ask && ((curStat < 0 && nSect != n) || curStat >= 0))
+            {
+                switch(ConfirmToAll(batchFormatStr, name[nType], n))
+                {
+                    case mrOk:                      break;
+                    case mrYesToAll:    ask = 0;    break;
+                    case mrNo:                      continue;
+                    default:            i = -1;     continue;
+                }
+            }
+            
             if ((r = SectFunc(n, nData)) > 0)
                 c++;
             
             if (curStat < 0 && n == nSect)
                 curStat = r;
+            
+            jobs.done++;
         }
     }
     else
     {
         if ((curStat = SectFunc(nSect, nData)) > 0)
             c = 1;
+        
+        jobs.done++;
     }
+    
+    if (str)
+        *str = '\0';
     
     if (curStat > 0)
     {
@@ -4820,7 +4857,7 @@ int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt, char* 
         }
     }
     
-    if (hglt && str)
+    if (str && jobs.done > 1)
         str += sprintf(str, "%d other %ss", c, name[nType]);
             
     highlightsectorcnt -= numappend;

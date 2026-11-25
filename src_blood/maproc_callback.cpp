@@ -1089,3 +1089,27 @@ char sectShowOrSetupZMotion(int nSect, int nVal)
     
     return 0;
 }
+
+char sectClone(int nSect, int)
+{
+    int nGrid = (grid <= 0) ? 10 : grid;
+    int i, j, s, e;
+    
+    i = hgltCheck(OBJ_SECTOR, nSect);
+    
+    SECTORSAVE sect(nSect);
+    if ((j = sect.Load()) < 0)
+        return 0;
+    
+    if (i >= 0)
+        highlightsector[i] = j;
+    
+    sectChgXY(j, 2048>>nGrid, 2048>>nGrid, 0x03);
+    getSectorWalls(nSect, &s, &e);
+    
+    j = sector[j].wallptr;
+    while(s <= e)
+        gNextWall[j] = wall[s].nextwall, s++, j++;
+    
+    return 1;
+}

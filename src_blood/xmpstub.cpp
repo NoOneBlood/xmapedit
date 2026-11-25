@@ -4808,7 +4808,7 @@ static int OSDFUNC_ShiftSysStatnum(const osdfuncparm_t *arg)
         if ((j & 0xC000) == 0)
             continue;
 
-        pSpr = &sprite[j & 0x1FFF];
+        pSpr = &sprite[j & 0x3FFF];
         nTotal++;
 
         if (pSpr->statnum == kStatFree)                                                                 ;

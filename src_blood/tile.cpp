@@ -251,6 +251,9 @@ void qloadvoxel(int nVoxel)
     {
         return;
     }
+    
+    if (pVox == NULL)
+        return;
 
 
     for (i = 0; i < MAXVOXMIPS; i++)

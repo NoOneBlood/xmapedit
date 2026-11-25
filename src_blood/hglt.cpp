@@ -488,20 +488,47 @@ void hgltSprClamp(int ofsAboveCeil, int ofsBelowFloor, int which)
 
     hgltSprGetZEdgeSpr(&lw, &hg);
     
-    int hzt, hzb, lzt, lzb;
+    int hzt, hzb, lzt, lzb, hg1, hg2, cz, fz;
     GetSpriteExtents(&sprite[hg], &hzt, &hzb);
     GetSpriteExtents(&sprite[lw], &lzt, &lzb);
-
-    if (which & 0x01)
-    {
-        if (lzb >= getflorzofslope(sprite[lw].sectnum, sprite[lw].x, sprite[lw].y) + ofsBelowFloor)
-            hgltSprPutOnFloor(ofsBelowFloor);
-    }
     
-    if (which & 0x02)
+    fz = getflorzofslope(sprite[lw].sectnum, sprite[lw].x, sprite[lw].y);
+    cz = getceilzofslope(sprite[hg].sectnum, sprite[hg].x, sprite[hg].y);
+    hg1 = klabs(lzb - hzt), hg2 = klabs(fz - cz);
+    
+    if (hg1 >= hg2)
     {
-        if (hzt <= getceilzofslope(sprite[hg].sectnum, sprite[hg].x, sprite[hg].y) - ofsAboveCeil)
-            hgltSprPutOnCeiling(ofsAboveCeil);
+        if (which & 0x01)
+        {
+            if (hzt >= fz)
+            {
+                hgltSprPutOnFloor(ofsBelowFloor);
+                return;
+            }
+        }
+        
+        if (which & 0x02)
+        {
+            if (lzb <= cz)
+            {
+                hgltSprPutOnCeiling(ofsAboveCeil);
+                return;
+            }
+        }
+    }
+    else
+    {
+        if (which & 0x01)
+        {
+            if (lzb >= fz + ofsBelowFloor)
+                hgltSprPutOnFloor(ofsBelowFloor);
+        }
+        
+        if (which & 0x02)
+        {
+            if (hzt <= cz - ofsAboveCeil)
+                hgltSprPutOnCeiling(ofsAboveCeil);
+        }
     }
 
 }
