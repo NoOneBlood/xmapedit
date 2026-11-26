@@ -54,6 +54,7 @@ char sprDetailSet(spritetype* pSpr, int nVal);
 char sprClipdistSet(spritetype* pSpr, int nVal);
 char sprPicnumSet(spritetype* pSpr, int nVal);
 char sprStateSet(spritetype* pSpr, int nVal);
+char sprFlipSet(spritetype* pSpr, int nVal);
 char sprFixSector(spritetype* pSpr, int flags = 0);
 char sprDelete(spritetype* pSpr, int dummy = 0);
 char sprPalSet(spritetype* pSpr, int value);

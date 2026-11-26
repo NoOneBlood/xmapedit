@@ -4507,6 +4507,9 @@ void xmpSetEditMode(char nMode)
     char reset = ((nMode & 0x80) == 0);
     gScreen2D.SetView(0, 0, xdim, ydim);
     setview(0, 0, xdim-1, ydim-1);
+    
+    memset(keystatus, 0, sizeof(keystatus));
+    key = ctrl = alt = shift = 0;
     keyClear();
 
     gMouse.X = searchx = MIDPOINT(windowx1, windowx2);

@@ -276,6 +276,20 @@ char sprStateSet(spritetype* pSpr, int nVal)
     return 0;
 }
 
+char sprFlipSet(spritetype* pSpr, int nVal)
+{
+    int zto, zbo, zt, zb;
+    
+    GetSpriteExtents(pSpr, &zto, &zbo);
+
+    pSpr->cstat &= ~(kSprFlipX|kSprFlipY);
+    pSpr->cstat |= nVal;
+    
+    GetSpriteExtents(pSpr, &zt, &zb);
+    pSpr->z += (zto-zt); // compensate Z (useful for wall sprites)
+    return 1;
+}
+
 char sprFixSector(spritetype* pSpr, int flags)
 {
     int x = pSpr->x, y = pSpr->y;

@@ -36,7 +36,7 @@
 #include "tile.h"
 #include "xmpexplo.h"
 
-static char* batchFormatStr = "Do same job for %s #%d?"; 
+static char* batchFormatStr = "Do same job for %d other %ss in a highlight?"; 
 char gBatchMode = 0x01;
 TIMER gObjectLock;
 
@@ -1005,27 +1005,80 @@ static char edKeyProcShared_KEY_DELETE(char key, char ctrl, char shift, char alt
 
 // ----------------------------------------------------------------------------- //
 
+char dlgGoToLocation(int* x, int* y, int* z, int* a)
+{
+    Window dialog(0, 0, 120, 120, "Goto location");
+    
+    Label *lXPOS           = new Label(4, 8, "XPOS:");
+    EditNumber *eXPOS      = new EditNumber(40, 4, 70, 18, *x);
+    
+    Label *lYPOS           = new Label(4, 30, "YPOS:");
+    EditNumber *eYPOS      = new EditNumber(40, 26, 70, 18, *y);
+    
+    Label *lZPOS           = new Label(4, 52, "ZPOS:");
+    EditNumber *eZPOS      = new EditNumber(40, 48, 70, 18, *z);
+    
+    Label *lANG            = new Label(4, 74, "ANG:");
+    EditNumber *eANG       = new EditNumber(40, 70, 70, 18, *a);
+    
+    dialog.Insert(lXPOS); dialog.Insert(eXPOS);
+    dialog.Insert(lYPOS); dialog.Insert(eYPOS);
+    dialog.Insert(lZPOS); dialog.Insert(eZPOS);
+    dialog.Insert(lANG);  dialog.Insert(eANG);
+    
+    if (ShowModal(&dialog) == mrCancel)
+        return 0;
+    
+    *x = ClipRange(eXPOS->value, -boardWidth, +boardWidth);
+    *y = ClipRange(eYPOS->value, -boardHeight, +boardHeight);
+    *z = eZPOS->value;
+    *a = eANG->value & kAngMask;
+    
+    return 1;
+}
+
 static char edKeyProcShared_KEY_HOME(char key, char ctrl, char shift, char alt)
 {
     int nID, nType, i;
+    int x, y, z, a;
+    
     NAMED_TYPE searchFor[] =
     {
         OBJ_SPRITE,     gSearchStatNames[OBJ_SPRITE],
         OBJ_WALL,       gSearchStatNames[OBJ_WALL],
         OBJ_SECTOR,     gSearchStatNames[OBJ_SECTOR],
+        OBJ_NONE,       "Location..."
     };
 
     if (ctrl)
     {
         while( 1 )
         {
-            if ((nType = showButtons(searchFor, LENGTH(searchFor), "Search for...")) == mrCancel)
+            if ((nType = showButtons(searchFor, LENGTH(searchFor), "Go to...")) == mrCancel)
                 return PROC_FAIL;
 
             nType -= mrUser;
-            sprintf(buffer, "Locate %s #", gSearchStatNames[nType]);
-            if ((nID = GetNumberBox(buffer, 0, -1)) >= 0)
-                break;
+            
+            if (nType == OBJ_NONE)
+            {
+                x = posx, y = posy, z = posz;
+                a = ang;
+                
+                if (dlgGoToLocation(&x, &y, &z, &a))
+                {
+                    updatesectorz(x, y, posz, &cursectnum), posx = x, posy = y, posz = z, ang = a;
+                    scrSetMessage("Go to X:%d Y:%d Z:%d A:%d Sector=%d", x, y, z, ang, cursectnum);
+                    clampCamera();
+                    
+                    return PROC_OKB;
+                }
+            }
+            else
+            {
+                sprintf(buffer, "Goto %s #", gSearchStatNames[nType]);
+                if ((nID = GetNumberBox(buffer, 0, -1)) >= 0)
+                    break;
+            }
         }
 
         switch(nType)
@@ -1066,17 +1119,18 @@ static char edKeyProcShared_KEY_HOME(char key, char ctrl, char shift, char alt)
                 nID = -1;
                 break;
         }
-
-       if (nID >= 0) scrSetMessage("%s %s found", gSearchStatNames[nType], isNot(nID >= 0));
-	   
-	      else scrSetMessage ("%s not found - Sir Not Appearing In This Film", gSearchStatNames[nType]);
-		   
+        
+        if (nID >= 0)
+           scrSetMessage("Go to %s #%d", gSearchStatNames[nType], nID);
+        else
+            scrSetMessage ("%s not found - Sir Not Appearing In This Film", gSearchStatNames[nType]);
+        
         clampCamera();
 
         return (nID >= 0) ? PROC_OKB : PROC_FAILB;
     }
 	
-	if (alt)  //  in case game crash debug feature
+/* 	if (alt)  //  in case game crash debug feature
 	{
 		
 		Window dialog(0, 0, 180, 100, "Goto position");
@@ -1115,7 +1169,7 @@ static char edKeyProcShared_KEY_HOME(char key, char ctrl, char shift, char alt)
         clampCamera();
         scrSetMessage("Goto: X-POS=%d Y-POS=%d ANG=%d Sector=%d", x, y, ang, nSector);
         return PROC_OKUB;
-	}
+	} */
  
     if (shift)
     {
@@ -2989,8 +3043,7 @@ static char edKeyProc3D_KEY_C(char key, char ctrl, char shift, char alt)
 static char edKeyProc3D_KEY_F(char key, char ctrl, char shift, char alt)
 {
     sectortype* pSect; walltype* pWall; spritetype* pSpr;
-    int zTopOld, zTopNew; char canx, cany;
-    int t, i;
+    int i;
 
     if (alt)
     {
@@ -3073,59 +3126,30 @@ static char edKeyProc3D_KEY_F(char key, char ctrl, char shift, char alt)
     if (IsHoverSprite())
     {
         pSpr = &sprite[searchwall];
-        GetSpriteExtents(pSpr, &zTopOld, &i);
-        t = panm[pSpr->picnum].view;
-
-        canx = !irngok(t, kSprViewFull5, kSprViewFull8);
-        cany = (pSpr->cstat & kSprRelMask) <= kSprWall;
-        if (irngok(t, kSprViewVox, kSprViewVoxSpin) && tiletovox[pSpr->picnum] < 0)
-            canx = cany = 0;
-
-        t = pSpr->cstat;
-        switch(t & (kSprFlipX|kSprFlipY))
+        
+        switch(pSpr->cstat & kSprFlipMask)
         {
-            case 0x0:
-                if (canx)       i = kSprFlipX;
-                else if (cany)  i = kSprFlipY;
-                else            i = 0x0;
-                break;
-            case kSprFlipX:
-                if (cany)       i = kSprFlipX|kSprFlipY;
-                else            i = 0x0;
-                break;
-            case kSprFlipX|kSprFlipY:
-                if (cany)       i = kSprFlipY;
-                else            i = 0x0;
-                break;
-            default:
-                i = 0x0;
-                break;
+            case 0x00:                  i = kSprFlipX;              break;
+            case kSprFlipX:             i = kSprFlipX|kSprFlipY;    break;
+            case kSprFlipX|kSprFlipY:   i = kSprFlipY;              break;
+            default:                    i = 0x00;                   break;
         }
+        
+        ProcessSprites(sprFlipSet, i, BMODE, buffer);
+        
+        if (pSpr->cstat & kSprFlipX)
+            strcat(buffer," x-flipped");
 
-        pSpr->cstat &= ~(kSprFlipX|kSprFlipY);
-        pSpr->cstat |= i;
-
-        sprintf(buffer, "sprite[%d]", searchwall);
-        if (canx || cany)
+        if (pSpr->cstat & kSprFlipY)
         {
             if (pSpr->cstat & kSprFlipX)
-                strcat(buffer," x-flipped");
+                strcat(buffer," and");
 
-            if (pSpr->cstat & kSprFlipY)
-            {
-                if (pSpr->cstat & kSprFlipX)
-                    strcat(buffer," and");
-
-                strcat(buffer," y-flipped");
-            }
+            strcat(buffer," y-flipped");
         }
-        else
-            strcat(buffer," cannot flip");
-
+        
         scrSetMessage(buffer);
-        GetSpriteExtents(pSpr, &zTopNew, &i);
-        pSpr->z += (zTopOld-zTopNew); // compensate Z (useful for wall sprites)
-        return (pSpr->cstat == t) ? PROC_FAILB : PROC_OKUB;
+        return PROC_OKUB;
     }
 
     return PROC_FAILB;
@@ -4595,11 +4619,14 @@ static char edKeyProc2D_KEY_END(char key, char ctrl, char shift, char alt)
 int ProcessSprites(HSPRITEFUNC SpriteFunc, int nData, char hglt, char* str)
 {
     signed char ask = (hglt & 0x02), r, curStat = -1;
-    int nSpr = searchwall, i, n, t, c = 0;
-    DONEOFTOTAL jobs = {};
+    int nSpr = searchwall, i, n, c = 0;
     
-    if (hglt)
-        hglt = (sprInHglt(nSpr) && (jobs.total = hgltSprCount()) > 1);
+    if (hglt && nSpr >= 0)
+    {
+        n = hgltSprCount();
+        hglt = (sprInHglt(nSpr) && n > 1
+            && (!ask || Confirm(batchFormatStr, n - 1, "sprite")));
+    }
     
     if (hglt)
     {
@@ -4610,44 +4637,26 @@ int ProcessSprites(HSPRITEFUNC SpriteFunc, int nData, char hglt, char* str)
                 continue;
             
             n = highlight[i] & 0x3FFF;
-            
-            if (ask && ((curStat < 0 && nSpr != n) || curStat >= 0))
-            {
-                switch(ConfirmToAll(batchFormatStr, "sprite", n))
-                {
-                    case mrOk:                      break;
-                    case mrYesToAll:    ask = 0;    break;
-                    case mrNo:                      continue;
-                    default:            i = -1;     continue;
-                }
-            }
-            
             if ((r = SpriteFunc(&sprite[n], nData)) > 0)
                 c++;
             
             if (curStat < 0 && n == nSpr)
                 curStat = r;
-            
-            jobs.done++;
         }
     }
     else
     {
         if ((curStat = SpriteFunc(&sprite[nSpr], nData)) > 0)
             c = 1;
-        
-        jobs.done++;
     }
     
-    if (str)
-        *str = '\0';
-    
-    if (curStat > 0)
+    n = c;
+    if (curStat > 0 || c == 0)
     {
         if (str)
             str += sprintf(str, "sprite #%d", nSpr);
         
-        if (jobs.done > 1)
+        if (c > 1)
         {
             if (str)
                 str += sprintf(str, "%s", " and ");
@@ -4656,7 +4665,7 @@ int ProcessSprites(HSPRITEFUNC SpriteFunc, int nData, char hglt, char* str)
         }
     }
     
-    if (str && jobs.done > 1)
+    if (str && n > 1)
         str += sprintf(str, "%d other sprites", c);
     
     return c;
@@ -4667,7 +4676,6 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
     signed char ask = (hglt & 0x02), r, curStat = -1;
     int i, n, t, c = 0, numappend = 0;
     int nWall = searchwall;
-    DONEOFTOTAL jobs = {};
     
     if (hglt)
     {
@@ -4688,7 +4696,9 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
             }
         }
         
-        hglt = (wallInHglt(nWall) && (jobs.total = hgltWallCount()) > 1);
+        n = hgltWallCount();
+        hglt = (wallInHglt(nWall) && n > 1
+            && (!ask || Confirm(batchFormatStr, n - 1, "wall")));
     }
     
     if (hglt)
@@ -4700,18 +4710,6 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
                 continue;
             
             n = highlight[i];
-            
-            if (ask && ((curStat < 0 && nWall != n) || curStat >= 0))
-            {
-                switch(ConfirmToAll(batchFormatStr, "wall", n))
-                {
-                    case mrOk:                      break;
-                    case mrYesToAll:    ask = 0;    break;
-                    case mrNo:                      continue;
-                    default:            i = -1;     continue;
-                }
-            }
-            
             if ((r = WallFunc(n, nData)) > 0)
             {
                 t = wall[n].nextwall;
@@ -4723,8 +4721,6 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
             
             if (curStat < 0 && n == nWall)
                 curStat = r;
-            
-            jobs.done++;
         }
     }
     else
@@ -4737,14 +4733,10 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
             
             c = 1;
         }
-        
-        jobs.done++;
     }
     
-    if (str)
-        *str = '\0';
-    
-    if (curStat > 0)
+    t = c;
+    if (curStat > 0 || c == 0)
     {
         n = wall[nWall].nextwall;
         
@@ -4763,7 +4755,7 @@ int ProcessWalls(HWALLFUNC WallFunc, int nData, char both, char hglt, char* str)
         }
     }
     
-    if (str && jobs.done > 1)
+    if (str && t > 1)
         str += sprintf(str, "%d other walls", c);
     
     highlightcnt -= numappend;
@@ -4776,7 +4768,6 @@ int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt, char* 
     int nSect = (ED2D) ? sectorhighlight : searchsector;
     signed char ask = (hglt & 0x02), r, curStat = -1;
     int i, n, c = 0, numappend = 0;
-    DONEOFTOTAL jobs = {};
     
     if (nType == OBJ_FLOOR)         nType = 1;
     else if (nType == OBJ_CEILING)  nType = 2;
@@ -4802,7 +4793,9 @@ int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt, char* 
             }
         }
         
-        hglt = (sectInHglt(nSect) && (jobs.total = highlightsectorcnt) > 1);
+        n = highlightsectorcnt;
+        hglt = (sectInHglt(nSect) && n > 1
+            && (!ask || Confirm(batchFormatStr, n - 1, name[nType])));
     }
     
     if (hglt)
@@ -4811,39 +4804,21 @@ int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt, char* 
         while(--i >= 0)
         {
             n = highlightsector[i];
-            
-            if (ask && ((curStat < 0 && nSect != n) || curStat >= 0))
-            {
-                switch(ConfirmToAll(batchFormatStr, name[nType], n))
-                {
-                    case mrOk:                      break;
-                    case mrYesToAll:    ask = 0;    break;
-                    case mrNo:                      continue;
-                    default:            i = -1;     continue;
-                }
-            }
-            
             if ((r = SectFunc(n, nData)) > 0)
                 c++;
             
             if (curStat < 0 && n == nSect)
                 curStat = r;
-            
-            jobs.done++;
         }
     }
     else
     {
         if ((curStat = SectFunc(nSect, nData)) > 0)
             c = 1;
-        
-        jobs.done++;
     }
     
-    if (str)
-        *str = '\0';
-    
-    if (curStat > 0)
+    n = c;
+    if (curStat > 0 || c == 0)
     {
         if (str)
             str += sprintf(str, "%s #%d", name[nType], nSect);
@@ -4857,7 +4832,7 @@ int ProcessSectors(HSECTORFUNC SectFunc, int nType, int nData, char hglt, char* 
         }
     }
     
-    if (str && jobs.done > 1)
+    if (str && n > 1)
         str += sprintf(str, "%d other %ss", c, name[nType]);
             
     highlightsectorcnt -= numappend;
